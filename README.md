@@ -78,9 +78,22 @@ Get it from the [latest release](https://github.com/jacarium/jacarium/releases/l
 
 You can also build it from source: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-**Self-hosted.** Deploy the container on your own server, such as a
+**Self-hosted.** Run the container on your own server, such as a
 Raspberry Pi, open it in your web browser, write your first note. A home
-server also keeps your devices in sync: [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md).
+server also keeps your devices in sync. The image is published on Quay for
+amd64 and arm64:
+
+```bash
+mkdir -p ~/.config/jacarium/server/data
+podman run -d --name jacarium --hostname jacarium --restart unless-stopped \
+  -p 127.0.0.1:8443:8443 -v ~/.config/jacarium/server/data:/data:Z,U \
+  quay.io/zerodayz/jacarium:latest
+podman logs jacarium   # prints the one-time setup code for the first account
+```
+
+Then open https://localhost:8443 (the certificate is self-signed, so the
+browser warns once). Docker, sharing it on your network, updates and
+backups: [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md).
 
 More about the desktop app (profiles, Google Calendar, the connection
 indicator): [docs/DESKTOP.md](docs/DESKTOP.md).

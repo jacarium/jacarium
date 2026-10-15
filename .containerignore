@@ -1,0 +1,31 @@
+# Build context for deploy/Containerfile (podman reads this; docker reads
+# .dockerignore - keep them identical).
+.git
+node_modules
+# the central server is part of the image (deploy/Containerfile); its
+# dependencies are installed in the build stage, its state never enters
+jacarium-central/node_modules
+jacarium-central/data
+jacarium-central/keys
+jacarium-central/certs
+jacarium-central/*.sh
+jacarium-central/.env
+dist
+dist-ssr
+dist-electron
+release
+backend/venv
+backend/build
+backend/dist
+backend/__pycache__
+backend/**/__pycache__
+backend/static/vendor
+backend/uploads
+tests
+docs
+*.log
+.env
+.env.*
+.jacarium.env
+.vite
+.DS_Store

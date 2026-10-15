@@ -29,7 +29,7 @@
 # ---------------------------------------------------------------------------
 # UI build (Vite) - node 24.20.0 (2026-08-27)
 # ---------------------------------------------------------------------------
-FROM docker.io/library/node:24.20.0-bookworm-slim@sha256:e9b5516b06baeaea9a8e65a7aec6a85fbb960a30b52b66968f2c8092b3e2a3eb AS ui
+FROM docker.io/library/node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS ui
 WORKDIR /src
 # bash: scripts/build-ui.sh; git: optional for the What's New page
 RUN apt-get update \
@@ -72,7 +72,7 @@ LABEL com.jacarium.image=deploy com.jacarium.stage=taskwarrior
 # ---------------------------------------------------------------------------
 # Caddy 2.11.7 (2026-10-06): a static binary, copied into the UBI image
 # ---------------------------------------------------------------------------
-FROM docker.io/library/caddy:2.11.7@sha256:84058f1a0e5beb97664a9b79dcfd267b594c033d5bb88d8463cdfb59c0779197 AS caddy
+FROM docker.io/library/caddy:2.11.7@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af AS caddy
 
 # ---------------------------------------------------------------------------
 # Runtime - ubi9/python-314 1-1788315051 (2026-09-02): Python 3.14, the same

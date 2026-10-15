@@ -1,0 +1,17 @@
+node_modules/
+npm-debug.log
+.env
+.DS_Store
+*.log
+
+# Client registry (per-deployment secret hashes) and persisted Yjs document
+# snapshots - never commit
+data/
+
+# Yjs document-persistence encryption key - never commit
+keys/
+
+# TLS private key + certificate (generate-certs.sh) - never commit. A key
+# pair was tracked here historically; treat it as compromised and generate
+# a fresh one per deployment.
+certs/

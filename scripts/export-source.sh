@@ -21,9 +21,12 @@
 #
 # What is exported: the files git tracks at <ref> (`git archive`), so
 # node_modules, builds and everything .gitignore'd never leave. Dot-files
-# and dot-directories (.gitignore, .nvmrc, .npmrc, ...) are left out, and
-# the ones in <dest> are never touched or deleted - <dest>'s own .git, and
-# a .gitignore you keep there, stay as they are.
+# and dot-directories are left out - except the ones building Jacarium
+# needs (EXPORTED_DOTFILES below: the .gitignore files, .nvmrc, the .npmrc
+# supply-chain settings, the container build's ignore files), which are
+# exported like any other file. Every other dot-path in <dest> is never
+# touched or deleted - its .git, a .github/ with the release workflow, stay
+# as they are.
 #
 # Files the destination's own .gitignore ignores (node_modules after an
 # `npm install` there, a build) are never deleted: they cannot be committed
@@ -38,6 +41,13 @@
 # first and stops the export on any finding. There is no rollback: an
 # interrupted run (full disk) is completed by running it again.
 set -euo pipefail
+
+# The dot-files a build from the published source needs (the release
+# workflow reads .nvmrc; deploy/Containerfile copies .npmrc and its build
+# context honours .containerignore / .dockerignore); every other dot-path
+# (.github/, .claude/, editor settings) stays out
+EXPORTED_DOTFILES=(.gitignore .nvmrc .npmrc .containerignore .dockerignore
+    backend/.gitignore jacarium-central/.gitignore jacarium-central/.npmrc)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -121,16 +131,31 @@ fi
 
 # --- stage <ref> without dot-files ------------------------------------------
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/jacarium-export.XXXXXX")"
-trap 'rm -rf "$STAGE"' EXIT
+trap 'rm -rf "$STAGE" "$STAGE.keep"' EXIT
 git -C "$REPO" archive --format=tar "$COMMIT" | tar -x -C "$STAGE"
-SKIPPED_DOT="$(cd "$STAGE" && find . -mindepth 1 -name '.*' -prune -print | sed 's|^\./||' | sort)"
+KEEP="$STAGE.keep"; mkdir -p "$KEEP"
+for f in "${EXPORTED_DOTFILES[@]}"; do
+    [ -f "$STAGE/$f" ] || continue
+    mkdir -p "$KEEP/$(dirname "$f")" && cp -p "$STAGE/$f" "$KEEP/$f"
+done
+SKIPPED_DOT="$(cd "$STAGE" && find . -mindepth 1 -name '.*' -prune -print | sed 's|^\./||' | sort | { grep -vxF -f <(printf '%s\n' "${EXPORTED_DOTFILES[@]}") || true; })"
 (cd "$STAGE" && find . -mindepth 1 -name '.*' -prune -exec rm -rf {} +)
+(cd "$KEEP" && find . -type f -print) | while IFS= read -r f; do f="${f#./}"; cp -p "$KEEP/$f" "$STAGE/$f"; done
 
-# Regular files and symlinks, relative paths, never under a dot-file or dot-directory
-list_files() { (cd "$1" && find . -mindepth 1 -name '.*' -prune -o \( -type f -o -type l \) -print | sed 's|^\./||' | LC_ALL=C sort); }
+# Regular files and symlinks, relative paths, never under a dot-path - plus
+# the exported dot-files that exist there
+list_files() {
+    (
+        cd "$1"
+        find . -mindepth 1 -name '.*' -prune -o \( -type f -o -type l \) -print | sed 's|^\./||'
+        for f in "${EXPORTED_DOTFILES[@]}"; do
+            if [ -f "$f" ] || [ -L "$f" ]; then echo "$f"; fi
+        done
+    ) | LC_ALL=C sort
+}
 list_files "$STAGE" > "$STAGE.src"
 if [ -d "$DEST" ]; then list_files "$DEST" > "$STAGE.dst"; else : > "$STAGE.dst"; fi
-trap 'rm -rf "$STAGE" "$STAGE.src" "$STAGE.dst"' EXIT
+trap 'rm -rf "$STAGE" "$STAGE.src" "$STAGE.dst" "$STAGE.keep"' EXIT
 
 ADDED="$(LC_ALL=C comm -23 "$STAGE.src" "$STAGE.dst")"
 REMOVED="$(LC_ALL=C comm -13 "$STAGE.src" "$STAGE.dst")"

@@ -3,6 +3,98 @@
 Running Jacarium in a browser from a container, and deploying it to another
 machine such as a Raspberry Pi (the home server).
 
+## Quick start with the published image
+
+Each release is published as a container image for amd64 and arm64 at
+`quay.io/zerodayz/jacarium` - `:latest` and one tag per version, e.g.
+`:3.1.8` (built on GitHub from the release tag, with build provenance you
+can verify - see the end of this section). One container holds
+everything (the UI, the backend, the central server for the team features
+and Caddy for HTTPS), and everything it keeps lives on one volume, `/data`.
+
+**Podman** (rootless is fine; `:Z,U` labels the directory and gives it to
+the container's user):
+
+```bash
+mkdir -p ~/.config/jacarium/server/data
+podman run -d --name jacarium --hostname jacarium --restart unless-stopped \
+  -p 127.0.0.1:8443:8443 \
+  -v ~/.config/jacarium/server/data:/data:Z,U \
+  quay.io/zerodayz/jacarium:latest
+```
+
+**Docker** (a named volume gets the right owner by itself; a bind-mounted
+directory must belong to uid 1001: `sudo chown -R 1001:0 <dir>`):
+
+```bash
+docker volume create jacarium-data
+docker run -d --name jacarium --hostname jacarium --restart unless-stopped \
+  -p 127.0.0.1:8443:8443 \
+  -v jacarium-data:/data \
+  quay.io/zerodayz/jacarium:latest
+```
+
+**First sign-in.** Sign-in is on by default (`JACARIUM_AUTH_MODE=accounts`):
+the first start prints a one-time setup code that creates the administrator.
+Read it with `podman logs jacarium` (or `docker logs jacarium`); it is also
+in the volume as `setup-code` (`<data>/setup-code`, or
+`docker exec jacarium cat /data/setup-code` with a named volume). Then open
+<https://localhost:8443>. The certificate is self-signed (generated on the
+first start into `<data>/certs/cert.pem` and `key.pem`, for `localhost` and
+`127.0.0.1`), so the browser warns once; accept it, or import `cert.pem` as
+trusted. To use your own certificate, put `cert.pem` and `key.pem` in
+`<data>/certs` before the first start.
+
+**Sharing it on your network.** `-p 127.0.0.1:8443:8443` publishes it on this
+machine only. To reach it from other devices, publish it on the machine's
+LAN address and add that address (and a name, if you use one) to the
+certificate so the browser's warning is about a self-signed certificate
+only, not a wrong name:
+
+```bash
+  -p 192.168.1.20:8443:8443 \
+  -e TLS_SAN="IP:192.168.1.20,DNS:jacarium.lan" \
+```
+
+(`TLS_SAN` is read when the certificate is generated, so set it before the
+first start, or delete `<data>/certs/*.pem` and restart.) For access away
+from home, connect through your own VPN rather than publishing the port on
+the internet; traffic is encrypted, stored data is not, so use disk
+encryption (FileVault, LUKS) on the host. `--hostname jacarium` names the
+server in each browser's sync identity; keep it the same across updates.
+
+**Updating.** Pull the new image and recreate the container; the volume
+keeps everything (the hashed UI files of the previous build are kept on it
+for one update, so an open tab keeps working):
+
+```bash
+podman pull quay.io/zerodayz/jacarium:latest
+podman stop jacarium && podman rm jacarium
+podman run -d --name jacarium ...     # the same command as the first time
+```
+
+(`docker` works the same way.) To stay on one version, use its tag instead
+of `:latest`.
+
+**Backups.** The `/data` volume is the backup: the accounts database
+(`accounts.sqlite`), every account's files under `users/`, the settings
+(`.jacarium.env`, API keys included - keep it private), the certificate
+(`certs/`), the reports Diagnostics browses (`reports/`) and the central
+server's state (`central/data` and `central/keys` - without
+`keys/yjs-encryption.key` the shared documents are unreadable). Stop the
+container, copy the directory (or the named volume's contents), start it
+again. Restoring is the reverse.
+
+**Verifying the image.** Each image is built on GitHub from the release tag
+and its build provenance is recorded there:
+
+```bash
+gh attestation verify oci://quay.io/zerodayz/jacarium:3.1.8 --repo jacarium/jacarium
+```
+
+The rest of this page is about building the image yourself and deploying it
+to another machine.
+
 ## Running in a browser (container)
 
 The desktop app is the primary way to use Jacarium. The same code
