@@ -1,0 +1,486 @@
+{
+  "title": "Networking",
+  "description": "Advanced network protocols and troubleshooting",
+  "questions": [
+    {
+      "id": "net-1",
+      "question": "What TCP flag initiates a connection?",
+      "answer": "SYN",
+      "hints": [
+        "First step in handshake",
+        "3 letters",
+        "Synchronize sequence numbers"
+      ],
+      "category": "tcp",
+      "difficulty": 100
+    },
+    {
+      "id": "net-2",
+      "question": "What port does PostgreSQL use by default?",
+      "answer": "5432",
+      "hints": [
+        "4 digits",
+        "Greater than 5000",
+        "Common database port"
+      ],
+      "category": "ports",
+      "difficulty": 100
+    },
+    {
+      "id": "net-3",
+      "question": "What DNS record type points to an IPv6 address?",
+      "answer": "AAAA",
+      "hints": [
+        "Four letter A's",
+        "IPv6 equivalent of A record",
+        "Quad-A record"
+      ],
+      "category": "dns",
+      "difficulty": 100
+    },
+    {
+      "id": "net-4",
+      "question": "What protocol number does ICMP use?",
+      "answer": "1",
+      "hints": [
+        "Single digit",
+        "First protocol number",
+        "Used by ping"
+      ],
+      "category": "protocols",
+      "difficulty": 100
+    },
+    {
+      "id": "net-5",
+      "question": "What ss flag shows listening sockets?",
+      "answer": "-l",
+      "hints": [
+        "Single letter",
+        "Stands for 'listening'",
+        "Shows server sockets"
+      ],
+      "category": "tools",
+      "difficulty": 100
+    },
+    {
+      "id": "net-6",
+      "question": "What MTU size is standard for Ethernet?",
+      "answer": "1500",
+      "hints": [
+        "4 digits",
+        "Maximum transmission unit",
+        "In bytes"
+      ],
+      "category": "ethernet",
+      "difficulty": 100
+    },
+    {
+      "id": "net-7",
+      "question": "What iptables chain handles incoming packets?",
+      "answer": "INPUT",
+      "hints": [
+        "All uppercase",
+        "Packets destined for localhost",
+        "5 letters"
+      ],
+      "category": "firewall",
+      "difficulty": 100
+    },
+    {
+      "id": "net-8",
+      "question": "What is the subnet mask for /24 CIDR?",
+      "answer": "255.255.255.0",
+      "hints": [
+        "Class C network",
+        "Three 255's",
+        "Last octet is 0"
+      ],
+      "category": "subnetting",
+      "difficulty": 100
+    },
+    {
+      "id": "net-9",
+      "question": "What port does Redis use by default?",
+      "answer": "6379",
+      "hints": [
+        "4 digits",
+        "Greater than 6000",
+        "Common cache port"
+      ],
+      "category": "ports",
+      "difficulty": 200
+    },
+    {
+      "id": "net-10",
+      "question": "What ip command replaces ifconfig for addresses?",
+      "answer": "ip addr",
+      "hints": [
+        "Uses ip utility",
+        "Subcommand for addresses",
+        "Can use 'a' shorthand"
+      ],
+      "category": "tools",
+      "difficulty": 200
+    },
+    {
+      "id": "net-11",
+      "question": "What DNS record type is an alias?",
+      "answer": "CNAME",
+      "hints": [
+        "5 letters",
+        "Canonical name",
+        "Points to another domain"
+      ],
+      "category": "dns",
+      "difficulty": 200
+    },
+    {
+      "id": "net-12",
+      "question": "What TCP window size parameter enables scaling?",
+      "answer": "net.ipv4.tcp_window_scaling",
+      "hints": [
+        "Sysctl parameter",
+        "Starts with net.ipv4",
+        "Improves high-bandwidth performance"
+      ],
+      "category": "tcp-tuning",
+      "difficulty": 200
+    },
+    {
+      "id": "net-13",
+      "question": "What port does Elasticsearch use by default?",
+      "answer": "9200",
+      "hints": [
+        "4 digits",
+        "In 9000 range",
+        "HTTP API port"
+      ],
+      "category": "ports",
+      "difficulty": 200
+    },
+    {
+      "id": "net-14",
+      "question": "What netstat flag shows process using socket?",
+      "answer": "-p",
+      "hints": [
+        "Single letter",
+        "Stands for 'process'",
+        "Shows PID and program name"
+      ],
+      "category": "tools",
+      "difficulty": 200
+    },
+    {
+      "id": "net-15",
+      "question": "What is the private IP range for 10.x.x.x?",
+      "answer": "10.0.0.0/8",
+      "hints": [
+        "Class A private",
+        "Uses /8 CIDR",
+        "Largest private range"
+      ],
+      "category": "ip-addressing",
+      "difficulty": 200
+    },
+    {
+      "id": "net-16",
+      "question": "What nmap flag performs TCP SYN scan?",
+      "answer": "-sS",
+      "hints": [
+        "Two characters",
+        "Stealth scan",
+        "Uppercase S"
+      ],
+      "category": "scanning",
+      "difficulty": 200
+    },
+    {
+      "id": "net-17",
+      "question": "What DNS record type specifies mail server?",
+      "answer": "MX",
+      "hints": [
+        "2 letters",
+        "Mail exchange",
+        "Has priority number"
+      ],
+      "category": "dns",
+      "difficulty": 300
+    },
+    {
+      "id": "net-18",
+      "question": "What port does MongoDB use by default?",
+      "answer": "27017",
+      "hints": [
+        "5 digits",
+        "Starts with 27",
+        "Common NoSQL port"
+      ],
+      "category": "ports",
+      "difficulty": 300
+    },
+    {
+      "id": "net-19",
+      "question": "What traceroute flag uses ICMP instead of UDP?",
+      "answer": "-I",
+      "hints": [
+        "Uppercase I",
+        "Uses ping packets",
+        "Better for firewall traversal"
+      ],
+      "category": "tools",
+      "difficulty": 300
+    },
+    {
+      "id": "net-20",
+      "question": "What protocol resolves MAC from IP address?",
+      "answer": "ARP",
+      "hints": [
+        "3 letters",
+        "Address Resolution Protocol",
+        "Layer 2 discovery"
+      ],
+      "category": "protocols",
+      "difficulty": 300
+    },
+    {
+      "id": "net-21",
+      "question": "What ip route flag shows routing cache?",
+      "answer": "cache",
+      "hints": [
+        "Subcommand parameter",
+        "Shows cached routes",
+        "Often deprecated in newer kernels"
+      ],
+      "category": "routing",
+      "difficulty": 300
+    },
+    {
+      "id": "net-22",
+      "question": "What is the loopback IPv6 address?",
+      "answer": "::1",
+      "hints": [
+        "Compressed notation",
+        "Equivalent to 127.0.0.1",
+        "Two colons and one"
+      ],
+      "category": "ipv6",
+      "difficulty": 300
+    },
+    {
+      "id": "net-23",
+      "question": "What port does Kafka use by default?",
+      "answer": "9092",
+      "hints": [
+        "4 digits",
+        "In 9000 range",
+        "Message broker port"
+      ],
+      "category": "ports",
+      "difficulty": 300
+    },
+    {
+      "id": "net-24",
+      "question": "What curl flag follows redirects?",
+      "answer": "-L",
+      "hints": [
+        "Uppercase L",
+        "Stands for 'location'",
+        "Handles 301/302 responses"
+      ],
+      "category": "http",
+      "difficulty": 300
+    },
+    {
+      "id": "net-25",
+      "question": "What DNS query type requests all records?",
+      "answer": "ANY",
+      "hints": [
+        "3 letters",
+        "All uppercase",
+        "Returns multiple record types"
+      ],
+      "category": "dns",
+      "difficulty": 400
+    },
+    {
+      "id": "net-26",
+      "question": "What port does RabbitMQ use for AMQP?",
+      "answer": "5672",
+      "hints": [
+        "4 digits",
+        "Greater than 5000",
+        "Message queue protocol"
+      ],
+      "category": "ports",
+      "difficulty": 400
+    },
+    {
+      "id": "net-27",
+      "question": "What nc flag makes netcat listen mode?",
+      "answer": "-l",
+      "hints": [
+        "Single letter",
+        "Stands for 'listen'",
+        "Creates server socket"
+      ],
+      "category": "tools",
+      "difficulty": 400
+    },
+    {
+      "id": "net-28",
+      "question": "What HTTP status code indicates moved permanently?",
+      "answer": "301",
+      "hints": [
+        "3 digits",
+        "Redirection status",
+        "Permanent move"
+      ],
+      "category": "http",
+      "difficulty": 400
+    },
+    {
+      "id": "net-29",
+      "question": "What multicast address range starts with?",
+      "answer": "224.0.0.0",
+      "hints": [
+        "Class D addresses",
+        "Starts with 224",
+        "First usable multicast"
+      ],
+      "category": "ip-addressing",
+      "difficulty": 400
+    },
+    {
+      "id": "net-30",
+      "question": "What dig query option uses TCP instead of UDP?",
+      "answer": "+tcp",
+      "hints": [
+        "Starts with plus sign",
+        "Three letters after plus",
+        "Forces TCP query"
+      ],
+      "category": "dns-tools",
+      "difficulty": 400
+    },
+    {
+      "id": "net-31",
+      "question": "What port does etcd use for client requests?",
+      "answer": "2379",
+      "hints": [
+        "4 digits",
+        "Greater than 2000",
+        "Distributed key-value store"
+      ],
+      "category": "ports",
+      "difficulty": 400
+    },
+    {
+      "id": "net-32",
+      "question": "What iptables target drops packet silently?",
+      "answer": "DROP",
+      "hints": [
+        "All uppercase",
+        "No response sent",
+        "Different from REJECT"
+      ],
+      "category": "firewall",
+      "difficulty": 400
+    },
+    {
+      "id": "net-33",
+      "question": "What TLS version fixed major security issues?",
+      "answer": "1.2",
+      "hints": [
+        "Version number",
+        "Released 2008",
+        "Minimum recommended version"
+      ],
+      "category": "security",
+      "difficulty": 500
+    },
+    {
+      "id": "net-34",
+      "question": "What tcpdump flag captures specific packet count?",
+      "answer": "-c",
+      "hints": [
+        "Single letter",
+        "Stands for 'count'",
+        "Stops after N packets"
+      ],
+      "category": "packet-capture",
+      "difficulty": 500
+    },
+    {
+      "id": "net-35",
+      "question": "What BGP port does routing protocol use?",
+      "answer": "179",
+      "hints": [
+        "3 digits",
+        "Less than 200",
+        "Border Gateway Protocol"
+      ],
+      "category": "routing",
+      "difficulty": 500
+    },
+    {
+      "id": "net-36",
+      "question": "What DNS record contains SPF data?",
+      "answer": "TXT",
+      "hints": [
+        "3 letters",
+        "Stores text data",
+        "Used for email validation"
+      ],
+      "category": "dns",
+      "difficulty": 500
+    },
+    {
+      "id": "net-37",
+      "question": "What sysctl enables IP forwarding?",
+      "answer": "net.ipv4.ip_forward",
+      "hints": [
+        "Starts with net.ipv4",
+        "Set to 1 to enable",
+        "Makes host a router"
+      ],
+      "category": "routing",
+      "difficulty": 500
+    },
+    {
+      "id": "net-38",
+      "question": "What port does Consul use for HTTP API?",
+      "answer": "8500",
+      "hints": [
+        "4 digits",
+        "In 8000 range",
+        "Service discovery port"
+      ],
+      "category": "ports",
+      "difficulty": 500
+    },
+    {
+      "id": "net-39",
+      "question": "What ip command shows neighbor cache?",
+      "answer": "ip neigh",
+      "hints": [
+        "Uses ip utility",
+        "Short for neighbor",
+        "Shows ARP table"
+      ],
+      "category": "tools",
+      "difficulty": 500
+    },
+    {
+      "id": "net-40",
+      "question": "What HTTP method requests without body?",
+      "answer": "HEAD",
+      "hints": [
+        "4 letters",
+        "Like GET but no response body",
+        "All uppercase"
+      ],
+      "category": "http",
+      "difficulty": 500
+    }
+  ]
+}

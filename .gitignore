@@ -1,0 +1,88 @@
+# Dependencies
+node_modules/
+jacarium-central/node_modules/
+
+# Build output
+# Third-party assets copied from node_modules by scripts/vendor-assets.mjs
+backend/static/vendor/
+dist/
+dist-ssr/
+dist-electron/
+backend/build/
+backend/dist/
+.vite/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.local
+.jacarium.env
+# Personal terms scripts/privacy-scan.sh must never find in the source
+# (names, usernames, hosts, addresses) - the list itself stays local
+.privacy-denylist.local
+
+# Python
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Leftover runtime SQLite store from the pre-central-server P2P design
+# (was tracked as an empty schema-only file; never commit a database)
+backend/cloud_documents.db
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*~
+.claude/
+
+# OS files
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# macOS AppleDouble resource-fork files (created when copying via
+# non-HFS+ volumes, e.g. USB/exFAT/network shares)
+._*
+
+# Testing
+coverage/
+.nyc_output/
+# Screenshots/measurements from the Linux container checks (tests/linux/run.sh)
+tests/linux/out/
+
+# Temporary files
+*.tmp
+*.temp
+
+# TaskWarrior test data
+.taskrc
+.task/
+
+# Generated synthetic diagnostics reports (tests/fixtures/diagnostics-mock/generate.py)
+tests/fixtures/diagnostics-mock/out/

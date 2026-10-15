@@ -1,0 +1,793 @@
+<div class="grid grid-cols-1 gap-4">
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-microchip mr-2"></i> CPU Core Switches
+ </h3>
+ {% if data.sched and data.sched.per_cpu %}
+ <canvas id="nrSwitchesChart" height="80"></canvas>
+ {% else %}
+ <div class="empty-state">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+ </svg>
+ <div class="empty-state-title">No Data Available</div>
+ <div class="empty-state-description">No scheduler data found in this report</div>
+ </div>
+ {% endif %}
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-microchip mr-2"></i> CPU Core Running Tasks
+ </h3>
+ {% if data.sched and data.sched.per_cpu %}
+ <canvas id="nrRunningChart" height="80"></canvas>
+ {% else %}
+ <div class="empty-state">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+ </svg>
+ <div class="empty-state-title">No Data Available</div>
+ <div class="empty-state-description">No scheduler data found in this report</div>
+ </div>
+ {% endif %}
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-microchip mr-2"></i> CPU Core Average Idle Time
+ </h3>
+ {% if data.sched and data.sched.per_cpu %}
+ <canvas id="avgIdleChart" height="80"></canvas>
+ {% else %}
+ <div class="empty-state">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+ </svg>
+ <div class="empty-state-title">No Data Available</div>
+ <div class="empty-state-description">No scheduler data found in this report</div>
+ </div>
+ {% endif %}
+ </div>
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-table mr-2"></i> CPU Runnable Tasks Summary
+ </h3>
+ <div class="mb-4">
+ <div>
+ <label class="block text-xs font-semibold mb-1">Search All</label>
+ <input type="text" id="processFilter" oninput="window.filterProcesses()"
+ class="w-full px-3 py-2 text-sm rounded-sm border focus:outline-hidden focus:ring-2">
+ </div>
+ {% if data.sched and data.sched.per_cpu %}
+ <div class="flex justify-between items-center mb-2 mt-4">
+ <div id="cpuFilteredCount"class="text-sm">Showing all {{ data.sched.per_cpu | length }} CPUs</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs font-semibold">Per Page:</label>
+ <select id="cpuPageSizeSelect" onchange="window.changeCpuPageSize()" class="px-3 py-1 text-white text-sm rounded-md">
+ <option value="10">10</option>
+ <option value="25" selected>25</option>
+ <option value="50">50</option>
+ <option value="100">100</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ {% endif %}
+ <table id="cpuTable" class="min-w-full text-sm rounded-lg">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCpuTable(0)">CPU <i id="cpu-indicator-0" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCpuTable(1, true)">Total Tasks <i id="cpu-indicator-1" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCpuTable(2, true)">Context Switches <i id="cpu-indicator-2" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left">Task States</th>
+ <th class="px-4 py-2 text-left">Executing PID</th>
+ <th class="px-4 py-2 text-left">Top Switches</th>
+ <th class="px-4 py-2 text-left">Top Tasks (ns)</th>
+ <th class="px-4 py-2 text-left">Wait Tasks (ns)</th>
+ </tr>
+ </thead>
+ <tbody>
+ {% if data.sched and data.sched.per_cpu %}
+ {% for cpuId, cpuInfo in data.sched.per_cpu.items() %}
+ <tr >
+ <td class="px-4 py-2">{{ cpuId }}</td>
+ <td class="px-4 py-2">{{ cpuInfo.summary.total_tasks }}</td>
+ <td class="px-4 py-2">{{ cpuInfo.summary.total_switches }}</td>
+ <td class="px-4 py-2">
+ <div id="stateValues" class="flex flex-wrap gap-2 text-sm mb-2">
+ {% for state, count in cpuInfo.summary.state_counts.items() %}
+ <div class="px-3 py-1 rounded-full shadow-sm text-xs">
+ {{ state }}: {{ count }}
+ </div>
+ {% endfor %}
+ </div>
+ </td>
+ <td class="px-4 py-2">{{ cpuInfo.summary.cpu_info.curr_pid }}</td>
+ <td class="px-4 py-2">
+ {% for switch in cpuInfo.summary.top_switch_tasks %}
+ {{ switch.name }} (pid {{ switch.pid }}): {{"%.2f"|format(switch.switches) }}<br>
+ {% endfor %}
+ </td>
+ <td class="px-4 py-2">
+ {% for task in cpuInfo.summary.top_exec_tasks %}
+ {{ task.name }} (pid {{ task.pid }}): {{"%.2f"|format(task.sum_exec) }}<br>
+ {% endfor %}
+ </td>
+ <td class="px-4 py-2">
+ {% if cpuInfo.summary.high_wait_tasks %}
+ {% for task in cpuInfo.summary.high_wait_tasks %}
+ {{ task.name }} (pid {{ task.pid }}): {{"%.2f"|format(task.wait_time) }}<br>
+ {% endfor %}
+ {% else %}
+ <span>-</span>
+ {% endif %}
+ </td>
+ </tr>
+ {% endfor %}
+ {% else %}
+ <tr>
+ <td colspan="9">
+ <div class="empty-state" style="padding: 2rem 1rem;">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="empty-state-title">No Data Available</div>
+ <div class="empty-state-description">No CPU scheduler statistics found</div>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+ </tbody>
+ </table>
+ <div id="cpuPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+ </div>
+ <div class="flex flex-col lg:flex-row gap-6">
+ <div class="panel rounded-lg shadow-sm flex-1">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-question-circle mr-2"></i> Task States Explained
+ </h3>
+ <table class="min-w-full text-sm mb-4">
+ <thead>
+ <tr class="border-b">
+ <th class="px-3 py-2 text-left">State</th>
+ <th class="px-3 py-2 text-left">Meaning</th>
+ <th class="px-3 py-2 text-left">Description</th>
+ </tr>
+ </thead>
+ <tbody>
+ <tr >
+ <td class="px-3 py-1">R</td>
+ <td class="px-3 py-1">Runnable</td>
+ <td class="px-3 py-1">Ready to run, on the runqueue, not currently executing.</td>
+ </tr>
+ <tr >
+ <td class="px-3 py-1">&gt;R</td>
+ <td class="px-3 py-1">Running</td>
+ <td class="px-3 py-1">Currently executing on CPU, consuming CPU time.</td>
+ </tr>
+ <tr >
+ <td class="px-3 py-1">S</td>
+ <td class="px-3 py-1">Sleeping</td>
+ <td class="px-3 py-1">Waiting for an event (I/O, timer), not using CPU.</td>
+ </tr>
+ <tr >
+ <td class="px-3 py-1">I</td>
+ <td class="px-3 py-1">Idle</td>
+ <td class="px-3 py-1">Idle process.</td>
+ </tr>
+ <tr >
+ <td class="px-3 py-1">D</td>
+ <td class="px-3 py-1">I/O Wait</td>
+ <td class="px-3 py-1">The process is waiting on a resource (usually I/O) and cannot be interrupted, even by signals.<br>Common causes:
+ <ul>
+ <li>Waiting for disk I/O</li>
+ <li>NFS/network storage stalls</li>
+ <li>Faulty drivers</li>
+ <li>Memory pressure with swap</li>
+ </ul></td>
+ </tr>
+ </tbody>
+ </table>
+ </div>
+ <div class="panel rounded-lg shadow-sm flex-1">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-question-circle mr-2"></i> Impact on CFS
+ </h3>
+ <table class="min-w-full text-sm">
+ <thead>
+ <tr class="border-b">
+ <th class="px-3 py-2 text-left">State</th>
+ <th class="px-3 py-2 text-left">Effect on CFS</th>
+ </tr>
+ </thead>
+ <tbody>
+ <tr >
+ <td class="px-3 py-1">&gt;R</td>
+ <td class="px-3 py-1">Actively scheduled by CFS, currently executing.</td>
+ </tr>
+ <tr >
+ <td class="px-3 py-1">R</td>
+ <td class="px-3 py-1">In the runqueue, competes for CPU based on vruntime.</td>
+ </tr>
+ <tr >
+ <td class="px-3 py-1">S</td>
+ <td class="px-3 py-1">Not on the runqueue; ignored by CFS until wakeup.</td>
+ </tr>
+ <tr >
+ <td class="px-3 py-1">I</td>
+ <td class="px-3 py-1">Ignored by CFS until runnable; can affect load average.</td>
+ </tr>
+ <tr >
+ <td class="px-3 py-1">D</td>
+ <td class="px-3 py-1">Ignored by CFS until runnable; can affect load average.</td>
+ </tr>
+ </tbody>
+ </table>
+ </div>
+ </div>
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-tasks mr-2"></i> CPU Runnable Tasks
+ </h3>
+ <div class="mb-4">
+ <div class="grid grid-cols-1 md:grid-cols-8 gap-4 mb-4">
+ <div>
+ <label class="block text-xs font-semibold mb-1">CPU ID</label>
+ <input type="number" id="cpuIdFilter" oninput="window.filterAllProcesses()"
+ class="w-full px-3 py-2 text-sm rounded-md text-white"
+ placeholder="">
+ </div>
+ <div>
+ <label class="block text-xs font-semibold mb-1">STAT</label>
+ <select id="statAllFilter" onchange="window.filterAllProcesses()"
+ class="w-full px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
+ <option value="">All</option>
+ {% for s in ['D','I','R','>R','S','T','t','Z','X'] %}
+ <option value="{{ s }}">{{ s }}</option>
+ {% endfor %}
+ </select>
+ </div>
+ <div class="md:col-span-6">
+ <label class="block text-xs font-semibold mb-1">Search All</label>
+ <input type="text" id="processFilterAll" oninput="window.filterAllProcesses()"
+ class="w-full px-3 py-2 text-sm rounded-sm border focus:outline-hidden focus:ring-2"
+ placeholder="">
+ </div>
+ </div>
+ {% if data.sched and data.sched.per_cpu %}
+ <div class="flex justify-between items-center mb-2">
+ <div id="filteredAllCount"class="text-sm">Showing all {{ data.sched.per_cpu.values() | map(attribute='tasks') | map('length') | sum }} tasks</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs font-semibold">Per Page:</label>
+ <select id="allTasksPageSizeSelect" onchange="window.changeAllTasksPageSize()" class="px-3 py-1 text-white text-sm rounded-md">
+ <option value="50">50</option>
+ <option value="100" selected>100</option>
+ <option value="250">250</option>
+ <option value="500">500</option>
+ <option value="1000">1000</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ {% endif %}
+ <table class="min-w-full text-sm rounded-lg" id="allCpuTasksTable">
+ <thead class="border-b">
+ <tr>
+ <th data-key="CPU" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(0)">CPU <i id="alltasks-indicator-0" class="fas text-sm ml-1"></i></th>
+ <th data-key="PID" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(1)">PID <i id="alltasks-indicator-1" class="fas text-sm ml-1"></i></th>
+ <th data-key="Name" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(2)">Name <i id="alltasks-indicator-2" class="fas text-sm ml-1"></i></th>
+ <th data-key="State" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(3)">State <i id="alltasks-indicator-3" class="fas text-sm ml-1"></i></th>
+ <th data-key="Priority" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(4)">Priority <i id="alltasks-indicator-4" class="fas text-sm ml-1"></i></th>
+ <th data-key="Tree-Key" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(5)">Tree-Key <i id="alltasks-indicator-5" class="fas text-sm ml-1"></i></th>
+ <th data-key="Switches" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(6)">Switches <i id="alltasks-indicator-6" class="fas text-sm ml-1"></i></th>
+ <th data-key="Wait Time" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(7)">Wait Time <i id="alltasks-indicator-7" class="fas text-sm ml-1"></i></th>
+ <th data-key="Exec Time" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(8)">Exec Time <i id="alltasks-indicator-8" class="fas text-sm ml-1"></i></th>
+ <th data-key="Sleep Time" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(9)">Sleep Time <i id="alltasks-indicator-9" class="fas text-sm ml-1"></i></th>
+ <th data-key="Block Time" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(10)">Block Time <i id="alltasks-indicator-9" class="fas text-sm ml-1"></i></th>
+ <th data-key="Group" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(11)">Group <i id="alltasks-indicator-10" class="fas text-sm ml-1"></i></th>
+ </tr>
+ </thead>
+ <tbody>
+ {% if data.sched and data.sched.per_cpu %}
+ {% for cpuId, cpuInfo in data.sched.per_cpu.items() %}
+ {% for task in cpuInfo.tasks %}
+ <tr >
+ <td class="px-4 py-2">{{ cpuId }}</td>
+ <td class="px-4 py-2">{{ task.pid }}</td>
+ <td class="px-4 py-2">{{ task.name }}</td>
+ <td class="px-4 py-2">{{ task.state }}</td>
+ <td class="px-4 py-2">{{ task.prio }}</td>
+ <td class="px-4 py-2">{{ task.tree_key }}</td>
+ <td class="px-4 py-2">{{ task.switches }}</td>
+ <td class="px-4 py-2">{{"%.2f"|format(task.wait_time) }}</td>
+ <td class="px-4 py-2">{{"%.2f"|format(task.sum_exec) }}</td>
+ <td class="px-4 py-2">{{"%.2f"|format(task.sum_sleep) }}</td>
+ <td class="px-4 py-2">{{"%.2f"|format(task.sum_block) }}</td>
+ <td class="px-4 py-2 whitespace-normal wrap-break-word max-w-lg">{{ task.group }}</td>
+ </tr>
+ {% endfor %}
+ {% endfor %}
+ {% else %}
+ <tr>
+ <td colspan="12">
+ <div class="empty-state" style="padding: 2rem 1rem;">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="empty-state-title">No Data Available</div>
+ <div class="empty-state-description">No task scheduler data found</div>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+ </tbody>
+ </table>
+ <div id="allTasksPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+ </div>
+
+</div>
+
+{% if data.sched and data.sched.per_cpu %}
+<script>
+ var perCpuData = {{ data.sched.per_cpu | tojson }};
+
+ var labels = [];
+ var nrSwitchesData = [];
+ var nrRunningData = [];
+ var avgIdleData = [];
+
+ Object.entries(perCpuData).forEach(([cpuId, cpuInfo]) => {
+ labels.push('CPU#' + cpuId);
+ nrSwitchesData.push(cpuInfo.cpu_info['nr_switches'] || 0);
+ nrRunningData.push(cpuInfo.cpu_info['nr_running'] || 0);
+ avgIdleData.push(cpuInfo.cpu_info['avg_idle'] || 0);
+ });
+
+ var cpuSortKey = null;
+ var cpuSortAsc = {};
+ var cpuCurrentPage = 1;
+ var cpuPageSize = 25;
+ var cpuLastFilter = '';
+
+ var allTasksCurrentPage = 1;
+ var allTasksPageSize = 100;
+ var allTasksLastFilter = '';
+
+ window.filterProcesses = function(resetPage = true) {
+ const input = document.getElementById("processFilter");
+ const filterValue = input.value.trim();
+ const table = document.getElementById("cpuTable");
+ const rows = Array.from(table.getElementsByTagName("tr")).slice(1); // Skip header
+
+ let regex = null;
+ if (filterValue.length > 0) {
+ try {
+ regex = new RegExp(filterValue,"i");
+ } catch (e) {
+ console.warn("Invalid regex:", e);
+ regex = null;
+ }
+ }
+
+ const filteredRows = [];
+ rows.forEach(row => {
+ const cells = row.getElementsByTagName("td");
+ let rowMatches = false;
+
+ if (!regex) {
+ rowMatches = true;
+ } else {
+ for (let j = 0; j < cells.length; j++) {
+ const cellText = cells[j].textContent || cells[j].innerText;
+ if (regex.test(cellText)) {
+ rowMatches = true;
+ break;
+ }
+ }
+ }
+
+ if (rowMatches) {
+ filteredRows.push(row);
+ }
+ });
+
+ const totalCount = filteredRows.length;
+ const allRowsCount = rows.length;
+
+ // Reset to page 1 only when filter text changes
+ if (filterValue !== cpuLastFilter && resetPage) {
+ cpuCurrentPage = 1;
+ cpuLastFilter = filterValue;
+ }
+
+ // Calculate pagination
+ const start = cpuPageSize === -1 ? 0 : (cpuCurrentPage - 1) * cpuPageSize;
+ const end = cpuPageSize === -1 ? totalCount : Math.min(start + cpuPageSize, totalCount);
+
+ // Hide all rows first
+ rows.forEach(row => row.style.display ="none");
+
+ // Show only paginated filtered rows
+ for (let i = 0; i < filteredRows.length; i++) {
+ if (i >= start && i < end) {
+ filteredRows[i].style.display ="";
+ }
+ }
+
+ // Update count text
+ const countText = cpuPageSize === -1
+ ? (totalCount === allRowsCount ? `Showing all ${totalCount} CPUs` : `Showing ${totalCount} of ${allRowsCount} CPUs`)
+ : `Showing ${start + 1}-${end} of ${totalCount} CPUs`;
+
+ const countElement = document.getElementById("cpuFilteredCount");
+ if (countElement) {
+ countElement.textContent = countText;
+ }
+
+ window.updateCpuPagination(totalCount);
+ }
+
+ window.updateCpuPagination = function(totalCount) {
+ const container = document.getElementById("cpuPaginationControls");
+ if (!container) return;
+
+ if (cpuPageSize === -1 || totalCount <= cpuPageSize) {
+ container.innerHTML ="";
+ return;
+ }
+
+ const totalPages = Math.ceil(totalCount / cpuPageSize);
+ let html ="";
+
+ html += `<button onclick="window.goToCpuPage(1)" ${cpuCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${cpuCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">First</button>`;
+ html += `<button onclick="window.goToCpuPage(${cpuCurrentPage - 1})" ${cpuCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${cpuCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">Prev</button>`;
+
+ const startPage = Math.max(1, cpuCurrentPage - 2);
+ const endPage = Math.min(totalPages, cpuCurrentPage + 2);
+
+ for (let i = startPage; i <= endPage; i++) {
+ if (i === cpuCurrentPage) {
+ html += `<button class="px-3 py-1 rounded-sm text-white font-bold border-2 current-page">${i}</button>`;
+ } else {
+ html += `<button onclick="window.goToCpuPage(${i})" class="px-3 py-1 rounded-sm text-white">${i}</button>`;
+ }
+ }
+
+ html += `<button onclick="window.goToCpuPage(${cpuCurrentPage + 1})" ${cpuCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${cpuCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">Next</button>`;
+ html += `<button onclick="window.goToCpuPage(${totalPages})" ${cpuCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${cpuCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">Last</button>`;
+
+ container.innerHTML = html;
+ }
+
+ window.goToCpuPage = function(page) {
+ cpuCurrentPage = page;
+ window.filterProcesses(false);
+ }
+
+ window.changeCpuPageSize = function() {
+ const select = document.getElementById("cpuPageSizeSelect");
+ cpuPageSize = parseInt(select.value);
+ cpuCurrentPage = 1;
+ window.filterProcesses(false);
+ }
+
+ function sortCpuTable(colIndex, isNumeric = false) {
+ const table = document.getElementById("cpuTable");
+ const tbody = table.querySelector("tbody");
+ const rows = Array.from(tbody.querySelectorAll("tr"));
+ const key = `cpu-${colIndex}-${isNumeric}`;
+
+ if (cpuSortKey !== key) {
+ cpuSortKey = key;
+ cpuSortAsc[key] = true;
+ resetCpuIndicators();
+ } else {
+ cpuSortAsc[key] = !cpuSortAsc[key];
+ }
+
+ updateCpuSortIndicator(colIndex, cpuSortAsc[key]);
+
+ rows.sort((a, b) => {
+ const valA = a.children[colIndex].innerText.trim();
+ const valB = b.children[colIndex].innerText.trim();
+
+ let aVal, bVal;
+ if (colIndex === 0) {
+ aVal = parseInt(valA, 10);
+ bVal = parseInt(valB, 10);
+ } else if (isNumeric) {
+ aVal = parseFloat(valA.replace(/[^\d.-]/g, '')) || 0;
+ bVal = parseFloat(valB.replace(/[^\d.-]/g, '')) || 0;
+ } else {
+ aVal = valA.toLowerCase();
+ bVal = valB.toLowerCase();
+ }
+
+ if (aVal < bVal) return cpuSortAsc[key] ? -1 : 1;
+ if (aVal > bVal) return cpuSortAsc[key] ? 1 : -1;
+ return 0;
+ });
+
+
+ rows.forEach(row => tbody.appendChild(row));
+ }
+
+ function updateCpuSortIndicator(colIndex, ascending) {
+ const indicator = document.getElementById(`cpu-indicator-${colIndex}`);
+ if (ascending) {
+ indicator.classList.remove('fa-caret-down');
+ indicator.classList.add('fa-caret-up');
+ } else {
+ indicator.classList.remove('fa-caret-up');
+ indicator.classList.add('fa-caret-down');
+ }
+ }
+
+ function resetCpuIndicators() {
+ for (let i = 0; i < 3; i++) {
+ const indicator = document.getElementById(`cpu-indicator-${i}`);
+ if (indicator) {
+ indicator.classList.remove('fa-caret-up', 'fa-caret-down');
+ }
+ }
+ }
+ function createBarChart(ctxId, label, data, bgColor, borderColor) {
+ const ctx = document.getElementById(ctxId).getContext('2d');
+ return new Chart(ctx, {
+ type: 'bar',
+ data: {
+ labels: labels,
+ datasets: [{
+ label: label,
+ data: data,
+ backgroundColor: bgColor,
+ borderColor: borderColor,
+ borderWidth: 1,
+ }]
+ },
+ options: {
+ responsive: true,
+ animation: false,
+ scales: {
+ x: {
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text') }
+ },
+ y: {
+ beginAtZero: true,
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text') }
+ }
+ },
+ plugins: {
+ legend: {
+ labels: { color: diagnosticsThemeColor('text') }
+ },
+ tooltip: {
+ enabled: true,
+ mode: 'nearest',
+ intersect: false,
+ backgroundColor: diagnosticsThemeColor('tooltip'),
+ titleColor: '#facc15',
+ bodyColor: diagnosticsThemeColor('text'),
+ borderColor: '#374151',
+ borderWidth: 1
+ }
+ }
+ }
+ });
+ }
+ window.filterAllProcesses = function(resetPage = true) {
+ const searchInputRaw = document.getElementById("processFilterAll").value.trim();
+ const cpuIdInput = document.getElementById("cpuIdFilter").value.trim();
+ const statFilter = document.getElementById("statAllFilter").value;
+
+ let searchRegex = null;
+ if (searchInputRaw.length > 0) {
+ try {
+ searchRegex = new RegExp(searchInputRaw,"i");
+ } catch (e) {
+ console.warn("Invalid regex in search input:", e);
+ searchRegex = null;
+ }
+ }
+
+ const cpuId = cpuIdInput ==="" ? null : Number(cpuIdInput);
+ const cpuIdValid = cpuId !== null && !isNaN(cpuId);
+
+ const rows = document.querySelectorAll("#allCpuTasksTable tbody tr");
+ const headers = Array.from(document.querySelectorAll("#allCpuTasksTable thead th")).map(th => th.textContent.trim());
+ const cpuIndex = headers.indexOf("CPU");
+ const statIndex = headers.indexOf("State");
+
+ const filteredRows = [];
+ rows.forEach(row => {
+ const cells = row.querySelectorAll("td");
+ const cpuText = cells[cpuIndex]?.textContent.trim() ||"";
+ const statText = cells[statIndex]?.textContent.trim() ||"";
+ const cpuNumber = Number(cpuText);
+
+ const cpuMatch = !cpuIdValid || cpuNumber === cpuId;
+ const statMatch = !statFilter || statText === statFilter;
+
+ let searchMatch = true;
+ if (searchRegex) {
+ searchMatch = Array.from(cells).some(cell => searchRegex.test(cell.textContent));
+ }
+
+ if (cpuMatch && statMatch && searchMatch) {
+ filteredRows.push(row);
+ }
+ });
+
+ const totalCount = filteredRows.length;
+ const allRowsCount = rows.length;
+
+ // Reset to page 1 only when filter actually changes
+ const currentFilter = searchInputRaw + '|' + cpuIdInput + '|' + statFilter;
+ if (currentFilter !== allTasksLastFilter && resetPage) {
+ allTasksCurrentPage = 1;
+ allTasksLastFilter = currentFilter;
+ }
+
+ // Calculate pagination
+ const start = allTasksPageSize === -1 ? 0 : (allTasksCurrentPage - 1) * allTasksPageSize;
+ const end = allTasksPageSize === -1 ? totalCount : Math.min(start + allTasksPageSize, totalCount);
+
+ // Hide all rows first
+ rows.forEach(row => row.style.display ="none");
+
+ // Show only paginated filtered rows
+ for (let i = 0; i < filteredRows.length; i++) {
+ if (i >= start && i < end) {
+ filteredRows[i].style.display ="";
+ }
+ }
+
+ // Update count text
+ const countText = allTasksPageSize === -1
+ ? (totalCount === allRowsCount ? `Showing all ${totalCount} tasks` : `Showing ${totalCount} of ${allRowsCount} tasks`)
+ : `Showing ${start + 1}-${end} of ${totalCount} tasks`;
+
+ const countElement = document.getElementById("filteredAllCount");
+ if (countElement) {
+ countElement.textContent = countText;
+ }
+
+ window.updateAllTasksPagination(totalCount);
+ }
+
+ window.updateAllTasksPagination = function(totalCount) {
+ const container = document.getElementById("allTasksPaginationControls");
+ if (!container) return;
+
+ if (allTasksPageSize === -1 || totalCount <= allTasksPageSize) {
+ container.innerHTML ="";
+ return;
+ }
+
+ const totalPages = Math.ceil(totalCount / allTasksPageSize);
+ let html ="";
+
+ html += `<button onclick="window.goToAllTasksPage(1)" ${allTasksCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${allTasksCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">First</button>`;
+ html += `<button onclick="window.goToAllTasksPage(${allTasksCurrentPage - 1})" ${allTasksCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${allTasksCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">Prev</button>`;
+
+ const startPage = Math.max(1, allTasksCurrentPage - 2);
+ const endPage = Math.min(totalPages, allTasksCurrentPage + 2);
+
+ for (let i = startPage; i <= endPage; i++) {
+ if (i === allTasksCurrentPage) {
+ html += `<button class="px-3 py-1 rounded-sm text-white font-bold border-2 current-page">${i}</button>`;
+ } else {
+ html += `<button onclick="window.goToAllTasksPage(${i})" class="px-3 py-1 rounded-sm text-white">${i}</button>`;
+ }
+ }
+
+ html += `<button onclick="window.goToAllTasksPage(${allTasksCurrentPage + 1})" ${allTasksCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${allTasksCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">Next</button>`;
+ html += `<button onclick="window.goToAllTasksPage(${totalPages})" ${allTasksCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${allTasksCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">Last</button>`;
+
+ container.innerHTML = html;
+ }
+
+ window.goToAllTasksPage = function(page) {
+ allTasksCurrentPage = page;
+ window.filterAllProcesses(false);
+ }
+
+ window.changeAllTasksPageSize = function() {
+ const select = document.getElementById("allTasksPageSizeSelect");
+ allTasksPageSize = parseInt(select.value);
+ allTasksCurrentPage = 1;
+ window.filterAllProcesses(false);
+ }
+
+
+ var allTasksSortKey = null;
+ var allTasksSortAsc = {};
+
+ function sortAllCpuTasks(colIndex) {
+ const table = document.getElementById("allCpuTasksTable");
+ const tbody = table.querySelector("tbody");
+ const rows = Array.from(tbody.querySelectorAll("tr"));
+ const key = `alltasks-${colIndex}`;
+
+ if (allTasksSortKey !== key) {
+ allTasksSortKey = key;
+ allTasksSortAsc[key] = true;
+ resetAllTasksIndicators();
+ } else {
+ allTasksSortAsc[key] = !allTasksSortAsc[key];
+ }
+
+ updateAllTasksSortIndicator(colIndex, allTasksSortAsc[key]);
+
+ rows.sort((a, b) => {
+ const valA = a.children[colIndex].innerText.trim();
+ const valB = b.children[colIndex].innerText.trim();
+
+ let aVal = isNaN(valA) ? valA.toLowerCase() : parseFloat(valA);
+ let bVal = isNaN(valB) ? valB.toLowerCase() : parseFloat(valB);
+
+ if (aVal < bVal) return allTasksSortAsc[key] ? -1 : 1;
+ if (aVal > bVal) return allTasksSortAsc[key] ? 1 : -1;
+ return 0;
+ });
+
+ rows.forEach(row => tbody.appendChild(row));
+ }
+
+ function updateAllTasksSortIndicator(colIndex, ascending) {
+ const indicator = document.getElementById(`alltasks-indicator-${colIndex}`);
+ if (indicator) {
+ indicator.classList.remove('fa-caret-up', 'fa-caret-down');
+ indicator.classList.add(ascending ? 'fa-caret-up' : 'fa-caret-down');
+ }
+ }
+
+ function resetAllTasksIndicators() {
+ for (let i = 0; i <= 12; i++) {
+ const indicator = document.getElementById(`alltasks-indicator-${i}`);
+ if (indicator) {
+ indicator.classList.remove('fa-caret-up', 'fa-caret-down');
+ }
+ }
+ }
+
+ // Make functions global (already defined as window.functionName above)
+ window.sortCpuTable = sortCpuTable;
+ window.sortAllCpuTasks = sortAllCpuTasks;
+
+ let nrSwitchesChart = createBarChart('nrSwitchesChart', 'Number of Switches', nrSwitchesData, 'rgba(255, 215, 0, 0.7)', 'rgba(255, 215, 0, 1)');
+ let nrRunningChart = createBarChart('nrRunningChart', 'Number of Running', nrRunningData, 'rgba(34, 139, 34, 0.7)', 'rgba(34, 139, 34, 1)');
+ let avgIdleChart = createBarChart('avgIdleChart', 'Average Idle Time', avgIdleData, 'rgba(70, 130, 180, 0.7)', 'rgba(70, 130, 180, 1)');
+
+ // Initialize pagination
+ window.filterProcesses();
+ window.filterAllProcesses();
+
+ // Watch for theme changes and re-render charts
+ const themeObserver = new MutationObserver((mutations) => {
+ mutations.forEach((mutation) => {
+ if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+ // Theme has changed, recreate charts with new theme colors
+ if (nrSwitchesChart) nrSwitchesChart.destroy();
+ if (nrRunningChart) nrRunningChart.destroy();
+ if (avgIdleChart) avgIdleChart.destroy();
+
+ nrSwitchesChart = createBarChart('nrSwitchesChart', 'Number of Switches', nrSwitchesData, 'rgba(255, 215, 0, 0.7)', 'rgba(255, 215, 0, 1)');
+ nrRunningChart = createBarChart('nrRunningChart', 'Number of Running', nrRunningData, 'rgba(34, 139, 34, 0.7)', 'rgba(34, 139, 34, 1)');
+ avgIdleChart = createBarChart('avgIdleChart', 'Average Idle Time', avgIdleData, 'rgba(70, 130, 180, 0.7)', 'rgba(70, 130, 180, 1)');
+ }
+ });
+ });
+
+ // Start observing theme changes
+ themeObserver.observe(document.documentElement, {
+ attributes: true,
+ attributeFilter: ['class']
+ });
+</script>
+{% endif %}

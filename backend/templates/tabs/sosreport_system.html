@@ -1,0 +1,226 @@
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+ <div class="flex flex-col gap-4">
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-desktop mr-2"></i> Host Info
+ </h3>
+ <ul class="space-y-1 text-sm">
+ <li><strong>Hostname:</strong> {{ data.hostnamectl['Static hostname'] or"N/A" }}</li>
+ <li><strong>OS:</strong> {{ data.hostnamectl['Operating System'] or"N/A" }}</li>
+ <li><strong>Kernel:</strong> {{ data.hostnamectl['Kernel'] or"N/A" }}</li>
+ <li><strong>Arch:</strong> {{ data.hostnamectl['Architecture'] or"N/A" }}</li>
+ </ul>
+ </div>
+
+ {% if data.hostnamectl['Virtualization'] or data.hostnamectl['Hardware Vendor'] or data.hostnamectl['Hardware Model'] or data.hostnamectl['Firmware Version'] %}
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-server mr-2"></i> Hardware & Virtualization
+ </h3>
+ <ul class="space-y-1 text-sm">
+ {% if data.hostnamectl['Virtualization'] %}
+ <li><strong>Virtualization:</strong> {{ data.hostnamectl['Virtualization'] }}</li>
+ {% endif %}
+ {% if data.hostnamectl['Hardware Vendor'] %}
+ <li><strong>Vendor:</strong> {{ data.hostnamectl['Hardware Vendor'] }}</li>
+ {% endif %}
+ {% if data.hostnamectl['Hardware Model'] %}
+ <li><strong>Model:</strong> {{ data.hostnamectl['Hardware Model'] }}</li>
+ {% endif %}
+ {% if data.hostnamectl['Firmware Version'] %}
+ <li><strong>Firmware:</strong> {{ data.hostnamectl['Firmware Version'] }}</li>
+ {% endif %}
+ </ul>
+ </div>
+ {% endif %}
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-microchip mr-2"></i> CPU
+ </h3>
+ <ul class="space-y-1 text-sm">
+ <li><strong>Model:</strong> {{ data.cpuinfo['Model name'] or"N/A" }}</li>
+ <li><strong>CPU(s):</strong> {{ data.cpuinfo['CPU(s)'] or"N/A" }}</li>
+ <li><strong>Vendor:</strong> {{ data.cpuinfo['Vendor ID'] or"N/A" }}</li>
+ <li><strong>Threads/Core:</strong> {{ data.cpuinfo['Thread(s) per core'] or"N/A" }}</li>
+ <li><strong>Cores/Socket:</strong> {{ data.cpuinfo['Core(s) per socket'] or"N/A" }}</li>
+ <li><strong>Sockets:</strong> {{ data.cpuinfo['Socket(s)'] or"N/A" }}</li>
+ </ul>
+ </div>
+
+ {% if data.cpuinfo['NUMA node(s)'] or data.cpuinfo['NUMA node0 CPU(s)'] or data.cpuinfo['NUMA node1 CPU(s)'] or data.cpuinfo['NUMA node2 CPU(s)'] or data.cpuinfo['NUMA node3 CPU(s)'] %}
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-plug mr-2"></i> NUMA Nodes
+ </h3>
+ <ul class="space-y-1 text-sm break-all">
+ {% for i in range(0, 4) %}
+ {% if data.cpuinfo['NUMA node' ~ i ~ ' CPU(s)'] %}
+ <li><strong>Node{{ i }}:</strong> {{ data.cpuinfo['NUMA node' ~ i ~ ' CPU(s)'] }}</li>
+ {% endif %}
+ {% endfor %}
+ </ul>
+ </div>
+ {% endif %}
+ </div>
+
+ <div class="flex flex-col gap-4">
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-memory mr-2"></i> Memory
+ </h3>
+ <ul class="space-y-1 text-sm">
+ <li><strong>Total:</strong> {{ data.free_memory.total }} GB</li>
+ <li><strong>Used:</strong> {{ data.free_memory.used }} GB</li>
+ <li><strong>Free:</strong> {{ data.free_memory.free }} GB</li>
+ <li><strong>Available:</strong> {{ data.free_memory.available }} GB</li>
+ </ul>
+ <div class="mt-2">
+ <canvas id="memoryChart"></canvas>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-chart-line mr-2"></i> Uptime & Load
+ </h3>
+ <ul class="space-y-1 text-sm">
+ <li><strong>Now:</strong> {{ data.uptime.current_time or"N/A" }}</li>
+ <li><strong>Uptime:</strong> {{ data.uptime.uptime or"N/A" }}</li>
+ <li><strong>Users:</strong> {{ data.uptime.users or"N/A" }}</li>
+ <li><strong>Load Avg:</strong>
+ 1m: {{ data.uptime.load_average["1min"] }},
+ 5m: {{ data.uptime.load_average["5min"] }},
+ 15m: {{ data.uptime.load_average["15min"] }}
+ </li>
+ </ul>
+ <div class="mt-2">
+ <canvas id="loadChart"></canvas>
+ </div>
+ </div>
+ </div>
+</div>
+<script>
+ (function () {
+ const memoryCanvas = document.getElementById('memoryChart');
+ const loadCanvas = document.getElementById('loadChart');
+ if (!memoryCanvas || !loadCanvas) return;
+
+ let memoryChart = null;
+ let loadChart = null;
+
+ function createMemoryChart() {
+ if (memoryChart) {
+ memoryChart.destroy();
+ }
+
+ memoryChart = new Chart(memoryCanvas, {
+ type: 'doughnut',
+ data: {
+ labels: ['Used', 'Free', 'Available'],
+ datasets: [{
+ data: [{{ data.free_memory.used }}, {{ data.free_memory.free }}, {{ data.free_memory.available }}],
+ backgroundColor: ['#FFD700', '#006400', '#90EE90'],
+ }]
+ },
+ options: {
+ responsive: true,
+ maintainAspectRatio: false,
+ animation: false,
+ plugins: {
+ legend: {
+ labels: { color: diagnosticsThemeColor('text'), font: { size: 12 } },
+ position: 'bottom'
+ },
+ tooltip: {
+ backgroundColor: diagnosticsThemeColor('tooltip'),
+ titleColor: '#facc15',
+ bodyColor: diagnosticsThemeColor('text'),
+ borderColor: '#374151',
+ borderWidth: 1
+ }
+ },
+ scales: {
+ x: {
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } }
+ },
+ y: {
+ beginAtZero: true,
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } }
+ }
+ }
+ }
+ });
+ }
+
+ function createLoadChart() {
+ if (loadChart) {
+ loadChart.destroy();
+ }
+
+ loadChart = new Chart(loadCanvas, {
+ type: 'bar',
+ data: {
+ labels: ['1 min', '5 min', '15 min'],
+ datasets: [{
+ label: 'Load Average',
+ data: [{{ data.uptime.load_average["1min"] }}, {{ data.uptime.load_average["5min"] }}, {{ data.uptime.load_average["15min"] }}],
+ backgroundColor: '#FFD700'
+ }]
+ },
+ options: {
+ responsive: true,
+ maintainAspectRatio: false,
+ animation: false,
+ plugins: {
+ legend: {
+ labels: { color: diagnosticsThemeColor('text'), font: { size: 12 } },
+ position: 'bottom'
+ },
+ tooltip: {
+ backgroundColor: diagnosticsThemeColor('tooltip'),
+ titleColor: '#facc15',
+ bodyColor: diagnosticsThemeColor('text'),
+ borderColor: '#374151',
+ borderWidth: 1
+ },
+ },
+ scales: {
+ x: {
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } }
+ },
+ y: {
+ beginAtZero: true,
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } }
+ }
+ }
+ },
+ });
+ }
+
+ // Initialize charts
+ createMemoryChart();
+ createLoadChart();
+
+ // Watch for theme changes and re-render charts
+ const themeObserver = new MutationObserver((mutations) => {
+ mutations.forEach((mutation) => {
+ if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+ // Theme has changed, re-render charts
+ createMemoryChart();
+ createLoadChart();
+ }
+ });
+ });
+
+ // Start observing theme changes
+ themeObserver.observe(document.documentElement, {
+ attributes: true,
+ attributeFilter: ['class']
+ });
+ })();
+</script>

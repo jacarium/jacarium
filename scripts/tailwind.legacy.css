@@ -1,0 +1,73 @@
+/* Entry for the compiled legacy-dashboard stylesheet
+   (backend/static/vendor/tailwind.css) - see scripts/vendor-assets.mjs.
+
+   The standalone dashboard pages served by the Flask backend
+   (backend/templates: layout.html, index.html and the tab fragments) were
+   written against the Tailwind v3 Play CDN: stock theme, dark mode from
+   prefers-color-scheme. This is the Tailwind v4 equivalent, scanning only
+   those templates, with the v3 defaults the templates rely on restored
+   below. Separate from the app's own src/index.css.
+
+   Utilities are imported UNLAYERED, as in v3 (and in src/index.css, see the
+   note there): the templates carry inline <style> element rules that must
+   keep losing to utilities by specificity, not win by being unlayered. */
+@layer theme, base, components;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css" source(none);
+
+@source "../backend/templates";
+
+/* Classes the templates add from JavaScript at runtime via classList. The
+   scanner already picks up complete class tokens inside JS strings in the
+   same files; listed so a refactor that moves them to a computed string
+   cannot silently drop them. */
+@source inline("hidden text-white bg-red-500 hover:bg-red-600");
+
+/* v3 applied hover: styles on every device; v4 gates them behind
+   @media (hover: hover). Keep the v3 behaviour. */
+@custom-variant hover (&:hover);
+
+@theme {
+  /* v3 ring defaults: 3px wide, blue-500 at 50% when no ring colour is set
+     (the templates' focus:ring-2 inputs set none). v4: 1px, currentColor. */
+  --default-ring-width: 3px;
+  --default-ring-color: rgb(59 130 246 / 0.5);
+
+  /* v3 line-heights for the text-* utilities, in rem rather than v4's
+     unitless ratios, so descendants with their own font-size inherit the
+     same absolute line-height they did in v3 (see src/index.css). */
+  --text-xs--line-height: 1rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+}
+
+/* Tailwind v4 changed these preflight defaults; the templates were written
+   against the v3 ones. */
+@layer base {
+  /* v3: gray-200. v4: currentColor. */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  /* v3: gray-400. v4: the text colour at 50% opacity. */
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+
+  /* v3: pointer. v4: the browser default arrow. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}

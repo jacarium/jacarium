@@ -1,0 +1,128 @@
+# Build Jacarium's desktop installers on GitHub's own runners and publish
+# them as a DRAFT release when a version tag (v1.2.3) is pushed. Review the
+# draft on GitHub, then click "Publish release".
+#
+# Only official GitHub actions (github.com/actions/*), each pinned to the
+# full commit of its release (the comment names the version). The release
+# itself is made with the gh CLI that GitHub preinstalls on its runners.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:        # a manual test run: builds everything, publishes nothing
+
+# Read-only by default; only the release job may write
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x64,   runner: ubuntu-24.04,     platform: linux, format: 'AppImage deb' }
+          - { name: linux-arm64, runner: ubuntu-24.04-arm, platform: linux, format: 'AppImage deb' }
+          - { name: macos-arm64, runner: macos-26,         platform: mac,   format: dmg }
+          - { name: macos-x64,   runner: macos-26-intel,   platform: mac,   format: dmg }
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js (the version in .nvmrc)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Set up Python 3.14 (requirements.lock is resolved for it)
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+
+      - name: The tag matches package.json
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          want="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$want" ]; then
+            echo "::error::tag $GITHUB_REF_NAME but package.json says $want"
+            exit 1
+          fi
+
+      - name: Build
+        env:
+          # no Apple signing identity yet: build unsigned instead of searching for one
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: ./rebuild.sh --no-container --platform "${{ matrix.platform }}" --format "${{ matrix.format }}"
+
+      - name: Keep the installers
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: jacarium-${{ matrix.name }}
+          path: |
+            dist-electron/*.dmg
+            dist-electron/*.AppImage
+            dist-electron/*.deb
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Draft release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write        # create the release and upload its files
+      id-token: write        # sign the build provenance
+      attestations: write    # store it
+    steps:
+      - name: Check out (for CHANGELOG.md)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Collect the installers
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: jacarium-*
+          path: release
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: release
+        run: |
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Build provenance (gh attestation verify <file> --repo jacarium/jacarium)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/*
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v h="## What's New in v${version}" \
+            '$0 == h { on = 1; next } on && /^## What.s New in v/ { exit } on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "See CHANGELOG.md." > notes.md
+          cat notes.md
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft --verify-tag \
+            --title "Jacarium ${GITHUB_REF_NAME#v}" \
+            --notes-file notes.md

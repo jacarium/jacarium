@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jacarium Grid</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      background-color: #151515;
+      color: #f0f0f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 750px;
+      background: #1f1f1f;
+      border-radius: 8px;
+      padding: 12px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .status {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .status-text {
+      font-size: 18px;
+      font-weight: 600;
+      color: #f0f0f0;
+      margin-bottom: 8px;
+    }
+
+    .game-id {
+      font-size: 12px;
+      color: #808080;
+      font-family: 'Courier New', monospace;
+    }
+
+    .join-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-group label {
+      font-size: 14px;
+      font-weight: 500;
+      color: #b0b0b0;
+    }
+
+    .input-group input {
+      padding: 10px 12px;
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      color: #f0f0f0;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .input-group input:focus {
+      border-color: #4a9eff;
+      background: #2a2a2a;
+    }
+
+    .join-btn {
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 8px;
+    }
+
+    .join-btn:hover {
+      background: #16a34a;
+    }
+
+    .join-btn:disabled {
+      background: #3a3a3a;
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    .error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid #ef4444;
+      color: #fca5a5;
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 16px;
+      margin-bottom: 16px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #4a9eff;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .lobby, .screen {
+      display: none;
+    }
+
+    .lobby.active, .screen.active {
+      display: block;
+    }
+
+    /* Lobby Screen */
+    .lobby-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      text-align: center;
+      color: #f0f0f0;
+    }
+
+    .players-list {
+      background: #2a2a2a;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 16px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .players-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #b0b0b0;
+      margin-bottom: 12px;
+    }
+
+    .player-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px;
+      background: #1f1f1f;
+      border-radius: 4px;
+      margin-bottom: 6px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .player-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .player-icon {
+      font-size: 16px;
+    }
+
+    .player-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: #f0f0f0;
+    }
+
+    .player-badge {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: 500;
+    }
+
+    .badge-you {
+      background: rgba(59, 130, 246, 0.15);
+      color: #2563eb;
+    }
+
+    .badge-ready {
+      background: rgba(34, 197, 94, 0.15);
+      color: #16a34a;
+    }
+
+    .badge-pending {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge-host {
+      background: #9333ea;
+      color: white;
+    }
+
+    .badge-disconnected {
+      background: rgba(128, 128, 128, 0.15);
+      color: #9ca3af;
+    }
+
+    .waiting-text {
+      text-align: center;
+      color: #808080;
+      font-style: italic;
+      padding: 12px;
+      font-size: 14px;
+    }
+
+    /* Grid Board */
+    .game-timer {
+      text-align: right;
+      margin-bottom: 8px;
+    }
+
+    .timer-display {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      color: #6ee7b7;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .timer-display.warning {
+      background: rgba(251, 146, 60, 0.15);
+      border: 1px solid rgba(251, 146, 60, 0.3);
+      color: #fdba74;
+    }
+
+    .timer-display.critical {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .grid-board {
+      margin-bottom: 8px;
+    }
+
+    .category-headers {
+      display: grid !important;
+      grid-template-columns: repeat(6, 1fr) !important;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .category-header {
+      text-align: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: #808080;
+      padding: 2px;
+    }
+
+    .grid-row {
+      display: grid !important;
+      grid-template-columns: repeat(6, 1fr) !important;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .grid-tile {
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #2a2a2a;
+      border: 2px solid #3a3a3a;
+      border-radius: 4px;
+      font-size: 18px;
+      font-weight: 700;
+      color: #f0f0f0;
+      transition: all 0.2s;
+    }
+
+    .grid-tile.selectable {
+      cursor: pointer;
+      border-color: #3a3a3a;
+    }
+
+    .grid-tile.selectable:hover {
+      background: #3a3a3a;
+      border-color: #f0f0f0;
+      transform: scale(1.05);
+    }
+
+    .grid-tile.not-selectable {
+      cursor: not-allowed;
+      opacity: 0.6;
+      border-color: #3a3a3a;
+    }
+
+    .grid-tile.answered {
+      background: #1f1f1f;
+      border-color: #3a3a3a;
+      color: #4a4a4a;
+      cursor: not-allowed;
+      opacity: 0.4;
+    }
+
+    .leaderboard {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #3a3a3a;
+    }
+
+    .leaderboard-title {
+      font-size: 10px;
+      font-weight: 600;
+      color: #808080;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .standings-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+    }
+
+    .standings-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 10px;
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      min-width: 70px;
+      transition: all 0.2s;
+    }
+
+    .standings-item.selector {
+      background: rgba(234, 179, 8, 0.15);
+      border: 1px solid rgba(234, 179, 8, 0.3);
+      animation: pulse-selector 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-selector {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.85; }
+    }
+
+    @keyframes blink {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+
+    .typing-cursor {
+      animation: blink 1s step-end infinite;
+    }
+
+    .standings-item.selector .player-name {
+      color: #fde047;
+    }
+
+    .standings-item.selector .player-score {
+      color: #fde047;
+    }
+
+    .standings-item.disconnected {
+      opacity: 0.6;
+    }
+
+    .player-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: #f0f0f0;
+      margin-bottom: 2px;
+    }
+
+    .player-score {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f0f0f0;
+    }
+
+    .player-badges {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    /* Question Screen */
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .modal-category {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .category-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: #808080;
+    }
+
+    .points-badge {
+      background: rgba(74, 158, 255, 0.15);
+      color: #93c5fd;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .modal-timers {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .question-timer, .game-timer-small {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .question-timer {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ea580c;
+    }
+
+    .game-timer-small {
+      font-size: 12px;
+      font-weight: 500;
+      color: #16a34a;
+    }
+
+    .game-timer-small.warning {
+      color: #ea580c;
+    }
+
+    .game-timer-small.critical {
+      color: #dc2626;
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    .question-text {
+      background: #2a2a2a;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #3a3a3a;
+      font-size: 14px;
+      font-weight: 600;
+      color: #f0f0f0;
+      margin-bottom: 10px;
+      line-height: 1.4;
+      min-height: 3rem;
+    }
+
+    .selector-indicator {
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    .selector-text {
+      font-size: 12px;
+      color: #808080;
+    }
+
+    .selector-name {
+      font-weight: 500;
+      color: #b0b0b0;
+    }
+
+    .answer-box {
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+
+    .answer-box .answer-label-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .answer-box .winner-badge {
+      font-size: 11px;
+      background: rgba(34, 197, 94, 0.25);
+      color: #6ee7b7;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .answer-box.incorrect {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .answer-box.incorrect .winner-badge {
+      background: rgba(239, 68, 68, 0.25);
+      color: #fca5a5;
+    }
+
+    .answer-box.unanswered {
+      background: rgba(74, 158, 255, 0.15);
+      border-color: rgba(74, 158, 255, 0.3);
+    }
+
+    .answer-box.unanswered .winner-badge {
+      background: rgba(74, 158, 255, 0.25);
+      color: #93c5fd;
+    }
+
+    .answer-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6ee7b7;
+    }
+
+    .answer-box.incorrect .answer-label {
+      color: #fca5a5;
+    }
+
+    .answer-box.unanswered .answer-label {
+      color: #93c5fd;
+    }
+
+    .answer-value {
+      font-size: 16px;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+      color: #a7f3d0;
+    }
+
+    .answer-box.incorrect .answer-value {
+      color: #fecaca;
+    }
+
+    .answer-box.unanswered .answer-value {
+      color: #bfdbfe;
+    }
+
+    .buzz-btn {
+      width: 100%;
+      background: #dc2626;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .buzz-btn:hover:not(:disabled) {
+      background: #b91c1c;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .buzz-btn:disabled {
+      background: #2a2a2a;
+      color: #808080;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .answering-status {
+      background: rgba(234, 179, 8, 0.15);
+      border: 1px solid rgba(234, 179, 8, 0.3);
+      padding: 8px;
+      border-radius: 6px;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .answering-status-text {
+      font-size: 12px;
+      font-weight: 500;
+      color: #fde047;
+    }
+
+    .already-attempted {
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      padding: 10px;
+      border-radius: 6px;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .already-attempted-text {
+      font-size: 12px;
+      color: #808080;
+    }
+
+    .incorrect-answers-list {
+      margin-top: 12px;
+    }
+
+    .incorrect-answer-item {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 6px;
+      font-size: 11px;
+    }
+
+    .incorrect-answer-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .incorrect-answer-header {
+      color: #fca5a5;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .incorrect-answer-text {
+      color: #f87171;
+      font-family: 'Courier New', monospace;
+    }
+
+    .answer-input-section {
+      margin-bottom: 10px;
+    }
+
+    .answer-label-input {
+      font-size: 11px;
+      font-weight: 500;
+      color: #f0f0f0;
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    .answer-input {
+      width: 100%;
+      padding: 8px 10px;
+      background: #2a2a2a;
+      border: 2px solid #3a3a3a;
+      border-radius: 6px;
+      color: #f0f0f0;
+      font-size: 13px;
+      font-family: 'Courier New', monospace;
+      outline: none;
+      margin-bottom: 6px;
+      transition: border-color 0.2s;
+    }
+
+    .answer-input:focus {
+      border-color: #4a9eff;
+    }
+
+    .submit-btn {
+      width: 100%;
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .submit-btn:hover:not(:disabled) {
+      background: #1d4ed8;
+    }
+
+    .submit-btn:disabled {
+      background: #2a2a2a;
+      color: #808080;
+      cursor: not-allowed;
+    }
+
+    /* Results Screen */
+    .results-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .trophy-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+
+    .results-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #f0f0f0;
+      margin-bottom: 8px;
+    }
+
+    .winner-label {
+      font-size: 14px;
+      color: #b0b0b0;
+    }
+
+    .winner-name {
+      font-weight: 700;
+      color: #3b82f6;
+    }
+
+    .winner-score {
+      font-size: 24px;
+      font-weight: 700;
+      color: #22c55e;
+      margin-top: 8px;
+    }
+
+    .final-standings {
+      background: #2a2a2a;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .standings-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #b0b0b0;
+      margin-bottom: 12px;
+    }
+
+    .badge-anticheat {
+      background: #fee2e2;
+      color: #dc2626;
+      border: 1px solid #ef4444;
+    }
+
+    .trophy-small {
+      width: 16px;
+      height: 16px;
+      color: #eab308;
+    }
+
+    .score-graph {
+      background: #2a2a2a;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 16px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .graph-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #f0f0f0;
+      margin-bottom: 8px;
+    }
+
+    #scoreGraph {
+      display: block;
+      margin: 0 auto;
+    }
+
+    .graph-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 12px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .legend-name {
+      font-size: 12px;
+      color: #b0b0b0;
+    }
+
+    .questions-sources-box {
+      background: #2a2a2a;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 16px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .questions-sources-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #f0f0f0;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .question-answer-item {
+      background: #1f1f1f;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 8px;
+      border: 1px solid #3a3a3a;
+      font-size: 12px;
+    }
+
+    .question-answer-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .qa-question {
+      display: flex;
+      align-items: start;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .qa-label {
+      font-weight: 700;
+      color: #808080;
+      min-width: 24px;
+    }
+
+    .qa-text {
+      color: #f0f0f0;
+      flex: 1;
+    }
+
+    .qa-answer {
+      display: flex;
+      align-items: start;
+      gap: 8px;
+      margin-bottom: 4px;
+      margin-left: 32px;
+    }
+
+    .qa-answer-label {
+      font-weight: 700;
+      color: #22c55e;
+    }
+
+    .qa-answer-text {
+      color: #22c55e;
+      font-family: 'Courier New', monospace;
+    }
+
+    .qa-source {
+      display: flex;
+      align-items: start;
+      gap: 8px;
+      margin-left: 32px;
+    }
+
+    .qa-source-label {
+      font-weight: 700;
+      color: #808080;
+    }
+
+    .qa-source-text {
+      color: #b0b0b0;
+      font-style: italic;
+    }
+
+    .qa-source-link {
+      color: #3b82f6;
+      text-decoration: underline;
+    }
+
+    .qa-source-link:hover {
+      color: #60a5fa;
+    }
+
+    .questions-sources-scroll {
+      max-height: 256px;
+      overflow-y: auto;
+    }
+
+    .w-4 {
+      width: 16px;
+    }
+
+    .h-4 {
+      height: 16px;
+    }
+
+    .footer {
+      width: 100%;
+      max-width: 750px;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #3a3a3a;
+      text-align: center;
+    }
+
+    .footer-text {
+      font-size: 13px;
+      color: #808080;
+    }
+
+    .footer-link {
+      color: #4a9eff;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-link:hover {
+      color: #6bb0ff;
+      text-decoration: underline;
+    }
+
+    /* Responsive adjustments for smaller screens */
+    @media (max-width: 768px) {
+      .container {
+        max-width: 100%;
+        padding: 8px;
+      }
+
+      body {
+        padding: 8px;
+      }
+
+      .grid-tile {
+        font-size: 14px;
+        border-radius: 3px;
+      }
+
+      .category-header {
+        font-size: 9px;
+      }
+    }
+
+    /* Keep consistent width on larger screens */
+    @media (min-width: 1200px) {
+      .container {
+        max-width: 800px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Join Screen -->
+    <div id="joinScreen" class="status">
+      <div class="status-text">Join Grid</div>
+      <div class="game-id" id="gameIdDisplay"></div>
+
+      <form class="join-form" onsubmit="joinGrid(event)">
+        <div class="input-group">
+          <label for="playerName">Your Name</label>
+          <input type="text" id="playerName" placeholder="Enter your name" required maxlength="20">
+        </div>
+        <button type="submit" class="join-btn" id="joinBtn">
+          <span id="joinBtnText">Join Grid</span>
+          <span id="joinBtnSpinner" class="spinner" style="display: none;"></span>
+        </button>
+      </form>
+
+      <div id="errorMessage" class="error" style="display: none;"></div>
+    </div>
+
+    <!-- Lobby Screen -->
+    <div id="lobbyScreen" class="lobby">
+      <div class="lobby-title" id="lobbyTitle">Waiting for Game to Start</div>
+      <div class="players-list">
+        <div class="players-title">Players (<span id="playerCount">0</span>)</div>
+        <div id="playersList"></div>
+      </div>
+      <div class="waiting-text">Host will start the game soon...</div>
+    </div>
+
+    <!-- Game Board Screen -->
+    <div id="boardScreen" class="screen">
+      <div class="game-timer">
+        <span class="timer-display" id="gameTimerDisplay">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <span id="gameTime">5:00</span>
+        </span>
+      </div>
+
+      <div class="grid-board">
+        <div class="category-headers" id="categoryHeaders"></div>
+        <div id="gridRows"></div>
+      </div>
+
+      <div id="leaderboard" class="leaderboard"></div>
+    </div>
+
+    <!-- Question Screen -->
+    <div id="questionScreen" class="screen">
+      <div class="modal-header">
+        <div class="modal-category">
+          <span class="category-name" id="modalCategory"></span>
+          <span class="points-badge" id="modalPoints"></span>
+        </div>
+        <div class="modal-timers">
+          <span class="question-timer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span id="questionTime">5</span>s
+          </span>
+          <span class="game-timer-small">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span id="modalGameTime">5:00</span>
+          </span>
+        </div>
+      </div>
+
+      <div id="selectorIndicator" class="selector-indicator" style="display: none;">
+        <p class="selector-text">Tile selected by <span class="selector-name" id="selectorName"></span></p>
+      </div>
+
+      <div class="question-text" id="modalQuestion"></div>
+
+      <div id="answerDisplay" style="display: none;"></div>
+
+      <div id="alreadyAttempted" class="already-attempted" style="display: none;">
+        <p class="already-attempted-text">You already attempted. Waiting for other players...</p>
+      </div>
+
+      <div id="buzzerSection">
+        <button class="buzz-btn" id="buzzBtn">Buzz In</button>
+        <div id="incorrectAnswersDisplay" class="incorrect-answers-list"></div>
+      </div>
+
+      <div id="answeringStatus" class="answering-status" style="display: none;">
+        <div class="answering-status-text" id="answeringText"></div>
+      </div>
+
+      <div id="answerInputSection" class="answer-input-section" style="display: none;">
+        <label class="answer-label-input">Your Answer:</label>
+        <input type="text" class="answer-input" id="answerInput" placeholder="Type your answer here...">
+        <button class="submit-btn" id="submitAnswerBtn">Submit Answer</button>
+        <div id="incorrectAnswersAnswering" class="incorrect-answers-list" style="margin-top: 10px;"></div>
+      </div>
+
+      <div id="leaderboardQuestion" class="leaderboard" style="margin-top: 20px;"></div>
+    </div>
+
+    <!-- Results Screen -->
+    <div id="resultsScreen" class="screen">
+      <div class="results-header">
+        <div class="trophy-icon">🏆</div>
+        <div class="results-title">Grid Complete!</div>
+        <div id="winnerAnnouncement"></div>
+      </div>
+
+      <div class="final-standings">
+        <div class="standings-title">Final Standings</div>
+        <div id="finalStandings"></div>
+      </div>
+
+      <div class="score-graph">
+        <h3 class="graph-title">Score Progression:</h3>
+        <svg id="scoreGraph" width="500" height="200"></svg>
+        <div class="graph-legend" id="graphLegend"></div>
+      </div>
+
+      <div class="questions-sources-box">
+        <h3 class="questions-sources-title">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Questions, Answers & Sources
+        </h3>
+        <div class="questions-sources-scroll" id="questionsSources"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p class="footer-text">
+    </p>
+  </div>
+
+  <!-- Relative to the page (/grid/<id>, or /central/grid/<id> behind the console):
+       the assets stay under whatever prefix the page was served from. -->
+  <script src="../socket.io/socket.io.js"></script>
+  <script src="../grid.js"></script>
+</body>
+</html>

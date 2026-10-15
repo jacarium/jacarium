@@ -1,0 +1,545 @@
+<div id="csrPanel" class="grid grid-cols-1 gap-4">
+ <div class="panel rounded-lg shadow-sm w-full">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-chart-bar mr-2"></i> CSR Status Overview
+ </h3>
+ <div>
+ {% if data and data|length > 0 %}
+ <div style="max-height: 300px; position: relative;">
+ <canvas id="csrStatusChart"></canvas>
+ </div>
+ {% else %}
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-sm font-medium text-gray-900 mb-1">No CSRs Found</div>
+ <div class="text-xs text-gray-500">No certificate signing requests in must-gather</div>
+ </div>
+ {% endif %}
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-certificate mr-2"></i> Certificate Signing Requests
+ </h3>
+ <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
+ <div>
+ <label for="csrStatusFilter" class="block text-xs font-semibold mb-1">Status</label>
+ <select id="csrStatusFilter" class="w-full px-3 py-2 text-sm border">
+ <option value="">All</option>
+ <option value="Approved">Approved</option>
+ <option value="Pending">Pending</option>
+ <option value="Denied">Denied</option>
+ <option value="Failed">Failed</option>
+ </select>
+ </div>
+ <div>
+ <label for="csrSignerFilter" class="block text-xs font-semibold mb-1">Signer</label>
+ <select id="csrSignerFilter" class="w-full px-3 py-2 text-sm border">
+ <option value="">All</option>
+ </select>
+ </div>
+ <div class="md:col-span-6">
+ <label for="csrSearchInput" class="block text-xs font-semibold mb-1">Search All</label>
+ <input id="csrSearchInput" type="text" placeholder="Search CSRs..." class="w-full px-3 py-2 text-sm border"/>
+ </div>
+ </div>
+ <div class="flex justify-between items-center mb-2">
+ <div id="filteredCsrCount" class="text-sm">Showing all CSRs</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs font-semibold">Per Page:</label>
+ <select id="csrPageSizeSelect" onchange="window.changeCsrPageSize()" class="px-3 py-1 text-sm border">
+ <option value="50" selected>50</option>
+ <option value="100">100</option>
+ <option value="250">250</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ <table class="w-full min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCsrsBy('name')">Name <i id="csr-indicator-name" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCsrsBy('status')">Status <i id="csr-indicator-status" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCsrsBy('signer')">Signer <i id="csr-indicator-signer" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCsrsBy('username')">Username <i id="csr-indicator-username" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCsrsBy('created')">Created <i id="csr-indicator-created" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCsrsBy('expiration')">Expiration <i id="csr-indicator-expiration" class="ml-1 fas text-sm"></i></th>
+ </tr>
+ </thead>
+ <tbody id="csrTableBody"></tbody>
+ </table>
+ <div id="csrPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+</div>
+
+<div id="csrDetailsPanel" style="display: none;">
+ <div class="space-y-4">
+ <div class="mb-4">
+ <button onclick="window.backFromCsrModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ Back
+ </button>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-info-circle mr-2"></i> CSR Details
+ </h3>
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm" id="csrDetailsTable"></table>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-users mr-2"></i> Groups
+ </h3>
+ <div id="csrGroupsTable" class="text-sm"></div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-key mr-2"></i> Usages
+ </h3>
+ <div id="csrUsagesTable" class="text-sm"></div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-check-circle mr-2"></i> Conditions
+ </h3>
+ <div id="csrConditionsTable" class="text-sm"></div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-file mr-2"></i> CSR YAML
+ </h2>
+ <div class="mb-2">
+ <input id="csrYamlFilter" type="text" placeholder="Filter YAML lines..." class="w-full px-3 py-2 text-sm border"/>
+ </div>
+ <div id="csrJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
+ </div>
+ </div>
+</div>
+
+
+<script>
+ var csrsData = {{ data | tojson }};
+ var currentSort = { key: null, direction: 1 };
+ var csrCurrentPage = 1;
+ var csrPageSize = 50;
+ var currentCsrDetails = null;
+
+ var csrTableBody = document.getElementById("csrTableBody");
+ var csrStatusFilter = document.getElementById("csrStatusFilter");
+ var csrSignerFilter = document.getElementById("csrSignerFilter");
+ var csrSearchInput = document.getElementById("csrSearchInput");
+ var csrPanel = document.getElementById("csrPanel");
+ var csrDetailsPanel = document.getElementById("csrDetailsPanel");
+
+ function formatDuration(seconds) {
+ if (!seconds) return '-';
+ var hours = Math.floor(seconds / 3600);
+ var days = Math.floor(hours / 24);
+ if (days > 0) return days + 'd';
+ if (hours > 0) return hours + 'h';
+ return Math.floor(seconds / 60) + 'm';
+ }
+
+ function formatTimestamp(timestamp) {
+ if (!timestamp) return '-';
+ try {
+ var date = new Date(timestamp);
+ return date.toLocaleString('en-US', {
+ month: 'short',
+ day: '2-digit',
+ year: '2-digit',
+ hour: '2-digit',
+ minute: '2-digit',
+ timeZone: 'UTC',
+ timeZoneName: 'short'
+ });
+ } catch(e) {
+ return timestamp;
+ }
+ }
+
+ function populateFilters() {
+ var signers = new Set();
+ csrsData.forEach(function(csr) {
+ if (!csr.error) {
+ signers.add(csr.signer_name);
+ }
+ });
+
+ csrSignerFilter.innerHTML = '<option value="">All</option>';
+ Array.from(signers).sort().forEach(function(signer) {
+ var option = document.createElement("option");
+ option.value = signer;
+ option.textContent = signer;
+ csrSignerFilter.appendChild(option);
+ });
+ }
+
+ function getFilteredCsrs() {
+ var selectedStatus = csrStatusFilter.value;
+ var selectedSigner = csrSignerFilter.value;
+ var searchTerm = csrSearchInput.value.toLowerCase();
+
+ return csrsData.filter(function(csr) {
+ if (csr.error) return false;
+
+ if (selectedStatus && csr.status !== selectedStatus) return false;
+ if (selectedSigner && csr.signer_name !== selectedSigner) return false;
+
+ if (searchTerm) {
+ var searchableText = [
+ csr.name,
+ csr.status,
+ csr.signer_name,
+ csr.username
+ ].join(' ').toLowerCase();
+ if (!searchableText.includes(searchTerm)) return false;
+ }
+ return true;
+ });
+ }
+
+ function renderCsrTable() {
+ var filtered = getFilteredCsrs();
+
+ if (currentSort.key) {
+ filtered.sort(function(a, b) {
+ var aVal = getSortValue(a, currentSort.key);
+ var bVal = getSortValue(b, currentSort.key);
+
+ if (aVal < bVal) return -1 * currentSort.direction;
+ if (aVal > bVal) return 1 * currentSort.direction;
+ return 0;
+ });
+ }
+
+ var totalCsrs = filtered.length;
+ var startIndex = csrPageSize === -1 ? 0 : (csrCurrentPage - 1) * csrPageSize;
+ var endIndex = csrPageSize === -1 ? totalCsrs : Math.min(startIndex + csrPageSize, totalCsrs);
+ var paginated = filtered.slice(startIndex, endIndex);
+
+ csrTableBody.innerHTML = "";
+ paginated.forEach(function(csr) {
+ var row = createCsrRow(csr);
+ csrTableBody.appendChild(row);
+ });
+
+ updateFilteredCount(totalCsrs, startIndex, endIndex);
+ renderCsrPaginationControls(totalCsrs);
+ updateSortIndicators();
+ }
+
+ function getSortValue(csr, key) {
+ switch(key) {
+ case 'name': return csr.name;
+ case 'status': return csr.status;
+ case 'signer': return csr.signer_name;
+ case 'username': return csr.username;
+ case 'created': return csr.created;
+ case 'expiration': return csr.expiration_seconds;
+ default: return '';
+ }
+ }
+
+ function createCsrRow(csr) {
+ var row = document.createElement("tr");
+ row.className = "cursor-pointer border-b hover:bg-gray-50 dark:hover:bg-gray-800";
+
+ var expirationText = formatDuration(csr.expiration_seconds);
+ var createdText = formatTimestamp(csr.created);
+
+ row.innerHTML =
+ '<td class="px-4 py-2">' + csr.name + '</td>' +
+ '<td class="px-4 py-2">' + csr.status + '</td>' +
+ '<td class="px-4 py-2 text-xs">' + csr.signer_name + '</td>' +
+ '<td class="px-4 py-2 text-xs">' + csr.username + '</td>' +
+ '<td class="px-4 py-2 text-xs">' + createdText + '</td>' +
+ '<td class="px-4 py-2">' + expirationText + '</td>';
+
+ row.onclick = function() { showCsrDetails(csr); };
+ return row;
+ }
+
+ function showCsrDetails(csr) {
+ currentCsrDetails = csr;
+ csrPanel.style.display = "none";
+ csrDetailsPanel.style.display = "block";
+
+ var detailsTable = document.getElementById("csrDetailsTable");
+ detailsTable.innerHTML =
+ '<tr><td class="font-semibold pr-4 py-1">Name:</td><td>' + csr.name + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Status:</td><td>' + csr.status + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Reason:</td><td>' + (csr.status_reason || '-') + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Message:</td><td class="text-xs">' + (csr.status_message || '-') + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Signer:</td><td class="text-xs">' + csr.signer_name + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Username:</td><td class="text-xs">' + csr.username + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Created:</td><td>' + formatTimestamp(csr.created) + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Expiration:</td><td>' + formatDuration(csr.expiration_seconds) + ' (' + csr.expiration_seconds + 's)</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Certificate Issued:</td><td>' + (csr.has_certificate ? 'Yes' : 'No') + '</td></tr>';
+
+ // Groups
+ var groupsDiv = document.getElementById("csrGroupsTable");
+ if (csr.groups && csr.groups.length > 0) {
+ var groupsHtml = '<div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-sm"><code class="text-xs">';
+ csr.groups.forEach(function(group) {
+ groupsHtml += group + '<br>';
+ });
+ groupsHtml += '</code></div>';
+ groupsDiv.innerHTML = groupsHtml;
+ } else {
+ groupsDiv.innerHTML = '<div class="text-gray-500">No groups</div>';
+ }
+
+ // Usages
+ var usagesDiv = document.getElementById("csrUsagesTable");
+ if (csr.usages && csr.usages.length > 0) {
+ var usagesHtml = '<div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-sm"><code class="text-xs">';
+ csr.usages.forEach(function(usage) {
+ usagesHtml += usage + '<br>';
+ });
+ usagesHtml += '</code></div>';
+ usagesDiv.innerHTML = usagesHtml;
+ } else {
+ usagesDiv.innerHTML = '<div class="text-gray-500">No usages</div>';
+ }
+
+ // Conditions
+ var conditionsDiv = document.getElementById("csrConditionsTable");
+ if (csr.conditions && csr.conditions.length > 0) {
+ var conditionsHtml = '<table class="min-w-full"><thead class="border-b"><tr>' +
+ '<th class="px-4 py-2 text-left">Type</th>' +
+ '<th class="px-4 py-2 text-left">Status</th>' +
+ '<th class="px-4 py-2 text-left">Reason</th>' +
+ '<th class="px-4 py-2 text-left">Message</th>' +
+ '</tr></thead><tbody>';
+
+ csr.conditions.forEach(function(condition) {
+ conditionsHtml += '<tr class="border-b">' +
+ '<td class="px-4 py-2">' + (condition.type || '-') + '</td>' +
+ '<td class="px-4 py-2">' + (condition.status || '-') + '</td>' +
+ '<td class="px-4 py-2">' + (condition.reason || '-') + '</td>' +
+ '<td class="px-4 py-2 text-xs">' + (condition.message || '-') + '</td>' +
+ '</tr>';
+ });
+ conditionsHtml += '</tbody></table>';
+ conditionsDiv.innerHTML = conditionsHtml;
+ } else {
+ conditionsDiv.innerHTML = '<div class="text-gray-500">No conditions</div>';
+ }
+
+ // YAML viewer
+ renderCsrYaml();
+ }
+
+ function highlightJSON(line) {
+ line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+ return line
+ .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
+ .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
+ .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
+ .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
+ .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
+ }
+
+ function renderJSONWithoutHighlight(data, filter) {
+ var formatted = JSON.stringify(data, null, 2);
+ return formatted.split('\n')
+ .filter(function(line) {
+ return !filter || line.toLowerCase().includes(filter.toLowerCase());
+ })
+ .map(function(line) {
+ var highlighted = highlightJSON(line);
+ return '<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">' + highlighted + '</div>';
+ }).join('');
+ }
+
+ function renderCsrYaml() {
+ var viewer = document.getElementById("csrJsonViewer");
+ var filter = document.getElementById("csrYamlFilter");
+
+ function updateYaml() {
+ var filterText = filter.value;
+ viewer.innerHTML = renderJSONWithoutHighlight(currentCsrDetails.raw, filterText);
+ }
+
+ filter.oninput = updateYaml;
+ updateYaml();
+ }
+
+ window.backFromCsrModal = function() {
+ csrDetailsPanel.style.display = "none";
+ csrPanel.style.display = "block";
+ };
+
+ function updateFilteredCount(total, start, end) {
+ var countDiv = document.getElementById("filteredCsrCount");
+ if (csrPageSize === -1) {
+ countDiv.textContent = "Showing all " + total + " CSR(s)";
+ } else {
+ countDiv.textContent = "Showing " + (start + 1) + "-" + end + " of " + total + " CSR(s)";
+ }
+ }
+
+ function renderCsrPaginationControls(totalCsrs) {
+ var controls = document.getElementById("csrPaginationControls");
+ if (csrPageSize === -1) {
+ controls.innerHTML = "";
+ return;
+ }
+
+ var totalPages = Math.ceil(totalCsrs / csrPageSize);
+ var html = "";
+
+ if (csrCurrentPage > 1) {
+ html += '<button onclick="window.changeCsrPage(' + (csrCurrentPage - 1) + ')" class="px-3 py-1 border rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700">Previous</button>';
+ }
+
+ var startPage = Math.max(1, csrCurrentPage - 2);
+ var endPage = Math.min(totalPages, csrCurrentPage + 2);
+
+ for (var i = startPage; i <= endPage; i++) {
+ var activeClass = i === csrCurrentPage ? "bg-blue-500 text-white current-page" : "border hover:bg-gray-100 dark:hover:bg-gray-700";
+ html += '<button onclick="window.changeCsrPage(' + i + ')" class="px-3 py-1 rounded-sm ' + activeClass + '">' + i + '</button>';
+ }
+
+ if (csrCurrentPage < totalPages) {
+ html += '<button onclick="window.changeCsrPage(' + (csrCurrentPage + 1) + ')" class="px-3 py-1 border rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700">Next</button>';
+ }
+
+ controls.innerHTML = html;
+ }
+
+ window.changeCsrPage = function(page) {
+ csrCurrentPage = page;
+ renderCsrTable();
+ };
+
+ window.changeCsrPageSize = function() {
+ var select = document.getElementById("csrPageSizeSelect");
+ csrPageSize = parseInt(select.value);
+ csrCurrentPage = 1;
+ renderCsrTable();
+ };
+
+ window.sortCsrsBy = function(key) {
+ if (currentSort.key === key) {
+ currentSort.direction *= -1;
+ } else {
+ currentSort.key = key;
+ currentSort.direction = 1;
+ }
+ renderCsrTable();
+ };
+
+ function updateSortIndicators() {
+ ["name", "status", "signer", "username", "created", "expiration"].forEach(function(key) {
+ var indicator = document.getElementById("csr-indicator-" + key);
+ if (currentSort.key === key) {
+ indicator.className = "ml-1 fas " + (currentSort.direction === 1 ? "fa-sort-up" : "fa-sort-down");
+ } else {
+ indicator.className = "ml-1 fas";
+ }
+ });
+ }
+
+ // Event listeners
+ csrStatusFilter.addEventListener("change", function() {
+ csrCurrentPage = 1;
+ renderCsrTable();
+ });
+
+ csrSignerFilter.addEventListener("change", function() {
+ csrCurrentPage = 1;
+ renderCsrTable();
+ });
+
+ csrSearchInput.addEventListener("input", function() {
+ csrCurrentPage = 1;
+ renderCsrTable();
+ });
+
+ // Status chart
+ function renderStatusChart() {
+ if (!csrsData || csrsData.length === 0) {
+ return;
+ }
+
+ var statusCounts = {};
+ csrsData.forEach(function(csr) {
+ if (csr.error) return;
+ var status = csr.status || 'Unknown';
+ statusCounts[status] = (statusCounts[status] || 0) + 1;
+ });
+
+ var labels = [];
+ var data = [];
+ var colors = [];
+
+ var colorMap = {
+ 'Approved': 'rgb(34, 197, 94)',
+ 'Pending': 'rgb(245, 158, 11)',
+ 'Denied': 'rgb(239, 68, 68)',
+ 'Failed': 'rgb(239, 68, 68)',
+ 'Unknown': 'rgb(156, 163, 175)'
+ };
+
+ for (var status in statusCounts) {
+ labels.push(status);
+ data.push(statusCounts[status]);
+ colors.push(colorMap[status] || 'rgb(156, 163, 175)');
+ }
+
+ if (labels.length === 0) return;
+
+ var ctx = document.getElementById('csrStatusChart');
+ new Chart(ctx, {
+ type: 'bar',
+ data: {
+ labels: labels,
+ datasets: [{
+ label: 'CSRs',
+ data: data,
+ backgroundColor: colors
+ }]
+ },
+ options: {
+ responsive: true,
+ maintainAspectRatio: false,
+ scales: {
+ x: {
+ ticks: { color: diagnosticsThemeColor('text') },
+ grid: { color: diagnosticsThemeColor('grid') }
+ },
+ y: {
+ beginAtZero: true,
+ ticks: {
+ stepSize: 1,
+ color: diagnosticsThemeColor('text')
+ },
+ grid: { color: diagnosticsThemeColor('grid') }
+ }
+ },
+ plugins: {
+ legend: {
+ display: false
+ }
+ }
+ }
+ });
+ }
+
+ // Initialize
+ populateFilters();
+ renderCsrTable();
+ renderStatusChart();
+
+</script>

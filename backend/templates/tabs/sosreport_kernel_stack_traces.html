@@ -1,0 +1,60 @@
+ <div class="panel rounded-lg shadow-sm">
+ {% if data.stack_traces.traces %}
+ {% for trace in data.stack_traces.traces %}
+ <div class="bg-gray-50 p-3 mb-3 rounded-sm border border-gray-200">
+ <div class="text-xs text-gray-600 mb-1">
+ <i class="fas fa-clock mr-1"></i>
+ <span class="font-medium">{{ trace.timestamp }}</span>
+ </div>
+ <div class="mb-2 text-sm text-gray-900 font-medium whitespace-pre-wrap">{{ trace.warning }}</div>
+ <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm mb-2">
+ <div><span class="font-semibold">CPU:</span> {{ trace.cpu }}</div>
+ <div><span class="font-semibold">PID:</span> {{ trace.pid }}</div>
+ <div><span class="font-semibold">Comm:</span> {{ trace.comm }}</div>
+ <div><span class="font-semibold">Function:</span> {{ trace.function }}</div>
+ {% set file_parts = trace.file.split(':') %}
+ {% set file_path = file_parts[0] %}
+ {% set line = file_parts[1] if file_parts|length > 1 else None %}
+
+ {% set version_parts = trace.kernel_version.split('.') %}
+ {% set major_minor = version_parts[0] + '.' + version_parts[1] %}
+ {% set tag ="v" + major_minor %}
+
+ {% set repo_url ="https://github.com/torvalds/linux/blob/" + tag +"/" %}
+
+ <div>
+ <span class="font-semibold">File:</span>
+ <a href="{{ repo_url }}{{ file_path }}{% if line %}#L{{ line }}{% endif %}"
+ target="_blank"
+ rel="noopener noreferrer"
+ class="underline text-blue-600 hover:text-blue-800">
+ {{ trace.file }}
+ </a>
+ </div>
+
+ <div><span class="font-semibold">Kernel:</span> {{ trace.kernel_version }}</div>
+ <div class="col-span-2"><span class="font-semibold">Hardware:</span> {{ trace.hardware }}</div>
+ </div>
+ {% if trace.code %}
+ <div class="text-sm text-gray-900 bg-gray-100 p-2 rounded-sm mb-2">
+ <div class="whitespace-pre-wrap">{{ trace.code | join("\n") }}</div>
+ </div>
+ {% endif %}
+ {% if trace.call_trace %}
+ <div class="text-sm bg-gray-100 p-2 rounded-sm">
+ <div class="font-semibold mb-1">Call Trace:</div>
+ <div class="whitespace-pre-wrap">{{ trace.call_trace | join("\n") }}</div>
+ </div>
+ {% endif %}
+ </div>
+ {% endfor %}
+ {% else %}
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
+ <div class="text-xs text-gray-500">No kernel stack traces found in this report</div>
+ </div>
+ {% endif %}
+ </div>

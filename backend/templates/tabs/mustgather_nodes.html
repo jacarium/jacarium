@@ -1,0 +1,461 @@
+<div id="nodePanel" class="grid grid-cols-1 gap-4">
+ <div class="panel rounded-lg shadow-sm w-full">
+ <div class="mb-4">
+ <label for="nodeSearchInput" class="block text-xs font-semibold mb-1">Search All</label>
+ <input id="nodeSearchInput" type="text" placeholder="Search nodes..."
+ class="w-full px-3 py-2 text-sm border"/>
+ </div>
+ <div class="flex justify-between items-center mb-2">
+ <div id="filteredNodeCount" class="text-sm">Showing all nodes</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs font-semibold">Per Page:</label>
+ <select id="nodePageSizeSelect" onchange="window.changeNodePageSize()" class="px-3 py-1 text-sm border">
+ <option value="25">25</option>
+ <option value="50" selected>50</option>
+ <option value="100">100</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ <table class="w-full min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('name')">
+ Name <i id="node-indicator-name" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('ip')">
+ IP <i id="node-indicator-ip" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('cpu')">
+ CPU <i id="node-indicator-cpu" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('memory')">
+ Memory <i id="node-indicator-memory" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('kubelet')">
+ Kubelet <i id="node-indicator-kubelet" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('osImage')">
+ OS Image <i id="node-indicator-osImage" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('arch')">
+ Arch <i id="node-indicator-arch" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('ready')">
+ Ready <i id="node-indicator-ready" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('schedulable')">
+ Schedule <i id="node-indicator-schedulable" class="ml-1 fas text-sm"></i>
+ </tr>
+ </thead>
+ <tbody id="nodeTableBody"></tbody>
+ </table>
+ <div id="nodePaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+</div>
+
+<div id="nodeDetailsPanel" style="display: none;">
+ <div class="space-y-4">
+ <div class="mb-4">
+ <button onclick="window.backFromNodeModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ Back
+ </button>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-info-circle mr-2"></i> Node Details
+ </h3>
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm" id="nodeDetailsTable"></table>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-stethoscope mr-2"></i> Node Conditions
+ </h2>
+ <div id="nodeConditionsTable" class="text-sm space-y-2"></div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-file mr-2"></i> Node YAML
+ </h2>
+ <div class="mb-2">
+ <input
+ id="nodeYamlFilter"
+ type="text"
+ placeholder="Filter YAML lines..."
+ class="w-full px-3 py-2 text-sm border"
+ />
+ </div>
+ <div id="nodeJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
+ </div>
+ </div>
+</div>
+
+<script>
+ var nodeData = {{ data | tojson }};
+
+ var flattenedNodes = [];
+ var currentSort = { key:"name", direction: 1 };
+ var currentNode = null;
+ var nodeCurrentPage = 1;
+ var nodePageSize = 50;
+
+ var nodeTableBody = document.getElementById("nodeTableBody");
+ var filteredNodeCount = document.getElementById("filteredNodeCount");
+ var nodeSearchInput = document.getElementById("nodeSearchInput");
+
+ var nodePanel = document.getElementById("nodePanel");
+ var nodeDetailsPanel = document.getElementById("nodeDetailsPanel");
+ var nodeDetailsTable = document.getElementById("nodeDetailsTable");
+ var nodeJsonViewer = document.getElementById("nodeJsonViewer");
+
+ var lastClickedRow = null;
+
+ function flattenNodes() {
+ flattenedNodes = [];
+
+ Object.entries(nodeData).forEach(([nodeName, node]) => {
+ flattenedNodes.push({
+ name: node.metadata?.name || nodeName,
+ ip: getNodeInternalIP(node) ||"-",
+ hostname: node.status?.nodeInfo?.machineID ||"-",
+ cpu: node.status?.capacity?.cpu ||"-",
+ memory: node.status?.capacity?.memory ||"-",
+ kubelet: node.status?.nodeInfo?.kubeletVersion ||"-",
+ osImage: node.status?.nodeInfo?.osImage ||"-",
+ arch: node.status?.nodeInfo?.architecture ||"-",
+ ready: getNodeReadyStatus(node),
+ schedulable: node.spec?.unschedulable ?"No" :"Yes",
+ raw: node,
+ });
+ });
+ }
+
+ function getNodeInternalIP(node) {
+ if (node.status?.addresses) {
+ const ipAddr = node.status.addresses.find(addr => addr.type ==="InternalIP");
+ return ipAddr ? ipAddr.address :"-";
+ }
+ return"-";
+ }
+
+ function getNodeReadyStatus(node) {
+ if (!node.status?.conditions) return"-";
+ const readyCond = node.status.conditions.find(c => c.type ==="Ready");
+ if (!readyCond) return"-";
+ return readyCond.status ||"-";
+ }
+
+ function renderNodeTable(nodes) {
+ nodeTableBody.innerHTML ="";
+ if (nodes.length === 0) {
+ filteredNodeCount.textContent ="No nodes found.";
+ nodeTableBody.innerHTML = `<tr><td colspan="9" class="text-center py-4">No matching nodes found</td></tr>`;
+ updateNodePagination(0);
+ return;
+ }
+
+ const totalCount = nodes.length;
+ const start = nodePageSize === -1 ? 0 : (nodeCurrentPage - 1) * nodePageSize;
+ const end = nodePageSize === -1 ? totalCount : Math.min(start + nodePageSize, totalCount);
+ const paginatedNodes = nodePageSize === -1 ? nodes : nodes.slice(start, end);
+
+ const countText = nodePageSize === -1
+ ? `Showing all ${totalCount} node${totalCount !== 1 ?"s" :""}`
+ : `Showing ${start + 1}-${end} of ${totalCount} node${totalCount !== 1 ?"s" :""}`;
+ filteredNodeCount.textContent = countText;
+
+ paginatedNodes.forEach((n) => {
+ const tr = document.createElement("tr");
+ tr.className = "cursor-pointer border-b hover:bg-gray-50 dark:hover:bg-gray-800";
+ tr.innerHTML = `
+ <td class="px-4 py-2">${n.name}</td>
+ <td class="px-4 py-2">${n.ip}</td>
+ <td class="px-4 py-2">${n.cpu}</td>
+ <td class="px-4 py-2">${n.memory}</td>
+ <td class="px-4 py-2">${n.kubelet}</td>
+ <td class="px-4 py-2">${n.osImage}</td>
+ <td class="px-4 py-2">${n.arch}</td>
+ <td class="px-4 py-2">${n.ready}</td>
+ <td class="px-4 py-2">${n.schedulable}</td>
+ `;
+ tr.onclick = () => {
+ lastClickedRow = tr;
+ showNodeDetails(n);
+ };
+ nodeTableBody.appendChild(tr);
+ });
+
+ updateNodePagination(totalCount);
+ }
+
+ function updateNodePagination(totalCount) {
+ const container = document.getElementById("nodePaginationControls");
+ if (!container) return;
+
+ if (nodePageSize === -1 || totalCount <= nodePageSize) {
+ container.innerHTML ="";
+ return;
+ }
+
+ const totalPages = Math.ceil(totalCount / nodePageSize);
+ let html ="";
+
+ html += `<button onclick="window.goToNodePage(1)" ${nodeCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${nodeCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">First</button>`;
+ html += `<button onclick="window.goToNodePage(${nodeCurrentPage - 1})" ${nodeCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${nodeCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Prev</button>`;
+
+ const startPage = Math.max(1, nodeCurrentPage - 2);
+ const endPage = Math.min(totalPages, nodeCurrentPage + 2);
+
+ for (let i = startPage; i <= endPage; i++) {
+ if (i === nodeCurrentPage) {
+ html += `<button class="px-3 py-1 text-sm bg-blue-700 text-white font-bold current-page">${i}</button>`;
+ } else {
+ html += `<button onclick="window.goToNodePage(${i})" class="px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700">${i}</button>`;
+ }
+ }
+
+ html += `<button onclick="window.goToNodePage(${nodeCurrentPage + 1})" ${nodeCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${nodeCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Next</button>`;
+ html += `<button onclick="window.goToNodePage(${totalPages})" ${nodeCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${nodeCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Last</button>`;
+
+ container.innerHTML = html;
+ }
+
+ window.goToNodePage = function(page) {
+ nodeCurrentPage = page;
+ filterAndSortNodes();
+ }
+
+ window.changeNodePageSize = function() {
+ const select = document.getElementById("nodePageSizeSelect");
+ nodePageSize = parseInt(select.value);
+ nodeCurrentPage = 1;
+ filterAndSortNodes();
+ }
+
+ window.sortNodesBy = function(key) {
+ if (currentSort.key === key) {
+ currentSort.direction *= -1;
+ } else {
+ currentSort.key = key;
+ currentSort.direction = 1;
+ }
+ nodeCurrentPage = 1;
+ sortAndFilterNodes();
+ updateSortIndicators();
+ }
+
+ function updateSortIndicators() {
+ const keys = ["name","ip","cpu","memory","kubelet","osImage","arch","ready","schedulable"];
+ keys.forEach(k => {
+ const el = document.getElementById("node-indicator-" + k);
+ if (!el) return;
+ el.className ="ml-1 fas text-sm" + (k === currentSort.key ? (currentSort.direction > 0 ?" fa-sort-up" :" fa-sort-down") :"");
+ });
+ }
+
+ function sortAndFilterNodes() {
+ const searchTerm = nodeSearchInput.value.toLowerCase();
+
+ let filtered = flattenedNodes.filter(n => {
+ if (!searchTerm) return true;
+ const combined = [n.name, n.ip, n.cpu, n.memory, n.kubelet, n.osImage, n.arch, n.ready, n.schedulable].join("").toLowerCase();
+ return combined.includes(searchTerm);
+ });
+
+ filtered.sort((a, b) => {
+ let valA = a[currentSort.key] ||"";
+ let valB = b[currentSort.key] ||"";
+
+ if (["cpu","memory"].includes(currentSort.key)) {
+ valA = parseCpuMemValue(valA);
+ valB = parseCpuMemValue(valB);
+ return (valA - valB) * currentSort.direction;
+ }
+
+ return valA.localeCompare(valB) * currentSort.direction;
+ });
+
+ renderNodeTable(filtered);
+ }
+
+ function parseCpuMemValue(val) {
+ if (!val || val ==="-") return 0;
+ if (val.endsWith("m")) return parseInt(val.slice(0, -1)) / 1000;
+ if (val.toLowerCase().endsWith("mi")) return parseInt(val) * 1024 * 1024;
+ if (val.toLowerCase().endsWith("gi")) return parseInt(val) * 1024 * 1024 * 1024;
+ const f = parseFloat(val);
+ return isNaN(f) ? 0 : f;
+ }
+
+ function showNodeDetails(node) {
+ currentNode = node;
+
+ const viewer = document.getElementById("nodeJsonViewer");
+ viewer.innerHTML = renderJSONWithoutHighlight(node.raw);
+
+ nodePanel.style.setProperty('display', 'none', 'important');
+ nodeDetailsPanel.style.setProperty('display', 'grid', 'important');
+
+ // Scroll to top - find the scrollable parent by walking up the DOM
+ setTimeout(() => {
+ function findScrollableParent(element) {
+ let parent = element.parentElement;
+ while (parent) {
+ const overflow = window.getComputedStyle(parent).overflow;
+ const overflowY = window.getComputedStyle(parent).overflowY;
+ if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
+ parent.scrollHeight > parent.clientHeight) {
+ return parent;
+ }
+ parent = parent.parentElement;
+ }
+ return null;
+ }
+
+ const scrollableParent = findScrollableParent(nodeDetailsPanel);
+ if (scrollableParent) {
+ scrollableParent.scrollTo({top: 0, behavior: 'instant'});
+ }
+ }, 0);
+
+ const detailsTable = document.getElementById("nodeDetailsTable");
+ detailsTable.innerHTML = `
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Name:</td><td class="py-2">${node.name}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">IP:</td><td class="py-2">${node.ip}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Hostname:</td><td class="py-2">${node.hostname}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">CPU:</td><td class="py-2">${node.cpu}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Memory:</td><td class="py-2">${node.memory}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Kubelet Version:</td><td class="py-2">${node.kubelet}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">OS Image:</td><td class="py-2">${node.osImage}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Arch:</td><td class="py-2">${node.arch}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Ready:</td><td class="py-2">${node.ready}</td></tr>
+ <tr><td class="py-2 pr-4 font-semibold">Schedulable:</td><td class="py-2">${node.schedulable}</td></tr>
+ `;
+
+ const conditions = node.raw?.status?.conditions || [];
+ const conditionsTable = document.getElementById("nodeConditionsTable");
+
+ if (conditions.length === 0) {
+ conditionsTable.innerHTML =
+ '<div class="p-4 rounded-lg">' +
+ '<p class="text-center">No conditions available</p>' +
+ '</div>';
+ } else {
+ let tableHTML =
+ `<div class="text-sm mb-2">Showing ${conditions.length} condition(s)</div>` +
+ '<table class="w-full min-w-full text-sm rounded-lg shadow-md">' +
+ '<thead class="border-b">' +
+ '<tr>' +
+ '<th class="px-4 py-2 text-left">Type</th>' +
+ '<th class="px-4 py-2 text-left">Status</th>' +
+ '<th class="px-4 py-2 text-left">Reason</th>' +
+ '<th class="px-4 py-2 text-left">Message</th>' +
+ '<th class="px-4 py-2 text-left">Last Heartbeat</th>' +
+ '<th class="px-4 py-2 text-left">Last Transition</th>' +
+ '</tr>' +
+ '</thead>' +
+ '<tbody>';
+
+ for (const cond of conditions) {
+ tableHTML +=
+ '<tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-800">' +
+ `<td class="px-4 py-2">${cond.type}</td>` +
+ `<td class="px-4 py-2">${cond.status}</td>` +
+ `<td class="px-4 py-2">${cond.reason}</td>` +
+ `<td class="px-4 py-2 break-all">${cond.message}</td>` +
+ `<td class="px-4 py-2">${new Date(cond.lastHeartbeatTime).toLocaleString('en-US', {
+     month: 'short',
+     day: '2-digit',
+     year: 'numeric',
+     hour: '2-digit',
+     minute: '2-digit',
+     timeZone: 'UTC',
+     timeZoneName: 'short'
+   })}</td>` +
+ `<td class="px-4 py-2">${new Date(cond.lastTransitionTime).toLocaleString('en-US', {
+     month: 'short',
+     day: '2-digit',
+     year: 'numeric',
+     hour: '2-digit',
+     minute: '2-digit',
+     timeZone: 'UTC',
+     timeZoneName: 'short'
+   })}</td>` +
+ '</tr>';
+ }
+
+ tableHTML += '</tbody></table>';
+ conditionsTable.innerHTML = tableHTML;
+ }
+
+ // Setup YAML filter
+ const yamlFilterInput = document.getElementById('nodeYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ yamlFilterInput.removeEventListener('input', filterNodeYaml);
+ yamlFilterInput.addEventListener('input', filterNodeYaml);
+ }
+ }
+
+
+ window.backFromNodeModal = function() {
+ currentNode = null;
+ nodeDetailsPanel.style.setProperty('display', 'none', 'important');
+ nodePanel.style.setProperty('display', 'grid', 'important');
+ nodeJsonViewer.innerHTML ="";
+
+ const yamlFilterInput = document.getElementById('nodeYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ }
+
+ // Scroll back to the last clicked row
+ if (lastClickedRow) {
+ setTimeout(() => {
+ lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
+ }, 0);
+ }
+ }
+
+ function highlightJSON(line) {
+ line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+ return line
+ .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
+ .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
+ .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
+ .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
+ .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
+ }
+
+ function renderJSONWithoutHighlight(data, filter = '') {
+ const formatted = JSON.stringify(data, null, 2);
+ return formatted.split('\n')
+ .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
+ .map(line => {
+ const highlighted = highlightJSON(line);
+ return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
+ }).join('');
+ }
+
+ function filterNodeYaml() {
+ if (!currentNode) return;
+ const filterInput = document.getElementById('nodeYamlFilter');
+ const filterValue = filterInput ? filterInput.value : '';
+ const viewer = document.getElementById('nodeJsonViewer');
+ viewer.innerHTML = renderJSONWithoutHighlight(currentNode.raw, filterValue);
+ }
+
+ nodeSearchInput.addEventListener("input", () => {
+ nodeCurrentPage = 1;
+ sortAndFilterNodes();
+ });
+
+ flattenNodes();
+ sortAndFilterNodes();
+ updateSortIndicators();
+</script>

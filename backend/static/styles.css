@@ -1,0 +1,309 @@
+/* ===================================
+   DIAGNOSTICS TEMPLATE STYLES
+   Scoped to #diagnostics-content to match main app styles
+   =================================== */
+
+/* Text Inputs - match main app */
+#diagnostics-content input[type="text"],
+#diagnostics-content input[type="number"],
+#diagnostics-content input[type="search"],
+#diagnostics-content input[type="email"],
+#diagnostics-content input[type="password"],
+#diagnostics-content input[type="tel"],
+#diagnostics-content input[type="url"] {
+    background-color: var(--os-input-bg) !important;
+    color: var(--os-text-primary) !important;
+    border: 1px solid var(--os-input-border) !important;
+    border-radius: 0 !important;
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.875rem !important;
+    line-height: 1.25rem !important;
+    transition: all 0.2s ease !important;
+    outline: none !important;
+}
+
+#diagnostics-content input[type="text"]:focus,
+#diagnostics-content input[type="number"]:focus,
+#diagnostics-content input[type="search"]:focus,
+#diagnostics-content input[type="email"]:focus,
+#diagnostics-content input[type="password"]:focus,
+#diagnostics-content input[type="tel"]:focus,
+#diagnostics-content input[type="url"]:focus {
+    border-color: var(--os-blue) !important;
+    box-shadow: 0 0 0 2px var(--os-blue) !important;
+}
+
+#diagnostics-content input::placeholder {
+    color: var(--os-text-secondary) !important;
+    opacity: 1 !important;
+}
+
+/* Select Dropdowns - match main app */
+#diagnostics-content select {
+    background-color: var(--os-input-bg) !important;
+    color: var(--os-text-primary) !important;
+    border: 1px solid var(--os-input-border) !important;
+    border-radius: 0 !important;
+    padding: 0.5rem 2.5rem 0.5rem 0.75rem !important;
+    font-size: 0.875rem !important;
+    line-height: 1.25rem !important;
+    transition: all 0.2s ease !important;
+    outline: none !important;
+    cursor: pointer !important;
+    appearance: none !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236A6E73' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e") !important;
+    background-position: right 0.5rem center !important;
+    background-repeat: no-repeat !important;
+    background-size: 1.5em 1.5em !important;
+}
+
+#diagnostics-content select:focus {
+    border-color: var(--os-blue) !important;
+    box-shadow: 0 0 0 2px var(--os-blue) !important;
+}
+
+/* Textareas - match main app */
+#diagnostics-content textarea {
+    background-color: var(--os-input-bg) !important;
+    color: var(--os-text-primary) !important;
+    border: 1px solid var(--os-input-border) !important;
+    border-radius: 0 !important;
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.875rem !important;
+    line-height: 1.5rem !important;
+    transition: all 0.2s ease !important;
+    outline: none !important;
+    resize: vertical !important;
+}
+
+#diagnostics-content textarea:focus {
+    border-color: var(--os-blue) !important;
+    box-shadow: 0 0 0 2px var(--os-blue) !important;
+}
+
+/* Checkboxes - match main app */
+#diagnostics-content input[type="checkbox"] {
+    width: 1rem !important;
+    height: 1rem !important;
+    border: 1px solid var(--os-input-border) !important;
+    border-radius: 0 !important;
+    background-color: var(--os-input-bg) !important;
+    cursor: pointer !important;
+    accent-color: var(--os-blue) !important;
+    margin: 0 !important;
+    transition: all 0.15s ease !important;
+}
+
+#diagnostics-content input[type="checkbox"]:focus {
+    outline: none !important;
+    box-shadow: 0 0 0 2px var(--os-blue) !important;
+}
+
+#diagnostics-content input[type="checkbox"]:checked {
+    background-color: var(--os-blue) !important;
+    border-color: var(--os-blue) !important;
+}
+
+/* Labels - match main app */
+#diagnostics-content label {
+    color: var(--os-text-primary) !important;
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+}
+
+/* Pagination Buttons - match main app */
+#diagnostics-content button.px-3.py-1,
+#diagnostics-content button.px-3.py-1.rounded,
+#diagnostics-content button.px-4.py-2 {
+    background-color: var(--os-blue) !important;
+    color: white !important;
+    border: 1px solid var(--os-blue) !important;
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+    cursor: pointer !important;
+}
+
+#diagnostics-content button.px-3.py-1:hover:not(:disabled),
+#diagnostics-content button.px-3.py-1.rounded:hover:not(:disabled),
+#diagnostics-content button.px-4.py-2:hover:not(:disabled) {
+    background-color: var(--os-blue-hover) !important;
+    border-color: var(--os-blue-hover) !important;
+}
+
+#diagnostics-content button.px-3.py-1:disabled,
+#diagnostics-content button.px-3.py-1.rounded:disabled,
+#diagnostics-content button.px-4.py-2:disabled {
+    background-color: var(--os-card-secondary) !important;
+    color: var(--os-text-secondary) !important;
+    border-color: var(--os-border) !important;
+    cursor: not-allowed !important;
+}
+
+/* Current page button */
+#diagnostics-content button.border-2,
+#diagnostics-content button.font-bold.border-2 {
+    background-color: var(--os-blue-hover) !important;
+    border: 2px solid var(--os-blue-hover) !important;
+    color: white !important;
+    font-weight: 700 !important;
+}
+
+/* Override any bg-gray-300 on enabled pagination buttons */
+#diagnostics-content button:not(:disabled).bg-gray-300 {
+    background-color: var(--os-blue) !important;
+    border-color: var(--os-blue) !important;
+    color: white !important;
+}
+
+/* Ensure text-white class buttons get proper background */
+#diagnostics-content button.text-white {
+    background-color: var(--os-blue) !important;
+    border: 1px solid var(--os-blue) !important;
+}
+
+#diagnostics-content button.text-white:hover:not(:disabled) {
+    background-color: var(--os-blue-hover) !important;
+    border-color: var(--os-blue-hover) !important;
+}
+
+/* ===================================
+   PANEL STYLES - Add padding back
+   =================================== */
+
+#diagnostics-content .panel {
+    padding: 1rem !important;
+    overflow: hidden !important;
+}
+
+/* Ensure grid layouts don't overflow */
+#diagnostics-content .grid {
+    max-width: 100% !important;
+}
+
+#diagnostics-content .grid > * {
+    min-width: 0 !important;
+}
+
+/* ===================================
+   LIST STYLES - Prevent overflow
+   =================================== */
+
+#diagnostics-content ul {
+    list-style: none !important;
+    padding-left: 0 !important;
+}
+
+#diagnostics-content ul li {
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+}
+
+/* Prevent long text in list items from overflowing */
+#diagnostics-content ul li strong {
+    display: inline-block !important;
+}
+
+/* Handle break-all class specifically */
+#diagnostics-content .break-all {
+    word-break: break-all !important;
+    overflow-wrap: anywhere !important;
+}
+
+/* ===================================
+   TABLE STYLES - Prevent overflow
+   =================================== */
+
+/* Make table containers scrollable */
+#diagnostics-content .overflow-x-auto {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+/* Ensure tables fill container width and don't overflow */
+#diagnostics-content table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: auto !important;
+}
+
+/* Make table cells wrap text instead of expanding */
+#diagnostics-content table td,
+#diagnostics-content table th {
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    max-width: 300px !important;
+}
+
+/* Allow pre-wrap cells to wrap properly */
+#diagnostics-content table td.whitespace-pre-wrap,
+#diagnostics-content table td.break-all {
+    white-space: pre-wrap !important;
+    word-break: break-all !important;
+}
+
+/* Smaller font size for tables to fit more content */
+#diagnostics-content table {
+    font-size: 0.75rem !important;
+}
+
+#diagnostics-content table th {
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+}
+
+#diagnostics-content table td {
+    font-size: 0.75rem !important;
+}
+
+/* Table row hover effect */
+#diagnostics-content table tbody tr {
+    transition: background-color 0.15s ease !important;
+}
+
+#diagnostics-content table tbody tr:hover {
+    background-color: var(--os-card-secondary) !important;
+}
+
+/* Cursor pointer for clickable rows */
+#diagnostics-content table tbody tr.cursor-pointer {
+    cursor: pointer !important;
+}
+
+/* Count displays (Showing N of N entries) */
+#diagnostics-content [id$="-count"],
+#diagnostics-content [id*="Count"] {
+    font-size: 0.75rem !important;
+    color: var(--os-text-secondary) !important;
+}
+
+/* ===================================
+   DARK MODE
+   Every colour above is an os-* token (src/index.css defines them for the
+   light theme, the Jacaranda dark, the neutral dark and the gradient themes),
+   so there are no dark-mode colour overrides: the frame mirrors the app's
+   theme attributes onto its <html> and the tokens follow.
+   =================================== */
+
+/* ===================================
+   SELECTED PAGINATION PAGE
+   Outlined style (transparent background + blue border) so the current page is
+   clearly distinguished from the solid-blue page buttons - in BOTH light and
+   dark themes, and independent of :hover (a plain darker background reads as a
+   hover state, and the class-based approaches get flattened by the button rules
+   above). High-specificity selectors so this wins over
+   #...button.px-3.py-1.rounded (which would otherwise force one solid blue).
+   Templates mark the active page button with class="... current-page".
+   =================================== */
+#diagnostics-content button.current-page,
+#diagnostics-content button.px-3.py-1.current-page,
+#diagnostics-content button.px-3.py-1.rounded.current-page,
+#diagnostics-content button.current-page:hover:not(:disabled),
+#diagnostics-content button.px-3.py-1.rounded.current-page:hover:not(:disabled) {
+    background-color: transparent !important;
+    border: 2px solid var(--os-blue) !important;
+    color: var(--os-blue) !important;
+    font-weight: 500 !important;
+    box-shadow: none !important;
+}

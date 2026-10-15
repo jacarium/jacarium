@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="512" height="512" role="img" aria-label="Jacarium">
+  <!-- Jacarium app icon: a rounded square holding an arch and a jacaranda blossom -->
+  <rect width="120" height="120" rx="28" fill="#7B5CE0"/>
+  <path d="M32 98 V58 A28 28 0 0 1 88 58 V98 Z" fill="#EDE6FF"/>
+  <g fill="#7B5CE0"><ellipse cx="60" cy="56" rx="6.5" ry="10" transform="rotate(0 60 67)"/><ellipse cx="60" cy="56" rx="6.5" ry="10" transform="rotate(72 60 67)"/><ellipse cx="60" cy="56" rx="6.5" ry="10" transform="rotate(144 60 67)"/><ellipse cx="60" cy="56" rx="6.5" ry="10" transform="rotate(216 60 67)"/><ellipse cx="60" cy="56" rx="6.5" ry="10" transform="rotate(288 60 67)"/></g>
+  <circle cx="60" cy="67" r="3.8" fill="#EDE6FF"/>
+</svg>

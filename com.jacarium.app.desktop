@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Jacarium
+GenericName=Notes, cases and tools
+Comment=Everything you know and use for technical work, in one place.
+Icon=com.jacarium.app
+Exec=jacarium %U
+Terminal=false
+Categories=Utility;Office;
+Keywords=notes;documents;cases;tasks;taskwarrior;jira;kanban;
+StartupNotify=true
+StartupWMClass=Jacarium
+MimeType=text/plain;text/markdown;

@@ -1,0 +1,847 @@
+<div id="podListPanel" class="grid grid-cols-1 gap-4">
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-server mr-2"></i> Pods per Node
+ </h3>
+ <div>
+ {% if data %}
+ <canvas id="podsPerNodeChart" height="150"></canvas>
+ {% else %}
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+ </svg>
+ <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
+ <div class="text-xs text-gray-500">No pod distribution data found</div>
+ </div>
+ {% endif %}
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-traffic-light mr-2"></i> Pods per Status
+ </h3>
+ <div>
+ {% if data %}
+ <canvas id="podsPerStatusChart" height="150"></canvas>
+ {% else %}
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+ </svg>
+ <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
+ <div class="text-xs text-gray-500">No pod status data found</div>
+ </div>
+ {% endif %}
+ </div>
+ </div>
+ </div>
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-box mr-2"></i> Pods
+ </h3>
+
+ <div class="mb-2">
+ <label class="inline-flex items-center text-xs font-semibold">
+ <input type="checkbox" id="show-empty-namespaces" class="form-checkbox">
+ <span class="ml-2">Show Empty Namespaces</span>
+ </label>
+ </div>
+ <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
+ <div>
+ <label for="filter-namespace" class="block text-xs font-semibold mb-1">Namespaces</label>
+ <select id="filter-namespace" class="w-full px-3 py-2 text-sm border">
+ <option value="">All</option>
+ </select>
+ </div>
+ <div>
+ <label for="filter-node" class="block text-xs font-semibold mb-1">Nodes</label>
+ <select id="filter-node" class="w-full px-3 py-2 text-sm border">
+ <option value="">All</option>
+ </select>
+ </div>
+ <div>
+ <label for="filter-status" class="block text-xs font-semibold mb-1">Status</label>
+ <select id="filter-status" class="w-full px-3 py-2 text-sm border">
+ <option value="">All</option>
+ </select>
+ </div>
+ <div class="md:col-span-5">
+ <label for="search-input" class="block text-xs font-semibold mb-1">Search All</label>
+ <input id="search-input" type="text" placeholder="Search pods..." class="w-full px-3 py-2 text-sm border" />
+ </div>
+ </div>
+
+ {% if data %}
+ <div class="flex justify-between items-center mb-2">
+ <div id="filteredPodCount" class="text-sm">Showing all entries</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs font-semibold">Per Page:</label>
+ <select id="podPageSizeSelect" onchange="window.changePodPageSize()" class="px-3 py-1 text-sm border">
+ <option value="50">50</option>
+ <option value="100" selected>100</option>
+ <option value="250">250</option>
+ <option value="500">500</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ <table class="min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" data-key="namespace">
+ Namespace <i id="pod-indicator-namespace" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" data-key="name">
+ Name <i id="pod-indicator-name" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" data-key="node">
+ Node <i id="pod-indicator-node" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" data-key="conditions">
+ Conditions <i id="pod-indicator-conditions" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" data-key="ready">
+ Ready <i id="pod-indicator-ready" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" data-key="restarts">
+ Restarts <i id="pod-indicator-restarts" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" data-key="status">
+ Status <i id="pod-indicator-status" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" data-key="ip">
+ IP <i id="pod-indicator-ip" class="ml-1 fas text-sm"></i>
+ </th>
+ <th class="px-4 py-2 text-left cursor-pointer" data-key="age">
+ Age <i id="pod-indicator-age" class="ml-1 fas text-sm"></i>
+ </th>
+ </tr>
+ </thead>
+ <tbody id="pod-table-body">
+ </tbody>
+ </table>
+ <div id="podPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ {% else %}
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
+ <div class="text-xs text-gray-500">No pod data found in this report</div>
+ </div>
+ {% endif %}
+ </div>
+</div>
+
+<div id="podPanel" style="display: none;">
+ <div class="space-y-4">
+ <div class="mb-4">
+ <button onclick="window.backFromPodModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ Back
+ </button>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-info-circle mr-2"></i> Container Status
+ </h2>
+ <div id="containerDetailsTable" class="text-sm space-y-2">
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-file mr-2"></i> Pod YAML
+ </h2>
+ <div class="mb-2">
+ <input
+ id="podYamlFilter"
+ type="text"
+ placeholder="Filter YAML lines..."
+ class="w-full px-3 py-2 text-sm border"
+ />
+ </div>
+ <div id="jsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
+ </div>
+ </div>
+</div>
+
+<script>
+ // ============================================================================
+ // DATA & STATE MANAGEMENT
+ // ============================================================================
+ const podData = {{ data | tojson }};
+ let flattenedPods = [];
+ let currentSort = { key: null, direction: 1 };
+ let podCurrentPage = 1;
+ let podPageSize = 100;
+ let podsPerNodeChart = null;
+ let podsPerStatusChart = null;
+
+ // ============================================================================
+ // DOM ELEMENTS
+ // ============================================================================
+ const tableBody = document.getElementById("pod-table-body");
+ const searchInput = document.getElementById("search-input");
+ const headers = document.querySelectorAll("thead th");
+ const filterNamespace = document.getElementById('filter-namespace');
+ const filterNode = document.getElementById('filter-node');
+ const filterStatus = document.getElementById('filter-status');
+ const showEmptyCheckbox = document.getElementById('show-empty-namespaces');
+
+ // Modal elements
+ const podListPanel = document.getElementById("podListPanel");
+ const podDetailsPanel = document.getElementById("podPanel");
+ const jsonViewer = document.getElementById("jsonViewer");
+
+ let currentPod = null;
+ let lastClickedRow = null;
+
+ // ============================================================================
+ // UTILITY FUNCTIONS
+ // ============================================================================
+
+ /**
+ * Calculate age string from creation timestamp
+ */
+ function calculateAge(ageSeconds) {
+ if (ageSeconds === undefined || ageSeconds === null) return"-";
+
+ const diff = Math.abs(ageSeconds);
+ const mins = Math.floor(diff / 60);
+ const hours = Math.floor(mins / 60);
+ const days = Math.floor(hours / 24);
+
+ return days > 0 ? `${days}d`
+ : hours > 0 ? `${hours}h`
+ : mins > 0 ? `${mins}m`
+ : `${diff}s`;
+ }
+
+ /**
+ * Parse pod and extract relevant information
+ */
+ function parsePod(namespace, podName, podInfo) {
+ const metadata = podInfo.metadata || {};
+ const status = podInfo.status || {};
+ const spec = podInfo.spec || {};
+
+ const nodeName = spec.nodeName || '';
+ const podIP = status.podIP || '';
+ const age = calculateAge(podInfo._age_seconds);
+
+ const containers = spec.containers || [];
+ const containerStatuses = status.containerStatuses || [];
+ const ready = `${containerStatuses.filter(c => c.ready).length}/${containers.length}`;
+
+ // Determine pod status
+ let podStatus = status.phase || '-';
+ if (podStatus === 'Running' && ready !== `${containers.length}/${containers.length}`) {
+ podStatus = 'Not Ready';
+ } else if (podStatus === 'Succeeded') {
+ podStatus = 'Completed';
+ }
+
+ const restartCount = containerStatuses.reduce((acc, cs) => acc + (cs.restartCount || 0), 0);
+
+ // Format conditions
+ const conditions = (status.conditions || []).map(c => {
+ const isFalse = c.status === 'False';
+ const content = `${c.type}: ${c.status} at ${c.lastTransitionTime}`;
+ return isFalse && podStatus !== 'Completed'
+ ? `<div class="text-white p-1 rounded-sm">${content}</div>`
+ : `<div>${content}</div>`;
+ }).join('') || '-';
+
+ return {
+ namespace,
+ name: podName,
+ node: nodeName,
+ conditions,
+ ready,
+ restarts: restartCount,
+ status: podStatus,
+ ip: podIP,
+ age,
+ age_seconds: podInfo._age_seconds || 0,
+ raw: podInfo
+ };
+ }
+
+ /**
+ * Flatten pod data into array for table rendering
+ */
+ function flattenPodData(showEmpty = false) {
+ const pods = [];
+
+ Object.entries(podData).forEach(([namespace, podList]) => {
+ const podEntries = Object.entries(podList || {});
+
+ // Add placeholder for empty namespaces
+ if (podEntries.length === 0 && showEmpty) {
+ pods.push({
+ namespace,
+ name: 'No Pods',
+ node: '-',
+ conditions: '-',
+ ready: '-',
+ restarts: '-',
+ status: '-',
+ ip: '-',
+ age: '-',
+ raw: {}
+ });
+ return;
+ }
+
+ // Parse each pod
+ podEntries.forEach(([podName, podInfo]) => {
+ pods.push(parsePod(namespace, podName, podInfo));
+ });
+ });
+
+ return pods;
+ }
+
+ // ============================================================================
+ // FILTER & SORT FUNCTIONS
+ // ============================================================================
+
+
+ /**
+ * Populate filter dropdown options from current pod data
+ */
+ function populateFilterOptions() {
+ const namespaces = new Set();
+ const nodes = new Set();
+ const statuses = new Set();
+
+ flattenedPods.forEach(pod => {
+ if (pod.namespace) namespaces.add(pod.namespace);
+ if (pod.node) nodes.add(pod.node);
+ if (pod.status) statuses.add(pod.status);
+ });
+
+ const addOptions = (selectElem, options) => {
+ selectElem.innerHTML = '<option value="">All</option>';
+ [...options].sort().forEach(opt => {
+ const option = document.createElement('option');
+ option.value = opt;
+ option.textContent = opt;
+ selectElem.appendChild(option);
+ });
+ };
+
+ addOptions(filterNamespace, namespaces);
+ addOptions(filterNode, nodes);
+ addOptions(filterStatus, statuses);
+ }
+
+ /**
+ * Filter pods based on search query and dropdown selections
+ */
+ function filterPods(query = '') {
+ query = query.toLowerCase();
+ const nsFilter = filterNamespace.value;
+ const nodeFilter = filterNode.value;
+ const statusFilter = filterStatus.value;
+
+ return flattenedPods.filter(pod => {
+ const fullText = JSON.stringify(pod).toLowerCase();
+ const matchesQuery = fullText.includes(query);
+ const matchesNamespace = !nsFilter || pod.namespace === nsFilter;
+ const matchesNode = !nodeFilter || pod.node === nodeFilter;
+ const matchesStatus = !statusFilter || pod.status === statusFilter;
+
+ return matchesQuery && matchesNamespace && matchesNode && matchesStatus;
+ });
+ }
+
+ /**
+ * Sort pods by key
+ */
+ function sortPods(key) {
+ if (currentSort.key === key) {
+ currentSort.direction *= -1;
+ } else {
+ currentSort = { key, direction: 1 };
+ }
+
+ flattenedPods.sort((a, b) => {
+ if (key === 'restarts') {
+ const valA = parseInt(a[key], 10) || 0;
+ const valB = parseInt(b[key], 10) || 0;
+ return (valA - valB) * currentSort.direction;
+ }
+ if (key === 'age') {
+ const valA = a.age_seconds || 0;
+ const valB = b.age_seconds || 0;
+ return (valA - valB) * currentSort.direction;
+ }
+ const valA = a[key] || '';
+ const valB = b[key] || '';
+ return valA.localeCompare(valB) * currentSort.direction;
+ });
+
+ resetPodIndicators();
+
+ const icon = document.getElementById(`pod-indicator-${key}`);
+ if (icon) {
+ icon.classList.add('fa', currentSort.direction === 1 ? 'fa-caret-up' : 'fa-caret-down');
+ }
+
+ renderTable(filterPods(searchInput.value));
+ }
+
+ function resetPodIndicators() {
+ document.querySelectorAll('[id^="pod-indicator-"]').forEach(icon => {
+ icon.classList.remove('fa-caret-up', 'fa-caret-down');
+ });
+ }
+
+ // ============================================================================
+ // TABLE RENDERING
+ // ============================================================================
+
+
+ /**
+ * Render pods table with pagination
+ */
+ function renderTable(pods) {
+ const totalCount = pods.length;
+ const start = podPageSize === -1 ? 0 : (podCurrentPage - 1) * podPageSize;
+ const end = podPageSize === -1 ? totalCount : Math.min(start + podPageSize, totalCount);
+ const paginatedPods = podPageSize === -1 ? pods : pods.slice(start, end);
+
+ tableBody.innerHTML = '';
+
+ paginatedPods.forEach(pod => {
+ const row = document.createElement("tr");
+ row.className = "border-b hover:bg-gray-50 dark:hover:bg-gray-800";
+
+ if (pod.name === 'No Pods') {
+ row.innerHTML = `
+ <td class="px-4 py-2">${pod.namespace}</td>
+ <td class="px-4 py-2" colspan="8">No Pods</td>
+ `;
+ row.style.cursor = 'default';
+ } else {
+ row.className += " cursor-pointer";
+ row.innerHTML = `
+ <td class="px-4 py-2">${pod.namespace}</td>
+ <td class="px-4 py-2">${pod.name}</td>
+ <td class="px-4 py-2">${pod.node}</td>
+ <td class="px-4 py-2">${pod.conditions}</td>
+ <td class="px-4 py-2">${pod.ready}</td>
+ <td class="px-4 py-2">${pod.restarts}</td>
+ <td class="px-4 py-2">${pod.status}</td>
+ <td class="px-4 py-2">${pod.ip}</td>
+ <td class="px-4 py-2">${pod.age}</td>
+ `;
+ row.addEventListener('click', () => {
+ console.log('Row clicked for pod:', pod.name);
+ lastClickedRow = row;
+ window.showPodDetails(pod);
+ });
+ }
+
+ tableBody.appendChild(row);
+ });
+
+ // Update count display
+ const countText = podPageSize === -1
+ ? `Showing all ${totalCount} entries`
+ : `Showing ${start + 1}-${end} of ${totalCount} entries`;
+ document.getElementById('filteredPodCount').textContent = countText;
+
+ updatePodPagination(totalCount);
+
+ // Update charts with filtered data
+ renderCharts(pods);
+ }
+
+
+ /**
+ * Update pagination controls
+ */
+ function updatePodPagination(totalCount) {
+ const container = document.getElementById("podPaginationControls");
+ if (!container) return;
+
+ if (podPageSize === -1 || totalCount <= podPageSize) {
+ container.innerHTML ="";
+ return;
+ }
+
+ const totalPages = Math.ceil(totalCount / podPageSize);
+ let html ="";
+
+ html += `<button onclick="window.goToPodPage(1)" ${podCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${podCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">First</button>`;
+ html += `<button onclick="window.goToPodPage(${podCurrentPage - 1})" ${podCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${podCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Prev</button>`;
+
+ const startPage = Math.max(1, podCurrentPage - 2);
+ const endPage = Math.min(totalPages, podCurrentPage + 2);
+
+ for (let i = startPage; i <= endPage; i++) {
+ if (i === podCurrentPage) {
+ html += `<button class="px-3 py-1 text-sm bg-blue-700 text-white font-bold current-page">${i}</button>`;
+ } else {
+ html += `<button onclick="window.goToPodPage(${i})" class="px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700">${i}</button>`;
+ }
+ }
+
+ html += `<button onclick="window.goToPodPage(${podCurrentPage + 1})" ${podCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${podCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Next</button>`;
+ html += `<button onclick="window.goToPodPage(${totalPages})" ${podCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${podCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Last</button>`;
+
+ container.innerHTML = html;
+ }
+
+ // ============================================================================
+ // GLOBAL FUNCTIONS (for onclick handlers)
+ // ============================================================================
+
+ window.goToPodPage = function(page) {
+ podCurrentPage = page;
+ renderTable(filterPods(searchInput.value));
+ };
+
+ window.changePodPageSize = function() {
+ const select = document.getElementById("podPageSizeSelect");
+ podPageSize = parseInt(select.value);
+ podCurrentPage = 1;
+ renderTable(filterPods(searchInput.value));
+ };
+
+ // ============================================================================
+ // CHARTS
+ // ============================================================================
+
+
+ /**
+ * Render distribution charts based on provided pods
+ */
+ function renderCharts(pods = flattenedPods) {
+ const nodeCounts = {};
+ const statusCounts = {};
+
+ pods.forEach(pod => {
+ if (pod.node && pod.node.trim()) {
+ nodeCounts[pod.node] = (nodeCounts[pod.node] || 0) + 1;
+ }
+ if (pod.status && pod.status.trim()) {
+ statusCounts[pod.status] = (statusCounts[pod.status] || 0) + 1;
+ }
+ });
+
+ const chartOptions = {
+ responsive: true,
+ animation: false,
+ plugins: {
+ legend: { display: false },
+ tooltip: {
+ backgroundColor: diagnosticsThemeColor('tooltip'),
+ titleColor: '#facc15',
+ bodyColor: diagnosticsThemeColor('text'),
+ borderColor: '#374151',
+ borderWidth: 1
+ }
+ },
+ scales: {
+ x: {
+ ticks: { color: diagnosticsThemeColor('text') },
+ grid: { color: diagnosticsThemeColor('grid') }
+ },
+ y: {
+ ticks: { color: diagnosticsThemeColor('text') },
+ grid: { color: diagnosticsThemeColor('grid') }
+ }
+ }
+ };
+
+ // Pods per node chart
+ if (podsPerNodeChart) {
+ podsPerNodeChart.data.labels = Object.keys(nodeCounts);
+ podsPerNodeChart.data.datasets[0].data = Object.values(nodeCounts);
+ podsPerNodeChart.update();
+ } else {
+ podsPerNodeChart = new Chart(document.getElementById("podsPerNodeChart").getContext("2d"), {
+ type:"bar",
+ data: {
+ labels: Object.keys(nodeCounts),
+ datasets: [{
+ label:"Pods",
+ data: Object.values(nodeCounts),
+ backgroundColor:"rgba(34, 197, 94, 0.7)",
+ borderColor:"rgba(34, 197, 94, 1)",
+ borderWidth: 1
+ }]
+ },
+ options: chartOptions
+ });
+ }
+
+ // Pods per status chart
+ const labels = Object.keys(statusCounts);
+ const backgroundColors = labels.map(label =>
+ (label ==="Running" || label ==="Completed") ?"rgba(34, 197, 94, 0.7)" :"rgba(220, 38, 38, 0.7)"
+ );
+ const borderColors = labels.map(label =>
+ (label ==="Running" || label ==="Completed") ?"rgba(34, 197, 94, 1)" :"rgba(220, 38, 38, 1)"
+ );
+
+ if (podsPerStatusChart) {
+ podsPerStatusChart.data.labels = labels;
+ podsPerStatusChart.data.datasets[0].data = Object.values(statusCounts);
+ podsPerStatusChart.data.datasets[0].backgroundColor = backgroundColors;
+ podsPerStatusChart.data.datasets[0].borderColor = borderColors;
+ podsPerStatusChart.update();
+ } else {
+ podsPerStatusChart = new Chart(document.getElementById("podsPerStatusChart").getContext("2d"), {
+ type:"bar",
+ data: {
+ labels,
+ datasets: [{
+ label:"Pods",
+ data: Object.values(statusCounts),
+ backgroundColor: backgroundColors,
+ borderColor: borderColors,
+ borderWidth: 1
+ }]
+ },
+ options: chartOptions
+ });
+ }
+ }
+
+ // ============================================================================
+ // POD DETAILS MODAL
+ // ============================================================================
+
+
+ /**
+ * Render JSON with highlighted matches
+ */
+ function highlightJSON(line) {
+ // Escape HTML
+ line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+ // Highlight JSON syntax
+ return line
+ .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:') // Keys
+ .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>') // String values
+ .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>') // Booleans
+ .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>') // null
+ .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>'); // Numbers
+ }
+
+ /**
+ * Render JSON without search highlighting but with syntax highlighting
+ */
+ function renderJSONWithoutHighlight(data, filter = '') {
+ const formatted = JSON.stringify(data, null, 2);
+ return formatted.split('\n')
+ .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
+ .map(line => {
+ const highlighted = highlightJSON(line);
+ return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
+ }).join('');
+ }
+
+ function filterPodYaml() {
+ if (!currentPod) return;
+ const filterInput = document.getElementById('podYamlFilter');
+ const filterValue = filterInput ? filterInput.value : '';
+ jsonViewer.innerHTML = renderJSONWithoutHighlight(currentPod.raw, filterValue);
+ }
+
+ /**
+ * Show pod details modal
+ */
+ window.showPodDetails = function(pod) {
+ currentPod = pod;
+
+ // Show details panel, hide list panel
+ podDetailsPanel.style.setProperty('display', 'block', 'important');
+ podListPanel.style.setProperty('display', 'none', 'important');
+
+ // Scroll to top - find the scrollable parent by walking up the DOM
+ setTimeout(() => {
+ function findScrollableParent(element) {
+ let parent = element.parentElement;
+ while (parent) {
+ const overflow = window.getComputedStyle(parent).overflow;
+ const overflowY = window.getComputedStyle(parent).overflowY;
+ if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
+ parent.scrollHeight > parent.clientHeight) {
+ return parent;
+ }
+ parent = parent.parentElement;
+ }
+ return null;
+ }
+
+ const scrollableParent = findScrollableParent(podDetailsPanel);
+ if (scrollableParent) {
+ scrollableParent.scrollTo({top: 0, behavior: 'instant'});
+ }
+ }, 0);
+
+ // Render YAML
+ jsonViewer.innerHTML = renderJSONWithoutHighlight(pod.raw);
+
+ // Render container status table
+ const containerStatuses = pod.raw?.status?.containerStatuses || [];
+ const detailsTable = document.getElementById('containerDetailsTable');
+
+ if (containerStatuses.length === 0) {
+ detailsTable.innerHTML = `
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
+ <div class="text-xs text-gray-500">No container data found</div>
+ </div>`;
+ } else {
+ let tableHTML = `
+ <div class="text-sm mb-2">Showing ${containerStatuses.length} container(s)</div>
+ <table class="min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left">Name</th>
+ <th class="px-4 py-2 text-left">Ready</th>
+ <th class="px-4 py-2 text-left">Container ID</th>
+ <th class="px-4 py-2 text-left">Image</th>
+ <th class="px-4 py-2 text-left">Image ID</th>
+ <th class="px-4 py-2 text-left">Restart Count</th>
+ <th class="px-4 py-2 text-left">Started</th>
+ <th class="px-4 py-2 text-left">Start Time</th>
+ </tr>
+ </thead>
+ <tbody>`;
+
+ containerStatuses.forEach(cs => {
+ const startTime = cs.state?.running?.startedAt || 'N/A';
+ tableHTML += `
+ <tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-4 py-2">${cs.name}</td>
+ <td class="px-4 py-2">${cs.ready ? 'Yes' : 'No'}</td>
+ <td class="px-4 py-2 break-all">${cs.containerID || 'N/A'}</td>
+ <td class="px-4 py-2 break-all">${cs.image}</td>
+ <td class="px-4 py-2 break-all">${cs.imageID}</td>
+ <td class="px-4 py-2">${cs.restartCount}</td>
+ <td class="px-4 py-2">${cs.started ? 'Yes' : 'No'}</td>
+ <td class="px-4 py-2">${startTime}</td>
+ </tr>`;
+ });
+
+ tableHTML += '</tbody></table>';
+ detailsTable.innerHTML = tableHTML;
+ }
+
+ // Setup YAML filter
+ const yamlFilterInput = document.getElementById('podYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ yamlFilterInput.removeEventListener('input', filterPodYaml);
+ yamlFilterInput.addEventListener('input', filterPodYaml);
+ }
+
+ console.log('showPodDetails completed');
+ };
+
+ /**
+ * Go back to pod list from details view
+ */
+ window.backFromPodModal = function() {
+ podDetailsPanel.style.setProperty('display', 'none', 'important');
+ podListPanel.style.setProperty('display', 'grid', 'important');
+
+ const yamlFilterInput = document.getElementById('podYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ }
+
+ // Scroll back to the last clicked row
+ if (lastClickedRow) {
+ setTimeout(() => {
+ lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
+ }, 0);
+ }
+ };
+
+ // ============================================================================
+ // EVENT LISTENERS
+ // ============================================================================
+
+ // Search input
+ searchInput.addEventListener("input", () => {
+ podCurrentPage = 1;
+ renderTable(filterPods(searchInput.value));
+ });
+
+ // Filter dropdowns
+ [filterNamespace, filterNode, filterStatus].forEach(select => {
+ select.addEventListener('change', () => {
+ podCurrentPage = 1;
+ renderTable(filterPods(searchInput.value));
+ });
+ });
+
+ // Show empty namespaces checkbox
+ showEmptyCheckbox.addEventListener('change', function() {
+ podCurrentPage = 1;
+ flattenedPods = flattenPodData(this.checked);
+ populateFilterOptions();
+ renderTable(filterPods(searchInput.value));
+ });
+
+ // Table header sorting
+ headers.forEach(header => {
+ header.addEventListener("click", () => {
+ const key = header.dataset.key;
+ if (key) sortPods(key);
+ });
+ });
+
+ // ============================================================================
+ // INITIALIZATION
+ // ============================================================================
+
+ console.log('=== Pod Template Initialization ===');
+ console.log('podListPanel:', podListPanel);
+ console.log('podDetailsPanel (podPanel):', podDetailsPanel);
+ console.log('jsonViewer:', jsonViewer);
+ console.log('tableBody:', tableBody);
+
+ if (!podListPanel) console.error('podListPanel not found!');
+ if (!podDetailsPanel) console.error('podDetailsPanel not found!');
+ if (!jsonViewer) console.error('jsonViewer not found!');
+ if (!tableBody) console.error('tableBody not found!');
+
+ flattenedPods = flattenPodData(false);
+ populateFilterOptions();
+ renderCharts();
+ renderTable(flattenedPods);
+
+ console.log('=== Initialization Complete ===');
+
+ // Watch for theme changes and re-render charts
+ const themeObserver = new MutationObserver((mutations) => {
+ mutations.forEach((mutation) => {
+ if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+ // Theme has changed, re-render charts
+ renderCharts();
+ }
+ });
+ });
+
+ // Start observing theme changes
+ themeObserver.observe(document.documentElement, {
+ attributes: true,
+ attributeFilter: ['class']
+ });
+</script>

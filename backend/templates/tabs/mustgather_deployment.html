@@ -1,0 +1,552 @@
+<div id="deploymentListPanel" class="grid grid-cols-1 gap-4">
+ <div class="panel rounded-lg shadow-sm w-full">
+ <div class="mb-2">
+ <label class="inline-flex items-center text-xs font-semibold">
+ <input type="checkbox" id="show-empty-namespaces" class="form-checkbox">
+ <span class="ml-2">Show Empty Namespaces</span>
+ </label>
+ </div>
+ <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
+ <div>
+ <label for="deploymentNamespaceFilter" class="block text-xs font-semibold mb-1">Namespaces</label>
+ <select id="deploymentNamespaceFilter" class="w-full px-3 py-2 text-sm border">
+ <option value="">All</option>
+ </select>
+ </div>
+ <div class="md:col-span-7">
+ <label for="search-input" class="block text-xs font-semibold mb-1">Search All</label>
+ <input id="search-input" type="text" placeholder="Search deployments..." class="w-full px-3 py-2 text-sm border" />
+ </div>
+ </div>
+ <div class="flex justify-between items-center mb-2">
+ <div id="filteredDeploymentCount" class="text-sm">Showing all deployments</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs font-semibold">Per Page:</label>
+ <select id="deploymentPageSizeSelect" onchange="window.changeDeploymentPageSize()" class="px-3 py-1 text-sm border">
+ <option value="50">50</option>
+ <option value="100" selected>100</option>
+ <option value="250">250</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ <table class="w-full min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('namespace')">Namespace <i id="deployment-indicator-namespace" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('name')">Name <i id="deployment-indicator-name" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('replicas')">Replicas <i id="deployment-indicator-replicas" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('updated')">Updated <i id="deployment-indicator-updated" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('available')">Available <i id="deployment-indicator-available" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('age')">Age <i id="deployment-indicator-age" class="ml-1 fas text-sm"></i></th>
+ </tr>
+ </thead>
+ <tbody id="deployment-table-body">
+ </tbody>
+ </table>
+ <div id="deploymentPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+</div>
+
+<div id="deploymentPanel" style="display: none;">
+ <div class="space-y-4">
+ <div class="mb-4">
+ <button onclick="window.backFromDeploymentModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ Back
+ </button>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-info-circle mr-2"></i> Deployment Details
+ </h2>
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm" id="deploymentDetailsTable"></table>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-stethoscope mr-2"></i> Deployment Conditions
+ </h2>
+ <div id="deploymentConditionsTable" class="text-sm space-y-2">
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-file mr-2"></i> Deployment YAML
+ </h2>
+ <div class="mb-2">
+ <input
+ id="deploymentYamlFilter"
+ type="text"
+ placeholder="Filter YAML lines..."
+ class="w-full px-3 py-2 text-sm border"
+ />
+ </div>
+ <div id="deploymentJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
+ </div>
+ </div>
+</div>
+
+<script>
+
+ var deploymentsData = {{ data | tojson }};
+ var currentSort = { key: null, direction: 1 };
+ var deploymentCurrentPage = 1;
+ var deploymentPageSize = 100;
+
+ var deploymentTableBody = document.getElementById("deployment-table-body");
+ var deploymentDetailsTable = document.getElementById("deploymentDetailsTable");
+ var viewer = document.getElementById("deploymentJsonViewer");
+ var namespaceDeploymentFilter = document.getElementById("deploymentNamespaceFilter");
+ var searchDeploymentInput = document.getElementById("search-input");
+
+ var deploymentListPanel = document.getElementById("deploymentListPanel");
+ var deploymentPanel = document.getElementById("deploymentPanel");
+
+ var flattenedDeployments = [];
+ var currentDeployment = null;
+ var lastClickedRow = null;
+
+ Object.entries(deploymentsData).forEach(([ns, deploymentsInNamespace]) => {
+ Object.entries(deploymentsInNamespace).forEach(([name, dep]) => {
+ const meta = dep.metadata || {};
+ const spec = dep.spec || {};
+ const status = dep.status || {};
+
+ const age = getAge(dep._age_seconds);
+
+ flattenedDeployments.push({
+ namespace: ns,
+ name: name,
+ replicas: spec.replicas || 0,
+ updated: status.updatedReplicas || 0,
+ available: status.availableReplicas || 0,
+ age: age,
+ age_seconds: dep._age_seconds || 0,
+ raw: dep
+ });
+ });
+ });
+
+ var namespaceDeploymentSet = new Set(flattenedDeployments.map(d => d.namespace));
+
+ namespaceDeploymentSet.forEach(ns => {
+ const option = document.createElement("option");
+ option.value = ns;
+ option.textContent = ns;
+ namespaceDeploymentFilter.appendChild(option);
+ });
+ namespaceDeploymentFilter.addEventListener("change", () => {
+ applyFiltersAndRender();
+ });
+
+ var showEmptyNamespacesCheckbox = document.getElementById('show-empty-namespaces');
+
+ function flattenDeployments(showEmpty = false) {
+ flattenedDeployments = [];
+
+ Object.entries(deploymentsData).forEach(([ns, deploymentsInNamespace]) => {
+ const deploymentEntries = Object.entries(deploymentsInNamespace || {});
+
+ if (deploymentEntries.length === 0 && showEmpty) {
+ flattenedDeployments.push({
+ namespace: ns,
+ name: 'No deployments',
+ replicas: '-',
+ updated: '-',
+ available: '-',
+ age: '-',
+ raw: {}
+ });
+ }
+
+ deploymentEntries.forEach(([name, dep]) => {
+ const meta = dep.metadata || {};
+ const spec = dep.spec || {};
+ const status = dep.status || {};
+
+ const age = getAge(dep._age_seconds);
+
+ flattenedDeployments.push({
+ namespace: ns,
+ name: name,
+ replicas: spec.replicas || 0,
+ updated: status.updatedReplicas || 0,
+ available: status.availableReplicas || 0,
+ age: age,
+ age_seconds: dep._age_seconds || 0,
+ raw: dep
+ });
+ });
+ });
+ }
+
+
+ function getAge(ageSeconds) {
+ if (ageSeconds === undefined || ageSeconds === null) return '-';
+ const seconds = Math.abs(ageSeconds);
+ const mins = Math.floor(seconds / 60);
+ const hours = Math.floor(mins / 60);
+ const days = Math.floor(hours / 24);
+ return days > 0 ? `${days}d` : hours > 0 ? `${hours}h` : mins > 0 ? `${mins}m` : `${seconds}s`;
+ }
+
+ function updateNamespaceFilterOptions(showEmpty) {
+ while (namespaceDeploymentFilter.options.length > 1) {
+ namespaceDeploymentFilter.remove(1);
+ }
+
+ flattenDeployments(showEmpty);
+
+ const namespaces = new Set(flattenedDeployments.map(d => d.namespace));
+
+ namespaces.forEach(ns => {
+ const option = document.createElement("option");
+ option.value = ns;
+ option.textContent = ns;
+ namespaceDeploymentFilter.appendChild(option);
+ });
+ }
+
+ function renderDeploymentTable(data) {
+ deploymentTableBody.innerHTML = '';
+
+ const totalCount = data.length;
+ const start = deploymentPageSize === -1 ? 0 : (deploymentCurrentPage - 1) * deploymentPageSize;
+ const end = deploymentPageSize === -1 ? totalCount : Math.min(start + deploymentPageSize, totalCount);
+ const paginatedData = deploymentPageSize === -1 ? data : data.slice(start, end);
+
+ paginatedData.forEach(dep => {
+ const row = document.createElement("tr");
+ row.className = "cursor-pointer border-b hover:bg-gray-50 dark:hover:bg-gray-800";
+
+ if(dep.name === 'No deployments') {
+ row.innerHTML = `
+ <td class="px-4 py-2">${dep.namespace}</td>
+ <td class="px-4 py-2">No Deployments</td>
+ <td class="px-4 py-2">-</td>
+ <td class="px-4 py-2">-</td>
+ <td class="px-4 py-2">-</td>
+ <td class="px-4 py-2">-</td>
+ `;
+ row.style.cursor = 'default';
+ } else {
+ row.innerHTML = `
+ <td class="px-4 py-2">${dep.namespace}</td>
+ <td class="px-4 py-2">${dep.name}</td>
+ <td class="px-4 py-2">${dep.replicas}</td>
+ <td class="px-4 py-2">${dep.updated}</td>
+ <td class="px-4 py-2">${dep.available}</td>
+ <td class="px-4 py-2">${dep.age}</td>
+ `;
+ row.addEventListener("click", () => {
+ lastClickedRow = row;
+ openDeploymentDetails(dep);
+ });
+ }
+
+ deploymentTableBody.appendChild(row);
+ });
+
+ const countText = deploymentPageSize === -1
+ ? `Showing all ${totalCount} deployments`
+ : `Showing ${start + 1}-${end} of ${totalCount} deployments`;
+ document.getElementById("filteredDeploymentCount").textContent = countText;
+
+ updateDeploymentPagination(totalCount);
+ }
+
+ function updateDeploymentPagination(totalCount) {
+ const container = document.getElementById("deploymentPaginationControls");
+ if (!container) return;
+
+ if (deploymentPageSize === -1 || totalCount <= deploymentPageSize) {
+ container.innerHTML ="";
+ return;
+ }
+
+ const totalPages = Math.ceil(totalCount / deploymentPageSize);
+ let html ="";
+
+ html += `<button onclick="window.goToDeploymentPage(1)" ${deploymentCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${deploymentCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">First</button>`;
+ html += `<button onclick="window.goToDeploymentPage(${deploymentCurrentPage - 1})" ${deploymentCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${deploymentCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Prev</button>`;
+
+ const startPage = Math.max(1, deploymentCurrentPage - 2);
+ const endPage = Math.min(totalPages, deploymentCurrentPage + 2);
+
+ for (let i = startPage; i <= endPage; i++) {
+ if (i === deploymentCurrentPage) {
+ html += `<button class="px-3 py-1 text-sm bg-blue-700 text-white font-bold current-page">${i}</button>`;
+ } else {
+ html += `<button onclick="window.goToDeploymentPage(${i})" class="px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700">${i}</button>`;
+ }
+ }
+
+ html += `<button onclick="window.goToDeploymentPage(${deploymentCurrentPage + 1})" ${deploymentCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${deploymentCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Next</button>`;
+ html += `<button onclick="window.goToDeploymentPage(${totalPages})" ${deploymentCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${deploymentCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Last</button>`;
+
+ container.innerHTML = html;
+ }
+
+ window.goToDeploymentPage = function(page) {
+ deploymentCurrentPage = page;
+ applyFiltersAndRender();
+ }
+
+ window.changeDeploymentPageSize = function() {
+ const select = document.getElementById("deploymentPageSizeSelect");
+ deploymentPageSize = parseInt(select.value);
+ deploymentCurrentPage = 1;
+ applyFiltersAndRender();
+ }
+
+ function openDeploymentDetails(dep) {
+ currentDeployment = dep;
+ showDeploymentDetails(dep);
+ }
+
+
+ function resetPodIndicators() {
+ const indicators = document.querySelectorAll('[id^="deployment-indicator-"]');
+ indicators.forEach(icon => {
+ icon.classList.remove('fa-caret-up', 'fa-caret-down');
+ });
+ }
+
+ window.sortBy = function(key) {
+ if (currentSort.key === key) {
+ currentSort.direction *= -1;
+ } else {
+ currentSort.key = key;
+ currentSort.direction = 1;
+ }
+ resetPodIndicators();
+
+ const icon = document.getElementById(`deployment-indicator-${key}`);
+ if (icon) {
+ icon.classList.add('fa', currentSort.direction === 1 ? 'fa-caret-up' : 'fa-caret-down');
+ }
+ deploymentCurrentPage = 1;
+ applyFiltersAndRender();
+ }
+ searchDeploymentInput.addEventListener("input", () => {
+ deploymentCurrentPage = 1;
+ applyFiltersAndRender();
+ });
+ namespaceDeploymentFilter.addEventListener("change", () => {
+ deploymentCurrentPage = 1;
+ applyFiltersAndRender();
+ });
+ showEmptyNamespacesCheckbox.addEventListener("change", () => {
+ deploymentCurrentPage = 1;
+ applyFiltersAndRender();
+ });
+
+ function applyFiltersAndRender() {
+ const showEmpty = showEmptyNamespacesCheckbox.checked;
+ flattenDeployments(showEmpty);
+
+ let filtered = [...flattenedDeployments];
+
+ const selectedNamespace = namespaceDeploymentFilter.value;
+ if (selectedNamespace) {
+ filtered = filtered.filter(dep => dep.namespace === selectedNamespace);
+ }
+
+ const searchTerm = searchDeploymentInput.value.trim().toLowerCase();
+ if (searchTerm) {
+ filtered = filtered.filter(dep => {
+ const fullText = JSON.stringify(dep).toLowerCase();
+ return fullText.includes(searchTerm);
+ });
+ }
+
+ if (currentSort.key) {
+ filtered.sort((a, b) => {
+ let valA = a[currentSort.key];
+ let valB = b[currentSort.key];
+
+ if (currentSort.key === 'age') {
+ valA = a.age_seconds || 0;
+ valB = b.age_seconds || 0;
+ return (valA - valB) * currentSort.direction;
+ }
+
+ if (valA === '-') return 1;
+ if (valB === '-') return -1;
+
+ return (valA > valB ? 1 : valA < valB ? -1 : 0) * currentSort.direction;
+ });
+ }
+
+ renderDeploymentTable(filtered);
+ }
+
+ showEmptyNamespacesCheckbox.addEventListener('change', () => {
+ updateNamespaceFilterOptions(showEmptyNamespacesCheckbox.checked);
+ applyFiltersAndRender();
+ });
+
+ function parseAge(age) {
+ const num = parseInt(age);
+ if (age.endsWith('d')) return num * 86400;
+ if (age.endsWith('h')) return num * 3600;
+ if (age.endsWith('m')) return num * 60;
+ return num;
+ }
+
+ function showDeploymentDetails(dep) {
+ currentDeployment = dep;
+
+ viewer.innerHTML = renderJSONWithoutHighlight(dep.raw);
+ deploymentListPanel.style.setProperty('display', 'none', 'important');
+ deploymentPanel.style.setProperty('display', 'block', 'important');
+
+ // Scroll to top - find the scrollable parent by walking up the DOM
+ setTimeout(() => {
+ function findScrollableParent(element) {
+ let parent = element.parentElement;
+ while (parent) {
+ const overflow = window.getComputedStyle(parent).overflow;
+ const overflowY = window.getComputedStyle(parent).overflowY;
+ if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
+ parent.scrollHeight > parent.clientHeight) {
+ return parent;
+ }
+ parent = parent.parentElement;
+ }
+ return null;
+ }
+
+ const scrollableParent = findScrollableParent(deploymentPanel);
+ if (scrollableParent) {
+ scrollableParent.scrollTo({top: 0, behavior: 'instant'});
+ }
+ }, 0);
+
+ deploymentDetailsTable.innerHTML = `
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Name:</td><td class="py-2">${dep.name}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Namespace:</td><td class="py-2">${dep.namespace}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Replicas:</td><td class="py-2">${dep.replicas}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Updated:</td><td class="py-2">${dep.updated}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Available:</td><td class="py-2">${dep.available}</td></tr>
+ <tr><td class="py-2 pr-4 font-semibold">Age:</td><td class="py-2">${dep.age}</td></tr>
+ `;
+
+ const conditions = dep.raw?.status?.conditions || [];
+ const conditionsTable = document.getElementById("deploymentConditionsTable");
+
+ if (conditions.length === 0) {
+ conditionsTable.innerHTML =
+ '<div class="p-4 rounded-lg">' +
+ '<p class="text-center">No conditions available</p>' +
+ '</div>';
+ } else {
+ let tableHTML =
+ `<div class="text-sm mb-2">Showing ${conditions.length} condition(s)</div>` +
+ '<table class="w-full min-w-full text-sm rounded-lg shadow-md">' +
+ '<thead class="border-b">' +
+ '<tr>' +
+ '<th class="px-4 py-2 text-left">Type</th>' +
+ '<th class="px-4 py-2 text-left">Status</th>' +
+ '<th class="px-4 py-2 text-left">Reason</th>' +
+ '<th class="px-4 py-2 text-left">Message</th>' +
+ '<th class="px-4 py-2 text-left">Last Updated</th>' +
+ '<th class="px-4 py-2 text-left">Last Transition</th>' +
+ '</tr>' +
+ '</thead>' +
+ '<tbody>';
+
+ for (const cond of conditions) {
+ tableHTML +=
+ '<tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-800">' +
+ `<td class="px-4 py-2">${cond.type}</td>` +
+ `<td class="px-4 py-2">${cond.status}</td>` +
+ `<td class="px-4 py-2">${cond.reason}</td>` +
+ `<td class="px-4 py-2 break-all">${cond.message}</td>` +
+ `<td class="px-4 py-2">${new Date(cond.lastUpdateTime).toLocaleString('en-US', {
+     month: 'short',
+     day: '2-digit',
+     year: 'numeric',
+     hour: '2-digit',
+     minute: '2-digit',
+     timeZone: 'UTC',
+     timeZoneName: 'short'
+   })}</td>` +
+ `<td class="px-4 py-2">${new Date(cond.lastTransitionTime).toLocaleString('en-US', {
+     month: 'short',
+     day: '2-digit',
+     year: 'numeric',
+     hour: '2-digit',
+     minute: '2-digit',
+     timeZone: 'UTC',
+     timeZoneName: 'short'
+   })}</td>` +
+ '</tr>';
+ }
+
+ tableHTML += '</tbody></table>';
+ conditionsTable.innerHTML = tableHTML;
+ }
+
+ // Setup YAML filter
+ const yamlFilterInput = document.getElementById('deploymentYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ yamlFilterInput.removeEventListener('input', filterDeploymentYaml);
+ yamlFilterInput.addEventListener('input', filterDeploymentYaml);
+ }
+ }
+
+ function highlightJSON(line) {
+ line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+ return line
+ .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
+ .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
+ .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
+ .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
+ .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
+ }
+
+ function renderJSONWithoutHighlight(data, filter = '') {
+ const formatted = JSON.stringify(data, null, 2);
+ return formatted.split('\n')
+ .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
+ .map(line => {
+ const highlighted = highlightJSON(line);
+ return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
+ }).join('');
+ }
+
+ function filterDeploymentYaml() {
+ if (!currentDeployment) return;
+ const filterInput = document.getElementById('deploymentYamlFilter');
+ const filterValue = filterInput ? filterInput.value : '';
+ viewer.innerHTML = renderJSONWithoutHighlight(currentDeployment.raw, filterValue);
+ }
+
+ window.backFromDeploymentModal = function() {
+ deploymentPanel.style.setProperty('display', 'none', 'important');
+ deploymentListPanel.style.setProperty('display', 'grid', 'important');
+ viewer.innerHTML = '';
+
+ const yamlFilterInput = document.getElementById('deploymentYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ }
+
+ // Scroll back to the last clicked row
+ if (lastClickedRow) {
+ setTimeout(() => {
+ lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
+ }, 0);
+ }
+ }
+
+ updateNamespaceFilterOptions(showEmptyNamespacesCheckbox.checked);
+ applyFiltersAndRender();
+</script>
+

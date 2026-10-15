@@ -1,0 +1,77 @@
+ <div class="panel rounded-lg shadow-sm">
+ <div class="mb-4">
+ <label class="block text-xs font-semibold mb-1">Search All</label>
+ <input
+ type="text"
+ id="oom-filter"
+ placeholder="Filter OOM events..."
+ class="w-full px-3 py-2 text-sm border focus:outline-hidden focus:ring-2"
+ autocomplete="off"
+ />
+ </div>
+
+ {% if data.oom_killer and data.oom_killer | length > 0 %}
+ <div id="oom-blocks">
+ {% for block in data.oom_killer %}
+ {% set lines = block.splitlines() %}
+ {% set summary_lines = lines[:3] + ['...'] + lines[-1:] if lines | length > 4 else lines %}
+ <details class="oom-entry rounded-lg p-3 mb-3 shadow-md bg-gray-50 border border-gray-200 text-sm" data-full="{{ block | escape }}">
+ <summary class="cursor-pointer rounded-t-md flex items-center justify-between">
+ <span class="whitespace-pre-wrap text-xs text-left text-gray-900">{{ summary_lines | join('\n') }}</span>
+ <i class="fas fa-caret-down ml-2 text-gray-600"></i>
+ </summary>
+ <div class="mt-3 text-xs space-y-4 rounded-lg">
+ <pre class="bg-gray-100 p-2 rounded-sm whitespace-pre-wrap text-gray-900">{{ block }}</pre>
+ </div>
+ </details>
+ {% endfor %}
+ </div>
+ {% else %}
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
+ <div class="text-xs text-gray-500">No OOM killer events found in this report</div>
+ </div>
+ {% endif %}
+ </div>
+</div>
+
+<script>
+ (() => {
+ document.querySelectorAll('.oom-entry').forEach(details => {
+ const summary = details.querySelector('summary');
+ const icon = summary.querySelector('i');
+
+ details.addEventListener('toggle', () => {
+ icon.classList.toggle('fa-caret-down');
+ icon.classList.toggle('fa-caret-up');
+ });
+ });
+
+ const filterInput = document.getElementById('oom-filter');
+ const entries = document.querySelectorAll('.oom-entry');
+
+ filterInput.addEventListener('input', () => {
+ const query = filterInput.value.trim().toLowerCase();
+ let regex = null;
+
+ if (query.length > 0) {
+ try {
+ regex = new RegExp(query, 'i');
+ } catch {
+ regex = null;
+ }
+ }
+
+ entries.forEach(entry => {
+ const fullText = entry.dataset.full.toLowerCase();
+ const matches = regex
+ ? regex.test(fullText)
+ : fullText.includes(query);
+
+ entry.style.display = matches ? '' : 'none';
+ });
+ });
+ })();

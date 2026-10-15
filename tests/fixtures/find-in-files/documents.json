@@ -1,0 +1,21 @@
+[
+  {
+    "title": "Runbook: Widget Restart",
+    "category": "Runbooks",
+    "content": "# Widget restart\n\nWhen the widget service stalls, restart it.\n\n```bash\nsystemctl restart widget.service\nsystemctl status widget.service\n```\n\nThe Widget dashboard shows WIDGET_OK once it is back.\n   indented widget line with leading spaces\nwidget widget widget\n\nSee also: alpha-notes."
+  },
+  {
+    "title": "Runbook: Gadget Cleanup",
+    "category": "Runbooks",
+    "content": "# Gadget cleanup\n\nRemove stale gadget caches nightly.\n\n- gadget-cache-a\n- gadget_cache_b\n- widgets are unrelated here\n\nLast line mentions alpha-notes too."
+  },
+  {
+    "title": "Alpha Notes",
+    "category": "Notes",
+    "content": "alpha notes\nThe widget team meets on Mondays.\nTODO: review Widget alerts\nCRLF line with widget\r\nplain line"
+  },
+  {
+    "title": "Uncategorized Scratch",
+    "content": "scratch widget\nnothing else"
+  }
+]

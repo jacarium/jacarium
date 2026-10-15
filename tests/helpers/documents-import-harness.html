@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Documents import harness (tests only)</title>
+  </head>
+  <body>
+    <!--
+      Served by the Vite dev server at /tests/helpers/documents-import-harness.html
+      for tests/documents-import-theme.test.mjs. Mounts the REAL Documents
+      "Import from JSON" flow (src/components/common/ImportFlow.jsx:
+      ImportInputModal -> ImportModal, driven by the real useImportFlow hook
+      and the real validateDocumentsImport) with synthetic data so every
+      step can be measured and screenshotted in both themes without booting
+      the whole app. Nothing touches IndexedDB or the network. Not part of
+      the app bundle.
+    -->
+    <div id="root"></div>
+    <script type="module" src="./documents-import-harness-entry.jsx"></script>
+  </body>
+</html>

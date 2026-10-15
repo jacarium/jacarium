@@ -1,0 +1,485 @@
+<div id="statefulSetPanel" class="grid grid-cols-1 gap-4">
+ <div class="panel rounded-lg shadow-sm w-full">
+ <div class="mb-2">
+ <label class="inline-flex items-center text-xs font-semibold">
+ <input type="checkbox" id="show-empty-namespaces" class="form-checkbox">
+ <span class="ml-2">Show Empty Namespaces</span>
+ </label>
+ </div>
+ <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
+ <div>
+ <label for="statefulSetNamespaceFilter" class="block text-xs font-semibold mb-1">Namespaces</label>
+ <select id="statefulSetNamespaceFilter" class="w-full px-3 py-2 text-sm border">
+ <option value="">All</option>
+ </select>
+ </div>
+ <div class="md:col-span-7">
+ <label for="statefulSetSearchInput" class="block text-xs font-semibold mb-1">Search All</label>
+ <input id="statefulSetSearchInput" type="text" placeholder="Search stateful sets..." class="w-full px-3 py-2 text-sm border" />
+ </div>
+ </div>
+ <div class="flex justify-between items-center mb-2">
+ <div id="filteredstatefulSetCount" class="text-sm">Showing all stateful sets</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs font-semibold">Per Page:</label>
+ <select id="statefulsetPageSizeSelect" onchange="window.changeStatefulsetPageSize()" class="px-3 py-1 text-sm border">
+ <option value="50">50</option>
+ <option value="100" selected>100</option>
+ <option value="250">250</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ <table class="w-full min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortstatefulSetsBy('namespace')">Namespace <i id="statefulset-indicator-namespace" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortstatefulSetsBy('name')">Name <i id="statefulset-indicator-name" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortstatefulSetsBy('replicas')">Replicas <i id="statefulset-indicator-replicas" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortstatefulSetsBy('available')">Available <i id="statefulset-indicator-available" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortstatefulSetsBy('ready')">Ready <i id="statefulset-indicator-ready" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortstatefulSetsBy('age')">Age <i id="statefulset-indicator-age" class="ml-1 fas text-sm"></i></th>
+ </tr>
+ </thead>
+ <tbody id="statefulSetTableBody"></tbody>
+ </table>
+ <div id="statefulsetPaginationButtons" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+</div>
+
+<div id="statefulSetDetailsPanel" style="display: none;">
+ <div class="space-y-4">
+ <div class="mb-4">
+ <button onclick="window.backFromstatefulModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ Back
+ </button>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-info-circle mr-2"></i> Stateful Set Details
+ </h3>
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm" id="statefulSetDetailsTable"></table>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-file mr-2"></i> Stateful Set YAML
+ </h2>
+ <div class="mb-2">
+ <input
+ id="statefulSetYamlFilter"
+ type="text"
+ placeholder="Filter YAML lines..."
+ class="w-full px-3 py-2 text-sm border"
+ />
+ </div>
+ <div id="statefulSetJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
+ </div>
+ </div>
+</div>
+
+<script>
+ var statefulSetsData = {{ data | tojson }};
+ var flattenedstatefulSets = [];
+ var currentSort = { key:"name", direction: 1 };
+ var statefulsetCurrentPage = 1;
+ var statefulsetPageSize = 100;
+
+ var statefulSetPanel = document.getElementById("statefulSetPanel");
+ var statefulSetJsonViewer = document.getElementById("statefulSetJsonViewer");
+ var statefulSetDetailsTable = document.getElementById("statefulSetDetailsTable");
+ var statefulSetNamespaceFilter = document.getElementById("statefulSetNamespaceFilter");
+ var currentstatefulSet = null;
+ var lastClickedRow = null;
+
+ var showEmptyNamespacesCheckbox = document.getElementById("show-empty-namespaces")
+
+
+ function getAge(ageSeconds) {
+ if (ageSeconds === undefined || ageSeconds === null) return '-';
+ const seconds = Math.abs(ageSeconds);
+ const intervals = [
+ [31536000,"y"],
+ [2592000,"mo"],
+ [86400,"d"],
+ [3600,"h"],
+ [60,"m"],
+ [1,"s"],
+ ];
+ for (const [interval, label] of intervals) {
+ const count = Math.floor(seconds / interval);
+ if (count >= 1) return count + label;
+ }
+ return"0s";
+ }
+
+ flattenstatefulSets(showEmptyNamespacesCheckbox.checked);
+
+ var allNamespaces = Object.keys(statefulSetsData);
+
+
+ function renderstatefulSetTable(data) {
+ const totalCount = data.length;
+ const start = statefulsetPageSize === -1 ? 0 : (statefulsetCurrentPage - 1) * statefulsetPageSize;
+ const end = statefulsetPageSize === -1 ? totalCount : Math.min(start + statefulsetPageSize, totalCount);
+ const paginatedData = statefulsetPageSize === -1 ? data : data.slice(start, end);
+
+ const body = document.getElementById("statefulSetTableBody");
+ body.innerHTML ="";
+
+ paginatedData.forEach(rs => {
+ const row = document.createElement("tr");
+
+ if(rs.name ==="No Stateful Sets") {
+ row.className = "border-b";
+ } else {
+ row.className = "cursor-pointer border-b hover:bg-gray-50 dark:hover:bg-gray-800";
+ }
+
+ row.innerHTML = `
+ <td class="px-4 py-2">${rs.namespace}</td>
+ <td class="px-4 py-2">${rs.name}</td>
+ <td class="px-4 py-2">${rs.replicas}</td>
+ <td class="px-4 py-2">${rs.available}</td>
+ <td class="px-4 py-2">${rs.ready}</td>
+ <td class="px-4 py-2">${rs.age}</td>
+ `;
+
+ if (!rs.isPlaceholder) {
+ row.onclick = () => {
+ lastClickedRow = row;
+ showstatefulSetDetails(rs);
+ };
+ }
+
+ body.appendChild(row);
+ });
+ const countText = statefulsetPageSize === -1
+ ? `Showing all ${totalCount} stateful sets`
+ : `Showing ${start + 1}-${end} of ${totalCount} stateful sets`;
+ document.getElementById("filteredstatefulSetCount").textContent = countText;
+ updateStatefulsetPagination(totalCount);
+ }
+
+ function updateStatefulsetPagination(totalCount) {
+ const totalPages = statefulsetPageSize === -1 ? 1 : Math.ceil(totalCount / statefulsetPageSize);
+ const container = document.getElementById("statefulsetPaginationButtons");
+ container.innerHTML ="";
+
+ if (totalPages <= 1) return;
+
+ const prevBtn = document.createElement("button");
+ prevBtn.textContent ="Previous";
+ prevBtn.className = statefulsetCurrentPage === 1
+ ? "px-3 py-1 text-sm bg-gray-300 text-gray-500 cursor-not-allowed"
+ : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
+ prevBtn.disabled = statefulsetCurrentPage === 1;
+ prevBtn.onclick = () => statefulsetCurrentPage > 1 && window.goToStatefulsetPage(statefulsetCurrentPage - 1);
+ container.appendChild(prevBtn);
+
+ const maxButtons = 5;
+ let startPage = Math.max(1, statefulsetCurrentPage - Math.floor(maxButtons / 2));
+ let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+ if (endPage - startPage < maxButtons - 1) {
+ startPage = Math.max(1, endPage - maxButtons + 1);
+ }
+
+ for (let i = startPage; i <= endPage; i++) {
+ const btn = document.createElement("button");
+ btn.textContent = i;
+ btn.className = i === statefulsetCurrentPage
+ ? "px-3 py-1 text-sm bg-blue-700 text-white font-bold current-page"
+ : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
+ btn.onclick = () => window.goToStatefulsetPage(i);
+ container.appendChild(btn);
+ }
+
+ const nextBtn = document.createElement("button");
+ nextBtn.textContent ="Next";
+ nextBtn.className = statefulsetCurrentPage === totalPages
+ ? "px-3 py-1 text-sm bg-gray-300 text-gray-500 cursor-not-allowed"
+ : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
+ nextBtn.disabled = statefulsetCurrentPage === totalPages;
+ nextBtn.onclick = () => statefulsetCurrentPage < totalPages && window.goToStatefulsetPage(statefulsetCurrentPage + 1);
+ container.appendChild(nextBtn);
+ }
+
+ window.goToStatefulsetPage = function(page) {
+ statefulsetCurrentPage = page;
+ applystatefulSetFiltersAndRender();
+ }
+
+ window.changeStatefulsetPageSize = function() {
+ const select = document.getElementById("statefulsetPageSizeSelect");
+ statefulsetPageSize = parseInt(select.value);
+ statefulsetCurrentPage = 1;
+ applystatefulSetFiltersAndRender();
+ }
+
+ function showstatefulSetDetails(rs) {
+ currentstatefulSet = rs;
+
+ statefulSetJsonViewer.innerHTML = renderJSONWithoutHighlight(rs.raw);
+ document.getElementById("statefulSetPanel").style.setProperty('display', 'none', 'important');
+ document.getElementById("statefulSetDetailsPanel").style.setProperty('display', 'grid', 'important');
+
+ // Scroll to top - find the scrollable parent by walking up the DOM
+ setTimeout(() => {
+ function findScrollableParent(element) {
+ let parent = element.parentElement;
+ while (parent) {
+ const overflow = window.getComputedStyle(parent).overflow;
+ const overflowY = window.getComputedStyle(parent).overflowY;
+ if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
+ parent.scrollHeight > parent.clientHeight) {
+ return parent;
+ }
+ parent = parent.parentElement;
+ }
+ return null;
+ }
+
+ const detailsPanel = document.getElementById("statefulSetDetailsPanel");
+ const scrollableParent = findScrollableParent(detailsPanel);
+ if (scrollableParent) {
+ scrollableParent.scrollTo({top: 0, behavior: 'instant'});
+ }
+ }, 0);
+
+ statefulSetDetailsTable.innerHTML = `
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Name:</td><td class="py-2">${rs.name}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Namespace:</td><td class="py-2">${rs.namespace}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Replica:</td><td class="py-2">${rs.replicas}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Available Replicas:</td><td class="py-2">${rs.available || 0}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Ready Replicas:</td><td class="py-2">${rs.ready || 0}</td></tr>
+ <tr><td class="py-2 pr-4 font-semibold">Age:</td><td class="py-2">${rs.age || '-'}</td></tr>
+ `;
+
+ // Setup YAML filter
+ const yamlFilterInput = document.getElementById('statefulSetYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ yamlFilterInput.removeEventListener('input', filterStatefulSetYaml);
+ yamlFilterInput.addEventListener('input', filterStatefulSetYaml);
+ }
+ }
+
+
+ function highlightJSON(line) {
+ line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+ return line
+ .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
+ .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
+ .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
+ .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
+ .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
+ }
+
+ function renderJSONWithoutHighlight(data, filter = '') {
+ const formatted = JSON.stringify(data, null, 2);
+ return formatted.split('\n')
+ .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
+ .map(line => {
+ const highlighted = highlightJSON(line);
+ return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
+ }).join('');
+ }
+
+ function filterStatefulSetYaml() {
+ if (!currentstatefulSet) return;
+ const filterInput = document.getElementById('statefulSetYamlFilter');
+ const filterValue = filterInput ? filterInput.value : '';
+ statefulSetJsonViewer.innerHTML = renderJSONWithoutHighlight(currentstatefulSet.raw, filterValue);
+ }
+
+
+ function resetPodIndicators() {
+ const indicators = document.querySelectorAll('[id^="statefulset-indicator-"]');
+ indicators.forEach(icon => {
+ icon.classList.remove('fa-caret-up', 'fa-caret-down');
+ });
+ }
+ window.sortstatefulSetsBy = function(key) {
+ if (currentSort.key === key) {
+ currentSort.direction *= -1;
+ } else {
+ currentSort.key = key;
+ currentSort.direction = 1;
+ }
+ resetPodIndicators();
+
+ const icon = document.getElementById(`statefulset-indicator-${key}`);
+ if (icon) {
+ icon.classList.add('fa', currentSort.direction === 1 ? 'fa-caret-up' : 'fa-caret-down');
+ }
+
+ statefulsetCurrentPage = 1;
+ applystatefulSetFiltersAndRender();
+ }
+
+ function applystatefulSetFiltersAndRender() {
+ const nsFilter = document.getElementById("statefulSetNamespaceFilter").value;
+ const searchTerm = document.getElementById("statefulSetSearchInput").value.toLowerCase();
+ const showEmptyNamespaces = document.getElementById("show-empty-namespaces").checked;
+
+ let filtered = flattenedstatefulSets;
+
+ if (nsFilter) {
+ filtered = filtered.filter(r => r.namespace === nsFilter);
+ }
+
+ if (searchTerm) {
+ filtered = filtered.filter(r => {
+ const fullText = JSON.stringify(r).toLowerCase();
+ return fullText.includes(searchTerm);
+ });
+ }
+
+ const groupedByNamespace = {};
+ filtered.forEach(r => {
+ if (!groupedByNamespace[r.namespace]) groupedByNamespace[r.namespace] = [];
+ groupedByNamespace[r.namespace].push(r);
+ });
+
+ if (showEmptyNamespaces) {
+ const visibleNamespaces = nsFilter ? [nsFilter] : allNamespaces;
+
+ visibleNamespaces.forEach(ns => {
+ if (!groupedByNamespace[ns]) {
+ groupedByNamespace[ns] = [{
+ namespace: ns,
+ name:"No Stateful Sets",
+ replicas:"-",
+ available:"-",
+ ready:"-",
+ age:"-"
+ }];
+ }
+ });
+ }
+
+ const finalList = Object.values(groupedByNamespace).flat();
+
+ finalList.sort((a, b) => {
+ const key = currentSort.key;
+ const dir = currentSort.direction;
+
+ if (key ==="replicas" || key ==="ready" || key ==="available") {
+ return ((a[key] || 0) - (b[key] || 0)) * dir;
+ }
+
+ if (key ==="age") {
+ const ageA = a.age_seconds || 0;
+ const ageB = b.age_seconds || 0;
+ return (ageA - ageB) * dir;
+ }
+
+ return (a[key] ||"").localeCompare(b[key] ||"") * dir;
+ });
+
+ renderstatefulSetTable(finalList);
+ }
+
+ function flattenstatefulSets(showEmpty) {
+ flattenedstatefulSets = [];
+
+ Object.entries(statefulSetsData).forEach(([ns, sets]) => {
+ const entries = Object.entries(sets);
+
+ if (entries.length === 0 && showEmpty) {
+ flattenedstatefulSets.push({
+ namespace: ns,
+ name:"No Stateful Sets",
+ replicas:"-",
+ available:"-",
+ ready:"-",
+ age:"-"
+ });
+ return;
+ }
+
+ entries.forEach(([name, rs]) => {
+ const meta = rs.metadata || {};
+ const spec = rs.spec || {};
+ const status = rs.status || {};
+
+ flattenedstatefulSets.push({
+ namespace: ns,
+ name,
+ replicas: spec.replicas || 0,
+ available: status.availableReplicas || 0,
+ ready: status.readyReplicas || 0,
+ age: getAge(rs._age_seconds),
+ age_seconds: rs._age_seconds || 0,
+ raw: rs
+ });
+ });
+ });
+ }
+
+
+ window.backFromstatefulModal = function() {
+ document.getElementById("statefulSetDetailsPanel").style.setProperty('display', 'none', 'important');
+ document.getElementById("statefulSetPanel").style.setProperty('display', 'grid', 'important');
+
+ const yamlFilterInput = document.getElementById('statefulSetYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ }
+
+ // Scroll back to the last clicked row
+ if (lastClickedRow) {
+ setTimeout(() => {
+ lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
+ }, 0);
+ }
+ }
+
+ var nsSet = new Set(flattenedstatefulSets.map(r => r.namespace));
+ var nsSelect = document.getElementById("statefulSetNamespaceFilter");
+ nsSet.forEach(ns => {
+ const opt = document.createElement("option");
+ opt.value = ns;
+ opt.textContent = ns;
+ nsSelect.appendChild(opt);
+ });
+
+ function updateNamespaceFilterOptions(showEmpty) {
+ while (statefulSetNamespaceFilter.options.length > 1) {
+ statefulSetNamespaceFilter.remove(1);
+ }
+
+ flattenstatefulSets(showEmpty);
+
+ const namespaces = new Set(flattenedstatefulSets.map(d => d.namespace));
+
+ namespaces.forEach(ns => {
+ const option = document.createElement("option");
+ option.value = ns;
+ option.textContent = ns;
+ statefulSetNamespaceFilter.appendChild(option);
+ });
+ }
+
+
+ document.getElementById("statefulSetNamespaceFilter").onchange = () => {
+ statefulsetCurrentPage = 1;
+ applystatefulSetFiltersAndRender();
+ };
+ document.getElementById("statefulSetSearchInput").oninput = () => {
+ statefulsetCurrentPage = 1;
+ applystatefulSetFiltersAndRender();
+ };
+
+ showEmptyNamespacesCheckbox.addEventListener('change', () => {
+ statefulsetCurrentPage = 1;
+ updateNamespaceFilterOptions(showEmptyNamespacesCheckbox.checked);
+ applystatefulSetFiltersAndRender();
+ });
+
+ updateNamespaceFilterOptions(showEmptyNamespacesCheckbox.checked);
+ applystatefulSetFiltersAndRender();
+</script>

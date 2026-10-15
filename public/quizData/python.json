@@ -1,0 +1,366 @@
+{
+  "title": "Python",
+  "description": "Python programming fundamentals and advanced concepts",
+  "questions": [
+    {
+      "id": "python-1",
+      "question": "What built-in function returns the type of an object?",
+      "answer": "type",
+      "hints": [
+        "It's a 4-letter word",
+        "Returns a type object",
+        "Often used for debugging"
+      ],
+      "category": "basics",
+      "difficulty": 100
+    },
+    {
+      "id": "python-2",
+      "question": "What keyword is used to define a function?",
+      "answer": "def",
+      "hints": [
+        "It's 3 letters",
+        "Short for 'define'",
+        "Followed by function name and colon"
+      ],
+      "category": "basics",
+      "difficulty": 100
+    },
+    {
+      "id": "python-3",
+      "question": "What method converts a string to lowercase?",
+      "answer": "lower",
+      "hints": [
+        "It's the opposite of upper",
+        "5 letters",
+        "Returns new string"
+      ],
+      "category": "strings",
+      "difficulty": 100
+    },
+    {
+      "id": "python-4",
+      "question": "What keyword is used to create a class?",
+      "answer": "class",
+      "hints": [
+        "Same word as object-oriented programming",
+        "5 letters",
+        "Followed by class name"
+      ],
+      "category": "oop",
+      "difficulty": 100
+    },
+    {
+      "id": "python-5",
+      "question": "What function returns the length of a list or string?",
+      "answer": "len",
+      "hints": [
+        "Short for 'length'",
+        "3 letters",
+        "Returns an integer"
+      ],
+      "category": "basics",
+      "difficulty": 100
+    },
+    {
+      "id": "python-6",
+      "question": "What decorator marks a method as a class method?",
+      "answer": "@classmethod",
+      "hints": [
+        "Starts with @",
+        "Two words combined",
+        "First parameter is cls"
+      ],
+      "category": "decorators",
+      "difficulty": 200
+    },
+    {
+      "id": "python-7",
+      "question": "What module is used for regular expressions?",
+      "answer": "re",
+      "hints": [
+        "It's 2 letters",
+        "Short for regular expressions",
+        "Common functions: match, search, findall"
+      ],
+      "category": "modules",
+      "difficulty": 200
+    },
+    {
+      "id": "python-8",
+      "question": "What keyword is used to import specific items from a module?",
+      "answer": "from",
+      "hints": [
+        "Used with 'import'",
+        "4 letters",
+        "Example: ___ math import sqrt"
+      ],
+      "category": "imports",
+      "difficulty": 200
+    },
+    {
+      "id": "python-9",
+      "question": "What method adds an element to the end of a list?",
+      "answer": "append",
+      "hints": [
+        "Modifies list in place",
+        "6 letters",
+        "Opposite of remove"
+      ],
+      "category": "lists",
+      "difficulty": 200
+    },
+    {
+      "id": "python-10",
+      "question": "What keyword starts exception handling?",
+      "answer": "try",
+      "hints": [
+        "3 letters",
+        "Paired with 'except'",
+        "Used for error handling"
+      ],
+      "category": "exceptions",
+      "difficulty": 200
+    },
+    {
+      "id": "python-11",
+      "question": "What dunder method is called when an object is created?",
+      "answer": "__init__",
+      "hints": [
+        "Constructor method",
+        "Surrounded by double underscores",
+        "Short for 'initialize'"
+      ],
+      "category": "oop",
+      "difficulty": 300
+    },
+    {
+      "id": "python-12",
+      "question": "What keyword creates a generator function?",
+      "answer": "yield",
+      "hints": [
+        "Returns values one at a time",
+        "5 letters",
+        "Alternative to return for generators"
+      ],
+      "category": "generators",
+      "difficulty": 300
+    },
+    {
+      "id": "python-13",
+      "question": "What built-in function creates an iterator of tuples?",
+      "answer": "zip",
+      "hints": [
+        "Combines multiple iterables",
+        "3 letters",
+        "Named after a zipper"
+      ],
+      "category": "iterators",
+      "difficulty": 300
+    },
+    {
+      "id": "python-14",
+      "question": "What context manager keyword ensures cleanup code runs?",
+      "answer": "with",
+      "hints": [
+        "4 letters",
+        "Used for file handling",
+        "Calls __enter__ and __exit__"
+      ],
+      "category": "context",
+      "difficulty": 300
+    },
+    {
+      "id": "python-15",
+      "question": "What decorator makes a method static?",
+      "answer": "@staticmethod",
+      "hints": [
+        "Starts with @",
+        "Doesn't take self or cls",
+        "Static + method"
+      ],
+      "category": "decorators",
+      "difficulty": 300
+    },
+    {
+      "id": "python-16",
+      "question": "What global keyword releases the GIL?",
+      "answer": "None",
+      "hints": [
+        "Trick question!",
+        "GIL is managed by interpreter",
+        "Python objects, not keywords"
+      ],
+      "category": "advanced",
+      "difficulty": 400
+    },
+    {
+      "id": "python-17",
+      "question": "What module provides abstract base classes?",
+      "answer": "abc",
+      "hints": [
+        "3 letters",
+        "First 3 letters of alphabet",
+        "Defines interfaces"
+      ],
+      "category": "modules",
+      "difficulty": 400
+    },
+    {
+      "id": "python-18",
+      "question": "What dunder method enables the 'in' operator?",
+      "answer": "__contains__",
+      "hints": [
+        "Checks membership",
+        "Returns True/False",
+        "Surrounded by double underscores"
+      ],
+      "category": "magic-methods",
+      "difficulty": 400
+    },
+    {
+      "id": "python-19",
+      "question": "What function creates a shallow copy of an object?",
+      "answer": "copy",
+      "hints": [
+        "From copy module",
+        "4 letters",
+        "Opposite of deepcopy"
+      ],
+      "category": "copying",
+      "difficulty": 400
+    },
+    {
+      "id": "python-20",
+      "question": "What keyword makes a variable global inside a function?",
+      "answer": "global",
+      "hints": [
+        "6 letters",
+        "Opposite of local",
+        "Used to modify outer scope"
+      ],
+      "category": "scope",
+      "difficulty": 400
+    },
+    {
+      "id": "python-21",
+      "question": "What dunder attribute stores a class's name?",
+      "answer": "__name__",
+      "hints": [
+        "Surrounded by double underscores",
+        "Contains class or module name",
+        "Used in if __name__ == '__main__'"
+      ],
+      "category": "magic-attributes",
+      "difficulty": 500
+    },
+    {
+      "id": "python-22",
+      "question": "What function returns an object's memory address?",
+      "answer": "id",
+      "hints": [
+        "2 letters",
+        "Returns integer",
+        "Short for 'identity'"
+      ],
+      "category": "internals",
+      "difficulty": 500
+    },
+    {
+      "id": "python-23",
+      "question": "What dunder method implements the + operator?",
+      "answer": "__add__",
+      "hints": [
+        "Operator overloading",
+        "Surrounded by double underscores",
+        "Takes self and other"
+      ],
+      "category": "magic-methods",
+      "difficulty": 500
+    },
+    {
+      "id": "python-24",
+      "question": "What module provides OrderedDict?",
+      "answer": "collections",
+      "hints": [
+        "Container datatypes",
+        "11 letters",
+        "Also has Counter, deque"
+      ],
+      "category": "modules",
+      "difficulty": 500
+    },
+    {
+      "id": "python-25",
+      "question": "What keyword creates a closure by referencing outer variable?",
+      "answer": "nonlocal",
+      "hints": [
+        "8 letters",
+        "Between local and global",
+        "Used in nested functions"
+      ],
+      "category": "scope",
+      "difficulty": 500
+    },
+    {
+      "id": "python-26",
+      "question": "What built-in returns an object's attributes as a dictionary?",
+      "answer": "vars",
+      "hints": [
+        "4 letters",
+        "Short for variables",
+        "Calls __dict__"
+      ],
+      "category": "introspection",
+      "difficulty": 500
+    },
+    {
+      "id": "python-27",
+      "question": "What descriptor method is called when accessing an attribute?",
+      "answer": "__get__",
+      "hints": [
+        "Descriptor protocol",
+        "Surrounded by double underscores",
+        "Takes self, instance, owner"
+      ],
+      "category": "descriptors",
+      "difficulty": 500
+    },
+    {
+      "id": "python-28",
+      "question": "What function creates an async iterator?",
+      "answer": "aiter",
+      "hints": [
+        "5 letters",
+        "Async version of iter",
+        "Returns async iterator"
+      ],
+      "category": "async",
+      "difficulty": 500
+    },
+    {
+      "id": "python-29",
+      "question": "What module implements heap queue algorithm?",
+      "answer": "heapq",
+      "hints": [
+        "5 letters",
+        "Priority queue implementation",
+        "heap + q"
+      ],
+      "category": "modules",
+      "difficulty": 500
+    },
+    {
+      "id": "python-30",
+      "question": "What metaclass creates all classes?",
+      "answer": "type",
+      "hints": [
+        "4 letters",
+        "Class of all classes",
+        "Can be used to create classes dynamically"
+      ],
+      "category": "metaclasses",
+      "difficulty": 500
+    }
+  ]
+}

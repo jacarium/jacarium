@@ -1,0 +1,760 @@
+ <div class="panel rounded-lg shadow-sm">
+ <div class="mb-4">
+ <input type="text" id="serviceTableSearch"
+ class="w-full px-3 py-2 text-sm rounded-sm border focus:outline-hidden focus:ring-2"
+ placeholder="Search services..."
+ onkeyup="filterServices()">
+ </div>
+
+ <div class="overflow-x-auto">
+ <div class="flex justify-between items-center mb-2">
+ <div id="serviceCount" class="text-xs">Showing all services</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs">Rows per page:</label>
+ <select id="servicePageSize" onchange="changeServicePageSize()" class="px-2 py-1 text-white text-xs rounded-md">
+ <option value="50">50</option>
+ <option value="100" selected>100</option>
+ <option value="250">250</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ <table id="servicesTable" class="min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="sortServiceTable(0)">Name <i id="service-sort-0" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="sortServiceTable(1)">Active <i id="service-sort-1" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="sortServiceTable(2)">IO <i id="service-sort-2" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="sortServiceTable(3, false, true)">Tasks <i id="service-sort-3" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="sortServiceTable(4, true)">Memory <i id="service-sort-4" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="sortServiceTable(5)">CPU <i id="service-sort-5" class="fas text-sm ml-1"></i></th>
+ </tr>
+ </thead>
+ {% if data.systemctl.units %}
+ <tbody id="unitTableBody">
+ {% for unit in data.systemctl.units %}
+ {% set task_used = None %}
+ {% set task_limit = None %}
+ {% set task_ratio = 0 %}
+ {% if unit.tasks and '(' in unit.tasks %}
+ {% set parts = unit.tasks.split(' ') %}
+ {% set task_used = parts[0]|int %}
+ {% set task_limit = parts[2].replace(')', '')|int %}
+ {% set task_ratio = (task_used / task_limit * 100) if task_limit > 0 else 0 %}
+ {% endif %}
+ <tr class="hover:bg-gray-50 {% if task_ratio >= 90 %}{% elif task_ratio >= 70 %}bg-yellow-50{% endif %}">
+ <td class="px-4 py-2 whitespace-normal wrap-break-word max-w-lg">{{ unit.name }}</td>
+ <td class="px-4 py-2 whitespace-normal wrap-break-word max-w-sm">{{ unit.active }}</td>
+ <td class="px-4 py-2">{{ unit.io }}</td>
+ <td class="px-4 py-2 task-cell w-48" data-tasks="{{ unit.tasks }}">
+ {{ unit.tasks }}
+ </td>
+ <td class="px-4 py-2 memory-cell" data-memory="{{ unit.memory }}">
+ {{ unit.memory }}
+ </td>
+ <td class="px-4 py-2">{{ unit.cpu }}</td>
+ </tr>
+ {% endfor %}
+ </tbody>
+ {% else %}
+ <tbody>
+ <tr>
+ <td colspan="6">
+ <div class="empty-state" style="padding: 2rem 1rem;">
+ <svg class="empty-state-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="empty-state-title">No Data Available</div>
+ <div class="empty-state-description">No service data found in this report</div>
+ </div>
+ </td>
+ </tr>
+ </tbody>
+ {% endif %}
+ </table>
+ <div id="servicePaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+ </div>
+
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-file mr-2"></i> Services Details
+ </h3>
+
+ <div class="mb-4">
+ <input
+ type="text"
+ id="serviceSearch"
+ class="w-full px-3 py-2 text-sm rounded-sm border focus:outline-hidden focus:ring-2"
+ placeholder="Search services..."
+ oninput="filterServiceDetails()"
+ >
+ </div>
+
+ {% if data.systemctl.units %}
+ <div class="flex justify-between items-center mb-2">
+ <div id="serviceDetailsCount" class="text-xs">Showing all services</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs">Rows per page:</label>
+ <select id="serviceDetailsPageSize" onchange="changeServiceDetailsPageSize()" class="px-2 py-1 text-white text-xs rounded-md">
+ <option value="25">25</option>
+ <option value="50" selected>50</option>
+ <option value="100">100</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ <div class="overflow-x-auto">
+ <table id="serviceDetailsTable" class="min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left w-8"></th>
+ <th class="px-4 py-2 text-left">Service Name</th>
+ </tr>
+ </thead>
+ <tbody>
+ {% for unit in data.systemctl.units %}
+ <tr class="service-detail-row border-b cursor-pointer hover:bg-gray-50"
+ data-name="{{ unit.name | lower }}"
+ data-index="{{ loop.index0 }}">
+ <td class="px-4 py-2">
+ <i class="fas fa-caret-right expand-detail-icon"></i>
+ </td>
+ <td class="px-4 py-2">
+ <i class="fas fa-cog text-sm mr-2"></i>{{ unit.name }}
+ </td>
+ </tr>
+ <tr class="service-detail-content hidden" data-parent="{{ loop.index0 }}">
+ <td colspan="2" class="px-4 py-3 bg-gray-50">
+ <div class="bg-white p-4 rounded-sm border border-gray-200">
+ <h4 class="text-xs font-semibold mb-3 text-gray-700">Service Information:</h4>
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-gray-900">
+ {% for key, value in unit.items() if key not in ['name', 'raw', 'drop_in', 'cgroup', 'docs'] %}
+ <div class="flex gap-2">
+ <span class="font-semibold text-gray-700 min-w-[120px] shrink-0">{{ key.replace('_', ' ') | title }}:</span>
+ <span class="text-gray-900 wrap-break-word">{{ value }}</span>
+ </div>
+ {% endfor %}
+ </div>
+ {% for key, value in unit.items() if key in ['drop_in', 'cgroup', 'docs'] %}
+ <div class="mt-3 pt-3 border-t border-gray-200">
+ <h4 class="text-xs font-semibold mb-2 text-gray-700">{{ key.replace('_', ' ') | title }}:</h4>
+ <pre class="p-3 rounded-sm text-xs whitespace-pre-wrap wrap-break-word border border-gray-200 bg-gray-50 text-gray-900">{{ value | safe }}</pre>
+ </div>
+ {% endfor %}
+ {% if unit.raw %}
+ <div class="mt-3 pt-3 border-t border-gray-200">
+ <h4 class="text-xs font-semibold mb-2 text-gray-700">Raw Output:</h4>
+ <pre class="p-3 rounded-sm text-xs whitespace-pre-wrap wrap-break-word border border-gray-200 bg-gray-50 text-gray-900">{{ unit.raw }}</pre>
+ </div>
+ {% endif %}
+ </div>
+ </td>
+ </tr>
+ {% endfor %}
+ </tbody>
+ </table>
+ <div id="serviceDetailsPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+ {% else %}
+ <div class="empty-state">
+ <svg class="empty-state-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="empty-state-title">No Data Available</div>
+ <div class="empty-state-description">No service details found in this report</div>
+ </div>
+ {% endif %}
+ </div>
+</div>
+
+<script>
+ window.filterServices = function() {
+ const input = document.getElementById("serviceTableSearch").value.toLowerCase();
+ const tbody = document.getElementById("unitTableBody");
+ const allRows = Array.from(tbody.getElementsByTagName("tr"));
+
+ // Reset to page 1 if filter changed
+ if (input !== serviceLastFilter) {
+ serviceCurrentPage = 1;
+ serviceLastFilter = input;
+ }
+
+ let filteredRows = allRows;
+ if (input) {
+ filteredRows = allRows.filter(row => {
+ const cells = row.getElementsByTagName("td");
+ for (let j = 0; j < cells.length; j++) {
+ const cellText = cells[j].textContent || cells[j].innerText ||"";
+ if (cellText.toLowerCase().includes(input)) {
+ return true;
+ }
+ }
+ return false;
+ });
+ }
+
+ // Hide all rows first
+ allRows.forEach(row => row.style.display ="none");
+
+ // Show paginated rows
+ const totalCount = filteredRows.length;
+ const start = servicePageSize === -1 ? 0 : (serviceCurrentPage - 1) * servicePageSize;
+ const end = servicePageSize === -1 ? totalCount : Math.min(start + servicePageSize, totalCount);
+
+ for (let i = start; i < end; i++) {
+ filteredRows[i].style.display ="";
+ }
+
+ updateServiceCount(totalCount, allRows.length);
+ updateServicePagination(totalCount);
+ };
+
+ function updateServiceCount(filtered, total) {
+ const countDiv = document.getElementById('serviceCount');
+ let text;
+ if (servicePageSize === -1) {
+ text = filtered === total
+ ? `Showing all ${total} services`
+ : `Showing ${filtered} of ${total} services`;
+ } else {
+ const start = (serviceCurrentPage - 1) * servicePageSize + 1;
+ const end = Math.min(serviceCurrentPage * servicePageSize, filtered);
+ text = filtered === total
+ ? `Showing ${start}-${end} of ${total} services`
+ : `Showing ${start}-${end} of ${filtered} (filtered from ${total})`;
+ }
+ countDiv.textContent = text;
+ }
+
+ function updateServicePagination(totalCount) {
+ const controls = document.getElementById('servicePaginationControls');
+
+ if (servicePageSize === -1 || totalCount <= servicePageSize) {
+ controls.innerHTML = '';
+ return;
+ }
+
+ const totalPages = Math.ceil(totalCount / servicePageSize);
+ let html = '';
+
+ html += `<button onclick="goToServicePage(1)" ${serviceCurrentPage === 1 ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${serviceCurrentPage === 1 ? 'bg-gray-600 text-gray-400' : ' text-white '}">
+ First</button>`;
+
+ html += `<button onclick="goToServicePage(${serviceCurrentPage - 1})" ${serviceCurrentPage === 1 ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${serviceCurrentPage === 1 ? 'bg-gray-600 text-gray-400' : ' text-white '}">
+ Prev</button>`;
+
+ const maxButtons = 5;
+ let startPage = Math.max(1, serviceCurrentPage - Math.floor(maxButtons / 2));
+ let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+
+ if (endPage - startPage < maxButtons - 1) {
+ startPage = Math.max(1, endPage - maxButtons + 1);
+ }
+
+ if (startPage > 1) html += '<span class="px-2">...</span>';
+
+ for (let i = startPage; i <= endPage; i++) {
+ html += `<button onclick="goToServicePage(${i})"
+ class="px-3 py-1 text-sm rounded-sm ${i === serviceCurrentPage ? ' text-white current-page' : ' text-white '}">
+ ${i}</button>`;
+ }
+
+ if (endPage < totalPages) html += '<span class="px-2">...</span>';
+
+ html += `<button onclick="goToServicePage(${serviceCurrentPage + 1})" ${serviceCurrentPage === totalPages ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${serviceCurrentPage === totalPages ? 'bg-gray-600 text-gray-400' : ' text-white '}">
+ Next</button>`;
+
+ html += `<button onclick="goToServicePage(${totalPages})" ${serviceCurrentPage === totalPages ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${serviceCurrentPage === totalPages ? 'bg-gray-600 text-gray-400' : ' text-white '}">
+ Last</button>`;
+
+ controls.innerHTML = html;
+ }
+
+ window.goToServicePage = function(page) {
+ serviceCurrentPage = page;
+ window.filterServices();
+ }
+
+ var currentServiceSortKey = null;
+ var serviceSortDirections = {};
+
+ function renderMemoryBars() {
+ const memCells = document.querySelectorAll(".memory-cell");
+ memCells.forEach(cell => {
+ const memStr = cell.getAttribute("data-memory");
+ const memInfo = parseMemoryString(memStr);
+
+ if (memInfo) {
+ cell.textContent ="";
+
+ const container = document.createElement("div");
+ container.style.display ="flex";
+ container.style.alignItems ="center";
+ container.style.gap ="0.5rem";
+
+ const bar = document.createElement("div");
+ bar.style.cssText ="flex: 1; height: 0.75rem; border-radius: 0.25rem;";
+
+ if (memInfo.usagePercent !== null) {
+ if (memInfo.usagePercent >= 90) {
+ bar.style.backgroundColor ="#dc2626";
+ } else if (memInfo.usagePercent >= 70) {
+ bar.style.backgroundColor ="#f59e0b";
+ } else {
+ bar.style.backgroundColor ="#10b981";
+ }
+ } else {
+ bar.style.backgroundColor ="#9ca3af";
+ }
+
+ container.appendChild(bar);
+
+ const textDiv = document.createElement("div");
+ textDiv.textContent = memInfo.raw;
+ textDiv.style.color = diagnosticsThemeColor('text');
+ textDiv.style.fontSize ="0.75rem";
+ textDiv.style.whiteSpace ="nowrap";
+ textDiv.style.fontWeight ="500";
+
+ container.appendChild(textDiv);
+ cell.appendChild(container);
+ }
+ });
+ }
+
+
+ renderMemoryBars();
+
+ function parseMemoryString(memStr) {
+ const usageMatch = memStr.match(/^([\d.]+[KMG])/i);
+ if (!usageMatch) return null;
+
+ const usageBytes = parseMemValue(usageMatch[1]);
+
+ let limitBytes = 0;
+ const limitMatch = memStr.match(/\b(?:max|limit):\s*([\d.]+[KMG])/i);
+ if (limitMatch) {
+ limitBytes = parseMemValue(limitMatch[1]);
+ }
+
+ const usagePercent = limitBytes ? (usageBytes / limitBytes) * 100 : null;
+
+ return {
+ usageBytes,
+ limitBytes,
+ usagePercent,
+ raw: memStr
+ };
+ }
+
+
+
+ function parseMemValue(str) {
+ const regex = /([\d.]+)\s*([KMG])/i;
+ const match = str.match(regex);
+ if (!match) return 0;
+ const value = parseFloat(match[1]);
+ const unit = match[2].toUpperCase();
+
+ const unitMap = {
+ K: 1024,
+ M: 1024 * 1024,
+ G: 1024 * 1024 * 1024,
+ };
+
+ return value * (unitMap[unit] || 1);
+ }
+
+ function parseCPU(cpuStr) {
+ let totalSeconds = 0;
+
+ const unitsInSeconds = {
+ y: 365 * 24 * 3600,
+ year: 365 * 24 * 3600,
+ years: 365 * 24 * 3600,
+ month: 30 * 24 * 3600,
+ months: 30 * 24 * 3600,
+ w: 7 * 24 * 3600,
+ week: 7 * 24 * 3600,
+ weeks: 7 * 24 * 3600,
+ d: 24 * 3600,
+ day: 24 * 3600,
+ days: 24 * 3600,
+ h: 3600,
+ hour: 3600,
+ hours: 3600,
+ min: 60,
+ minute: 60,
+ minutes: 60,
+ s: 1,
+ sec: 1,
+ secs: 1,
+ second: 1,
+ seconds: 1
+ };
+
+ const regex = /(\d+(\.\d+)?)\s*(y|years?|months?|w|weeks?|d|days?|h|hours?|min|minutes?|s|secs?|seconds?)/gi;
+
+ let match;
+ while ((match = regex.exec(cpuStr)) !== null) {
+ const value = parseFloat(match[1]);
+ const unit = match[3].toLowerCase();
+ let secondsPerUnit = 0;
+ for (const key in unitsInSeconds) {
+ if (key.startsWith(unit)) {
+ secondsPerUnit = unitsInSeconds[key];
+ break;
+ }
+ }
+ if (secondsPerUnit === 0 && unitsInSeconds[unit]) {
+ secondsPerUnit = unitsInSeconds[unit];
+ }
+ if (secondsPerUnit === 0) {
+ continue;
+ }
+ totalSeconds += value * secondsPerUnit;
+ }
+
+ return totalSeconds;
+ }
+
+ function parseTaskString(taskStr) {
+ if (!taskStr) return null;
+
+ const match = taskStr.match(/^(\d+)\s+\(.*?(\d+)\)$/);
+ const used = match ? parseInt(match[1]) : null;
+ const limit = match ? parseInt(match[2]) : null;
+
+ const usagePercent = (used !== null && limit) ? (used / limit) * 100 : null;
+
+ return {
+ used,
+ limit,
+ usagePercent,
+ raw: taskStr
+ };
+ }
+
+ renderTaskBars();
+
+
+ function renderTaskBars() {
+ const taskCells = document.querySelectorAll(".task-cell");
+
+ taskCells.forEach(cell => {
+ const taskStr = cell.getAttribute("data-tasks");
+ const taskInfo = parseTaskString(taskStr);
+
+ if (!taskInfo) return;
+
+ cell.textContent ="";
+
+ const container = document.createElement("div");
+ container.style.display ="flex";
+ container.style.alignItems ="center";
+ container.style.gap ="0.5rem";
+
+ const bar = document.createElement("div");
+ bar.style.cssText ="flex: 1; height: 0.75rem; border-radius: 0.25rem;";
+
+ if (taskInfo.usagePercent !== null) {
+ if (taskInfo.usagePercent >= 90) {
+ bar.style.backgroundColor ="#dc2626";
+ } else if (taskInfo.usagePercent >= 70) {
+ bar.style.backgroundColor ="#f59e0b";
+ } else {
+ bar.style.backgroundColor ="#10b981";
+ }
+ } else {
+ bar.style.backgroundColor ="#9ca3af";
+ }
+
+ container.appendChild(bar);
+
+ const textDiv = document.createElement("div");
+ textDiv.textContent = taskInfo.raw;
+ textDiv.style.color = diagnosticsThemeColor('text');
+ textDiv.style.fontSize ="0.75rem";
+ textDiv.style.whiteSpace ="nowrap";
+ textDiv.style.fontWeight ="500";
+
+ container.appendChild(textDiv);
+ cell.appendChild(container);
+ });
+ }
+
+
+ window.sortServiceTable = function(colIndex, useDataAttr = false, isPercent = false) {
+ const table = document.getElementById("servicesTable");
+ const tbody = table.querySelector("tbody");
+ const rows = Array.from(tbody.querySelectorAll("tr"));
+ const sortKey = `${colIndex}-${useDataAttr}-${isPercent}`;
+
+ if (currentServiceSortKey !== sortKey) {
+ currentServiceSortKey = sortKey;
+ serviceSortDirections[sortKey] = true;
+ resetServiceIndicators();
+ } else {
+ serviceSortDirections[sortKey] = !serviceSortDirections[sortKey];
+ }
+
+ updateServiceSortIndicator(colIndex, serviceSortDirections[sortKey]);
+
+ rows.sort((a, b) => {
+ const cellA = a.children[colIndex];
+ const cellB = b.children[colIndex];
+
+ let valA, valB;
+
+ if (useDataAttr) {
+ if (colIndex === 3) {
+ valA = parseFloat(cellA.getAttribute('data-tasks') || 0);
+ valB = parseFloat(cellB.getAttribute('data-tasks') || 0);
+ } else if (colIndex === 4) {
+ const memInfoA = parseMemoryString(cellA.getAttribute('data-memory') || '');
+ const memInfoB = parseMemoryString(cellB.getAttribute('data-memory') || '');
+
+ valA = memInfoA ? memInfoA.usageBytes : 0;
+ valB = memInfoB ? memInfoB.usageBytes : 0;
+ } else {
+ valA = cellA.textContent.toLowerCase().trim();
+ valB = cellB.textContent.toLowerCase().trim();
+ }
+ } else if (colIndex === 5) {
+ valA = parseCPU(cellA.textContent.trim());
+ valB = parseCPU(cellB.textContent.trim());
+ } else if (isPercent) {
+ valA = parseFloat(cellA.textContent.replace('%', '').trim());
+ valB = parseFloat(cellB.textContent.replace('%', '').trim());
+ } else {
+ valA = cellA.textContent.toLowerCase().trim();
+ valB = cellB.textContent.toLowerCase().trim();
+ }
+
+ if (valA < valB) return serviceSortDirections[sortKey] ? -1 : 1;
+ if (valA > valB) return serviceSortDirections[sortKey] ? 1 : -1;
+ return 0;
+ });
+
+ rows.forEach(row => tbody.appendChild(row));
+
+ // Re-apply pagination after sorting
+ window.filterServices();
+ };
+
+ // Pagination variables
+ var serviceCurrentPage = 1;
+ var servicePageSize = 100;
+ var serviceLastFilter = '';
+
+ window.changeServicePageSize = function() {
+ servicePageSize = parseInt(document.getElementById('servicePageSize').value);
+ serviceCurrentPage = 1;
+ window.filterServices();
+ };
+
+
+ function resetServiceIndicators() {
+ for (let i = 0; i < 6; i++) {
+ const indicator = document.getElementById(`service-sort-${i}`);
+ if (indicator) {
+ indicator.classList.remove('fa-caret-up', 'fa-caret-down');
+ }
+ }
+ }
+
+ function updateServiceSortIndicator(colIndex, ascending) {
+ const indicator = document.getElementById(`service-sort-${colIndex}`);
+ if (ascending) {
+ indicator.classList.remove('fa-caret-down');
+ indicator.classList.add('fa-caret-up');
+ } else {
+ indicator.classList.remove('fa-caret-up');
+ indicator.classList.add('fa-caret-down');
+ }
+ }
+
+ sortServiceTable(4, true);
+ sortServiceTable(4, true);
+
+ // Service details pagination variables
+ var serviceDetailsCurrentPage = 1;
+ var serviceDetailsPageSize = 50;
+ var serviceDetailsLastFilter = '';
+
+ // Handle service details table row clicks
+ document.querySelectorAll('.service-detail-row').forEach(row => {
+ row.addEventListener('click', function() {
+ const index = this.dataset.index;
+ const detailsRow = document.querySelector(`.service-detail-content[data-parent="${index}"]`);
+ const icon = this.querySelector('.expand-detail-icon');
+
+ if (detailsRow) {
+ const isCollapsed = detailsRow.classList.contains('hidden');
+
+ if (isCollapsed) {
+ // Expand
+ detailsRow.classList.remove('hidden');
+ detailsRow.removeAttribute('hidden');
+ icon.classList.remove('fa-caret-right');
+ icon.classList.add('fa-caret-down');
+ } else {
+ // Collapse
+ detailsRow.classList.add('hidden');
+ icon.classList.remove('fa-caret-down');
+ icon.classList.add('fa-caret-right');
+ }
+ }
+ });
+ });
+
+ // Filter and paginate service details
+ window.filterServiceDetails = function() {
+ const query = document.getElementById('serviceSearch').value.toLowerCase();
+ const allRows = document.querySelectorAll('.service-detail-row');
+
+ // Reset to page 1 if filter changed
+ if (query !== serviceDetailsLastFilter) {
+ serviceDetailsCurrentPage = 1;
+ serviceDetailsLastFilter = query;
+ }
+
+ let filteredRows = [];
+ allRows.forEach(row => {
+ const index = row.dataset.index;
+ const detailsRow = document.querySelector(`.service-detail-content[data-parent="${index}"]`);
+ const serviceName = row.dataset.name;
+
+ if (serviceName.includes(query)) {
+ filteredRows.push({row, detailsRow});
+ }
+ });
+
+ // Hide all rows first
+ allRows.forEach(row => {
+ const index = row.dataset.index;
+ const detailsRow = document.querySelector(`.service-detail-content[data-parent="${index}"]`);
+ row.setAttribute('hidden', '');
+ if (detailsRow) detailsRow.setAttribute('hidden', '');
+ });
+
+ // Show paginated rows
+ const totalCount = filteredRows.length;
+ const start = serviceDetailsPageSize === -1 ? 0 : (serviceDetailsCurrentPage - 1) * serviceDetailsPageSize;
+ const end = serviceDetailsPageSize === -1 ? totalCount : Math.min(start + serviceDetailsPageSize, totalCount);
+
+ for (let i = start; i < end; i++) {
+ filteredRows[i].row.removeAttribute('hidden');
+ // Only show details row if it's expanded (not using .hidden class)
+ if (filteredRows[i].detailsRow && !filteredRows[i].detailsRow.classList.contains('hidden')) {
+ filteredRows[i].detailsRow.removeAttribute('hidden');
+ }
+ }
+
+ updateServiceDetailsCount(totalCount, allRows.length);
+ updateServiceDetailsPagination(totalCount);
+ };
+
+ function updateServiceDetailsCount(filtered, total) {
+ const countDiv = document.getElementById('serviceDetailsCount');
+ let text;
+ if (serviceDetailsPageSize === -1) {
+ text = filtered === total
+ ? `Showing all ${total} services`
+ : `Showing ${filtered} of ${total} services`;
+ } else {
+ const start = (serviceDetailsCurrentPage - 1) * serviceDetailsPageSize + 1;
+ const end = Math.min(serviceDetailsCurrentPage * serviceDetailsPageSize, filtered);
+ text = filtered === total
+ ? `Showing ${start}-${end} of ${total} services`
+ : `Showing ${start}-${end} of ${filtered} (filtered from ${total})`;
+ }
+ countDiv.textContent = text;
+ }
+
+ function updateServiceDetailsPagination(totalCount) {
+ const controls = document.getElementById('serviceDetailsPaginationControls');
+
+ if (serviceDetailsPageSize === -1 || totalCount <= serviceDetailsPageSize) {
+ controls.innerHTML = '';
+ return;
+ }
+
+ const totalPages = Math.ceil(totalCount / serviceDetailsPageSize);
+ let html = '';
+
+ html += `<button onclick="goToServiceDetailsPage(1)" ${serviceDetailsCurrentPage === 1 ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${serviceDetailsCurrentPage === 1 ? 'bg-gray-600 text-gray-400' : ' text-white '}">
+ First</button>`;
+
+ html += `<button onclick="goToServiceDetailsPage(${serviceDetailsCurrentPage - 1})" ${serviceDetailsCurrentPage === 1 ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${serviceDetailsCurrentPage === 1 ? 'bg-gray-600 text-gray-400' : ' text-white '}">
+ Prev</button>`;
+
+ const maxButtons = 5;
+ let startPage = Math.max(1, serviceDetailsCurrentPage - Math.floor(maxButtons / 2));
+ let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+
+ if (endPage - startPage < maxButtons - 1) {
+ startPage = Math.max(1, endPage - maxButtons + 1);
+ }
+
+ if (startPage > 1) html += '<span class="px-2">...</span>';
+
+ for (let i = startPage; i <= endPage; i++) {
+ html += `<button onclick="goToServiceDetailsPage(${i})"
+ class="px-3 py-1 text-sm rounded-sm ${i === serviceDetailsCurrentPage ? ' text-white font-bold border-2 current-page' : ' text-white '}">
+ ${i}</button>`;
+ }
+
+ if (endPage < totalPages) html += '<span class="px-2">...</span>';
+
+ html += `<button onclick="goToServiceDetailsPage(${serviceDetailsCurrentPage + 1})" ${serviceDetailsCurrentPage === totalPages ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${serviceDetailsCurrentPage === totalPages ? 'bg-gray-600 text-gray-400' : ' text-white '}">
+ Next</button>`;
+
+ html += `<button onclick="goToServiceDetailsPage(${totalPages})" ${serviceDetailsCurrentPage === totalPages ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${serviceDetailsCurrentPage === totalPages ? 'bg-gray-600 text-gray-400' : ' text-white '}">
+ Last</button>`;
+
+ controls.innerHTML = html;
+ }
+
+ window.goToServiceDetailsPage = function(page) {
+ serviceDetailsCurrentPage = page;
+ window.filterServiceDetails();
+ };
+
+ window.changeServiceDetailsPageSize = function() {
+ serviceDetailsPageSize = parseInt(document.getElementById('serviceDetailsPageSize').value);
+ serviceDetailsCurrentPage = 1;
+ window.filterServiceDetails();
+ };
+
+ // Initialize service details pagination
+ window.filterServiceDetails();
+
+ // Watch for theme changes and re-render the memory/task usage bars, whose
+ // label color is computed via JS (not CSS) since it's set on a dynamically
+ // created element rather than a static class.
+ const servicesThemeObserver = new MutationObserver((mutations) => {
+ mutations.forEach((mutation) => {
+ if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+ renderMemoryBars();
+ renderTaskBars();
+ }
+ });
+ });
+
+ servicesThemeObserver.observe(document.documentElement, {
+ attributes: true,
+ attributeFilter: ['class']
+ });
+
+</script>

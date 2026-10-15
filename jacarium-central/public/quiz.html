@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jacarium Quiz</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      background-color: #151515;
+      color: #f0f0f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 800px;
+      background: #1f1f1f;
+      border-radius: 8px;
+      padding: 24px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .status {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .status-text {
+      font-size: 18px;
+      font-weight: 600;
+      color: #f0f0f0;
+      margin-bottom: 8px;
+    }
+
+    .game-id {
+      font-size: 12px;
+      color: #808080;
+      font-family: 'Courier New', monospace;
+    }
+
+    .join-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-group label {
+      font-size: 14px;
+      font-weight: 500;
+      color: #b0b0b0;
+    }
+
+    .input-group input {
+      padding: 10px 12px;
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      color: #f0f0f0;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .input-group input:focus {
+      border-color: #4a9eff;
+      background: #2a2a2a;
+    }
+
+    .join-btn {
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 8px;
+    }
+
+    .join-btn:hover {
+      background: #16a34a;
+    }
+
+    .join-btn:disabled {
+      background: #3a3a3a;
+      cursor: not-allowed;
+    }
+
+    .lobby, .quiz, .results {
+      display: none;
+    }
+
+    .lobby.active, .quiz.active, .results.active {
+      display: block;
+    }
+
+    .lobby-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      text-align: center;
+      color: #f0f0f0;
+    }
+
+    .players-list {
+      background: #2a2a2a;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 16px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .players-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #b0b0b0;
+      margin-bottom: 12px;
+    }
+
+    .player-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      background: #1f1f1f;
+      border-radius: 6px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .player-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .player-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .player-icon {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .player-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: #f0f0f0;
+    }
+
+    .player-rank {
+      font-size: 12px;
+      font-weight: 700;
+      color: #808080;
+      min-width: 16px;
+      text-align: left;
+    }
+
+    .player-score {
+      font-weight: 700;
+      color: #f0f0f0;
+      font-size: 14px;
+    }
+
+    .player-badge {
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .badge-you {
+      background: rgba(59, 130, 246, 0.15);
+      color: #2563eb;
+    }
+
+    .badge-ready {
+      background: rgba(34, 197, 94, 0.15);
+      color: #16a34a;
+    }
+
+    .badge-pending {
+      background: rgba(234, 179, 8, 0.15);
+      color: #ca8a04;
+    }
+
+    .badge-answered {
+      background: rgba(34, 197, 94, 0.15);
+      color: #16a34a;
+    }
+
+    .badge-host {
+      background: #9333ea;
+      color: white;
+    }
+
+    .badge-anticheat {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .badge-disconnected {
+      background: rgba(128, 128, 128, 0.15);
+      color: #9ca3af;
+    }
+
+    .player-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .waiting-text {
+      text-align: center;
+      color: #808080;
+      font-style: italic;
+      padding: 12px;
+      font-size: 14px;
+    }
+
+    .question-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .question-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .question-number {
+      font-size: 12px;
+      color: #808080;
+      font-weight: 500;
+    }
+
+    .category-badge {
+      font-size: 12px;
+      background: rgba(59, 130, 246, 0.15);
+      color: #1d4ed8;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .timer {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #ea580c;
+    }
+
+    .question-text {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      line-height: 1.5;
+      color: #f0f0f0;
+      background: #2a2a2a;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .points-available {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px;
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+
+    .points-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #f0f0f0;
+    }
+
+    .points-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #16a34a;
+    }
+
+    .answer-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #f0f0f0;
+      margin-bottom: 6px;
+    }
+
+    .answer-input {
+      width: 100%;
+      padding: 8px 12px;
+      background: #2a2a2a;
+      border: 2px solid #3a3a3a;
+      border-radius: 6px;
+      color: #f0f0f0;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+      margin-bottom: 12px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .answer-input:focus {
+      border-color: #3b82f6;
+    }
+
+    .answer-input:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: #2a2a2a;
+    }
+
+    .hints {
+      margin-bottom: 12px;
+      background: rgba(234, 179, 8, 0.15);
+      border: 1px solid rgba(234, 179, 8, 0.3);
+      border-radius: 6px;
+      padding: 10px;
+    }
+
+    .hints-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #fde047;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hint-item {
+      font-size: 12px;
+      color: #fcd34d;
+      margin-left: 20px;
+      margin-bottom: 4px;
+      list-style: disc;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      justify-content: center;
+    }
+
+    .btn-submit {
+      flex: 1;
+      background: #2563eb;
+      color: white;
+    }
+
+    .btn-submit:hover:not(:disabled) {
+      background: #1d4ed8;
+    }
+
+    .btn-submit:disabled {
+      background: #2a2a2a;
+      color: #808080;
+      cursor: not-allowed;
+    }
+
+    .btn-hint {
+      background: #eab308;
+      color: white;
+      padding: 8px 16px;
+    }
+
+    .btn-hint:hover:not(:disabled) {
+      background: #ca8a04;
+    }
+
+    .btn-hint:disabled {
+      background: #2a2a2a;
+      color: #808080;
+      cursor: not-allowed;
+    }
+
+    .correct-answer {
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      background: rgba(59, 130, 246, 0.15);
+      border: 2px solid #60a5fa;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .correct-answer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .correct-answer-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #93c5fd;
+    }
+
+    .correct-answer-next {
+      font-size: 12px;
+      color: #60a5fa;
+    }
+
+    .correct-answer-text {
+      font-size: 18px;
+      font-weight: 700;
+      color: #dbeafe;
+      font-family: 'Courier New', monospace;
+      text-align: center;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.8; }
+    }
+
+    .standings {
+      padding-top: 12px;
+      border-top: 1px solid #3a3a3a;
+    }
+
+    .standings-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #f0f0f0;
+      margin-bottom: 8px;
+    }
+
+    .standings-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      margin-bottom: 6px;
+      background: #2a2a2a;
+      border-radius: 6px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .standings-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .results-title {
+      font-size: 18px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 4px;
+      color: #f0f0f0;
+    }
+
+    .winner-announcement {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .trophy-icon {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 12px;
+      color: #eab308;
+    }
+
+    .winner-label {
+      font-size: 14px;
+      color: #b0b0b0;
+      margin-bottom: 4px;
+    }
+
+    .winner-name {
+      font-weight: 700;
+      color: #3b82f6;
+    }
+
+    .winner-score {
+      font-size: 20px;
+      font-weight: 700;
+      color: #22c55e;
+      margin-top: 4px;
+    }
+
+    .final-standings-box {
+      background: #2a2a2a;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 16px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .final-standings-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #f0f0f0;
+      margin-bottom: 8px;
+    }
+
+    .trophy-small {
+      width: 14px;
+      height: 14px;
+      color: #eab308;
+    }
+
+    .score-progression-box {
+      background: #2a2a2a;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 16px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .score-progression-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #f0f0f0;
+      margin-bottom: 8px;
+    }
+
+    .questions-sources-box {
+      background: #2a2a2a;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 16px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .questions-sources-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #f0f0f0;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .question-answer-item {
+      background: #1f1f1f;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 8px;
+      border: 1px solid #3a3a3a;
+      font-size: 12px;
+    }
+
+    .question-answer-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .qa-question {
+      display: flex;
+      align-items: start;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .qa-label {
+      font-weight: 700;
+      color: #808080;
+      min-width: 24px;
+    }
+
+    .qa-text {
+      color: #f0f0f0;
+      flex: 1;
+    }
+
+    .qa-answer {
+      display: flex;
+      align-items: start;
+      gap: 8px;
+      margin-bottom: 4px;
+      margin-left: 32px;
+    }
+
+    .qa-answer-label {
+      font-weight: 700;
+      color: #22c55e;
+    }
+
+    .qa-answer-text {
+      color: #22c55e;
+      font-family: 'Courier New', monospace;
+    }
+
+    .qa-source {
+      display: flex;
+      align-items: start;
+      gap: 8px;
+      margin-left: 32px;
+    }
+
+    .qa-source-label {
+      font-weight: 700;
+      color: #808080;
+    }
+
+    .qa-source-text {
+      color: #b0b0b0;
+      font-style: italic;
+    }
+
+    .qa-source-link {
+      color: #3b82f6;
+      text-decoration: underline;
+    }
+
+    .qa-source-link:hover {
+      color: #60a5fa;
+    }
+
+    .questions-sources-scroll {
+      max-height: 256px;
+      overflow-y: auto;
+    }
+
+    #scoreGraph {
+      display: block;
+      margin: 0 auto;
+    }
+
+    .graph-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 12px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .legend-name {
+      font-size: 12px;
+      color: #b0b0b0;
+    }
+
+    .w-4 {
+      width: 16px;
+    }
+
+    .h-4 {
+      height: 16px;
+    }
+
+    .error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid #ef4444;
+      color: #fca5a5;
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 16px;
+      margin-bottom: 16px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #4a9eff;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .source {
+      margin-top: 12px;
+      padding: 8px 10px;
+      background: #2a2a2a;
+      border-radius: 6px;
+      font-size: 11px;
+      color: #808080;
+      border-left: 3px solid #3a3a3a;
+    }
+
+    .source-label {
+      font-weight: 600;
+      color: #b0b0b0;
+      margin-bottom: 4px;
+    }
+
+    .footer {
+      width: 100%;
+      max-width: 800px;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #3a3a3a;
+      text-align: center;
+    }
+
+    .footer-text {
+      font-size: 13px;
+      color: #808080;
+    }
+
+    .footer-link {
+      color: #4a9eff;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-link:hover {
+      color: #6bb0ff;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Join Screen -->
+    <div id="joinScreen" class="status">
+      <div class="status-text">Join Quiz</div>
+      <div class="game-id" id="gameIdDisplay"></div>
+
+      <form class="join-form" onsubmit="joinQuiz(event)">
+        <div class="input-group">
+          <label for="playerName">Your Name</label>
+          <input type="text" id="playerName" placeholder="Enter your name" required maxlength="20">
+        </div>
+        <button type="submit" class="join-btn" id="joinBtn">
+          <span id="joinBtnText">Join Quiz</span>
+          <span id="joinBtnSpinner" class="spinner" style="display: none;"></span>
+        </button>
+      </form>
+
+      <div id="errorMessage" class="error" style="display: none;"></div>
+    </div>
+
+    <!-- Lobby Screen -->
+    <div id="lobbyScreen" class="lobby">
+      <div class="lobby-title" id="lobbyTitle">Waiting for Game to Start</div>
+      <div class="players-list">
+        <div class="players-title">Players (<span id="playerCount">0</span>)</div>
+        <div id="playersList"></div>
+      </div>
+      <div class="waiting-text">Host will start the game soon...</div>
+    </div>
+
+    <!-- Quiz Screen -->
+    <div id="quizScreen" class="quiz">
+      <div class="question-header">
+        <div class="question-left">
+          <div class="question-number" id="questionNumber">Question 1 of 10</div>
+          <div class="category-badge" id="categoryBadge">Category</div>
+        </div>
+        <div class="timer" id="timer">
+          <span>⏱</span>
+          <span id="timeRemaining">30</span>s
+        </div>
+      </div>
+
+      <div class="question-text" id="questionText"></div>
+
+      <div class="points-available">
+        <span class="points-label">Points available:</span>
+        <span class="points-value" id="pointsAvailable">100</span>
+      </div>
+
+      <div id="hintsContainer" style="display: none;"></div>
+
+      <div id="correctAnswerBox" class="correct-answer" style="display: none;">
+        <div class="correct-answer-header">
+          <span class="correct-answer-label">Correct Answer:</span>
+          <span class="correct-answer-next">Moving to next question...</span>
+        </div>
+        <div class="correct-answer-text" id="correctAnswerText"></div>
+      </div>
+
+      <div id="answerSection">
+        <label class="answer-label">Your Answer:</label>
+        <input
+          type="text"
+          class="answer-input"
+          id="answerInput"
+          placeholder="Type your answer here..."
+          autocomplete="off"
+        >
+      </div>
+
+      <div class="actions" id="actionsSection">
+        <button class="btn btn-submit" id="submitBtn" onclick="submitAnswer()" disabled>
+          Submit Answer
+        </button>
+        <button class="btn btn-hint" id="hintBtn" onclick="requestHint()">
+          💡 Hint (-25)
+        </button>
+      </div>
+
+      <div class="source" id="sourceContainer" style="display: none;">
+        <div class="source-label">Source:</div>
+        <div id="sourceText"></div>
+      </div>
+
+      <div class="standings">
+        <div class="standings-title">Current Standings:</div>
+        <div id="leaderboard"></div>
+      </div>
+    </div>
+
+    <!-- Results Screen -->
+    <div id="resultsScreen" class="results">
+      <div class="winner-announcement">
+        <svg class="trophy-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+          <path d="M4 22h16"/>
+          <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+          <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+        </svg>
+        <h2 class="results-title">Quiz Complete!</h2>
+        <div id="winnerAnnouncement"></div>
+      </div>
+
+      <div class="final-standings-box">
+        <h3 class="final-standings-title">Final Standings:</h3>
+        <div id="finalStandings"></div>
+      </div>
+
+      <div class="score-progression-box">
+        <h3 class="score-progression-title">Score Progression:</h3>
+        <svg id="scoreGraph" width="500" height="200"></svg>
+        <div class="graph-legend" id="graphLegend"></div>
+      </div>
+
+      <div class="questions-sources-box">
+        <h3 class="questions-sources-title">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Questions, Answers & Sources
+        </h3>
+        <div class="questions-sources-scroll" id="questionsSources"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p class="footer-text">
+    </p>
+  </div>
+
+  <!-- Relative to the page (/quiz/<id>, or /central/quiz/<id> behind the console):
+       the assets stay under whatever prefix the page was served from. -->
+  <script src="../socket.io/socket.io.js"></script>
+  <script src="../quiz.js"></script>
+</body>
+</html>

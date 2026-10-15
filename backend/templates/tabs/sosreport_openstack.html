@@ -1,0 +1,27 @@
+<div class="grid grid-cols-1 gap-4">
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-desktop mr-2"></i> Host Info
+ </h3>
+ <ul class="space-y-1 text-sm">
+ <li><strong>Hostname:</strong> {{ data.hostnamectl['Static hostname'] or"N/A" }}</li>
+ <li><strong>OS:</strong> {{ data.hostnamectl['Operating System'] or"N/A" }}</li>
+ <li><strong>Kernel:</strong> {{ data.hostnamectl['Kernel'] or"N/A" }}</li>
+ <li><strong>Arch:</strong> {{ data.hostnamectl['Architecture'] or"N/A" }}</li>
+ </ul>
+ <div class="mt-4">
+ <h4 class="text-md font-medium mb-2">
+ <i class="fas fa-cloud mr-2"></i> OpenStack
+ </h4>
+ <ul class="space-y-1 text-sm">
+ <li><strong>Version:</strong> {{ data.rhosp_release['version'] or"N/A" }}</li>
+ <li><strong>Codename:</strong> {{ data.rhosp_release['codename'] or"N/A" }}</li>
+ </ul>
+ </div>
+ </div>
+</div>
+<script>
+ (function () {
+
+ })();
+</script>

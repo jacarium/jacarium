@@ -1,0 +1,366 @@
+{
+  "title": "Kubernetes",
+  "description": "Kubernetes container orchestration concepts",
+  "questions": [
+    {
+      "id": "k8s-1",
+      "question": "What command lists all pods?",
+      "answer": "kubectl get pods",
+      "hints": [
+        "Uses kubectl",
+        "get command",
+        "Resource type is plural"
+      ],
+      "category": "basics",
+      "difficulty": 100
+    },
+    {
+      "id": "k8s-2",
+      "question": "What is the smallest deployable unit in Kubernetes?",
+      "answer": "pod",
+      "hints": [
+        "3 letters",
+        "Contains one or more containers",
+        "Shares network namespace"
+      ],
+      "category": "concepts",
+      "difficulty": 100
+    },
+    {
+      "id": "k8s-3",
+      "question": "What resource exposes pods to network traffic?",
+      "answer": "service",
+      "hints": [
+        "Provides stable endpoint",
+        "7 letters",
+        "Load balances across pods"
+      ],
+      "category": "networking",
+      "difficulty": 100
+    },
+    {
+      "id": "k8s-4",
+      "question": "What default namespace do resources go into?",
+      "answer": "default",
+      "hints": [
+        "7 letters",
+        "Same as the word for standard",
+        "Can be overridden with -n flag"
+      ],
+      "category": "namespaces",
+      "difficulty": 100
+    },
+    {
+      "id": "k8s-5",
+      "question": "What kubectl command shows resource details?",
+      "answer": "describe",
+      "hints": [
+        "8 letters",
+        "Shows events and spec",
+        "kubectl ___ pod my-pod"
+      ],
+      "category": "commands",
+      "difficulty": 100
+    },
+    {
+      "id": "k8s-6",
+      "question": "What resource manages stateless application replicas?",
+      "answer": "deployment",
+      "hints": [
+        "10 letters",
+        "Manages ReplicaSets",
+        "Supports rolling updates"
+      ],
+      "category": "workloads",
+      "difficulty": 200
+    },
+    {
+      "id": "k8s-7",
+      "question": "What stores sensitive data like passwords?",
+      "answer": "secret",
+      "hints": [
+        "6 letters",
+        "Base64 encoded",
+        "Opposite of public"
+      ],
+      "category": "config",
+      "difficulty": 200
+    },
+    {
+      "id": "k8s-8",
+      "question": "What label selector uses equality-based matching?",
+      "answer": "=",
+      "hints": [
+        "Single character",
+        "Mathematical operator",
+        "app=nginx"
+      ],
+      "category": "selectors",
+      "difficulty": 200
+    },
+    {
+      "id": "k8s-9",
+      "question": "What kubectl flag specifies a namespace?",
+      "answer": "-n",
+      "hints": [
+        "2 characters",
+        "Dash and letter",
+        "Short for namespace"
+      ],
+      "category": "commands",
+      "difficulty": 200
+    },
+    {
+      "id": "k8s-10",
+      "question": "What resource provides persistent storage?",
+      "answer": "persistentvolume",
+      "hints": [
+        "Two words combined",
+        "Abbreviated as PV",
+        "Survives pod deletion"
+      ],
+      "category": "storage",
+      "difficulty": 200
+    },
+    {
+      "id": "k8s-11",
+      "question": "What resource routes HTTP traffic to services?",
+      "answer": "ingress",
+      "hints": [
+        "7 letters",
+        "Layer 7 load balancer",
+        "Opposite of egress"
+      ],
+      "category": "networking",
+      "difficulty": 300
+    },
+    {
+      "id": "k8s-12",
+      "question": "What field in pod spec defines resource limits?",
+      "answer": "resources",
+      "hints": [
+        "9 letters",
+        "Contains limits and requests",
+        "Defines CPU and memory"
+      ],
+      "category": "resources",
+      "difficulty": 300
+    },
+    {
+      "id": "k8s-13",
+      "question": "What workload runs a pod on every node?",
+      "answer": "daemonset",
+      "hints": [
+        "9 letters",
+        "One pod per node",
+        "daemon + set"
+      ],
+      "category": "workloads",
+      "difficulty": 300
+    },
+    {
+      "id": "k8s-14",
+      "question": "What probe checks if container is ready to serve traffic?",
+      "answer": "readiness",
+      "hints": [
+        "9 letters",
+        "Controls service endpoints",
+        "Different from liveness"
+      ],
+      "category": "probes",
+      "difficulty": 300
+    },
+    {
+      "id": "k8s-15",
+      "question": "What kubectl command applies configuration from a file?",
+      "answer": "apply",
+      "hints": [
+        "5 letters",
+        "kubectl ___ -f file.yaml",
+        "Declarative management"
+      ],
+      "category": "commands",
+      "difficulty": 300
+    },
+    {
+      "id": "k8s-16",
+      "question": "What resource manages stateful applications with stable identities?",
+      "answer": "statefulset",
+      "hints": [
+        "11 letters",
+        "Ordered deployment",
+        "stateful + set"
+      ],
+      "category": "workloads",
+      "difficulty": 400
+    },
+    {
+      "id": "k8s-17",
+      "question": "What field in pod spec defines init containers?",
+      "answer": "initContainers",
+      "hints": [
+        "Two words combined",
+        "Run before main containers",
+        "init + Containers"
+      ],
+      "category": "pods",
+      "difficulty": 400
+    },
+    {
+      "id": "k8s-18",
+      "question": "What resource limits resource consumption in a namespace?",
+      "answer": "resourcequota",
+      "hints": [
+        "Two words combined",
+        "Enforces limits",
+        "resource + quota"
+      ],
+      "category": "resources",
+      "difficulty": 400
+    },
+    {
+      "id": "k8s-19",
+      "question": "What service type exposes service on each node's IP?",
+      "answer": "nodeport",
+      "hints": [
+        "Two words combined",
+        "Port range 30000-32767",
+        "node + port"
+      ],
+      "category": "services",
+      "difficulty": 400
+    },
+    {
+      "id": "k8s-20",
+      "question": "What admission controller enforces pod security standards?",
+      "answer": "podsecurity",
+      "hints": [
+        "Two words combined",
+        "Replaces PSP",
+        "pod + security"
+      ],
+      "category": "security",
+      "difficulty": 400
+    },
+    {
+      "id": "k8s-21",
+      "question": "What CRD extends Kubernetes API with custom resources?",
+      "answer": "customresourcedefinition",
+      "hints": [
+        "Three words combined",
+        "Abbreviated as CRD",
+        "custom + resource + definition"
+      ],
+      "category": "extensibility",
+      "difficulty": 500
+    },
+    {
+      "id": "k8s-22",
+      "question": "What field in pod spec defines topology spread constraints?",
+      "answer": "topologySpreadConstraints",
+      "hints": [
+        "Three words combined",
+        "Controls pod distribution",
+        "topology + Spread + Constraints"
+      ],
+      "category": "scheduling",
+      "difficulty": 500
+    },
+    {
+      "id": "k8s-23",
+      "question": "What resource manages batch jobs with parallelism?",
+      "answer": "job",
+      "hints": [
+        "3 letters",
+        "Runs to completion",
+        "CronJob uses it"
+      ],
+      "category": "workloads",
+      "difficulty": 500
+    },
+    {
+      "id": "k8s-24",
+      "question": "What field in service spec enables session affinity?",
+      "answer": "sessionAffinity",
+      "hints": [
+        "Two words combined",
+        "Sticky sessions",
+        "session + Affinity"
+      ],
+      "category": "services",
+      "difficulty": 500
+    },
+    {
+      "id": "k8s-25",
+      "question": "What component watches and reconciles cluster state?",
+      "answer": "controller",
+      "hints": [
+        "10 letters",
+        "Control loop pattern",
+        "Runs in kube-controller-manager"
+      ],
+      "category": "architecture",
+      "difficulty": 500
+    },
+    {
+      "id": "k8s-26",
+      "question": "What webhook validates admission requests?",
+      "answer": "validatingadmissionwebhook",
+      "hints": [
+        "Three words combined",
+        "Enforces policies",
+        "validating + admission + webhook"
+      ],
+      "category": "admission",
+      "difficulty": 500
+    },
+    {
+      "id": "k8s-27",
+      "question": "What storage class field defines volume binding mode?",
+      "answer": "volumeBindingMode",
+      "hints": [
+        "Three words combined",
+        "Immediate or WaitForFirstConsumer",
+        "volume + Binding + Mode"
+      ],
+      "category": "storage",
+      "difficulty": 500
+    },
+    {
+      "id": "k8s-28",
+      "question": "What field in pod spec enables host networking?",
+      "answer": "hostNetwork",
+      "hints": [
+        "Two words combined",
+        "Uses node's network",
+        "host + Network"
+      ],
+      "category": "networking",
+      "difficulty": 500
+    },
+    {
+      "id": "k8s-29",
+      "question": "What resource provides service mesh capabilities?",
+      "answer": "serviceentry",
+      "hints": [
+        "Two words combined",
+        "Istio concept",
+        "service + entry"
+      ],
+      "category": "servicemesh",
+      "difficulty": 500
+    },
+    {
+      "id": "k8s-30",
+      "question": "What field in deployment spec defines update strategy?",
+      "answer": "strategy",
+      "hints": [
+        "8 letters",
+        "RollingUpdate or Recreate",
+        "Controls rollout behavior"
+      ],
+      "category": "deployments",
+      "difficulty": 500
+    }
+  ]
+}

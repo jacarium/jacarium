@@ -1,0 +1,969 @@
+{% set default_log_file = 'haproxy.log' if data.log_files and 'haproxy.log' in data.log_files else (data.log_files[0] if data.log_files else None) %}
+
+{% if not data or not data.config %}
+<div class="flex flex-col items-center justify-center py-12 text-center">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0 mb-3" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-sm font-medium mb-1">No HAProxy Data Available</div>
+ <div class="text-xs text-gray-500">HAProxy configuration not found in this sosreport</div>
+</div>
+{% else %}
+
+<div class="grid grid-cols-1 gap-4">
+ <!-- Log Issues -->
+ {% if data.log_files %}
+ <div class="panel rounded-lg shadow-sm">
+ <div class="flex items-center justify-between mb-4">
+ <h3 class="text-lg font-medium">
+ <i class="fas fa-file-alt mr-2"></i> Log Issues
+ </h3>
+ <div class="flex items-center gap-2">
+ <label for="logFileSelect" class="text-sm font-semibold">Log File:</label>
+ <select id="logFileSelect" onchange="updateLogFile()" class="px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
+ <option value="__all__">All (Combined)</option>
+ {% for log_file in data.log_files %}
+ <option value="{{ log_file }}" {% if log_file == default_log_file %}selected{% endif %}>{{ log_file }}</option>
+ {% endfor %}
+ </select>
+ <div id="logFileLoadingSpinner" style="display: none;">
+ <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-os-blue"></div>
+ </div>
+ </div>
+ </div>
+
+ <!-- Legends -->
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+ <!-- HTTP Status Codes Legend -->
+ <div class="panel rounded-lg shadow-sm">
+ <h4 class="text-sm font-semibold mb-2">
+ <i class="fas fa-question-circle mr-2"></i> HTTP Status Code Legend
+ </h4>
+ <table class="min-w-full text-xs rounded-sm">
+ <thead>
+ <tr class="border-b">
+ <th class="px-3 py-2 text-left">Code</th>
+ <th class="px-3 py-2 text-left">Description</th>
+ </tr>
+ </thead>
+ <tbody>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1">2xx</td>
+ <td class="px-3 py-1">Success (200 OK, 201 Created, 204 No Content)</td>
+ </tr>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1">3xx</td>
+ <td class="px-3 py-1">Redirection (301 Moved, 302 Found, 304 Not Modified)</td>
+ </tr>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1">4xx</td>
+ <td class="px-3 py-1">Client errors (400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found)</td>
+ </tr>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1">500</td>
+ <td class="px-3 py-1">Internal Server Error</td>
+ </tr>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1">502</td>
+ <td class="px-3 py-1">Bad Gateway (backend server error)</td>
+ </tr>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1">503</td>
+ <td class="px-3 py-1">Service Unavailable (no backend servers available)</td>
+ </tr>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1">504</td>
+ <td class="px-3 py-1">Gateway Timeout (backend server timeout)</td>
+ </tr>
+ </tbody>
+ </table>
+ </div>
+
+ <!-- Termination State Legend -->
+ <div class="panel rounded-lg shadow-sm">
+ <h4 class="text-sm font-semibold mb-2">
+ <i class="fas fa-question-circle mr-2"></i> Termination State Legend
+ </h4>
+ <table class="min-w-full text-xs rounded-sm">
+ <thead>
+ <tr class="border-b">
+ <th class="px-3 py-2 text-left">Code</th>
+ <th class="px-3 py-2 text-left">Description</th>
+ <th class="px-3 py-2 text-left">Suggestion</th>
+ </tr>
+ </thead>
+ <tbody>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1 font-mono">cD</td>
+ <td class="px-3 py-1">Client abort + Admin kill (reload/shutdown)</td>
+ <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Expected during HAProxy reload - consider reload strategy</td>
+ </tr>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1 font-mono">sD</td>
+ <td class="px-3 py-1">Server abort + Admin kill (reload/shutdown)</td>
+ <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Expected during HAProxy reload - review reload frequency</td>
+ </tr>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1 font-mono">CC</td>
+ <td class="px-3 py-1">Client timeout waiting for data</td>
+ <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Increase <span class="font-mono">timeout client</span> in haproxy.cfg</td>
+ </tr>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1 font-mono">SC</td>
+ <td class="px-3 py-1">Server timeout waiting for data</td>
+ <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Increase <span class="font-mono">timeout server</span> in haproxy.cfg</td>
+ </tr>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1 font-mono">PC</td>
+ <td class="px-3 py-1">Proxy connection refused</td>
+ <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Check backend server availability and firewall rules</td>
+ </tr>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1 font-mono">PR/PH</td>
+ <td class="px-3 py-1">Proxy resource/HTTP error</td>
+ <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Increase <span class="font-mono">maxconn</span> or review resource limits</td>
+ </tr>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1 font-mono">sR/cR</td>
+ <td class="px-3 py-1">Server/Client resource shortage</td>
+ <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Increase <span class="font-mono">maxconn</span> in global/backend section</td>
+ </tr>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1 font-mono">D-</td>
+ <td class="px-3 py-1">Session in queue waiting for server that went down</td>
+ <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Check backend server health and increase server capacity</td>
+ </tr>
+ <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-3 py-1 font-mono">--</td>
+ <td class="px-3 py-1">Normal termination (not tracked)</td>
+ <td class="px-3 py-1 text-gray-600 dark:text-gray-400">No action needed</td>
+ </tr>
+ </tbody>
+ </table>
+ </div>
+ </div>
+
+ <!-- Response Codes & Termination States Chart -->
+ <div id="responseCodesChartContainer" class="mb-6">
+ <h4 class="text-sm font-semibold mb-3 text-os-text-primary">
+ <i class="fas fa-chart-bar mr-1"></i> HTTP Response Codes & Termination States <span id="responseCodesGranularity"></span>
+ </h4>
+ <div id="responseCodesChartWrapper" style="position: relative; height: 300px;">
+ <canvas id="haproxyResponseCodesChart"></canvas>
+ </div>
+ </div>
+
+ <!-- Issues Chart -->
+ <div id="issuesChartContainer" class="mb-6">
+ <h4 class="text-sm font-semibold mb-3 text-os-text-primary">
+ <i class="fas fa-chart-line mr-1"></i> System Issues <span id="issuesGranularity"></span>
+ </h4>
+ <div id="issuesChartWrapper" style="position: relative; height: 300px;">
+ <canvas id="haproxyIssuesChart"></canvas>
+ </div>
+ </div>
+
+ <!-- Servers Down Table -->
+ <div id="serversDownSection" class="panel rounded-lg shadow-sm mb-4">
+ <div class="mb-4">
+ <h3 class="text-lg font-medium">
+ <i class="fas fa-server mr-2"></i> Servers Down
+ </h3>
+ </div>
+
+ <div id="serversDownContainer"></div>
+ </div>
+ </div>
+ {% endif %}
+
+ <!-- Backend Configuration -->
+ <div class="panel rounded-lg shadow-sm">
+ <div class="mb-4">
+ <h3 class="text-lg font-medium">
+ <i class="fas fa-cogs mr-2"></i> Backend Configuration
+ </h3>
+ </div>
+
+ <div class="mb-4">
+ <input type="text" id="backend-filter"
+ class="w-full px-3 py-2 text-sm rounded-sm border"
+ placeholder="Filter backends..."
+ autocomplete="off">
+ </div>
+
+ <p id="backend-count" class="text-xs mb-2"></p>
+
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left w-8"></th>
+ <th class="px-4 py-2 text-left">Section</th>
+ <th class="px-4 py-2 text-left">Mode</th>
+ <th class="px-4 py-2 text-left">Balance</th>
+ <th class="px-4 py-2 text-left">Servers</th>
+ <th class="px-4 py-2 text-left">Health Checks</th>
+ </tr>
+ </thead>
+ <tbody id="backend-container">
+ <!-- Global Section -->
+ {% if data.config.global and data.config.global.raw %}
+ <tr class="backend-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ data-index="global"
+ data-name="global">
+ <td class="px-4 py-2">
+ <i class="fas fa-caret-right expand-icon"></i>
+ </td>
+ <td class="px-4 py-2 font-semibold">
+ <i class="fas fa-globe mr-2"></i>global
+ </td>
+ <td class="px-4 py-2">-</td>
+ <td class="px-4 py-2">-</td>
+ <td class="px-4 py-2">-</td>
+ <td class="px-4 py-2">-</td>
+ </tr>
+ <tr class="backend-details hidden" data-parent="global">
+ <td colspan="6" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+ <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
+ <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Global Configuration:</h4>
+ <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{% for line in data.config.global.raw %}{{ line }}
+{% endfor %}</pre>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+
+ <!-- Defaults Section -->
+ {% if data.config.defaults and data.config.defaults.raw %}
+ <tr class="backend-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ data-index="defaults"
+ data-name="defaults">
+ <td class="px-4 py-2">
+ <i class="fas fa-caret-right expand-icon"></i>
+ </td>
+ <td class="px-4 py-2 font-semibold">
+ <i class="fas fa-sliders-h mr-2"></i>defaults
+ </td>
+ <td class="px-4 py-2">-</td>
+ <td class="px-4 py-2">-</td>
+ <td class="px-4 py-2">-</td>
+ <td class="px-4 py-2">-</td>
+ </tr>
+ <tr class="backend-details hidden" data-parent="defaults">
+ <td colspan="6" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+ <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
+ <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Defaults Configuration:</h4>
+ <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{% for line in data.config.defaults.raw %}{{ line }}
+{% endfor %}</pre>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+
+ {% for backend_name, backend in data.config.backends.items() %}
+ <tr class="backend-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ data-index="{{ loop.index0 }}"
+ data-name="{{ backend_name | lower }}">
+ <td class="px-4 py-2">
+ <i class="fas fa-caret-right expand-icon"></i>
+ </td>
+ <td class="px-4 py-2 font-semibold">{{ backend_name }}</td>
+ <td class="px-4 py-2">
+ <span class="px-2 py-1 rounded-sm text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+ {{ backend.mode or 'N/A' }}
+ </span>
+ </td>
+ <td class="px-4 py-2">{{ backend.balance or 'N/A' }}</td>
+ <td class="px-4 py-2">{{ backend.servers|length }}</td>
+ <td class="px-4 py-2">
+ {% set checked = backend.servers|selectattr('check')|list|length %}
+ <span class="{% if checked == backend.servers|length %}text-green-600 dark:text-green-400{% elif checked > 0 %}text-yellow-600 dark:text-yellow-400{% else %}text-red-600 dark:text-red-400{% endif %}">
+ {{ checked }}/{{ backend.servers|length }}
+ </span>
+ </td>
+ </tr>
+ <tr class="backend-details hidden" data-parent="{{ loop.index0 }}">
+ <td colspan="6" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+ {% if backend.raw %}
+ <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
+ <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">{{ backend_name }} Configuration:</h4>
+ <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{% for line in backend.raw %}{{ line }}
+{% endfor %}</pre>
+ </div>
+ {% endif %}
+ </td>
+ </tr>
+ {% endfor %}
+ </tbody>
+ </table>
+ </div>
+ </div>
+</div>
+
+<script>
+ (() => {
+ const filterInput = document.getElementById('backend-filter');
+ const container = document.getElementById('backend-container');
+ const countDisplay = document.getElementById('backend-count');
+
+ // Handle row click to expand/collapse details using event delegation
+ container.addEventListener('click', function(e) {
+ // Find the closest backend-entry row
+ const row = e.target.closest('.backend-entry');
+ if (!row) return;
+
+ const index = row.dataset.index;
+ // Find the next sibling that's a details row
+ let detailsRow = row.nextElementSibling;
+
+ // Make sure we found the right details row
+ if (detailsRow && detailsRow.classList.contains('backend-details')) {
+ const icon = row.querySelector('.expand-icon');
+ const isHidden = detailsRow.classList.contains('hidden');
+
+ detailsRow.classList.toggle('hidden');
+
+ // When expanding, also remove the hidden attribute (from filtering)
+ // When collapsing, add it back if the parent entry is visible
+ if (isHidden) {
+ // Expanding - remove hidden attribute so it shows
+ detailsRow.removeAttribute('hidden');
+ } else {
+ // Collapsing - only add hidden attribute if parent is visible
+ if (!row.hasAttribute('hidden')) {
+ // Parent is visible, so we can just rely on the class
+ // No need to set attribute
+ }
+ }
+
+ if (icon) {
+ icon.classList.toggle('fa-caret-right', !isHidden);
+ icon.classList.toggle('fa-caret-down', isHidden);
+ }
+ }
+ });
+
+ function updateCount() {
+ const entries = container.querySelectorAll('.backend-entry');
+ const visible = [...entries].filter(e => !e.hasAttribute('hidden'));
+ countDisplay.textContent = `Showing ${visible.length} of ${entries.length} backends`;
+ }
+
+ function filterEntries() {
+ const query = filterInput.value.trim();
+ let regex = null;
+
+ if (query.length > 0) {
+ try {
+ regex = new RegExp(query, 'i');
+ } catch (e) {
+ regex = null;
+ }
+ }
+
+ container.querySelectorAll('.backend-entry').forEach(entry => {
+ const detailsRow = entry.nextElementSibling;
+ const entryText = entry.textContent;
+ const detailsText = detailsRow && detailsRow.classList.contains('backend-details') ? detailsRow.textContent : '';
+
+ const matchesText = !query || (
+ regex
+ ? regex.test(entryText) || regex.test(detailsText)
+ : entryText.toLowerCase().includes(query.toLowerCase()) || detailsText.toLowerCase().includes(query.toLowerCase())
+ );
+
+ if (matchesText) {
+ entry.removeAttribute('hidden');
+ // Only remove hidden attribute if details row is expanded (doesn't have hidden class)
+ // This preserves the collapsed/expanded state during filtering
+ if (detailsRow && detailsRow.classList.contains('backend-details') && !detailsRow.classList.contains('hidden')) {
+ detailsRow.removeAttribute('hidden');
+ }
+ } else {
+ entry.setAttribute('hidden', '');
+ if (detailsRow && detailsRow.classList.contains('backend-details')) {
+ detailsRow.setAttribute('hidden', '');
+ }
+ }
+ });
+
+ updateCount();
+ }
+
+ filterInput.addEventListener('input', filterEntries);
+
+ updateCount();
+ })();
+
+ // HAProxy Log Issues Management
+ {% if data.log_files %}
+ (() => {
+ const uploadedDir = {{ request.json.get('directory') | tojson }};
+ const logsCache = {};
+ let responseCodesChart = null;
+ let issuesChart = null;
+ let backendUrl = null;
+ let currentTimeSeriesData = null;
+ let currentIssuesData = null;
+
+ // Get backend URL (works in both Electron and browser)
+ async function getBackendUrl() {
+ if (backendUrl) return backendUrl;
+
+ // In Electron app
+ if (window.electronAPI?.getBackendPort) {
+ const port = await window.electronAPI.getBackendPort();
+ backendUrl = `http://localhost:${port}`;
+ return backendUrl;
+ }
+
+ // In browser/dev mode
+ backendUrl = 'http://localhost:8080';
+ return backendUrl;
+ }
+
+ // Cache the initial log data
+ const initialLogFile = {{ default_log_file | tojson }};
+ const initialLogData = {{ data.current_log | tojson }};
+ if (initialLogFile && initialLogData) {
+ logsCache[initialLogFile] = initialLogData;
+ }
+
+ async function updateLogFile() {
+ const select = document.getElementById('logFileSelect');
+ const selectedFile = select.value;
+ const spinner = document.getElementById('logFileLoadingSpinner');
+
+ // Check if already cached
+ if (logsCache[selectedFile]) {
+ const logData = logsCache[selectedFile];
+ currentTimeSeriesData = logData.time_series;
+ currentIssuesData = logData.issues;
+ updateResponseCodesChart(logData.time_series);
+ updateIssuesChart(logData.time_series);
+ renderServersDownTable(logData.issues);
+ return;
+ }
+
+ // Show loading spinner
+ if (spinner) {
+ spinner.style.display = 'inline-block';
+ spinner.style.visibility = 'visible';
+ }
+
+ // Fetch from server - get correct backend URL
+ // Proxied through the trusted parent window: this sandboxed iframe has no
+ // window.electronAPI, so it cannot attach the required X-App-Token itself.
+ // See window.diagnosticsApiRequest and the allowlisted proxy in
+ // src/components/DiagnosticsPage.jsx.
+ window.diagnosticsApiRequest('/parse_haproxy_log', {
+ directory: uploadedDir,
+ log_file: selectedFile
+ })
+ .then(response => response.json)
+ .then(result => {
+ if (result.error) {
+ console.error('Error parsing log:', result.error);
+ if (spinner) {
+ spinner.style.display = 'none';
+ }
+ return;
+ }
+
+ const logData = result.data;
+ logsCache[selectedFile] = logData;
+ currentTimeSeriesData = logData.time_series;
+ currentIssuesData = logData.issues;
+
+ updateResponseCodesChart(logData.time_series);
+ updateIssuesChart(logData.time_series);
+ renderServersDownTable(logData.issues);
+
+ // Hide loading spinner
+ if (spinner) {
+ spinner.style.display = 'none';
+ }
+ })
+ .catch(error => {
+ console.error('Error fetching log data:', error);
+ // Hide loading spinner on error
+ if (spinner) {
+ spinner.style.display = 'none';
+ }
+ });
+ }
+
+ function updateResponseCodesChart(timeSeriesData) {
+ const ctx = document.getElementById('haproxyResponseCodesChart');
+ const wrapper = document.getElementById('responseCodesChartWrapper');
+ if (!ctx || !wrapper) return;
+
+ // Destroy existing chart
+ if (responseCodesChart) {
+ responseCodesChart.destroy();
+ responseCodesChart = null;
+ }
+
+ // Update granularity label
+ const granularitySpan = document.getElementById('responseCodesGranularity');
+ if (granularitySpan && timeSeriesData) {
+ granularitySpan.textContent = `(${timeSeriesData.granularity.charAt(0).toUpperCase() + timeSeriesData.granularity.slice(1)})`;
+ }
+
+ if (!timeSeriesData) {
+ console.log('No timeSeriesData available for response codes chart');
+ wrapper.innerHTML = `
+ <div class="flex flex-col items-center justify-center py-12 text-center">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0 mb-3" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+ </svg>
+ <div class="text-sm font-medium mb-1">No Data Available</div>
+ <div class="text-xs text-gray-500">No HTTP response codes or termination states found in logs</div>
+ </div>
+ `;
+ return;
+ }
+
+ const hasHttpCodes = timeSeriesData.http_status_codes && timeSeriesData.http_status_codes.length > 0;
+ const hasTermStates = timeSeriesData.termination_states && timeSeriesData.termination_states.length > 0;
+
+ console.log('Response Codes Chart - HTTP codes:', hasHttpCodes, 'Term states:', hasTermStates);
+ console.log('HTTP codes:', timeSeriesData.http_status_codes);
+ console.log('Term states:', timeSeriesData.termination_states);
+
+ if (!hasHttpCodes && !hasTermStates) {
+ console.log('No data to display in response codes chart');
+ wrapper.innerHTML = `
+ <div class="flex flex-col items-center justify-center py-12 text-center">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0 mb-3" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+ </svg>
+ <div class="text-sm font-medium mb-1">No Data Available</div>
+ <div class="text-xs text-gray-500">No HTTP response codes or termination states found in logs</div>
+ </div>
+ `;
+ return;
+ }
+
+ // Restore canvas if it was replaced
+ if (!document.getElementById('haproxyResponseCodesChart')) {
+ wrapper.innerHTML = '<canvas id="haproxyResponseCodesChart"></canvas>';
+ }
+
+ const datasets = [];
+
+ // Generate color palette for HTTP status codes
+ if (hasHttpCodes) {
+ const statusCodeColors = {
+ '200': 'rgba(34, 197, 94, 1)', '201': 'rgba(34, 197, 94, 0.8)', '204': 'rgba(34, 197, 94, 0.6)',
+ '300': 'rgba(59, 130, 246, 1)', '301': 'rgba(59, 130, 246, 0.8)', '302': 'rgba(59, 130, 246, 0.6)',
+ '400': 'rgba(251, 191, 36, 1)', '401': 'rgba(251, 191, 36, 0.9)', '403': 'rgba(251, 191, 36, 0.7)', '404': 'rgba(251, 191, 36, 0.8)',
+ '500': 'rgba(239, 68, 68, 1)', '502': 'rgba(239, 68, 68, 0.8)', '503': 'rgba(239, 68, 68, 0.7)', '504': 'rgba(239, 68, 68, 0.6)'
+ };
+
+ timeSeriesData.http_status_codes.forEach((code) => {
+ const color = statusCodeColors[code] || `rgba(${Math.random()*255}, ${Math.random()*255}, ${Math.random()*255}, 0.8)`;
+ datasets.push({
+ label: `HTTP ${code}`,
+ data: timeSeriesData.data[`http_${code}`] || [],
+ borderColor: color,
+ backgroundColor: color.replace('1)', '0.1)').replace('0.8)', '0.1)').replace('0.7)', '0.1)').replace('0.6)', '0.1)'),
+ borderWidth: 2,
+ tension: 0.1,
+ fill: true
+ });
+ });
+ }
+
+ // Add termination states to the same chart
+ if (hasTermStates) {
+ const terminationStateInfo = {
+ 'cD': { label: 'cD (Client abort + Admin)', color: 'rgba(239, 68, 68, 1)' },
+ 'sD': { label: 'sD (Server abort + Admin)', color: 'rgba(220, 38, 38, 1)' },
+ 'CC': { label: 'CC (Client timeout)', color: 'rgba(251, 146, 60, 1)' },
+ 'SC': { label: 'SC (Server timeout)', color: 'rgba(249, 115, 22, 1)' },
+ 'PC': { label: 'PC (Proxy refused)', color: 'rgba(234, 179, 8, 1)' },
+ 'PR': { label: 'PR (Proxy resource)', color: 'rgba(202, 138, 4, 1)' },
+ 'PH': { label: 'PH (Proxy HTTP)', color: 'rgba(168, 85, 247, 1)' },
+ 'sR': { label: 'sR (Server resource)', color: 'rgba(59, 130, 246, 1)' },
+ 'cR': { label: 'cR (Client resource)', color: 'rgba(37, 99, 235, 1)' },
+ 'LR': { label: 'LR (Local resource)', color: 'rgba(14, 165, 233, 1)' },
+ 'SD': { label: 'SD (Server shutdown)', color: 'rgba(236, 72, 153, 1)' },
+ 'CD': { label: 'CD (Client shutdown)', color: 'rgba(219, 39, 119, 1)' }
+ };
+
+ timeSeriesData.termination_states.forEach((state) => {
+ const info = terminationStateInfo[state] || { label: state, color: 'rgba(128, 128, 128, 1)' };
+ datasets.push({
+ label: info.label,
+ data: timeSeriesData.data[`term_${state}`] || [],
+ borderColor: info.color,
+ backgroundColor: info.color.replace('1)', '0.1)'),
+ borderWidth: 2,
+ tension: 0.1,
+ fill: true
+ });
+ });
+ }
+
+ // Get canvas context (it may have been recreated)
+ const canvas = document.getElementById('haproxyResponseCodesChart');
+ if (!canvas) return;
+
+ responseCodesChart = new Chart(canvas.getContext('2d'), {
+ type: 'line',
+ data: {
+ labels: timeSeriesData.labels || [],
+ datasets: datasets
+ },
+ options: {
+ responsive: true,
+ maintainAspectRatio: false,
+ animation: false,
+ interaction: {
+ mode: 'index',
+ intersect: false
+ },
+ scales: {
+ x: {
+ grid: {
+ color: diagnosticsThemeColor('grid')
+ },
+ ticks: {
+ color: diagnosticsThemeColor('text'),
+ maxRotation: 45,
+ minRotation: 45
+ }
+ },
+ y: {
+ beginAtZero: true,
+ grid: {
+ color: diagnosticsThemeColor('grid')
+ },
+ ticks: {
+ color: diagnosticsThemeColor('text'),
+ precision: 0
+ }
+ }
+ },
+ plugins: {
+ legend: {
+ labels: {
+ color: diagnosticsThemeColor('text')
+ }
+ },
+ tooltip: {
+ enabled: true,
+ mode: 'index',
+ intersect: false,
+ position: 'nearest',
+ backgroundColor: diagnosticsThemeColor('tooltip'),
+ titleColor: diagnosticsThemeColor('text'),
+ bodyColor: diagnosticsThemeColor('text'),
+ borderColor: '#374151',
+ borderWidth: 1
+ }
+ }
+ }
+ });
+
+ console.log('Response codes chart created with', datasets.length, 'datasets');
+ }
+
+ function updateIssuesChart(timeSeriesData) {
+ const ctx = document.getElementById('haproxyIssuesChart');
+ const wrapper = document.getElementById('issuesChartWrapper');
+ if (!ctx || !wrapper) return;
+
+ // Destroy existing chart
+ if (issuesChart) {
+ issuesChart.destroy();
+ issuesChart = null;
+ }
+
+ // Update granularity label
+ const granularitySpan = document.getElementById('issuesGranularity');
+ if (granularitySpan && timeSeriesData) {
+ granularitySpan.textContent = `(${timeSeriesData.granularity.charAt(0).toUpperCase() + timeSeriesData.granularity.slice(1)})`;
+ }
+
+ if (!timeSeriesData || !timeSeriesData.system_issues || timeSeriesData.system_issues.length === 0) {
+ wrapper.innerHTML = `
+ <div class="flex flex-col items-center justify-center py-12 text-center">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0 mb-3" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+ </svg>
+ <div class="text-sm font-medium mb-1">No System Issues</div>
+ <div class="text-xs text-gray-500">No backend/server down events, errors, or timeouts found</div>
+ </div>
+ `;
+ return;
+ }
+
+ // Restore canvas if it was replaced
+ if (!document.getElementById('haproxyIssuesChart')) {
+ wrapper.innerHTML = '<canvas id="haproxyIssuesChart"></canvas>';
+ }
+
+ const issueColors = {
+ 'backend_down': 'rgba(239, 68, 68, 1)',
+ 'server_down': 'rgba(249, 115, 22, 1)',
+ 'errors': 'rgba(234, 179, 8, 1)',
+ 'timeouts': 'rgba(59, 130, 246, 1)',
+ 'connection_errors': 'rgba(168, 85, 247, 1)'
+ };
+
+ const issueLabels = {
+ 'backend_down': 'Backend Down',
+ 'server_down': 'Server Down',
+ 'errors': 'Errors',
+ 'timeouts': 'Timeouts',
+ 'connection_errors': 'Connection Errors'
+ };
+
+ const datasets = timeSeriesData.system_issues.map((issueType) => {
+ const color = issueColors[issueType] || 'rgba(128, 128, 128, 1)';
+ return {
+ label: issueLabels[issueType] || issueType,
+ data: timeSeriesData.data[issueType] || [],
+ borderColor: color,
+ backgroundColor: color.replace('1)', '0.1)'),
+ borderWidth: 2,
+ tension: 0.1,
+ fill: true
+ };
+ });
+
+ // Get canvas context (it may have been recreated)
+ const canvas = document.getElementById('haproxyIssuesChart');
+ if (!canvas) return;
+
+ issuesChart = new Chart(canvas.getContext('2d'), {
+ type: 'line',
+ data: {
+ labels: timeSeriesData.labels,
+ datasets: datasets
+ },
+ options: {
+ responsive: true,
+ maintainAspectRatio: false,
+ animation: false,
+ interaction: {
+ mode: 'index',
+ intersect: false
+ },
+ scales: {
+ x: {
+ grid: {
+ color: diagnosticsThemeColor('grid')
+ },
+ ticks: {
+ color: diagnosticsThemeColor('text'),
+ maxRotation: 45,
+ minRotation: 45
+ }
+ },
+ y: {
+ beginAtZero: true,
+ grid: {
+ color: diagnosticsThemeColor('grid')
+ },
+ ticks: {
+ color: diagnosticsThemeColor('text'),
+ precision: 0
+ }
+ }
+ },
+ plugins: {
+ legend: {
+ labels: {
+ color: diagnosticsThemeColor('text')
+ }
+ },
+ tooltip: {
+ enabled: true,
+ mode: 'index',
+ intersect: false,
+ position: 'nearest',
+ backgroundColor: diagnosticsThemeColor('tooltip'),
+ titleColor: diagnosticsThemeColor('text'),
+ bodyColor: diagnosticsThemeColor('text'),
+ borderColor: '#374151',
+ borderWidth: 1
+ }
+ }
+ }
+ });
+ }
+
+ function renderServersDownTable(issues) {
+ const container = document.getElementById('serversDownContainer');
+ if (!container) return;
+
+ if (!issues.server_down || issues.server_down.length === 0) {
+ container.innerHTML = `
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0 mb-3" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+ </svg>
+ <div class="text-sm font-medium mb-1">No Servers Down</div>
+ <div class="text-xs text-gray-500">All servers are operational</div>
+ </div>
+ `;
+ return;
+ }
+
+ // Group by backend and server
+ const serverStats = {};
+ const serverDailyBreakdown = {};
+
+ issues.server_down.forEach(issue => {
+ const key = `${issue.backend}/${issue.server}`;
+
+ if (!serverStats[key]) {
+ serverStats[key] = {
+ backend: issue.backend,
+ server: issue.server,
+ count: 0,
+ dailyBreakdown: {}
+ };
+ }
+
+ serverStats[key].count++;
+
+ // Extract date from timestamp (e.g., "May 17" from "May 17 02:52:13")
+ const dateMatch = issue.timestamp.match(/^(\w{3}\s+\d{1,2})/);
+ if (dateMatch) {
+ const date = dateMatch[1];
+ if (!serverStats[key].dailyBreakdown[date]) {
+ serverStats[key].dailyBreakdown[date] = 0;
+ }
+ serverStats[key].dailyBreakdown[date]++;
+ }
+ });
+
+ // Sort by count descending
+ const sortedServers = Object.values(serverStats).sort((a, b) => b.count - a.count);
+
+ let tableHtml = `
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left w-8"></th>
+ <th class="px-4 py-2 text-left">Backend</th>
+ <th class="px-4 py-2 text-left">Server</th>
+ <th class="px-4 py-2 text-left">Times Down</th>
+ </tr>
+ </thead>
+ <tbody id="servers-down-tbody">
+ `;
+
+ sortedServers.forEach((server, index) => {
+ // Create daily breakdown content
+ const dailyBreakdownRows = Object.entries(server.dailyBreakdown)
+ .sort((a, b) => a[0].localeCompare(b[0]))
+ .map(([date, count]) => `
+ <div class="flex justify-between items-center py-1 text-xs">
+ <span class="text-os-text-secondary">${date}</span>
+ <span class="font-semibold text-os-text-primary">${count} times</span>
+ </div>
+ `).join('');
+
+ tableHtml += `
+ <tr class="server-down-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ data-index="${index}">
+ <td class="px-4 py-2">
+ <i class="fas fa-caret-right expand-icon"></i>
+ </td>
+ <td class="px-4 py-2 font-semibold">${server.backend}</td>
+ <td class="px-4 py-2">${server.server}</td>
+ <td class="px-4 py-2">
+ <span class="px-2 py-1 rounded-sm text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+ ${server.count}
+ </span>
+ </td>
+ </tr>
+ <tr class="server-down-details hidden" data-parent="${index}">
+ <td colspan="4" class="px-4 py-4 bg-os-card-secondary">
+ <div class="ml-8">
+ <h5 class="font-semibold mb-2 text-xs text-os-text-primary">Daily Breakdown:</h5>
+ <div class="space-y-1 max-h-48 overflow-y-auto">
+ ${dailyBreakdownRows}
+ </div>
+ </div>
+ </td>
+ </tr>
+ `;
+ });
+
+ tableHtml += `
+ </tbody>
+ </table>
+ </div>
+ `;
+
+ container.innerHTML = tableHtml;
+
+ // Add event listener for expand/collapse
+ const tbody = document.getElementById('servers-down-tbody');
+ if (tbody) {
+ tbody.addEventListener('click', function(e) {
+ const row = e.target.closest('.server-down-entry');
+ if (!row) return;
+
+ const index = row.dataset.index;
+ let detailsRow = row.nextElementSibling;
+
+ if (detailsRow && detailsRow.classList.contains('server-down-details')) {
+ const icon = row.querySelector('.expand-icon');
+ const isHidden = detailsRow.classList.contains('hidden');
+
+ detailsRow.classList.toggle('hidden');
+
+ if (icon) {
+ icon.classList.toggle('fa-caret-right', !isHidden);
+ icon.classList.toggle('fa-caret-down', isHidden);
+ }
+ }
+ });
+ }
+ }
+
+ // Make updateLogFile available globally
+ window.updateLogFile = updateLogFile;
+
+ // Initialize with cached initial data
+ if (initialLogFile && initialLogData) {
+ currentTimeSeriesData = initialLogData.time_series;
+ currentIssuesData = initialLogData.issues;
+ updateResponseCodesChart(initialLogData.time_series);
+ updateIssuesChart(initialLogData.time_series);
+ renderServersDownTable(initialLogData.issues);
+ }
+
+ // Watch for theme changes and re-render charts
+ const themeObserver = new MutationObserver((mutations) => {
+ mutations.forEach((mutation) => {
+ if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+ // Theme has changed, re-render charts with current data
+ if (currentTimeSeriesData) {
+ updateResponseCodesChart(currentTimeSeriesData);
+ updateIssuesChart(currentTimeSeriesData);
+ }
+ if (currentIssuesData) {
+ renderServersDownTable(currentIssuesData);
+ }
+ }
+ });
+ });
+
+ // Start observing theme changes
+ themeObserver.observe(document.documentElement, {
+ attributes: true,
+ attributeFilter: ['class']
+ });
+ })();
+ {% endif %}
+</script>
+{% endif %}

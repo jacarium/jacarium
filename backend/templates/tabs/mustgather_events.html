@@ -1,0 +1,559 @@
+<div id="eventPanel" class="grid grid-cols-1 gap-4">
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-chart-bar mr-2"></i> Event Types
+ </h3>
+ <div>
+ {% if data %}
+ <canvas id="reasonChart"></canvas>
+ {% else %}
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+ </svg>
+ <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
+ <div class="text-xs text-gray-500">No event data found in this report</div>
+ </div>
+ {% endif %}
+ </div>
+ </div>
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-bell mr-2"></i> Events
+ </h3>
+ <div class="mb-2">
+ <label class="inline-flex items-center text-xs font-semibold">
+ <input type="checkbox" id="show-empty-namespaces" class="form-checkbox" />
+ <span class="ml-2">Show Empty Namespaces</span>
+ </label>
+ </div>
+ <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
+ <div>
+ <label for="eventNamespaceFilter" class="block text-xs font-semibold mb-1">Namespaces</label>
+ <select id="eventNamespaceFilter"
+ class="w-full px-3 py-2 text-sm border">
+ <option value="">All</option>
+ </select>
+ </div>
+ <div>
+ <label for="eventReasonFilter" class="block text-xs font-semibold mb-1">Reason</label>
+ <select id="eventReasonFilter"
+ class="w-full px-3 py-2 text-sm border">
+ <option value="">All</option>
+ </select>
+ </div>
+ <div class="md:col-span-6">
+ <label for="eventSearchInput" class="block text-xs font-semibold mb-1">Search All</label>
+ <input id="eventSearchInput" type="text" placeholder="Search events..."
+ class="w-full px-3 py-2 text-sm border"/>
+ </div>
+ </div>
+ <div class="flex justify-between items-center mb-2">
+ <div id="filteredEventCount" class="text-sm">Showing all events</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs font-semibold">Per Page:</label>
+ <select id="eventPageSizeSelect" onchange="window.changeEventPageSize()" class="px-3 py-1 text-sm border">
+ <option value="50">50</option>
+ <option value="100" selected>100</option>
+ <option value="250">250</option>
+ <option value="500">500</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ <table class="min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortEventsBy('namespace')">Namespace <i id="event-indicator-namespace" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortEventsBy('lastSeen')">Last Seen <i id="event-indicator-lastSeen" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortEventsBy('type')">Type <i id="event-indicator-type" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortEventsBy('reason')">Reason <i id="event-indicator-reason" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortEventsBy('object')">Object <i id="event-indicator-object" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortEventsBy('message')">Message <i id="event-indicator-message" class="ml-1 fas text-sm"></i></th>
+ </tr>
+ </thead>
+ <tbody id="eventTableBody"></tbody>
+ </table>
+ <div id="eventPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+</div>
+
+<div id="eventDetailsPanel" style="display: none;">
+ <div class="space-y-4">
+ <div class="mb-4">
+ <button onclick="window.backFromEventModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ Back
+ </button>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-info-circle mr-2"></i> Event Details
+ </h3>
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm" id="eventDetailsTable"></table>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-file mr-2"></i> Event YAML
+ </h2>
+ <div class="mb-2">
+ <input
+ id="eventYamlFilter"
+ type="text"
+ placeholder="Filter YAML lines..."
+ class="w-full px-3 py-2 text-sm border"
+ />
+ </div>
+ <div id="eventJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
+ </div>
+ </div>
+</div>
+
+<script>
+ var eventsData = {{ data | tojson }};
+
+ var flattenedEvents = [];
+ var currentSort = { key:"lastSeen", direction: 1 };
+ var eventCurrentPage = 1;
+ var eventPageSize = 100;
+
+ var eventPanel = document.getElementById("eventPanel");
+ var eventJsonViewer = document.getElementById("eventJsonViewer");
+ var eventDetailsTable = document.getElementById("eventDetailsTable");
+ var eventNamespaceFilter = document.getElementById("eventNamespaceFilter");
+ var eventSearchInput = document.getElementById("eventSearchInput");
+ var currentEvent = null;
+ var lastClickedRow = null;
+
+ var showEmptyNamespacesCheckbox = document.getElementById("show-empty-namespaces");
+
+ function parseLastSeen(timestamp) {
+ return timestamp ? new Date(timestamp) : null;
+ }
+
+ function flattenEvents(showEmptyNamespaces) {
+ flattenedEvents = [];
+
+ Object.entries(eventsData).forEach(([namespace, evs]) => {
+ if (!showEmptyNamespaces && (!evs || evs.length === 0)) {
+ return;
+ }
+
+ if (!evs || evs.length === 0) {
+ flattenedEvents.push({
+ namespace,
+ name:"-",
+ lastSeen:"-",
+ type:"-",
+ reason:"-",
+ object:"No Events",
+ message:"-",
+ isPlaceholder: true,
+ raw: {},
+ });
+ } else {
+ evs.forEach((ev) => {
+ flattenedEvents.push({
+ namespace,
+ name: ev.metadata?.name ||"",
+ lastSeen: ev.metadata.creationTimestamp ||"-",
+ type: ev.type ||"",
+ reason: ev.reason ||"",
+ object: ev.involvedObject?.name ||"",
+ message: ev.message ||"",
+ raw: ev,
+ isPlaceholder: false,
+ });
+ });
+ }
+ });
+
+ populateNamespaceFilter();
+ populateReasonFilter();
+ sortAndFilterEvents();
+ }
+
+ function populateNamespaceFilter() {
+ eventNamespaceFilter.innerHTML = `<option value="">All</option>`;
+
+ const namespaces = Array.from(new Set(flattenedEvents.map((ev) => ev.namespace)));
+
+ namespaces.forEach((ns) => {
+ eventNamespaceFilter.innerHTML += `<option value="${ns}">${ns}</option>`;
+ });
+ }
+
+ function populateReasonFilter() {
+ const reasonFilter = document.getElementById("eventReasonFilter");
+ reasonFilter.innerHTML = `<option value="">All</option>`;
+
+ const reasons = Array.from(new Set(flattenedEvents.map(ev => ev.reason).filter(Boolean))).sort();
+ reasons.forEach(reason => {
+ reasonFilter.innerHTML += `<option value="${reason}">${reason}</option>`;
+ });
+ }
+
+ window.sortEventsBy = function(key) {
+ if (currentSort.key === key) {
+ currentSort.direction = -currentSort.direction;
+ } else {
+ currentSort.key = key;
+ currentSort.direction = 1;
+ }
+ eventCurrentPage = 1;
+ sortAndFilterEvents();
+ updateSortIndicators();
+ }
+
+ function updateSortIndicators() {
+ const baseClass ="ml-1 fas text-sm";
+
+ ["namespace","lastSeen","type","reason","object","message"].forEach((k) => {
+ const el = document.getElementById("event-indicator-" + k);
+
+ if (k === currentSort.key) {
+ el.className = `${baseClass} ${currentSort.direction > 0 ?"fa-sort-up" :"fa-sort-down"}`;
+ } else {
+ el.className = `${baseClass}`;
+ }
+ });
+ }
+
+
+ function sortAndFilterEvents() {
+ const namespaceFilter = eventNamespaceFilter.value.toLowerCase();
+ const searchTerm = eventSearchInput.value.toLowerCase();
+ const reasonFilter = document.getElementById("eventReasonFilter").value.toLowerCase();
+
+ let filtered = flattenedEvents.filter((ev) => {
+ if (namespaceFilter && ev.namespace.toLowerCase() !== namespaceFilter) {
+ return false;
+ }
+ if (reasonFilter && ev.reason.toLowerCase() !== reasonFilter) {
+ return false;
+ }
+ if (searchTerm) {
+ let regex;
+ try {
+ regex = new RegExp(searchTerm,"i");
+ } catch (e) {
+ return false;
+ }
+
+ const combined = [ev.namespace, ev.name, ev.type, ev.reason, ev.object, ev.message]
+ .map((x) => x?.toString())
+ .join("");
+ return regex.test(combined);
+ }
+
+ return true;
+ });
+
+ filtered.sort((a, b) => {
+ let valA = a[currentSort.key] ||"";
+ let valB = b[currentSort.key] ||"";
+
+ if (currentSort.key ==="lastSeen") {
+ valA = a.raw?.metadata?.creationTimestamp ? new Date(a.raw.metadata.creationTimestamp) : new Date(0);
+ valB = b.raw?.metadata?.creationTimestamp ? new Date(b.raw.metadata.creationTimestamp) : new Date(0);
+ return (valB - valA) * currentSort.direction;
+ }
+
+ if (valA < valB) return -1 * currentSort.direction;
+ if (valA > valB) return 1 * currentSort.direction;
+ return 0;
+ });
+
+ renderEventTable(filtered);
+ updateReasonChart(filtered);
+ }
+
+ function renderEventTable(events) {
+ const tbody = document.getElementById("eventTableBody");
+ tbody.innerHTML ="";
+
+ if (events.length === 0) {
+ tbody.innerHTML = `
+ <tr>
+ <td colspan="6" class="text-center py-4">No matching events found</td>
+ </tr>`;
+ document.getElementById("filteredEventCount").textContent ="No events found.";
+ updateEventPagination(0);
+ return;
+ }
+
+ const totalCount = events.length;
+ const start = eventPageSize === -1 ? 0 : (eventCurrentPage - 1) * eventPageSize;
+ const end = eventPageSize === -1 ? totalCount : Math.min(start + eventPageSize, totalCount);
+ const paginatedEvents = eventPageSize === -1 ? events : events.slice(start, end);
+
+ const countText = eventPageSize === -1
+ ? `Showing all ${totalCount} event${totalCount !== 1 ?"s" :""}`
+ : `Showing ${start + 1}-${end} of ${totalCount} event${totalCount !== 1 ?"s" :""}`;
+ document.getElementById("filteredEventCount").textContent = countText;
+
+ paginatedEvents.forEach((ev) => {
+ const row = document.createElement("tr");
+ row.className = "border-b hover:bg-gray-50 dark:hover:bg-gray-800";
+
+ if (!ev.isPlaceholder) {
+ row.classList.add("cursor-pointer");
+ row.addEventListener("click", () => {
+ lastClickedRow = row;
+ showEventDetails(ev);
+ });
+ }
+ row.innerHTML = `
+ <td class="px-4 py-2">${ev.namespace}</td>
+ <td class="px-4 py-2">${ev.lastSeen}</td>
+ <td class="px-4 py-2">${ev.type}</td>
+ <td class="px-4 py-2">${ev.reason}</td>
+ <td class="px-4 py-2">${ev.object}</td>
+ <td class="px-4 py-2 whitespace-normal wrap-break-word max-w-lg">${ev.message}</td>
+ `;
+
+ tbody.appendChild(row);
+ });
+
+ updateEventPagination(totalCount);
+ }
+
+ function updateEventPagination(totalCount) {
+ const container = document.getElementById("eventPaginationControls");
+ if (!container) return;
+
+ if (eventPageSize === -1 || totalCount <= eventPageSize) {
+ container.innerHTML ="";
+ return;
+ }
+
+ const totalPages = Math.ceil(totalCount / eventPageSize);
+ let html ="";
+
+ html += `<button onclick="window.goToEventPage(1)" ${eventCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${eventCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">First</button>`;
+ html += `<button onclick="window.goToEventPage(${eventCurrentPage - 1})" ${eventCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${eventCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Prev</button>`;
+
+ const startPage = Math.max(1, eventCurrentPage - 2);
+ const endPage = Math.min(totalPages, eventCurrentPage + 2);
+
+ for (let i = startPage; i <= endPage; i++) {
+ if (i === eventCurrentPage) {
+ html += `<button class="px-3 py-1 text-sm bg-blue-700 text-white font-bold current-page">${i}</button>`;
+ } else {
+ html += `<button onclick="window.goToEventPage(${i})" class="px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700">${i}</button>`;
+ }
+ }
+
+ html += `<button onclick="window.goToEventPage(${eventCurrentPage + 1})" ${eventCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${eventCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Next</button>`;
+ html += `<button onclick="window.goToEventPage(${totalPages})" ${eventCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${eventCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Last</button>`;
+
+ container.innerHTML = html;
+ }
+
+ window.goToEventPage = function(page) {
+ eventCurrentPage = page;
+ sortAndFilterEvents();
+ }
+
+ window.changeEventPageSize = function() {
+ const select = document.getElementById("eventPageSizeSelect");
+ eventPageSize = parseInt(select.value);
+ eventCurrentPage = 1;
+ sortAndFilterEvents();
+ }
+
+ var reasonChart = null;
+
+ function updateReasonChart(events) {
+ const reasonCounts = {};
+
+ events.forEach(ev => {
+ if (ev.reason) {
+ reasonCounts[ev.reason] = (reasonCounts[ev.reason] || 0) + 1;
+ }
+ });
+
+ const labels = Object.keys(reasonCounts);
+ const data = Object.values(reasonCounts);
+
+ const config = {
+ type: 'bar',
+ data: {
+ labels,
+ datasets: [{
+ label: 'Event Count',
+ data,
+ backgroundColor: 'rgba(34,197,94,0.6)',
+ borderColor: 'rgba(34,197,94,1)',
+ borderWidth: 1
+ }]
+ },
+ options: {
+ responsive: true,
+ animation: false,
+ plugins: {
+ legend: { display: false },
+ tooltip: {
+ callbacks: {
+ label: ctx => ` ${ctx.raw} events`
+ }
+ }
+ },
+ scales: {
+ x: {
+ ticks: { color: diagnosticsThemeColor('text') },
+ grid: { color: diagnosticsThemeColor('grid') }
+ },
+ y: {
+ beginAtZero: true,
+ ticks: { color: diagnosticsThemeColor('text') },
+ grid: { color: diagnosticsThemeColor('grid') }
+ }
+ }
+ }
+ };
+
+ const ctx = document.getElementById('reasonChart').getContext('2d');
+ if (reasonChart) {
+ reasonChart.destroy();
+ }
+ reasonChart = new Chart(ctx, config);
+ }
+
+ function showEventDetails(ev) {
+ currentEvent = ev;
+ eventJsonViewer.innerHTML = renderJSONWithoutHighlight(ev.raw);
+ eventPanel.style.setProperty('display', 'none', 'important');
+ document.getElementById("eventDetailsPanel").style.setProperty('display', 'grid', 'important');
+
+ // Scroll to top - find the scrollable parent by walking up the DOM
+ setTimeout(() => {
+ function findScrollableParent(element) {
+ let parent = element.parentElement;
+ while (parent) {
+ const overflow = window.getComputedStyle(parent).overflow;
+ const overflowY = window.getComputedStyle(parent).overflowY;
+ if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
+ parent.scrollHeight > parent.clientHeight) {
+ return parent;
+ }
+ parent = parent.parentElement;
+ }
+ return null;
+ }
+
+ const detailsPanel = document.getElementById("eventDetailsPanel");
+ const scrollableParent = findScrollableParent(detailsPanel);
+ if (scrollableParent) {
+ scrollableParent.scrollTo({top: 0, behavior: 'instant'});
+ }
+ }, 0);
+
+ eventDetailsTable.innerHTML = `
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Namespace:</td><td class="py-2">${ev.namespace}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Name:</td><td class="py-2">${ev.name}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Last Seen:</td><td class="py-2">${ev.lastSeen}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Type:</td><td class="py-2">${ev.type}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Reason:</td><td class="py-2">${ev.reason}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Object:</td><td class="py-2">${ev.object}</td></tr>
+ <tr><td class="py-2 pr-4 font-semibold">Message:</td><td class="py-2">${ev.message}</td></tr>
+ `;
+
+ // Setup YAML filter
+ const yamlFilterInput = document.getElementById('eventYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ yamlFilterInput.removeEventListener('input', filterEventYaml);
+ yamlFilterInput.addEventListener('input', filterEventYaml);
+ }
+ }
+
+ window.backFromEventModal = function() {
+ document.getElementById("eventDetailsPanel").style.setProperty('display', 'none', 'important');
+ eventPanel.style.setProperty('display', 'grid', 'important');
+ currentEvent = null;
+ eventJsonViewer.innerHTML ="";
+
+ const yamlFilterInput = document.getElementById('eventYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ }
+
+ // Scroll back to the last clicked row
+ if (lastClickedRow) {
+ setTimeout(() => {
+ lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
+ }, 0);
+ }
+ }
+
+
+ function highlightJSON(line) {
+ line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+ return line
+ .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
+ .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
+ .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
+ .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
+ .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
+ }
+
+ function renderJSONWithoutHighlight(data, filter = '') {
+ const formatted = JSON.stringify(data, null, 2);
+ return formatted.split('\n')
+ .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
+ .map(line => {
+ const highlighted = highlightJSON(line);
+ return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
+ }).join('');
+ }
+
+ function filterEventYaml() {
+ if (!currentEvent) return;
+ const filterInput = document.getElementById('eventYamlFilter');
+ const filterValue = filterInput ? filterInput.value : '';
+ eventJsonViewer.innerHTML = renderJSONWithoutHighlight(currentEvent.raw, filterValue);
+ }
+
+ eventNamespaceFilter.addEventListener("change", () => {
+ eventCurrentPage = 1;
+ sortAndFilterEvents();
+ });
+
+ document.getElementById("eventReasonFilter").addEventListener("change", () => {
+ eventCurrentPage = 1;
+ sortAndFilterEvents();
+ });
+
+ eventSearchInput.addEventListener("input", () => {
+ eventCurrentPage = 1;
+ sortAndFilterEvents();
+ });
+
+ showEmptyNamespacesCheckbox.addEventListener("change", () => {
+ eventCurrentPage = 1;
+ flattenEvents(showEmptyNamespacesCheckbox.checked);
+ });
+
+ updateSortIndicators();
+ flattenEvents(showEmptyNamespacesCheckbox.checked);
+
+ // Watch for theme changes and re-render chart
+ const themeObserver = new MutationObserver((mutations) => {
+ mutations.forEach((mutation) => {
+ if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+ // Theme has changed, update chart
+ sortAndFilterEvents();
+ }
+ });
+ });
+
+ // Start observing theme changes
+ themeObserver.observe(document.documentElement, {
+ attributes: true,
+ attributeFilter: ['class']
+ });
+</script>

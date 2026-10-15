@@ -1,0 +1,359 @@
+
+<style>
+ .bytes-info {
+ color: #6b7280;
+ font-size: 0.875rem;
+ padding: 0.5rem;
+ margin-top: 0.5rem;
+ border-radius: 0.375rem;
+ font-weight: 500;
+ }
+</style>
+
+<div class="grid grid-cols-1 gap-4">
+ <div class="panel rounded-lg shadow-sm">
+ <div class="mb-4">
+ <div class="flex flex-wrap gap-2">
+ <label for="filter-dropped-rx">
+ <input type="checkbox" id="filter-dropped-rx">
+ Dropped RX
+ </label>
+ <label for="filter-dropped-tx">
+ <input type="checkbox" id="filter-dropped-tx">
+ Dropped TX
+ </label>
+ <label for="filter-state-up">
+ <input type="checkbox" id="filter-state-up">
+ State UP
+ </label>
+ <label for="filter-state-down">
+ <input type="checkbox" id="filter-state-down">
+ State DOWN
+ </label>
+ </div>
+ </div>
+ {% if data.ip_info %}
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="interface-cards-container">
+ {% for iface, stats in data.ip_info.items() %}
+ <div class="interface-card p-4 rounded-lg shadow-inner"
+ data-dropped-rx="{{ stats['RX'].get('dropped', 0) }}"
+ data-dropped-tx="{{ stats['TX'].get('dropped', 0) }}"
+ data-state="{{ stats['State'] | lower }}">
+
+ <h4 class="text-sm font-semibold mb-3">{{ iface }} mtu {{ stats['MTU'] if stats['MTU'] else 'UNKNOWN' }} state {{ stats['State'] if stats['State'] else 'UNKNOWN' }}</h4>
+ <div class="h-48 mb-2">
+ <canvas id="chart-{{ loop.index }}-main"></canvas>
+ </div>
+ <div class="text-sm mt-2"
+ data-rx-bytes="{{ stats['RX'].get('bytes', 0) }}"
+ data-tx-bytes="{{ stats['TX'].get('bytes', 0) }}">
+ </div>
+ {% set outer_loop_index = loop.index %}
+ {% for vf_name, vf_stats in stats.get('VFs', {}).items() %}
+ <div class="bg-gray-100 rounded-md p-3 mb-4">
+ <h5 class="text-xs font-semibold mb-1 text-gray-900">{{ vf_name }}</h5>
+ <div class="h-40 mb-2">
+ <canvas id="chart-{{ outer_loop_index }}-vf-{{ loop.index0 }}"></canvas>
+ </div>
+ <div class="text-xs"
+ data-rx-bytes="{{ vf_stats['RX'].get('bytes', 0) }}"
+ data-tx-bytes="{{ vf_stats['TX'].get('bytes', 0) }}">
+ </div>
+ </div>
+ {% endfor %}
+ </div>
+ {% endfor %}
+ </div>
+ {% else %}
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
+ <div class="text-xs text-gray-500">No network statistics found in this report</div>
+ </div>
+ {% endif %}
+ </div>
+</div>
+<script>
+ (function () {
+ console.log('Network stats script executing');
+ const charts = [];
+
+ function updateInterfaceVisibility() {
+ const filterDroppedRX = document.getElementById("filter-dropped-rx");
+ const filterDroppedTX = document.getElementById("filter-dropped-tx");
+ const filterStateUP = document.getElementById("filter-state-up");
+ const filterStateDOWN = document.getElementById("filter-state-down");
+
+ if (!filterDroppedRX || !filterDroppedTX || !filterStateUP || !filterStateDOWN) {
+ console.log('Filter elements not found');
+ return;
+ }
+
+ const interfaceCards = document.querySelectorAll('.interface-card');
+
+ interfaceCards.forEach(card => {
+ const droppedRX = parseInt(card.getAttribute('data-dropped-rx')) > 0;
+ const droppedTX = parseInt(card.getAttribute('data-dropped-tx')) > 0;
+ const state = card.getAttribute('data-state');
+
+ const shouldShow =
+ (filterDroppedRX.checked ? droppedRX : true) &&
+ (filterDroppedTX.checked ? droppedTX : true) &&
+ (filterStateUP.checked ? state === 'up' : true) &&
+ (filterStateDOWN.checked ? state === 'down' : true);
+
+ card.style.display = shouldShow ? 'block' : 'none';
+ });
+
+ // Resize charts after visibility change
+ setTimeout(() => {
+ charts.forEach(chart => {
+ if (chart) {
+ chart.resize();
+ }
+ });
+ }, 50);
+ }
+
+ const filterDroppedRXEl = document.getElementById("filter-dropped-rx");
+ const filterDroppedTXEl = document.getElementById("filter-dropped-tx");
+ const filterStateUPEl = document.getElementById("filter-state-up");
+ const filterStateDOWNEl = document.getElementById("filter-state-down");
+
+ if (filterDroppedRXEl) filterDroppedRXEl.addEventListener("change", updateInterfaceVisibility);
+ if (filterDroppedTXEl) filterDroppedTXEl.addEventListener("change", updateInterfaceVisibility);
+ if (filterStateUPEl) filterStateUPEl.addEventListener("change", updateInterfaceVisibility);
+ if (filterStateDOWNEl) filterStateDOWNEl.addEventListener("change", updateInterfaceVisibility);
+
+ {% for iface, stats in data.ip_info.items() %}
+ charts.push(new Chart(document.getElementById('chart-{{ loop.index }}-main').getContext('2d'), {
+ type: 'bar',
+ data: {
+ labels: ['Packets', 'Errors', 'Dropped'],
+ datasets: [
+ {
+ label: 'RX',
+ backgroundColor: [
+ 'rgba(34, 197, 94, 0.7)',
+ 'rgba(251, 146, 60, 0.7)',
+ 'rgba(220, 38, 38, 0.7)'
+ ],
+ borderColor: [
+ 'rgba(34, 197, 94, 1)',
+ 'rgba(251, 146, 60, 1)',
+ 'rgba(220, 38, 38, 1)'
+ ],
+ borderWidth: 1,
+ data: [
+ {{ stats['RX'].get('packets', 0) }},
+ {{ stats['RX'].get('errors', 0) }},
+ {{ stats['RX'].get('dropped', 0) }}
+ ]
+ },
+ {
+ label: 'TX',
+ backgroundColor: [
+ 'rgba(59, 130, 246, 0.7)',
+ 'rgba(251, 146, 60, 0.7)',
+ 'rgba(220, 38, 38, 0.7)'
+ ],
+ borderColor: [
+ 'rgba(59, 130, 246, 1)',
+ 'rgba(251, 146, 60, 1)',
+ 'rgba(220, 38, 38, 1)'
+ ],
+ borderWidth: 1,
+ data: [
+ {{ stats['TX'].get('packets', 0) }},
+ {{ stats['TX'].get('errors', 0) }},
+ {{ stats['TX'].get('dropped', 0) }}
+ ]
+ }
+ ]
+ },
+ options: {
+ responsive: true,
+ maintainAspectRatio: false,
+ animation: false,
+ plugins: {
+ legend: {
+ labels: { color: diagnosticsThemeColor('text'), font: { size: 12 } }
+ },
+ tooltip: {
+ backgroundColor: diagnosticsThemeColor('tooltip'),
+ titleColor: '#facc15',
+ bodyColor: diagnosticsThemeColor('text'),
+ borderColor: '#374151',
+ borderWidth: 1
+ }
+ },
+ scales: {
+ x: {
+ stacked: false,
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } }
+ },
+ y: {
+ stacked: false,
+ beginAtZero: true,
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } }
+ }
+ }
+ }
+ }));
+
+ {% set outer_loop_index = loop.index %}
+ {% for vf_name, vf_stats in stats.get('VFs', {}).items() %}
+ charts.push(new Chart(document.getElementById('chart-{{ outer_loop_index }}-vf-{{ loop.index0 }}').getContext('2d'), {
+ type: 'bar',
+ data: {
+ labels: ['Packets', 'Dropped'],
+ datasets: [
+ {
+ label: 'RX',
+ backgroundColor: [
+ 'rgba(34, 197, 94, 0.7)',
+ 'rgba(220, 38, 38, 0.7)'
+ ],
+ borderColor: [
+ 'rgba(34, 197, 94, 1)',
+ 'rgba(220, 38, 38, 1)'
+ ],
+ borderWidth: 1,
+ data: [
+ {{ vf_stats['RX'].get('packets', 0) }},
+ {{ vf_stats['RX'].get('dropped', 0) }}
+ ]
+ },
+ {
+ label: 'TX',
+ backgroundColor: [
+ 'rgba(59, 130, 246, 0.7)',
+ 'rgba(220, 38, 38, 0.7)'
+ ],
+ borderColor: [
+ 'rgba(59, 130, 246, 1)',
+ 'rgba(220, 38, 38, 1)'
+ ],
+ borderWidth: 1,
+ data: [
+ {{ vf_stats['TX'].get('packets', 0) }},
+ {{ vf_stats['TX'].get('dropped', 0) }}
+ ]
+ }
+ ]
+ },
+ options: {
+ responsive: true,
+ maintainAspectRatio: false,
+ animation: false,
+ plugins: {
+ legend: {
+ labels: { color: diagnosticsThemeColor('text'), font: { size: 10 } }
+ },
+ tooltip: {
+ backgroundColor: diagnosticsThemeColor('tooltip'),
+ titleColor: '#facc15',
+ bodyColor: diagnosticsThemeColor('text'),
+ borderColor: '#374151',
+ borderWidth: 1
+ }
+ },
+ scales: {
+ x: {
+ stacked: false,
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text'), font: { size: 10 } }
+ },
+ y: {
+ stacked: false,
+ beginAtZero: true,
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text'), font: { size: 10 } }
+ }
+ }
+ }
+ }));
+ {% endfor %}
+ {% endfor %}
+
+ function formatBytes(bytes) {
+ const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+ if (bytes === 0) return '0 Bytes';
+ const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+ return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + sizes[i];
+ }
+
+ document.querySelectorAll('[data-rx-bytes]').forEach(el => {
+ const rx = parseInt(el.getAttribute('data-rx-bytes'), 10);
+ const tx = parseInt(el.getAttribute('data-tx-bytes'), 10);
+ el.classList.add('bytes-info');
+ el.textContent = `RX: ${formatBytes(rx)} | TX: ${formatBytes(tx)}`;
+ });
+
+ updateInterfaceVisibility();
+
+ console.log('Created ' + charts.length + ' charts');
+
+ // Resize all charts after DOM is ready to fix initial positioning
+ setTimeout(() => {
+ console.log('Resizing charts');
+ charts.forEach(chart => {
+ if (chart) {
+ chart.resize();
+ }
+ });
+ }, 100);
+
+ // Watch for theme changes and update chart colors
+ const themeObserver = new MutationObserver((mutations) => {
+ mutations.forEach((mutation) => {
+ if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+ // Theme has changed, update all charts with new theme colors
+ const isDark = document.documentElement.classList.contains('dark');
+ const gridColor = diagnosticsThemeColor('grid');
+ const tickColor = diagnosticsThemeColor('text');
+ const tooltipBg = diagnosticsThemeColor('tooltip');
+
+ charts.forEach(chart => {
+ if (chart && chart.options) {
+ // Update scale colors
+ if (chart.options.scales) {
+ if (chart.options.scales.x) {
+ chart.options.scales.x.grid.color = gridColor;
+ chart.options.scales.x.ticks.color = tickColor;
+ }
+ if (chart.options.scales.y) {
+ chart.options.scales.y.grid.color = gridColor;
+ chart.options.scales.y.ticks.color = tickColor;
+ }
+ }
+
+ // Update legend colors
+ if (chart.options.plugins && chart.options.plugins.legend) {
+ chart.options.plugins.legend.labels.color = tickColor;
+ }
+
+ // Update tooltip colors
+ if (chart.options.plugins && chart.options.plugins.tooltip) {
+ chart.options.plugins.tooltip.backgroundColor = tooltipBg;
+ }
+
+ // Apply updates
+ chart.update('none');
+ }
+ });
+ }
+ });
+ });
+
+ // Start observing theme changes
+ themeObserver.observe(document.documentElement, {
+ attributes: true,
+ attributeFilter: ['class']
+ });
+ })();
+</script>

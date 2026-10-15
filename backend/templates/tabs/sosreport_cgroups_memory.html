@@ -1,0 +1,520 @@
+{% set keys = data.keys() | reject("equalto","free_memory") | list %}
+{% set first_key = keys[0] if keys else None %}
+{% set dataset = data[first_key] %}
+
+<div class="grid grid-cols-1 gap-4">
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-memory mr-2"></i> Total Memory Usage
+ </h3>
+ {% if dataset and 'cgroup_data' in dataset %}
+ <canvas id="totalMemoryUsageChart" height="50"></canvas>
+ {% else %}
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+ </svg>
+ <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
+ <div class="text-xs text-gray-500">No memory usage data found in this report</div>
+ </div>
+ {% endif %}
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-tachometer-alt mr-2"></i> Memory Accounting
+ </h3>
+ <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
+ <div>
+ <label for="datasetSelect" class="block text-xs font-semibold mb-1">File</label>
+ <select id="datasetSelect" class="w-full px-3 py-2 text-sm border focus:outline-hidden focus:ring-2" onchange="updateDataset()">
+ {% for datasetKey in data.keys() if datasetKey != 'free_memory' %}
+ <option value="{{ datasetKey }}" {% if datasetKey == first_key %}selected{% endif %}>{{ datasetKey }}</option>
+ {% endfor %}
+ </select>
+ </div>
+ <div class="md:col-span-7">
+ <label class="block text-xs font-semibold mb-1">Search All</label>
+ <input type="text" id="processFilter" oninput="filterCgroups()" placeholder="Filter processes..."
+ class="w-full px-3 py-2 text-sm border">
+ </div>
+ </div>
+
+ <div class="overflow-x-auto">
+ <div class="flex justify-between items-center mb-2">
+ <div id="filteredCount" class="text-sm">Showing all processes</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs">Rows per page:</label>
+ <select id="cgroupsMemoryPageSize" onchange="changeCgroupsMemoryPageSize()" class="px-2 py-1 text-white text-xs rounded-md">
+ <option value="50">50</option>
+ <option value="100" selected>100</option>
+ <option value="250">250</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ <table id="cgroupTable" class="min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(0, true)">PID <i id="indicator-0" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(1, true)">%MEM <i id="indicator-1" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(2)">Command <i id="indicator-2" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(3, true)">Usage (MB) <i id="indicator-3" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(4, true)">Limit (MB) <i id="indicator-4" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(5)">Cgroup Name <i id="indicator-5" class="fas text-sm ml-1"></i></th>
+ </tr>
+ </thead>
+ <tbody>
+ <!-- Rows are rendered exclusively by updateDataset() below (which also
+ applies pagination). Server-rendering every row here caused the visible
+ initial-load jitter: the browser progressively laid out the full table
+ (hundreds of rows with long cgroup paths), re-flowing column widths on
+ every incremental paint, only for updateDataset() to immediately wipe
+ this tbody and re-render the same rows from the embedded JSON anyway.
+ The no-data placeholder is also rendered by updateDataset() when there
+ is nothing to show. -->
+ </tbody>
+ </table>
+ <div id="cgroupsMemoryPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+ </div>
+</div>
+
+<script>
+ var allDatasets = {{ data | tojson }};
+ var currentDatasetKey = Object.keys(allDatasets)[0];
+
+ function updateDataset() {
+ const select = document.getElementById('datasetSelect');
+ currentDatasetKey = select.value;
+ const dataset = allDatasets[currentDatasetKey];
+
+ const tbody = document.querySelector('#cgroupTable tbody');
+ tbody.innerHTML = '';
+ currentSortColumn = null;
+ sortDirection = {};
+ resetIndicators();
+ document.getElementById("processFilter").value = '';
+
+ if (!dataset || !dataset.cgroup_data) {
+ tbody.innerHTML = `<tr><td colspan="6">
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
+ <div class="text-xs text-gray-500">No memory accounting data found</div>
+ </div>
+ </td></tr>`;
+ document.getElementById('cgroupsMemoryPaginationControls').innerHTML = '';
+ updateTotalMemoryUsage();
+ return;
+ }
+
+ function renderProcessRows(data, path = '') {
+ Object.entries(data).forEach(([key, value]) => {
+ const fullPath = path ? `${path}/${key}` : `/${key}`;
+ if (typeof value === 'object' && value !== null) {
+ const usage = parseFloat(value['memory.usage_in_bytes'] || 0);
+ const limit = parseFloat(value['memory.limit_in_bytes'] || 0);
+
+ if (value._processes) {
+ value._processes.forEach(proc => {
+ const row = document.createElement('tr');
+ row.className = "border-b hover:bg-gray-50";
+ row.innerHTML =
+ `<td class="px-4 py-2" data-bytes="${proc.proc_pid}">${proc.proc_pid}</td>
+ <td class="px-4 py-2" data-bytes="${proc.proc_mem.toFixed(2)}">${proc.proc_mem.toFixed(2)}</td>
+ <td class="px-4 py-2 whitespace-normal wrap-break-word max-w-lg">${escapeHtml(proc.proc_cmd)}</td>
+ <td class="px-4 py-2" data-bytes="${(usage / 1048576).toFixed(2)}">${(usage / 1048576).toFixed(2)}</td>
+ <td class="px-4 py-2">${(limit === 0 || limit > 1e15) ? '<span data-bytes="-1">Unlimited</span>' : (limit / 1048576).toFixed(2)}</td>
+ <td class="px-4 py-2 whitespace-normal wrap-break-word max-w-lg">${escapeHtml(proc.cgroup_name)}</td>`;
+ tbody.appendChild(row);
+ });
+ }
+ renderProcessRows(value, fullPath);
+ }
+ });
+ }
+
+ renderProcessRows(dataset.cgroup_data);
+ cgroupsMemoryCurrentPage = 1;
+ cgroupsMemoryLastFilter = '';
+ applyCgroupsMemoryView();
+ }
+
+ var ctx = document.getElementById('totalMemoryUsageChart').getContext('2d');
+ var totalMemoryUsageChart = new Chart(ctx, {
+ type: 'bar',
+ data: {
+ labels: ['Cgroup Used', 'Total', 'Used', 'Free', 'Available', 'Buff/Cache', 'Shared'],
+ datasets: [{
+ label: 'Memory Usage',
+ data: [0, 0, 0, 0, 0, 0],
+ backgroundColor: [
+ 'rgba(59, 130, 246, 0.7)',
+ 'rgba(156, 163, 175, 0.7)',
+ 'rgba(99, 102, 241, 0.7)',
+ 'rgba(234, 179, 8, 0.7)',
+ 'rgba(34, 197, 94, 0.7)',
+ 'rgba(168, 85, 247, 0.7)',
+ 'rgba(236, 72, 153, 0.7)'
+ ],
+ borderColor: [
+ 'rgba(59, 130, 246, 1)',
+ 'rgba(156, 163, 175, 1)',
+ 'rgba(99, 102, 241, 1)',
+ 'rgba(234, 179, 8, 1)',
+ 'rgba(34, 197, 94, 1)',
+ 'rgba(168, 85, 247, 1)',
+ 'rgba(236, 72, 153, 1)'
+ ],
+ borderWidth: 1
+ }]
+ },
+ options: {
+ responsive: true,
+ animation: false,
+ scales: {
+ x: {
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text') }
+ },
+ y: {
+ beginAtZero: true,
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text') }
+ }
+ },
+ plugins: {
+ legend: { labels: { color: diagnosticsThemeColor('text') } },
+ tooltip: {
+ backgroundColor: diagnosticsThemeColor('tooltip'),
+ titleColor: '#facc15',
+ bodyColor: diagnosticsThemeColor('text'),
+ borderColor: '#374151',
+ borderWidth: 1,
+ callbacks: {
+ label: function(context) {
+ return `${context.label}: ${context.raw} MB`;
+ }
+ }
+ }
+ }
+ }
+ });
+
+
+
+ function updateTotalMemoryUsage() {
+ const dataset = allDatasets[currentDatasetKey];
+ const mem = allDatasets['free_memory'] || {};
+
+ const rows = document.querySelectorAll('#cgroupTable tbody tr');
+ const seenCgroups = new Set();
+ let cgroupTotal = 0;
+
+ rows.forEach(row => {
+ // Sum the whole FILTERED set (not just the visible page) so pagination
+ // doesn't change what the Total Memory Usage chart reports.
+ if (row.dataset.cgroupFilteredOut === '1') return;
+ const cgroupNameCell = row.children[5];
+ const usageCell = row.children[3];
+ if (!usageCell || !cgroupNameCell) return;
+
+ const cgroupName = cgroupNameCell.textContent.trim();
+ if (!seenCgroups.has(cgroupName)) {
+ const value = parseFloat(usageCell.dataset.bytes || 0);
+ cgroupTotal += value;
+ seenCgroups.add(cgroupName);
+ }
+ });
+
+ totalMemoryUsageChart.data.datasets[0].data = [
+ parseFloat(cgroupTotal.toFixed(2)),
+ mem.total || 0,
+ mem.used || 0,
+ mem.free || 0,
+ mem.available || 0,
+ mem.buff_cache || 0,
+ mem.shared || 0
+ ];
+ totalMemoryUsageChart.update();
+ }
+
+
+ function escapeHtml(text) {
+ if (typeof text !== 'string') return text;
+ return text.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+ .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+ .replace(/'/g, '&#039;');
+ }
+
+ function filterCgroups() {
+ applyCgroupsMemoryView();
+ }
+
+ // Pagination state - names unique to the Memory Accounting tab so they can
+ // never collide with other diagnostics templates' pagination variables.
+ var cgroupsMemoryCurrentPage = 1;
+ var cgroupsMemoryPageSize = 100;
+ var cgroupsMemoryLastFilter = '';
+
+ function updateFilteredCount(filtered, total) {
+ let text;
+ if (cgroupsMemoryPageSize === -1) {
+ text = (filtered === total)
+ ? `Showing all ${total} processes`
+ : `Showing ${filtered} of ${total} processes`;
+ } else if (filtered === 0) {
+ text = `Showing 0 of ${total} processes`;
+ } else {
+ const start = (cgroupsMemoryCurrentPage - 1) * cgroupsMemoryPageSize + 1;
+ const end = Math.min(cgroupsMemoryCurrentPage * cgroupsMemoryPageSize, filtered);
+ text = (filtered === total)
+ ? `Showing ${start}-${end} of ${total} processes`
+ : `Showing ${start}-${end} of ${filtered} (filtered from ${total})`;
+ }
+ document.getElementById("filteredCount").textContent = text;
+ }
+
+ // Single source of truth for what is visible: applies the current filter,
+ // then shows only the current page of the filtered rows. Rows filtered OUT
+ // are marked with data-cgroup-filtered-out so the total-usage chart can keep
+ // summing the whole FILTERED set (pre-pagination behavior), not just the
+ // rows on the currently visible page.
+ function applyCgroupsMemoryView() {
+ const filterValue = document.getElementById("processFilter").value.trim();
+ if (filterValue !== cgroupsMemoryLastFilter) {
+ cgroupsMemoryCurrentPage = 1;
+ cgroupsMemoryLastFilter = filterValue;
+ }
+
+ let regex = null;
+ if (filterValue.length > 0) {
+ try {
+ regex = new RegExp(filterValue,"i");
+ } catch (e) {
+ console.warn("Invalid regex:", e);
+ regex = null;
+ }
+ }
+
+ const allRows = Array.from(document.querySelectorAll("#cgroupTable tbody tr"));
+ const filteredRows = allRows.filter(row => {
+ let match = true;
+ if (regex) {
+ match = [...row.children].some(td => regex.test(td.textContent));
+ }
+ row.dataset.cgroupFilteredOut = match ? '0' : '1';
+ return match;
+ });
+
+ allRows.forEach(row => { row.style.display ="none"; });
+
+ const totalCount = filteredRows.length;
+ const totalPages = cgroupsMemoryPageSize === -1 ? 1 : Math.max(1, Math.ceil(totalCount / cgroupsMemoryPageSize));
+ if (cgroupsMemoryCurrentPage > totalPages) cgroupsMemoryCurrentPage = totalPages;
+ const start = cgroupsMemoryPageSize === -1 ? 0 : (cgroupsMemoryCurrentPage - 1) * cgroupsMemoryPageSize;
+ const end = cgroupsMemoryPageSize === -1 ? totalCount : Math.min(start + cgroupsMemoryPageSize, totalCount);
+ for (let i = start; i < end; i++) {
+ filteredRows[i].style.display ="";
+ }
+
+ updateFilteredCount(totalCount, allRows.length);
+ updateCgroupsMemoryPagination(totalCount);
+ updateTotalMemoryUsage();
+ }
+
+ function updateCgroupsMemoryPagination(totalCount) {
+ const controls = document.getElementById('cgroupsMemoryPaginationControls');
+
+ if (cgroupsMemoryPageSize === -1 || totalCount <= cgroupsMemoryPageSize) {
+ controls.innerHTML = '';
+ return;
+ }
+
+ const totalPages = Math.ceil(totalCount / cgroupsMemoryPageSize);
+ let html = '';
+
+ html += `<button onclick="goToCgroupsMemoryPage(1)" ${cgroupsMemoryCurrentPage === 1 ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${cgroupsMemoryCurrentPage === 1 ? 'bg-gray-600 text-gray-400' : ' text-white '}">
+ First</button>`;
+
+ html += `<button onclick="goToCgroupsMemoryPage(${cgroupsMemoryCurrentPage - 1})" ${cgroupsMemoryCurrentPage === 1 ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${cgroupsMemoryCurrentPage === 1 ? 'bg-gray-600 text-gray-400' : ' text-white '}">
+ Prev</button>`;
+
+ const maxButtons = 5;
+ let startPage = Math.max(1, cgroupsMemoryCurrentPage - Math.floor(maxButtons / 2));
+ let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+
+ if (endPage - startPage < maxButtons - 1) {
+ startPage = Math.max(1, endPage - maxButtons + 1);
+ }
+
+ if (startPage > 1) html += '<span class="px-2">...</span>';
+
+ for (let i = startPage; i <= endPage; i++) {
+ html += `<button onclick="goToCgroupsMemoryPage(${i})"
+ class="px-3 py-1 text-sm rounded-sm ${i === cgroupsMemoryCurrentPage ? ' text-white current-page' : ' text-white '}">
+ ${i}</button>`;
+ }
+
+ if (endPage < totalPages) html += '<span class="px-2">...</span>';
+
+ html += `<button onclick="goToCgroupsMemoryPage(${cgroupsMemoryCurrentPage + 1})" ${cgroupsMemoryCurrentPage === totalPages ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${cgroupsMemoryCurrentPage === totalPages ? 'bg-gray-600 text-gray-400' : ' text-white '}">
+ Next</button>`;
+
+ html += `<button onclick="goToCgroupsMemoryPage(${totalPages})" ${cgroupsMemoryCurrentPage === totalPages ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${cgroupsMemoryCurrentPage === totalPages ? 'bg-gray-600 text-gray-400' : ' text-white '}">
+ Last</button>`;
+
+ controls.innerHTML = html;
+ }
+
+ function goToCgroupsMemoryPage(page) {
+ cgroupsMemoryCurrentPage = page;
+ applyCgroupsMemoryView();
+ }
+
+ function changeCgroupsMemoryPageSize() {
+ cgroupsMemoryPageSize = parseInt(document.getElementById('cgroupsMemoryPageSize').value);
+ cgroupsMemoryCurrentPage = 1;
+ applyCgroupsMemoryView();
+ }
+
+ function sortTable(colIndex, isNumeric = false) {
+ const tbody = document.querySelector("#cgroupTable tbody");
+ const rows = Array.from(tbody.querySelectorAll("tr"));
+ const key = `${colIndex}-${isNumeric}`;
+ if (currentSortColumn !== key) {
+ currentSortColumn = key;
+ sortDirection[key] = true;
+ resetIndicators();
+ } else {
+ sortDirection[key] = !sortDirection[key];
+ }
+ updateSortIndicator(colIndex, sortDirection[key]);
+
+ rows.sort((a, b) => {
+ const valA = isNumeric ? parseFloat(a.children[colIndex].dataset.bytes || -1) : a.children[colIndex].textContent.trim().toLowerCase();
+ const valB = isNumeric ? parseFloat(b.children[colIndex].dataset.bytes || -1) : b.children[colIndex].textContent.trim().toLowerCase();
+ return (valA < valB ? -1 : valA > valB ? 1 : 0) * (sortDirection[key] ? 1 : -1);
+ });
+
+ rows.forEach(row => tbody.appendChild(row));
+ // Re-apply pagination after sorting (keeps the current page, new order)
+ applyCgroupsMemoryView();
+ }
+
+ function resetIndicators() {
+ for (let i = 0; i <= 5; i++) {
+ const indicator = document.getElementById(`indicator-${i}`);
+ if (indicator) indicator.classList.remove('fa-caret-up', 'fa-caret-down');
+ }
+ }
+
+ function updateSortIndicator(colIndex, ascending) {
+ const indicator = document.getElementById(`indicator-${colIndex}`);
+ if (indicator) {
+ indicator.classList.toggle('fa-caret-up', ascending);
+ indicator.classList.toggle('fa-caret-down', !ascending);
+ }
+ }
+
+ var currentSortColumn = null;
+ var sortDirection = {};
+ window.filterCgroups = filterCgroups;
+ window.sortTable = sortTable;
+ window.updateDataset = updateDataset;
+ window.goToCgroupsMemoryPage = goToCgroupsMemoryPage;
+ window.changeCgroupsMemoryPageSize = changeCgroupsMemoryPageSize;
+ updateDataset();
+
+ // Watch for theme changes and re-render chart
+ const themeObserver = new MutationObserver((mutations) => {
+ mutations.forEach((mutation) => {
+ if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+ // Theme has changed, recreate chart with new theme colors
+ const currentData = totalMemoryUsageChart ? totalMemoryUsageChart.data : null;
+
+ if (totalMemoryUsageChart) {
+ totalMemoryUsageChart.destroy();
+ }
+
+ const ctx = document.getElementById('totalMemoryUsageChart').getContext('2d');
+ totalMemoryUsageChart = new Chart(ctx, {
+ type: 'bar',
+ data: currentData || {
+ labels: ['Cgroup Used', 'Total', 'Used', 'Free', 'Available', 'Buff/Cache', 'Shared'],
+ datasets: [{
+ label: 'Memory Usage',
+ data: [0, 0, 0, 0, 0, 0],
+ backgroundColor: [
+ 'rgba(59, 130, 246, 0.7)',
+ 'rgba(156, 163, 175, 0.7)',
+ 'rgba(99, 102, 241, 0.7)',
+ 'rgba(234, 179, 8, 0.7)',
+ 'rgba(34, 197, 94, 0.7)',
+ 'rgba(168, 85, 247, 0.7)',
+ 'rgba(236, 72, 153, 0.7)'
+ ],
+ borderColor: [
+ 'rgba(59, 130, 246, 1)',
+ 'rgba(156, 163, 175, 1)',
+ 'rgba(99, 102, 241, 1)',
+ 'rgba(234, 179, 8, 1)',
+ 'rgba(34, 197, 94, 1)',
+ 'rgba(168, 85, 247, 1)',
+ 'rgba(236, 72, 153, 1)'
+ ],
+ borderWidth: 1
+ }]
+ },
+ options: {
+ responsive: true,
+ animation: false,
+ scales: {
+ x: {
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text') }
+ },
+ y: {
+ beginAtZero: true,
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text') }
+ }
+ },
+ plugins: {
+ legend: { labels: { color: diagnosticsThemeColor('text') } },
+ tooltip: {
+ backgroundColor: diagnosticsThemeColor('tooltip'),
+ titleColor: '#facc15',
+ bodyColor: diagnosticsThemeColor('text'),
+ borderColor: '#374151',
+ borderWidth: 1,
+ callbacks: {
+ label: function(context) {
+ return `${context.label}: ${context.raw} MB`;
+ }
+ }
+ }
+ }
+ }
+ });
+
+ if (currentData) {
+ updateTotalMemoryUsage();
+ }
+ }
+ });
+ });
+
+ // Start observing theme changes
+ themeObserver.observe(document.documentElement, {
+ attributes: true,
+ attributeFilter: ['class']
+ });
+</script>

@@ -1,0 +1,486 @@
+{
+  "title": "Docker",
+  "description": "Advanced Docker containers and orchestration",
+  "questions": [
+    {
+      "id": "docker-1",
+      "question": "What Dockerfile instruction creates a new build stage?",
+      "answer": "FROM",
+      "hints": [
+        "Starts each stage",
+        "Can be used multiple times",
+        "Defines base image"
+      ],
+      "category": "multi-stage",
+      "difficulty": 100
+    },
+    {
+      "id": "docker-2",
+      "question": "What flag enables BuildKit for docker build?",
+      "answer": "DOCKER_BUILDKIT=1",
+      "hints": [
+        "Environment variable",
+        "Set to 1 to enable",
+        "Improves build performance"
+      ],
+      "category": "buildkit",
+      "difficulty": 100
+    },
+    {
+      "id": "docker-3",
+      "question": "What network mode shares host's network namespace?",
+      "answer": "host",
+      "hints": [
+        "No network isolation",
+        "Container uses host's IP",
+        "4 letters"
+      ],
+      "category": "networking",
+      "difficulty": 100
+    },
+    {
+      "id": "docker-4",
+      "question": "What flag limits container memory usage?",
+      "answer": "--memory",
+      "hints": [
+        "Long flag with dashes",
+        "Can use -m shorthand",
+        "Accepts values like 512m"
+      ],
+      "category": "resources",
+      "difficulty": 100
+    },
+    {
+      "id": "docker-5",
+      "question": "What Dockerfile instruction sets health check?",
+      "answer": "HEALTHCHECK",
+      "hints": [
+        "All uppercase",
+        "Tests container status",
+        "Can define interval and timeout"
+      ],
+      "category": "health",
+      "difficulty": 100
+    },
+    {
+      "id": "docker-6",
+      "question": "What flag runs container with readonly root filesystem?",
+      "answer": "--read-only",
+      "hints": [
+        "Long flag",
+        "Improves security",
+        "Prevents writes to container layer"
+      ],
+      "category": "security",
+      "difficulty": 100
+    },
+    {
+      "id": "docker-7",
+      "question": "What docker command removes all unused images?",
+      "answer": "docker image prune -a",
+      "hints": [
+        "Uses image subcommand",
+        "Prune operation",
+        "Requires -a flag for all"
+      ],
+      "category": "cleanup",
+      "difficulty": 100
+    },
+    {
+      "id": "docker-8",
+      "question": "What volume driver is default for local storage?",
+      "answer": "local",
+      "hints": [
+        "5 letters",
+        "Stores on host filesystem",
+        "Default if not specified"
+      ],
+      "category": "volumes",
+      "difficulty": 100
+    },
+    {
+      "id": "docker-9",
+      "question": "What flag prevents container restart on exit?",
+      "answer": "--restart no",
+      "hints": [
+        "Uses --restart flag",
+        "Value is 'no'",
+        "Opposite of 'always'"
+      ],
+      "category": "lifecycle",
+      "difficulty": 200
+    },
+    {
+      "id": "docker-10",
+      "question": "What docker command shows layer history of an image?",
+      "answer": "docker history",
+      "hints": [
+        "Shows each layer",
+        "Displays size and command",
+        "Useful for optimization"
+      ],
+      "category": "images",
+      "difficulty": 200
+    },
+    {
+      "id": "docker-11",
+      "question": "What Dockerfile instruction changes working directory?",
+      "answer": "WORKDIR",
+      "hints": [
+        "All uppercase",
+        "Sets current directory",
+        "Creates dir if not exists"
+      ],
+      "category": "dockerfile",
+      "difficulty": 200
+    },
+    {
+      "id": "docker-12",
+      "question": "What flag publishes all exposed ports to random ports?",
+      "answer": "-P",
+      "hints": [
+        "Uppercase P",
+        "Different from -p",
+        "Uses ephemeral ports"
+      ],
+      "category": "networking",
+      "difficulty": 200
+    },
+    {
+      "id": "docker-13",
+      "question": "What docker stats flag shows continuous stream?",
+      "answer": "--no-stream",
+      "hints": [
+        "Negation flag",
+        "Shows single snapshot",
+        "Without it, updates continuously"
+      ],
+      "category": "monitoring",
+      "difficulty": 200
+    },
+    {
+      "id": "docker-14",
+      "question": "What build argument sets target stage in multi-stage?",
+      "answer": "--target",
+      "hints": [
+        "Long flag",
+        "Stops at specific stage",
+        "Used with multi-stage builds"
+      ],
+      "category": "multi-stage",
+      "difficulty": 200
+    },
+    {
+      "id": "docker-15",
+      "question": "What flag runs container with elevated privileges?",
+      "answer": "--privileged",
+      "hints": [
+        "Long flag",
+        "Grants all capabilities",
+        "Security risk if misused"
+      ],
+      "category": "security",
+      "difficulty": 200
+    },
+    {
+      "id": "docker-16",
+      "question": "What docker command saves image to tar file?",
+      "answer": "docker save",
+      "hints": [
+        "Exports image layers",
+        "Creates tar archive",
+        "Opposite of 'load'"
+      ],
+      "category": "images",
+      "difficulty": 200
+    },
+    {
+      "id": "docker-17",
+      "question": "What network driver creates overlay network?",
+      "answer": "overlay",
+      "hints": [
+        "For swarm mode",
+        "Multi-host networking",
+        "7 letters"
+      ],
+      "category": "swarm",
+      "difficulty": 300
+    },
+    {
+      "id": "docker-18",
+      "question": "What flag sets CPU shares for container?",
+      "answer": "--cpu-shares",
+      "hints": [
+        "Long flag",
+        "Relative weight",
+        "Default is 1024"
+      ],
+      "category": "resources",
+      "difficulty": 300
+    },
+    {
+      "id": "docker-19",
+      "question": "What Dockerfile instruction copies files respecting .dockerignore?",
+      "answer": "COPY",
+      "hints": [
+        "All uppercase",
+        "Preferred over ADD",
+        "Simple file copy"
+      ],
+      "category": "dockerfile",
+      "difficulty": 300
+    },
+    {
+      "id": "docker-20",
+      "question": "What flag attaches to container's stdin?",
+      "answer": "-i",
+      "hints": [
+        "Single letter",
+        "Stands for 'interactive'",
+        "Often used with -t"
+      ],
+      "category": "interaction",
+      "difficulty": 300
+    },
+    {
+      "id": "docker-21",
+      "question": "What docker command shows container resource usage?",
+      "answer": "docker stats",
+      "hints": [
+        "Real-time statistics",
+        "Shows CPU, memory, network",
+        "Like 'top' for containers"
+      ],
+      "category": "monitoring",
+      "difficulty": 300
+    },
+    {
+      "id": "docker-22",
+      "question": "What build cache option forces rebuild of layer?",
+      "answer": "--no-cache",
+      "hints": [
+        "Long flag for docker build",
+        "Ignores cached layers",
+        "Slower but ensures fresh build"
+      ],
+      "category": "building",
+      "difficulty": 300
+    },
+    {
+      "id": "docker-23",
+      "question": "What flag removes container volumes on rm?",
+      "answer": "-v",
+      "hints": [
+        "Single letter",
+        "Stands for 'volumes'",
+        "Cleans up anonymous volumes"
+      ],
+      "category": "cleanup",
+      "difficulty": 300
+    },
+    {
+      "id": "docker-24",
+      "question": "What Dockerfile instruction sets environment variable?",
+      "answer": "ENV",
+      "hints": [
+        "3 letters",
+        "All uppercase",
+        "Available at runtime"
+      ],
+      "category": "dockerfile",
+      "difficulty": 300
+    },
+    {
+      "id": "docker-25",
+      "question": "What flag limits PIDs in container?",
+      "answer": "--pids-limit",
+      "hints": [
+        "Long flag",
+        "Prevents fork bombs",
+        "Security feature"
+      ],
+      "category": "security",
+      "difficulty": 400
+    },
+    {
+      "id": "docker-26",
+      "question": "What docker command exports container filesystem?",
+      "answer": "docker export",
+      "hints": [
+        "Creates tar archive",
+        "Exports running container",
+        "Opposite of 'import'"
+      ],
+      "category": "containers",
+      "difficulty": 400
+    },
+    {
+      "id": "docker-27",
+      "question": "What flag shows container disk usage?",
+      "answer": "docker system df",
+      "hints": [
+        "Uses system subcommand",
+        "Like df for Docker",
+        "Shows images, containers, volumes"
+      ],
+      "category": "storage",
+      "difficulty": 400
+    },
+    {
+      "id": "docker-28",
+      "question": "What Dockerfile instruction defines metadata labels?",
+      "answer": "LABEL",
+      "hints": [
+        "All uppercase",
+        "Key-value pairs",
+        "For image metadata"
+      ],
+      "category": "dockerfile",
+      "difficulty": 400
+    },
+    {
+      "id": "docker-29",
+      "question": "What flag sets user inside container?",
+      "answer": "--user",
+      "hints": [
+        "Long flag",
+        "Can use UID:GID",
+        "Security best practice"
+      ],
+      "category": "security",
+      "difficulty": 400
+    },
+    {
+      "id": "docker-30",
+      "question": "What docker inspect format shows container IP?",
+      "answer": "{{.NetworkSettings.IPAddress}}",
+      "hints": [
+        "Uses Go template syntax",
+        "Accesses NetworkSettings",
+        "Double curly braces"
+      ],
+      "category": "inspection",
+      "difficulty": 400
+    },
+    {
+      "id": "docker-31",
+      "question": "What flag removes intermediate containers during build?",
+      "answer": "--rm",
+      "hints": [
+        "Short flag",
+        "Default behavior",
+        "Cleans up build containers"
+      ],
+      "category": "building",
+      "difficulty": 400
+    },
+    {
+      "id": "docker-32",
+      "question": "What volume flag makes it read-only?",
+      "answer": ":ro",
+      "hints": [
+        "Suffix on volume mount",
+        "2 letters after colon",
+        "Stands for 'read-only'"
+      ],
+      "category": "volumes",
+      "difficulty": 400
+    },
+    {
+      "id": "docker-33",
+      "question": "What flag sets custom DNS server for container?",
+      "answer": "--dns",
+      "hints": [
+        "Long flag",
+        "Takes IP address",
+        "Can specify multiple times"
+      ],
+      "category": "networking",
+      "difficulty": 500
+    },
+    {
+      "id": "docker-34",
+      "question": "What Dockerfile instruction runs at container start?",
+      "answer": "ENTRYPOINT",
+      "hints": [
+        "All uppercase",
+        "Cannot be overridden easily",
+        "Different from CMD"
+      ],
+      "category": "dockerfile",
+      "difficulty": 500
+    },
+    {
+      "id": "docker-35",
+      "question": "What flag attaches container to existing network?",
+      "answer": "--network",
+      "hints": [
+        "Long flag",
+        "Can use 'none' or 'host'",
+        "Connects to named network"
+      ],
+      "category": "networking",
+      "difficulty": 500
+    },
+    {
+      "id": "docker-36",
+      "question": "What command removes all stopped containers?",
+      "answer": "docker container prune",
+      "hints": [
+        "Uses container subcommand",
+        "Prune operation",
+        "Frees up space"
+      ],
+      "category": "cleanup",
+      "difficulty": 500
+    },
+    {
+      "id": "docker-37",
+      "question": "What flag sets restart policy to always?",
+      "answer": "--restart always",
+      "hints": [
+        "Uses --restart flag",
+        "Value is 'always'",
+        "Survives daemon restart"
+      ],
+      "category": "lifecycle",
+      "difficulty": 500
+    },
+    {
+      "id": "docker-38",
+      "question": "What file defines multi-container application?",
+      "answer": "docker-compose.yml",
+      "hints": [
+        "YAML format",
+        "Used by docker-compose",
+        "Defines services, networks, volumes"
+      ],
+      "category": "compose",
+      "difficulty": 500
+    },
+    {
+      "id": "docker-39",
+      "question": "What flag sets container hostname?",
+      "answer": "--hostname",
+      "hints": [
+        "Long flag",
+        "Sets internal hostname",
+        "Visible inside container"
+      ],
+      "category": "networking",
+      "difficulty": 500
+    },
+    {
+      "id": "docker-40",
+      "question": "What docker command tags an image?",
+      "answer": "docker tag",
+      "hints": [
+        "Creates alias for image",
+        "Doesn't copy data",
+        "Same image, different name"
+      ],
+      "category": "images",
+      "difficulty": 500
+    }
+  ]
+}

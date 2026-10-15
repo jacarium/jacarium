@@ -1,0 +1,349 @@
+<div id="cpu-root" class="grid grid-cols-1 gap-6">
+ <div class="panel rounded-lg shadow-sm">
+ <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
+ <div class="md:col-span-2">
+ <label for="day-filter" class="block text-xs font-semibold mb-2">Select Day:</label>
+ <select id="day-filter" class="w-full px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
+ <option value="ALL">All</option>
+ </select>
+ </div>
+ <div class="md:col-span-2">
+ <label for="cpu-filter" class="block text-xs font-semibold mb-2">Select CPU:</label>
+ <select id="cpu-filter" class="w-full px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
+ <option value="ALL">All</option>
+ </select>
+ </div>
+ <div class="md:col-span-4">
+ <label class="block text-xs font-semibold mb-1">Toggle Metrics:</label>
+ <div id="metric-toggle" class="flex flex-wrap gap-3 mb-2"></div>
+ </div>
+ </div>
+
+ {% if data %}
+ <div id="cpu-all-card"></div>
+ {% else %}
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
+ <div class="text-xs text-gray-500">No CPU usage data found in this report</div>
+ </div>
+ {% endif %}
+ </div>
+</div>
+
+<script>
+ (function () {
+ const cpuData = {{ data | tojson }};
+ let showLegend = true;
+ const cpuAllCard = document.getElementById('cpu-all-card');
+ // When the report has no CPU data, the empty-data branch renders the "No Data Available"
+ // placeholder instead of #cpu-all-card (no card element). Bail before any render so
+ // the script doesn't crash on null.innerHTML. (The old parent-document
+ // renderer wrapped these scripts in a try/catch that silently swallowed this;
+ // the sandboxed srcdoc executes them natively, surfacing it as an uncaught
+ // TypeError - so guard explicitly.)
+ if (!cpuAllCard) return;
+ const dayFilter = document.getElementById('day-filter');
+ const cpuFilter = document.getElementById('cpu-filter');
+ const metricToggle = document.getElementById('metric-toggle');
+
+ const metricKeys = ['%usr', '%nice', '%sys', '%iowait', '%steal', '%irq', '%soft', '%guest', '%gnice', '%idle'];
+ const colorMap = {
+ '%usr': 'rgba(0,255,0,0.8)',
+ '%nice': 'rgba(173,216,230,0.8)',
+ '%sys': 'rgba(255,215,0,0.8)',
+ '%iowait': 'rgba(255,99,132,0.8)',
+ '%steal': 'rgba(255,140,0,0.8)',
+ '%irq': 'rgba(138,43,226,0.8)',
+ '%soft': 'rgba(0,206,209,0.8)',
+ '%guest': 'rgba(220,20,60,0.8)',
+ '%gnice': 'rgba(127,255,0,0.8)',
+ '%idle': 'rgba(105,105,105,0.8)'
+ };
+
+ let enabledMetrics = new Set(metricKeys);
+
+ function initInterfaceDropdown() {
+ const interfacesSet = new Set();
+ Object.values(cpuData).forEach(dayData => {
+ Object.keys(dayData).forEach(cpu => {
+ interfacesSet.add(cpu);
+ });
+ });
+
+ interfacesSet.delete('all');
+
+ cpuFilter.innerHTML = '<option value="ALL">All</option>';
+
+ Array.from(interfacesSet).sort().forEach(cpu => {
+ const option = document.createElement('option');
+ option.value = cpu;
+ option.textContent = cpu;
+ cpuFilter.appendChild(option);
+ });
+ }
+
+ function createMetricToggles() {
+ metricToggle.innerHTML = '';
+
+ const toggleAllLabel = document.createElement('label');
+ toggleAllLabel.className = 'inline-flex items-center ';
+
+ const toggleAllCheckbox = document.createElement('input');
+ toggleAllCheckbox.type = 'checkbox';
+ toggleAllCheckbox.id = 'toggle-all-metrics';
+ toggleAllCheckbox.checked = true;
+ toggleAllCheckbox.className = 'form-checkbox h-4 w-4 rounded-sm mr-2';
+
+ toggleAllLabel.appendChild(toggleAllCheckbox);
+ toggleAllLabel.append('All');
+ metricToggle.appendChild(toggleAllLabel);
+
+
+ const legendLabel = document.createElement('label');
+ legendLabel.className = 'inline-flex items-center ';
+ const legendCheckbox = document.createElement('input');
+ legendCheckbox.type = 'checkbox';
+ legendCheckbox.id = 'legend-toggle';
+ legendCheckbox.checked = true;
+ legendCheckbox.className = 'form-checkbox h-4 w-4 rounded-sm mr-2';
+
+ legendLabel.appendChild(legendCheckbox);
+ legendLabel.append('Show Legend');
+ metricToggle.appendChild(legendLabel);
+
+ showLegend = true;
+ legendCheckbox.addEventListener('change', () => {
+ showLegend = legendCheckbox.checked;
+ renderAll();
+ });
+
+ enabledMetrics = new Set();
+ const checkboxes = [];
+
+ metricKeys.forEach((metric, index) => {
+ const checkboxId = `metric-${index}`;
+
+ const label = document.createElement('label');
+ label.className = 'inline-flex items-center ';
+ label.setAttribute('for', checkboxId);
+
+ const checkbox = document.createElement('input');
+ checkbox.type = 'checkbox';
+ checkbox.id = checkboxId;
+ checkbox.value = metric;
+ checkbox.checked = true;
+ checkbox.className = 'form-checkbox h-4 w-4 rounded-sm mr-2';
+ checkbox.setAttribute('aria-label', metric);
+
+ enabledMetrics.add(metric);
+ checkboxes.push(checkbox);
+
+ checkbox.addEventListener('change', () => {
+ if (checkbox.checked) {
+ enabledMetrics.add(metric);
+ } else {
+ enabledMetrics.delete(metric);
+ }
+ toggleAllCheckbox.checked = checkboxes.every(cb => cb.checked);
+ renderAll();
+ });
+
+ label.appendChild(checkbox);
+ label.append(metric);
+ metricToggle.appendChild(label);
+ });
+
+ toggleAllCheckbox.addEventListener('change', () => {
+ const enable = toggleAllCheckbox.checked;
+ checkboxes.forEach(cb => {
+ cb.checked = enable;
+ if (enable) {
+ enabledMetrics.add(cb.value);
+ } else {
+ enabledMetrics.delete(cb.value);
+ }
+ });
+ renderAll();
+ });
+ }
+ function createChartCard(datasets, labels) {
+ const card = document.createElement('div');
+ card.className = 'panel rounded-lg p-4 shadow-sm';
+
+ const canvas = document.createElement('canvas');
+ canvas.style.width = '100%';
+ canvas.style.height = '260px';
+
+ card.appendChild(canvas);
+
+ new Chart(canvas.getContext('2d'), {
+ type: 'line',
+ data: { labels, datasets },
+ options: {
+ responsive: true,
+ animation: false,
+ plugins: {
+ legend: {
+ display: showLegend,
+ labels: { color: diagnosticsThemeColor('text'), font: { size: 12 } }
+ },
+ tooltip: {
+ backgroundColor: diagnosticsThemeColor('tooltip'),
+ titleColor: '#facc15',
+ bodyColor: diagnosticsThemeColor('text'),
+ borderColor: '#374151',
+ borderWidth: 1
+ }
+ },
+ scales: {
+ x: {
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } }
+ },
+ y: {
+ beginAtZero: true,
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } }
+ }
+ }
+ }
+ });
+
+ return card;
+ }
+
+ function renderCpuAllAcrossDays(data, cpu = 'ALL') {
+ const combined = {};
+
+ Object.entries(data).forEach(([day, cpus]) => {
+ const day_label = day.replace(/_/g, ' ').replace(/\d{4}/, '').trim();
+ const dayLabelFormatted = day_label.charAt(0).toUpperCase() + day_label.slice(1);
+
+ if (cpu === 'ALL') {
+ const metrics = cpus['all'];
+ if (!Array.isArray(metrics)) return;
+
+ metrics.forEach(entry => {
+ const key = `${dayLabelFormatted} ${entry.time}`;
+ combined[key] = entry;
+ });
+ } else {
+ const metrics = cpus[cpu];
+ if (!Array.isArray(metrics)) return;
+
+ metrics.forEach(entry => {
+ const key = `${dayLabelFormatted} ${entry.time}`;
+ combined[key] = entry;
+ });
+ }
+ });
+
+ const sortedKeys = Object.keys(combined).sort();
+ const labels = sortedKeys;
+ const datasets = Array.from(enabledMetrics).map(metric => ({
+ label: metric,
+ data: sortedKeys.map(k => combined[k][metric]),
+ borderColor: colorMap[metric],
+ backgroundColor: colorMap[metric].replace('0.8', '0.1'),
+ fill: true,
+ tension: 0.2
+ }));
+
+ cpuAllCard.innerHTML = '';
+ cpuAllCard.appendChild(createChartCard(datasets, labels));
+ }
+
+ function renderDayCpus(day, cpu = 'ALL') {
+ const cpus = cpuData[day];
+ if (!cpus) return;
+
+ const labels = cpus['all']?.map(m => m.time) || [];
+ const datasets = [];
+
+ if (cpu === 'ALL') {
+ Object.entries(cpus).forEach(([cpuId, metrics]) => {
+ if (!Array.isArray(metrics)) return;
+
+ enabledMetrics.forEach(metric => {
+ datasets.push({
+ label: `CPU ${cpuId} ${metric}`,
+ data: metrics.map(m => m[metric]),
+ borderColor: colorMap[metric],
+ backgroundColor: colorMap[metric].replace('0.8', '0.1'),
+ fill: false,
+ tension: 0.2
+ });
+ });
+ });
+ } else {
+ const metrics = cpus[cpu];
+ if (!Array.isArray(metrics)) return;
+
+ enabledMetrics.forEach(metric => {
+ datasets.push({
+ label: `${cpu} ${metric}`,
+ data: metrics.map(m => m[metric]),
+ borderColor: colorMap[metric],
+ backgroundColor: colorMap[metric].replace('0.8', '0.1'),
+ fill: false,
+ tension: 0.2
+ });
+ });
+ }
+
+ cpuAllCard.innerHTML = '';
+ cpuAllCard.appendChild(createChartCard(datasets, labels));
+ }
+
+ function renderAll() {
+ const selectedDay = dayFilter.value;
+ const selectedCpu = cpuFilter.value;
+
+ if (selectedDay === 'ALL') {
+ renderCpuAllAcrossDays(cpuData, selectedCpu);
+ } else {
+ renderDayCpus(selectedDay, selectedCpu);
+ }
+ }
+
+ function initDayDropdown() {
+ Object.keys(cpuData).forEach(day => {
+ const option = document.createElement('option');
+ option.value = day;
+ option.textContent = day.replace(/_/g, ' ').replace(/\d{4}/, '').trim();
+ option.textContent = option.textContent.charAt(0).toUpperCase() + option.textContent.slice(1);
+ dayFilter.appendChild(option);
+ });
+
+ dayFilter.addEventListener('change', renderAll);
+ dayFilter.value = 'ALL';
+ }
+
+ createMetricToggles();
+ initDayDropdown();
+ initInterfaceDropdown();
+
+ cpuFilter.addEventListener('change', renderAll);
+
+ renderAll();
+
+ // Watch for theme changes and re-render charts
+ const themeObserver = new MutationObserver((mutations) => {
+ mutations.forEach((mutation) => {
+ if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+ // Theme has changed, re-render chart
+ renderAll();
+ }
+ });
+ });
+
+ // Start observing theme changes
+ themeObserver.observe(document.documentElement, {
+ attributes: true,
+ attributeFilter: ['class']
+ });
+ })();
+</script>

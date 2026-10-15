@@ -1,0 +1,47 @@
+[
+  {
+    "title": "Diagram page 📝",
+    "content": "# Page\n\n![red](attachment:red-dot.png)\n\nShared:\n\n![shared](attachment:shared.png?width=120)\n",
+    "category": "Pictures",
+    "media": [
+      {
+        "filename": "red-dot.png",
+        "mimeType": "image/png",
+        "size": 69,
+        "uploadedAt": "2026-01-02T03:04:05.000Z",
+        "tags": [
+          "synthetic"
+        ],
+        "data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+      },
+      {
+        "filename": "shared.png",
+        "mimeType": "image/png",
+        "size": 69,
+        "uploadedAt": "2026-01-02T03:04:06.000Z",
+        "tags": [],
+        "data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYPgPAAEDAQAIicLsAAAAAElFTkSuQmCC"
+      }
+    ]
+  },
+  {
+    "title": "Second page",
+    "content": "Also uses ![shared](attachment:shared.png) and a missing one ![gone](attachment:never-exported.png)",
+    "category": "Pictures",
+    "media": [
+      {
+        "filename": "shared.png",
+        "mimeType": "image/png",
+        "size": 69,
+        "uploadedAt": "2026-01-02T03:04:06.000Z",
+        "tags": [],
+        "data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYPgPAAEDAQAIicLsAAAAAElFTkSuQmCC"
+      }
+    ]
+  },
+  {
+    "title": "Text only",
+    "content": "No images here",
+    "category": "Pictures"
+  }
+]

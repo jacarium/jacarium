@@ -1,0 +1,293 @@
+<div class="panel rounded-lg shadow-sm">
+ <div class="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+ <select id="filter-type" class="w-full px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
+ <option value="">All Types</option>
+ {% set types = data.dmidecode | map(attribute='type') | unique | sort %}
+ {% for t in types %}
+ <option value="{{ t | lower }}">{{ t }}</option>
+ {% endfor %}
+ </select>
+ <select id="filter-vendor" class="w-full px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
+ <option value="">All Vendors</option>
+ {% set vendors = data.dmidecode | map(attribute='vendor') | unique | reject('equalto', '') | sort %}
+ {% for v in vendors %}
+ <option value="{{ v | lower }}">{{ v }}</option>
+ {% endfor %}
+ </select>
+ <div class="md:col-span-2">
+ <input
+ type="text"
+ id="dmi-filter"
+ placeholder=""
+ class="w-full px-3 py-2 text-sm rounded-md border focus:outline-hidden focus:ring-2"
+ autocomplete="off"
+ />
+ </div>
+ </div>
+
+ <p id="dmi-count" class="text-xs mb-2"></p>
+
+ {% if data.dmidecode and data.dmidecode | length > 0 %}
+ <div class="overflow-x-auto">
+ <table id="dmi-table" class="min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left w-8"></th>
+ <th class="px-4 py-2 text-left">Type</th>
+ <th class="px-4 py-2 text-left">Summary</th>
+ <th class="px-4 py-2 text-left w-20">Status</th>
+ </tr>
+ </thead>
+ <tbody id="dmi-container">
+ {% for entry in data.dmidecode %}
+ <tr class="dmi-entry border-b cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+ data-type="{{ entry.type | lower }}"
+ data-vendor="{{ entry.vendor | lower }}"
+ data-index="{{ loop.index0 }}">
+ <td class="px-4 py-2">
+ <i class="fas fa-caret-right expand-icon"></i>
+ </td>
+ <td class="px-4 py-2">
+ {% if entry.type == 'Memory Device' %}
+ <i class="fas fa-memory text-sm mr-2"></i>
+ {% elif entry.type == 'Physical Memory Array' %}
+ <i class="fas fa-layer-group text-sm mr-2"></i>
+ {% elif entry.type == 'Processor Information' %}
+ <i class="fas fa-microchip text-sm mr-2"></i>
+ {% elif entry.type == 'Base Board Information' %}
+ <i class="fas fa-server text-sm mr-2"></i>
+ {% elif entry.type == 'Cache Information' %}
+ <i class="fas fa-database text-sm mr-2"></i>
+ {% elif entry.type == 'HPE BIOS PXE NIC PCI and MAC Information' %}
+ <i class="fas fa-network-wired text-sm mr-2"></i>
+ {% elif entry.type == 'System Information' %}
+ <i class="fas fa-info-circle text-sm mr-2"></i>
+ {% elif entry.type == 'System Slot Information' %}
+ <i class="fas fa-th-list text-sm mr-2"></i>
+ {% elif entry.type == 'Chassis Information' %}
+ <i class="fas fa-server text-sm mr-2"></i>
+ {% elif entry.type == 'BIOS Information' %}
+ <i class="fas fa-microchip text-sm mr-2"></i>
+ {% elif entry.type == 'System Power Supply' %}
+ <i class="fas fa-bolt text-sm mr-2"></i>
+ {% elif entry.type == 'TPM Device' %}
+ <i class="fas fa-lock text-sm mr-2"></i>
+ {% elif entry.type == 'HPE ProLiant Information' %}
+ <i class="fas fa-server text-sm mr-2"></i>
+ {% elif entry.type == 'Onboard Device' %}
+ <i class="fas fa-desktop text-sm mr-2"></i>
+ {% elif entry.type == 'System Boot Information' %}
+ <i class="fas fa-desktop text-sm mr-2"></i>
+ {% elif entry.type == 'Port Connector Information' %}
+ <i class="fas fa-plug text-sm mr-2"></i>
+ {% elif entry.type == 'IPMI Device Information' %}
+ <i class="fas fa-server text-sm mr-2"></i>
+ {% elif entry.type == 'Memory Array Mapped Address' %}
+ <i class="fas fa-memory text-sm mr-2"></i>
+ {% elif entry.type == 'System Configuration Options' %}
+ <i class="fas fa-cogs text-sm mr-2"></i>
+ {% elif entry.type == 'BIOS Language Information' %}
+ <i class="fas fa-language text-sm mr-2"></i>
+ {% elif entry.type == 'Voltage Probe' %}
+ <i class="fas fa-bolt text-sm mr-2"></i>
+ {% elif entry.type == 'Temperature Probe' %}
+ <i class="fas fa-thermometer-half text-sm mr-2"></i>
+ {% elif entry.type == 'Cooling Device' %}
+ <i class="fas fa-fan text-sm mr-2"></i>
+ {% elif entry.type == 'Electrical Current Probe' %}
+ <i class="fas fa-bolt text-sm mr-2"></i>
+ {% elif entry.type == 'Management Controller Host Interface' %}
+ <i class="fas fa-server text-sm mr-2"></i>
+ {% elif entry.type == 'Group Associations' %}
+ <i class="fas fa-users text-sm mr-2"></i>
+ {% elif entry.type == 'Out-of-band Remote Access' %}
+ <i class="fas fa-network-wired text-sm mr-2"></i>
+ {% endif %}
+ {{ entry.type }}
+ </td>
+ <td class="px-4 py-2">
+ {{ entry.summary }}
+ {% if entry.summary_info %}
+ <div class="mt-1 flex flex-wrap gap-1">
+ {% if entry.summary_info.Manufacturer %}
+ <span class="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-sm text-xs">{{ entry.summary_info.Manufacturer }}</span>
+ {% endif %}
+ {% if entry.summary_info.Speed %}
+ <span class="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded-sm text-xs">{{ entry.summary_info.Speed }}</span>
+ {% endif %}
+ {% if entry.summary_info.Size %}
+ <span class="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 rounded-sm text-xs">{{ entry.summary_info.Size }}</span>
+ {% endif %}
+ {% if entry.summary_info.Type %}
+ <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-sm text-xs">{{ entry.summary_info.Type }}</span>
+ {% endif %}
+ {% if entry.summary_info.Location %}
+ <span class="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 rounded-sm text-xs">{{ entry.summary_info.Location }}</span>
+ {% endif %}
+ {% if entry.summary_info.MaximumCapacity %}
+ <span class="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200 rounded-sm text-xs">Max: {{ entry.summary_info.MaximumCapacity }}</span>
+ {% endif %}
+ {% if entry.summary_info.NumberOfDevices %}
+ <span class="px-2 py-0.5 bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-200 rounded-sm text-xs">Devices: {{ entry.summary_info.NumberOfDevices }}</span>
+ {% endif %}
+ {% if entry.summary_info.Socket %}
+ <span class="px-2 py-0.5 bg-teal-100 dark:bg-teal-900/30 text-teal-800 dark:text-teal-200 rounded-sm text-xs">{{ entry.summary_info.Socket }}</span>
+ {% endif %}
+ {% if entry.summary_info.Version %}
+ <span class="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 rounded-sm text-xs">{{ entry.summary_info.Version }}</span>
+ {% endif %}
+ {% if entry.summary_info.MaxSpeed %}
+ <span class="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded-sm text-xs">{{ entry.summary_info.MaxSpeed }}</span>
+ {% endif %}
+ {% if entry.summary_info.Core %}
+ <span class="px-2 py-0.5 bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-200 rounded-sm text-xs">{{ entry.summary_info.Core }} Cores</span>
+ {% endif %}
+ {% if entry.summary_info.CoreEnabled %}
+ <span class="px-2 py-0.5 bg-lime-100 dark:bg-lime-900/30 text-lime-800 dark:text-lime-200 rounded-sm text-xs">{{ entry.summary_info.CoreEnabled }} Enabled</span>
+ {% endif %}
+ {% if entry.summary_info.Threads %}
+ <span class="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 rounded-sm text-xs">{{ entry.summary_info.Threads }} Threads</span>
+ {% endif %}
+ {% if entry.summary_info.ProductName %}
+ <span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-900/30 text-slate-800 dark:text-slate-200 rounded-sm text-xs">{{ entry.summary_info.ProductName }}</span>
+ {% endif %}
+ {% if entry.summary_info.Configuration %}
+ <span class="px-2 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-800 dark:text-violet-200 rounded-sm text-xs">{{ entry.summary_info.Configuration }}</span>
+ {% endif %}
+ {% if entry.summary_info.InstalledSize %}
+ <span class="px-2 py-0.5 bg-fuchsia-100 dark:bg-fuchsia-900/30 text-fuchsia-800 dark:text-fuchsia-200 rounded-sm text-xs">{{ entry.summary_info.InstalledSize }}</span>
+ {% endif %}
+ {% if entry.summary_info.SocketDesignation %}
+ <span class="px-2 py-0.5 bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-200 rounded-sm text-xs">{{ entry.summary_info.SocketDesignation }}</span>
+ {% endif %}
+ {% if entry.summary_info.NIC %}
+ <span class="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 rounded-sm text-xs">NIC {{ entry.summary_info.NIC }}</span>
+ {% endif %}
+ {% if entry.summary_info.PCIAddress %}
+ <span class="px-2 py-0.5 bg-sky-100 dark:bg-sky-900/30 text-sky-800 dark:text-sky-200 rounded-sm text-xs">{{ entry.summary_info.PCIAddress }}</span>
+ {% endif %}
+ {% if entry.summary_info.MACAddress %}
+ <span class="px-2 py-0.5 bg-stone-100 dark:bg-stone-900/30 text-stone-800 dark:text-stone-200 rounded-sm text-xs">{{ entry.summary_info.MACAddress }}</span>
+ {% endif %}
+ </div>
+ {% endif %}
+ </td>
+ <td class="px-4 py-2">
+ {% if entry.status == 'OK' %}
+ <span class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded-sm text-xs font-medium">
+ <i class="fas fa-check-circle mr-1"></i>OK
+ </span>
+ {% elif entry.status == 'WARN' %}
+ <span class="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 rounded-sm text-xs font-medium">
+ <i class="fas fa-exclamation-triangle mr-1"></i>WARN
+ </span>
+ {% elif entry.status == 'ERROR' %}
+ <span class="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded-sm text-xs font-medium">
+ <i class="fas fa-times-circle mr-1"></i>ERROR
+ </span>
+ {% endif %}
+ </td>
+ </tr>
+ {% if entry.details %}
+ <tr class="dmi-details hidden" data-parent="{{ loop.index0 }}">
+ <td colspan="4" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+ <div class="bg-white p-3 rounded-sm border border-gray-200">
+ <h4 class="text-xs font-semibold mb-2 text-gray-700">Details:</h4>
+ <pre class="text-xs whitespace-pre-wrap text-gray-900">{{ entry.details | join('\n') }}</pre>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+ {% endfor %}
+ </tbody>
+ </table>
+ </div>
+ {% else %}
+ <p class="italic">No dmidecode data available.</p>
+ {% endif %}
+</div>
+
+<script>
+ (() => {
+ const filterInput = document.getElementById('dmi-filter');
+ const filterType = document.getElementById('filter-type');
+ const filterVendor = document.getElementById('filter-vendor');
+ const container = document.getElementById('dmi-container');
+ const countDisplay = document.getElementById('dmi-count');
+
+ // Handle row click to expand/collapse details
+ container.querySelectorAll('.dmi-entry').forEach(row => {
+ row.addEventListener('click', function() {
+ const index = this.dataset.index;
+ const detailsRow = document.querySelector(`.dmi-details[data-parent="${index}"]`);
+ const icon = this.querySelector('.expand-icon');
+
+ if (detailsRow) {
+ const isHidden = detailsRow.classList.contains('hidden');
+ detailsRow.classList.toggle('hidden');
+ icon.classList.toggle('fa-caret-right', !isHidden);
+ icon.classList.toggle('fa-caret-down', isHidden);
+ }
+ });
+ });
+
+ function updateCount() {
+ const entries = container.querySelectorAll('.dmi-entry');
+ const visible = [...entries].filter(e => !e.hasAttribute('hidden'));
+ countDisplay.textContent = `Showing ${visible.length} of ${entries.length} entries`;
+ }
+
+ function filterEntries() {
+ const typeVal = filterType.value.toLowerCase();
+ const vendorVal = filterVendor.value.toLowerCase();
+ const query = filterInput.value.trim();
+ let regex = null;
+
+ if (query.length > 0) {
+ try {
+ regex = new RegExp(query, 'i');
+ } catch (e) {
+ regex = null;
+ }
+ }
+
+ container.querySelectorAll('.dmi-entry').forEach(entry => {
+ const index = entry.dataset.index;
+ const detailsRow = document.querySelector(`.dmi-details[data-parent="${index}"]`);
+ const summaryText = entry.cells[2].textContent;
+ const detailsText = detailsRow ? detailsRow.textContent : '';
+ const type = entry.dataset.type;
+ const vendor = entry.dataset.vendor;
+
+ const matchesText = !query || (
+ regex
+ ? regex.test(summaryText) || regex.test(detailsText)
+ : summaryText.toLowerCase().includes(query.toLowerCase()) || detailsText.toLowerCase().includes(query.toLowerCase())
+ );
+
+ const matchesType = !typeVal || type === typeVal;
+ const matchesVendor = !vendorVal || vendor === vendorVal;
+
+ if (matchesText && matchesType && matchesVendor) {
+ entry.removeAttribute('hidden');
+ if (detailsRow && !detailsRow.classList.contains('hidden')) {
+ detailsRow.removeAttribute('hidden');
+ }
+ } else {
+ entry.setAttribute('hidden', '');
+ if (detailsRow) {
+ detailsRow.setAttribute('hidden', '');
+ }
+ }
+ });
+
+ updateCount();
+ }
+
+ filterInput.addEventListener('input', filterEntries);
+ filterType.addEventListener('change', filterEntries);
+ filterVendor.addEventListener('change', filterEntries);
+
+ updateCount();
+ })();
+</script>

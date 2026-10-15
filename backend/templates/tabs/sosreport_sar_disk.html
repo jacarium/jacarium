@@ -1,0 +1,367 @@
+<div id="iface-root" class="grid grid-cols-1 gap-6">
+ <div class="panel rounded-lg shadow-sm">
+ <div class="mb-4 grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+ <div class="md:col-span-3">
+ <label for="day-filter-disk" class="block text-xs font-semibold mb-2">Select Day:</label>
+ <select id="day-filter-disk" class="w-full px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
+ <option value="ALL">All</option>
+ </select>
+ </div>
+ <div class="md:col-span-3">
+ <label for="disk-filter" class="block text-xs font-semibold mb-2">Select Disk:</label>
+ <select id="disk-filter" class="w-full px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
+ <option value="ALL">All</option>
+ </select>
+ </div>
+ <div class="md:col-span-6">
+ <label class="block text-xs font-semibold mb-1">Toggle Metrics:</label>
+ <div id="metric-toggle-disk" class="flex flex-wrap gap-3 mb-2"></div>
+ </div>
+ </div>
+ {% if data %}
+ <div id="disk-all-card"></div>
+ {% else %}
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
+ <div class="text-xs text-gray-500">No disk usage data found in this report</div>
+ </div>
+ {% endif %}
+ </div>
+</div>
+
+<script>
+ (function () {
+ const diskData = {{ data | tojson }};
+ let showLegend = true;
+ const diskAllCard = document.getElementById('disk-all-card');
+ // When the report has no disk data, the empty-data branch renders the "No Data Available"
+ // placeholder instead of #disk-all-card (no card element). Bail before any render so
+ // the script doesn't crash on null.innerHTML. (The old parent-document
+ // renderer wrapped these scripts in a try/catch that silently swallowed this;
+ // the sandboxed srcdoc executes them natively, surfacing it as an uncaught
+ // TypeError - so guard explicitly.)
+ if (!diskAllCard) return;
+ const dayFilter = document.getElementById('day-filter-disk');
+ const diskFilter = document.getElementById('disk-filter');
+ const metricToggle = document.getElementById('metric-toggle-disk');
+
+ const metricKeys = ['tps', 'rkB/s', 'wkB/s', 'dkB/s', 'areq-sz', 'aqu-sz', 'await', '%util'];
+ const colorMap = {
+ 'tps': 'rgba(255, 215, 0, 0.8)',
+ 'rkB/s': 'rgba(30, 144, 255, 0.8)',
+ 'wkB/s': 'rgba(50, 205, 50, 0.8)',
+ 'dkB/s': 'rgba(255, 69, 0, 0.8)',
+ 'areq-sz': 'rgba(218, 112, 214, 0.8)',
+ 'aqu-sz': 'rgba(255, 140, 0, 0.8)',
+ 'await': 'rgba(70, 130, 180, 0.8)',
+ '%util': 'rgba(139, 0, 0, 0.8)'
+ };
+
+ let enabledMetrics = new Set(metricKeys);
+
+ function createMetricToggles() {
+ metricToggle.innerHTML = '';
+
+ const toggleAllLabel = document.createElement('label');
+ toggleAllLabel.className = 'inline-flex items-center ';
+
+ const toggleAllCheckbox = document.createElement('input');
+ toggleAllCheckbox.type = 'checkbox';
+ toggleAllCheckbox.id = 'toggle-all-metrics-disk';
+ toggleAllCheckbox.checked = true;
+ toggleAllCheckbox.className = 'form-checkbox h-4 w-4 rounded-sm mr-2';
+
+ toggleAllLabel.appendChild(toggleAllCheckbox);
+ toggleAllLabel.append('All');
+ metricToggle.appendChild(toggleAllLabel);
+
+
+ const legendLabel = document.createElement('label');
+ legendLabel.className = 'inline-flex items-center ';
+ const legendCheckbox = document.createElement('input');
+ legendCheckbox.type = 'checkbox';
+ legendCheckbox.id = 'legend-toggle';
+ legendCheckbox.checked = true;
+ legendCheckbox.className = 'form-checkbox h-4 w-4 rounded-sm mr-2';
+
+ legendLabel.appendChild(legendCheckbox);
+ legendLabel.append('Show Legend');
+ metricToggle.appendChild(legendLabel);
+
+ showLegend = true;
+ legendCheckbox.addEventListener('change', () => {
+ showLegend = legendCheckbox.checked;
+ renderAll();
+ });
+
+ enabledMetrics = new Set(metricKeys);
+ const checkboxes = [];
+
+ metricKeys.forEach((metric, index) => {
+ const checkboxId = `metric-disk-${index}`;
+
+ const label = document.createElement('label');
+ label.className = 'inline-flex items-center ';
+ label.setAttribute('for', checkboxId);
+
+ const checkbox = document.createElement('input');
+ checkbox.type = 'checkbox';
+ checkbox.id = checkboxId;
+ checkbox.value = metric;
+ checkbox.checked = true;
+ checkbox.className = 'form-checkbox h-4 w-4 rounded-sm mr-2';
+ checkbox.setAttribute('aria-label', metric);
+
+ checkboxes.push(checkbox);
+
+ checkbox.addEventListener('change', () => {
+ if (checkbox.checked) {
+ enabledMetrics.add(metric);
+ } else {
+ enabledMetrics.delete(metric);
+ }
+ toggleAllCheckbox.checked = checkboxes.every(cb => cb.checked);
+ renderAll();
+ });
+
+ label.appendChild(checkbox);
+ label.append(metric);
+ metricToggle.appendChild(label);
+ });
+
+ toggleAllCheckbox.addEventListener('change', () => {
+ const enable = toggleAllCheckbox.checked;
+ checkboxes.forEach(cb => {
+ cb.checked = enable;
+ if (enable) {
+ enabledMetrics.add(cb.value);
+ } else {
+ enabledMetrics.delete(cb.value);
+ }
+ });
+ renderAll();
+ });
+ }
+
+ function createChartCard(datasets, labels) {
+ const card = document.createElement('div');
+ card.className = 'panel rounded-lg p-4 shadow-sm';
+
+ const canvas = document.createElement('canvas');
+ canvas.style.width = '100%';
+ canvas.style.height = '260px';
+
+ card.appendChild(canvas);
+
+ new Chart(canvas.getContext('2d'), {
+ type: 'line',
+ data: { labels, datasets },
+ options: {
+ responsive: true,
+ animation: false,
+ plugins: {
+ legend: {
+ display: showLegend,
+ labels: { color: diagnosticsThemeColor('text'), font: { size: 12 } }
+ },
+ tooltip: {
+ backgroundColor: diagnosticsThemeColor('tooltip'),
+ titleColor: '#facc15',
+ bodyColor: diagnosticsThemeColor('text')
+ }
+ },
+ scales: {
+ x: {
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } }
+ },
+ y: {
+ beginAtZero: true,
+ grid: { color: diagnosticsThemeColor('grid') },
+ ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } }
+ }
+ }
+ }
+ });
+
+ return card;
+ }
+
+ function populateFilters() {
+ Object.keys(diskData).forEach(day => {
+ if (![...dayFilter.options].some(opt => opt.value === day)) {
+ const opt = document.createElement('option');
+ opt.value = day;
+ let day_label = day.replace(/_/g, ' ').replace(/\d{4}/, '').trim();
+ day_label = day_label.charAt(0).toUpperCase() + day_label.slice(1);
+ opt.text = day_label;
+ dayFilter.appendChild(opt);
+ }
+ });
+
+ const sampleDay = Object.keys(diskData)[0];
+ if (!sampleDay) return;
+
+ const disks = Object.keys(diskData[sampleDay]);
+ diskFilter.innerHTML = '<option value="ALL">All</option>';
+ disks.forEach(disk => {
+ const opt = document.createElement('option');
+ opt.value = disk;
+ opt.text = disk;
+ diskFilter.appendChild(opt);
+ });
+ }
+
+ function renderAll() {
+ diskAllCard.innerHTML = '';
+
+ const selectedDay = dayFilter.value;
+ const selectedDisk = diskFilter.value;
+
+ if (selectedDay === 'ALL') {
+ if (selectedDisk === 'ALL') {
+ const combined = {};
+
+ Object.entries(diskData).forEach(([day, disks]) => {
+ Object.entries(disks).forEach(([disk, records]) => {
+ let day_label = day.replace(/_/g, ' ').replace(/\d{4}/, '').trim();
+ day_label = day_label.charAt(0).toUpperCase() + day_label.slice(1);
+ records.forEach(entry => {
+ const key = `${day_label} ${entry.time}`;
+ combined[key] = combined[key] || {};
+ for (const metric of metricKeys) {
+ combined[key][metric] = (combined[key][metric] || 0) + (entry[metric] ?? 0);
+ }
+ });
+ });
+ });
+
+ const labels = Object.keys(combined).sort();
+ const datasets = [];
+
+ enabledMetrics.forEach(metric => {
+ const dataPoints = labels.map(label => combined[label][metric] ?? 0);
+ datasets.push({
+ label: metric,
+ data: dataPoints,
+ borderColor: colorMap[metric],
+ backgroundColor: colorMap[metric],
+ fill: false,
+ tension: 0.2,
+ borderWidth: 2
+ });
+ });
+
+ const card = createChartCard(datasets, labels);
+ if (card) diskAllCard.appendChild(card);
+
+ } else {
+ const combined = {};
+
+ Object.entries(diskData).forEach(([day, disks]) => {
+ const records = disks[selectedDisk];
+ if (!Array.isArray(records)) return;
+ let day_label = day.replace(/_/g, ' ').replace(/\d{4}/, '').trim();
+ day_label = day_label.charAt(0).toUpperCase() + day_label.slice(1);
+ records.forEach(entry => {
+ const key = `${day_label} ${entry.time}`;
+ combined[key] = combined[key] || {};
+ for (const metric of metricKeys) {
+ combined[key][metric] = entry[metric] ?? 0;
+ }
+ });
+ });
+
+ const labels = Object.keys(combined).sort();
+ const datasets = [];
+
+ enabledMetrics.forEach(metric => {
+ const dataPoints = labels.map(label => combined[label][metric] ?? 0);
+ datasets.push({
+ label: `${selectedDisk} ${metric}`,
+ data: dataPoints,
+ borderColor: colorMap[metric],
+ backgroundColor: colorMap[metric],
+ fill: false,
+ tension: 0.2,
+ borderWidth: 2
+ });
+ });
+
+ const card = createChartCard(datasets, labels);
+ if (card) diskAllCard.appendChild(card);
+ }
+
+ } else {
+ const disksForDay = diskData[selectedDay];
+ if (!disksForDay) return;
+
+ const disksToRender = selectedDisk === 'ALL' ? Object.keys(disksForDay) : [selectedDisk];
+
+ const timeLabelsSet = new Set();
+ disksToRender.forEach(disk => {
+ const records = disksForDay[disk];
+ if (!Array.isArray(records)) return;
+ records.forEach(r => timeLabelsSet.add(r.time));
+ });
+ const timeLabels = Array.from(timeLabelsSet).sort();
+
+ const datasets = [];
+
+ disksToRender.forEach(disk => {
+ const records = disksForDay[disk];
+ if (!Array.isArray(records)) return;
+
+ enabledMetrics.forEach(metric => {
+ const dataPoints = timeLabels.map(time => {
+ const rec = records.find(r => r.time === time);
+ return rec ? rec[metric] : null;
+ }).filter(v => v !== null);
+
+ if (dataPoints.length > 0) {
+ datasets.push({
+ label: `${disk} ${metric}`,
+ data: dataPoints,
+ borderColor: colorMap[metric],
+ backgroundColor: colorMap[metric],
+ fill: false,
+ tension: 0.2,
+ borderWidth: 1,
+ });
+ }
+ });
+ });
+
+ const card = createChartCard(datasets, timeLabels);
+ if (card) diskAllCard.appendChild(card);
+ }
+ }
+
+ createMetricToggles();
+ populateFilters();
+
+ dayFilter.addEventListener('change', renderAll);
+ diskFilter.addEventListener('change', renderAll);
+
+ renderAll();
+
+ // Watch for theme changes and re-render charts
+ const themeObserver = new MutationObserver((mutations) => {
+ mutations.forEach((mutation) => {
+ if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+ // Theme has changed, re-render chart
+ renderAll();
+ }
+ });
+ });
+
+ // Start observing theme changes
+ themeObserver.observe(document.documentElement, {
+ attributes: true,
+ attributeFilter: ['class']
+ });
+ })();
+</script>

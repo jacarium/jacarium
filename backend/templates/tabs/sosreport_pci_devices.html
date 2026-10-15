@@ -1,0 +1,159 @@
+ <div class="panel rounded-lg shadow-sm">
+ <div class="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+ <select id="filter-class" class="w-full px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
+ <option value="">All Classes</option>
+ {% set classes = data.lspci | map(attribute='class') | unique | sort %}
+ {% for class_name in classes %}
+ <option value="{{ class_name | lower }}">{{ class_name }}</option>
+ {% endfor %}
+ </select>
+ <select id="filter-vendor" class="w-full px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
+ <option value="">All Vendors</option>
+ {% set vendors = data.lspci | map(attribute='vendor_id') | unique | sort %}
+ {% for vendor_id in vendors %}
+ <option value="{{ vendor_id | lower }}">{{ vendor_id }}</option>
+ {% endfor %}
+ </select>
+ <div class="md:col-span-2">
+ <input
+ type="text"
+ id="pci-filter"
+ placeholder=""
+ class="w-full px-3 py-2 text-sm rounded-md border focus:outline-hidden focus:ring-2"
+ autocomplete="off"
+ />
+ </div>
+ </div>
+
+ <p id="pci-count" class="text-xs mb-2"></p>
+
+ {% if data.lspci and data.lspci | length > 0 %}
+ <div class="overflow-x-auto">
+ <table id="pci-table" class="min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left w-8"></th>
+ <th class="px-4 py-2 text-left">Class</th>
+ <th class="px-4 py-2 text-left">Vendor ID</th>
+ <th class="px-4 py-2 text-left">Device</th>
+ </tr>
+ </thead>
+ <tbody id="pci-devices-container">
+ {% for device in data.lspci %}
+ <tr class="pci-device border-b cursor-pointer hover:bg-gray-50"
+ data-class="{{ device.class | lower }}"
+ data-vendor="{{ device.vendor_id | lower }}"
+ data-index="{{ loop.index0 }}">
+ <td class="px-4 py-2">
+ <i class="fas fa-caret-right expand-icon"></i>
+ </td>
+ <td class="px-4 py-2">
+ <i class="fas fa-microchip text-sm mr-2"></i>{{ device.class }}
+ </td>
+ <td class="px-4 py-2">{{ device.vendor_id }}</td>
+ <td class="px-4 py-2">{{ device.summary }}</td>
+ </tr>
+ {% if device.details %}
+ <tr class="pci-details hidden" data-parent="{{ loop.index0 }}">
+ <td colspan="4" class="px-4 py-3 bg-gray-50">
+ <div class="bg-white p-3 rounded-sm border border-gray-200">
+ <h4 class="text-xs font-semibold mb-2 text-gray-700">Details:</h4>
+ <pre class="text-xs whitespace-pre-wrap text-gray-900">{{ device.details | join('\n') }}</pre>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+ {% endfor %}
+ </tbody>
+ </table>
+ </div>
+ {% else %}
+ <p>No PCI device information available.</p>
+ {% endif %}
+ </div>
+</div>
+
+<script>
+ (() => {
+ const filterInput = document.getElementById('pci-filter');
+ const filterClass = document.getElementById('filter-class');
+ const filterVendor = document.getElementById('filter-vendor');
+ const devicesContainer = document.getElementById('pci-devices-container');
+ const countDisplay = document.getElementById('pci-count');
+
+ // Handle row click to expand/collapse details
+ devicesContainer.querySelectorAll('.pci-device').forEach(row => {
+ row.addEventListener('click', function() {
+ const index = this.dataset.index;
+ const detailsRow = document.querySelector(`.pci-details[data-parent="${index}"]`);
+ const icon = this.querySelector('.expand-icon');
+
+ if (detailsRow) {
+ const isHidden = detailsRow.classList.contains('hidden');
+ detailsRow.classList.toggle('hidden');
+ icon.classList.toggle('fa-caret-right', !isHidden);
+ icon.classList.toggle('fa-caret-down', isHidden);
+ }
+ });
+ });
+
+ function updateCount() {
+ const allDevices = devicesContainer.querySelectorAll('.pci-device');
+ const visibleDevices = [...allDevices].filter(d => !d.hasAttribute('hidden'));
+ countDisplay.textContent = `Showing ${visibleDevices.length} of ${allDevices.length} PCI devices`;
+ }
+
+ function filterDevices() {
+ const classVal = filterClass.value.toLowerCase();
+ const vendorVal = filterVendor.value.toLowerCase();
+ const query = filterInput.value.trim();
+ let regex = null;
+
+ if (query.length > 0) {
+ try {
+ regex = new RegExp(query, 'i');
+ } catch (e) {
+ regex = null;
+ }
+ }
+
+ const allDevices = devicesContainer.querySelectorAll('.pci-device');
+
+ allDevices.forEach(device => {
+ const index = device.dataset.index;
+ const detailsRow = document.querySelector(`.pci-details[data-parent="${index}"]`);
+ const summaryText = device.cells[3].textContent;
+ const detailsText = detailsRow ? detailsRow.textContent : '';
+ const classText = device.dataset.class;
+ const vendorText = device.dataset.vendor;
+
+ let matchesText = regex
+ ? (regex.test(summaryText) || regex.test(detailsText))
+ : (summaryText.toLowerCase().includes(query.toLowerCase()) || detailsText.toLowerCase().includes(query.toLowerCase()));
+
+ let matchesClass = !classVal || classText === classVal;
+ let matchesVendor = !vendorVal || vendorText === vendorVal;
+
+ if (matchesText && matchesClass && matchesVendor) {
+ device.removeAttribute('hidden');
+ if (detailsRow && !detailsRow.classList.contains('hidden')) {
+ detailsRow.removeAttribute('hidden');
+ }
+ } else {
+ device.setAttribute('hidden', '');
+ if (detailsRow) {
+ detailsRow.setAttribute('hidden', '');
+ }
+ }
+ });
+
+ updateCount();
+ }
+
+ filterInput.addEventListener('input', filterDevices);
+ filterClass.addEventListener('change', filterDevices);
+ filterVendor.addEventListener('change', filterDevices);
+
+ updateCount();
+ })();
+</script>

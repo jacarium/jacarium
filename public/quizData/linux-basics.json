@@ -1,0 +1,486 @@
+{
+  "title": "Linux Basics",
+  "description": "Advanced Linux commands and concepts",
+  "questions": [
+    {
+      "id": "linux-1",
+      "question": "What system call creates a new process in Linux?",
+      "answer": "fork",
+      "hints": [
+        "It duplicates the calling process",
+        "Returns twice - in parent and child",
+        "It's a 4-letter word"
+      ],
+      "category": "processes",
+      "difficulty": 100
+    },
+    {
+      "id": "linux-2",
+      "question": "What file contains the kernel ring buffer messages?",
+      "answer": "/var/log/dmesg",
+      "hints": [
+        "Located in /var/log",
+        "Shows kernel boot messages",
+        "Command 'dmesg' reads this"
+      ],
+      "category": "logging",
+      "difficulty": 100
+    },
+    {
+      "id": "linux-3",
+      "question": "Which signal cannot be caught or ignored?",
+      "answer": "SIGKILL",
+      "hints": [
+        "Signal number 9",
+        "Forces immediate termination",
+        "Often used as 'kill -9'"
+      ],
+      "category": "signals",
+      "difficulty": 100
+    },
+    {
+      "id": "linux-4",
+      "question": "What capability allows binding to privileged ports without root?",
+      "answer": "CAP_NET_BIND_SERVICE",
+      "hints": [
+        "Starts with CAP_NET",
+        "Relates to network service binding",
+        "Allows ports below 1024"
+      ],
+      "category": "security",
+      "difficulty": 100
+    },
+    {
+      "id": "linux-5",
+      "question": "What file descriptor number is stderr?",
+      "answer": "2",
+      "hints": [
+        "It's a single digit",
+        "Greater than stdout (1)",
+        "Used for error output"
+      ],
+      "category": "io",
+      "difficulty": 100
+    },
+    {
+      "id": "linux-6",
+      "question": "What systemd command reloads service configuration without restart?",
+      "answer": "systemctl reload",
+      "hints": [
+        "Uses systemctl",
+        "Sends SIGHUP to service",
+        "Doesn't restart the service"
+      ],
+      "category": "systemd",
+      "difficulty": 100
+    },
+    {
+      "id": "linux-7",
+      "question": "What command shows inode usage per filesystem?",
+      "answer": "df -i",
+      "hints": [
+        "Uses df command",
+        "Single letter flag",
+        "The flag stands for 'inodes'"
+      ],
+      "category": "filesystem",
+      "difficulty": 100
+    },
+    {
+      "id": "linux-8",
+      "question": "What /proc file shows process memory maps?",
+      "answer": "/proc/[pid]/maps",
+      "hints": [
+        "In /proc/[pid] directory",
+        "Shows virtual memory layout",
+        "Filename is 'maps'"
+      ],
+      "category": "memory",
+      "difficulty": 100
+    },
+    {
+      "id": "linux-9",
+      "question": "What sed flag enables in-place file editing?",
+      "answer": "-i",
+      "hints": [
+        "Single letter flag",
+        "Modifies file directly",
+        "Stands for 'in-place'"
+      ],
+      "category": "text-processing",
+      "difficulty": 200
+    },
+    {
+      "id": "linux-10",
+      "question": "What awk built-in variable holds the field separator?",
+      "answer": "FS",
+      "hints": [
+        "Two uppercase letters",
+        "Stands for Field Separator",
+        "Default is whitespace"
+      ],
+      "category": "awk",
+      "difficulty": 200
+    },
+    {
+      "id": "linux-11",
+      "question": "What command shows open files by a process?",
+      "answer": "lsof",
+      "hints": [
+        "4 letters",
+        "Stands for 'list open files'",
+        "Can filter by PID with -p"
+      ],
+      "category": "debugging",
+      "difficulty": 200
+    },
+    {
+      "id": "linux-12",
+      "question": "What strace flag follows child processes?",
+      "answer": "-f",
+      "hints": [
+        "Single letter flag",
+        "Traces fork() children",
+        "Stands for 'follow'"
+      ],
+      "category": "debugging",
+      "difficulty": 200
+    },
+    {
+      "id": "linux-13",
+      "question": "What is the default niceness value for new processes?",
+      "answer": "0",
+      "hints": [
+        "Single digit",
+        "Neither positive nor negative",
+        "Normal priority level"
+      ],
+      "category": "scheduling",
+      "difficulty": 200
+    },
+    {
+      "id": "linux-14",
+      "question": "What filesystem is used for kernel/process information?",
+      "answer": "proc",
+      "hints": [
+        "Mounted at /proc",
+        "Virtual filesystem",
+        "4 letters"
+      ],
+      "category": "filesystem",
+      "difficulty": 200
+    },
+    {
+      "id": "linux-15",
+      "question": "What tar flag preserves file permissions and ownership?",
+      "answer": "-p",
+      "hints": [
+        "Single letter",
+        "Stands for 'preserve'",
+        "Keeps original attributes"
+      ],
+      "category": "archiving",
+      "difficulty": 200
+    },
+    {
+      "id": "linux-16",
+      "question": "What sysctl parameter controls IP forwarding?",
+      "answer": "net.ipv4.ip_forward",
+      "hints": [
+        "Starts with net.ipv4",
+        "Enables routing between interfaces",
+        "Set to 1 to enable"
+      ],
+      "category": "networking",
+      "difficulty": 200
+    },
+    {
+      "id": "linux-17",
+      "question": "What command shows SELinux context of files?",
+      "answer": "ls -Z",
+      "hints": [
+        "Uses ls command",
+        "Single letter flag",
+        "Z for SELinux context"
+      ],
+      "category": "security",
+      "difficulty": 300
+    },
+    {
+      "id": "linux-18",
+      "question": "What file stores user password hashes?",
+      "answer": "/etc/shadow",
+      "hints": [
+        "In /etc directory",
+        "Readable only by root",
+        "Filename suggests hidden/dark"
+      ],
+      "category": "security",
+      "difficulty": 300
+    },
+    {
+      "id": "linux-19",
+      "question": "What find flag executes a command on each match?",
+      "answer": "-exec",
+      "hints": [
+        "Starts with dash",
+        "Short for 'execute'",
+        "Requires {} and \\; syntax"
+      ],
+      "category": "file-search",
+      "difficulty": 300
+    },
+    {
+      "id": "linux-20",
+      "question": "What rsync flag preserves almost everything?",
+      "answer": "-a",
+      "hints": [
+        "Single letter",
+        "Stands for 'archive'",
+        "Equivalent to -rlptgoD"
+      ],
+      "category": "file-transfer",
+      "difficulty": 300
+    },
+    {
+      "id": "linux-21",
+      "question": "What command shows network socket statistics?",
+      "answer": "ss",
+      "hints": [
+        "2 letters",
+        "Modern replacement for netstat",
+        "Stands for 'socket statistics'"
+      ],
+      "category": "networking",
+      "difficulty": 300
+    },
+    {
+      "id": "linux-22",
+      "question": "What ulimit flag sets max open files?",
+      "answer": "-n",
+      "hints": [
+        "Single letter",
+        "Stands for 'number of files'",
+        "Default often 1024"
+      ],
+      "category": "limits",
+      "difficulty": 300
+    },
+    {
+      "id": "linux-23",
+      "question": "What grep flag shows context lines after match?",
+      "answer": "-A",
+      "hints": [
+        "Single uppercase letter",
+        "Stands for 'after'",
+        "Requires a number argument"
+      ],
+      "category": "text-search",
+      "difficulty": 300
+    },
+    {
+      "id": "linux-24",
+      "question": "What environment variable sets the editor for crontab?",
+      "answer": "VISUAL",
+      "hints": [
+        "Alternative to EDITOR",
+        "6 letters",
+        "Used by many command-line tools"
+      ],
+      "category": "environment",
+      "difficulty": 300
+    },
+    {
+      "id": "linux-25",
+      "question": "What iotop flag shows only processes doing I/O?",
+      "answer": "-o",
+      "hints": [
+        "Single letter",
+        "Filters out idle processes",
+        "Stands for 'only'"
+      ],
+      "category": "monitoring",
+      "difficulty": 400
+    },
+    {
+      "id": "linux-26",
+      "question": "What journalctl flag follows logs in real-time?",
+      "answer": "-f",
+      "hints": [
+        "Single letter",
+        "Similar to tail -f",
+        "Stands for 'follow'"
+      ],
+      "category": "logging",
+      "difficulty": 400
+    },
+    {
+      "id": "linux-27",
+      "question": "What chmod symbolic permission removes execute for all?",
+      "answer": "a-x",
+      "hints": [
+        "Uses 'a' for all users",
+        "Minus sign removes permission",
+        "x for execute"
+      ],
+      "category": "permissions",
+      "difficulty": 400
+    },
+    {
+      "id": "linux-28",
+      "question": "What file contains DNS server addresses?",
+      "answer": "/etc/resolv.conf",
+      "hints": [
+        "In /etc directory",
+        "Used for name resolution",
+        "Contains 'nameserver' entries"
+      ],
+      "category": "networking",
+      "difficulty": 400
+    },
+    {
+      "id": "linux-29",
+      "question": "What perf command records system-wide performance data?",
+      "answer": "perf record",
+      "hints": [
+        "Uses perf tool",
+        "Captures profiling data",
+        "Creates perf.data file"
+      ],
+      "category": "performance",
+      "difficulty": 400
+    },
+    {
+      "id": "linux-30",
+      "question": "What cron time format runs every 15 minutes?",
+      "answer": "*/15 * * * *",
+      "hints": [
+        "Uses division syntax",
+        "First field is minutes",
+        "Divides 60 by 15"
+      ],
+      "category": "scheduling",
+      "difficulty": 400
+    },
+    {
+      "id": "linux-31",
+      "question": "What xargs flag runs commands in parallel?",
+      "answer": "-P",
+      "hints": [
+        "Uppercase letter",
+        "Stands for 'parallel'",
+        "Requires number of processes"
+      ],
+      "category": "command-execution",
+      "difficulty": 400
+    },
+    {
+      "id": "linux-32",
+      "question": "What namespace isolates process IDs?",
+      "answer": "pid",
+      "hints": [
+        "3 letters",
+        "Used by containers",
+        "Allows PID 1 inside namespace"
+      ],
+      "category": "containers",
+      "difficulty": 400
+    },
+    {
+      "id": "linux-33",
+      "question": "What dd flag syncs writes before completion?",
+      "answer": "conv=fsync",
+      "hints": [
+        "Uses conv= parameter",
+        "Forces filesystem sync",
+        "Ensures data is written"
+      ],
+      "category": "disk-io",
+      "difficulty": 500
+    },
+    {
+      "id": "linux-34",
+      "question": "What netstat flag shows numeric addresses without DNS?",
+      "answer": "-n",
+      "hints": [
+        "Single letter",
+        "Faster than default",
+        "Stands for 'numeric'"
+      ],
+      "category": "networking",
+      "difficulty": 500
+    },
+    {
+      "id": "linux-35",
+      "question": "What file controls kernel parameters at boot?",
+      "answer": "/etc/sysctl.conf",
+      "hints": [
+        "In /etc directory",
+        "Used by sysctl",
+        "Loaded at system startup"
+      ],
+      "category": "kernel",
+      "difficulty": 500
+    },
+    {
+      "id": "linux-36",
+      "question": "What tcpdump flag writes packets to file?",
+      "answer": "-w",
+      "hints": [
+        "Single letter",
+        "Stands for 'write'",
+        "Creates pcap file"
+      ],
+      "category": "network-analysis",
+      "difficulty": 500
+    },
+    {
+      "id": "linux-37",
+      "question": "What mount option makes filesystem read-only?",
+      "answer": "ro",
+      "hints": [
+        "2 letters",
+        "Opposite of 'rw'",
+        "Stands for 'read-only'"
+      ],
+      "category": "filesystem",
+      "difficulty": 500
+    },
+    {
+      "id": "linux-38",
+      "question": "What at command lists scheduled jobs?",
+      "answer": "atq",
+      "hints": [
+        "3 letters",
+        "q stands for 'queue'",
+        "Shows pending at jobs"
+      ],
+      "category": "scheduling",
+      "difficulty": 500
+    },
+    {
+      "id": "linux-39",
+      "question": "What lsblk flag shows filesystem types?",
+      "answer": "-f",
+      "hints": [
+        "Single letter",
+        "Shows ext4, xfs, etc",
+        "Stands for 'filesystem'"
+      ],
+      "category": "block-devices",
+      "difficulty": 500
+    },
+    {
+      "id": "linux-40",
+      "question": "What signal gracefully shuts down a daemon?",
+      "answer": "SIGTERM",
+      "hints": [
+        "Signal number 15",
+        "Can be caught for cleanup",
+        "Default signal for kill command"
+      ],
+      "category": "signals",
+      "difficulty": 500
+    }
+  ]
+}

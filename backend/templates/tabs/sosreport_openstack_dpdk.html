@@ -1,0 +1,1288 @@
+{% set numa_colors = [
+'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100',
+'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100',
+'bg-yellow-200 dark:bg-yellow-900/30 text-yellow-900 dark:text-yellow-200',
+'bg-red-200 dark:bg-red-900/30 text-red-900 dark:text-red-200',
+'bg-purple-200 dark:bg-purple-900/30 text-purple-900 dark:text-purple-200',
+'bg-pink-200 dark:bg-pink-900/30 text-pink-900 dark:text-pink-200',
+'bg-indigo-200 dark:bg-indigo-900/30 text-indigo-900 dark:text-indigo-200',
+'bg-cyan-200 dark:bg-cyan-900/30 text-cyan-900 dark:text-cyan-200'
+] %}
+
+{% set cpu_to_numa_color = {} %}
+
+{% for cpu, topo in data.cpu_topology.items() %}
+ {% set node_id = topo.socket_id if 'socket_id' in topo else 0 %}
+ {% set color = numa_colors[node_id] if node_id < numa_colors|length else '' %}
+ {% set _ = cpu_to_numa_color.update({ cpu|string: color }) %}
+{% endfor %}
+
+
+<div class="space-y-4">
+ {% if not data.pmd_stats and not data.ovs_config %}
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-base font-medium mb-1">
+ <i class="fas fa-info-circle mr-2"></i> DPDK data not available in this report
+ </h3>
+ <p class="text-sm text-gray-500">No Open vSwitch / DPDK captures (ovs-appctl dpif-netdev/pmd-stats-show, Open_vSwitch other_config) were found. The host details below are shown for reference.</p>
+ </div>
+ {% endif %}
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+ <div class="flex flex-col gap-4">
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-base font-medium mb-2">
+ <i class="fas fa-desktop mr-2"></i> Host Info
+ </h3>
+ <ul class="space-y-1 text-sm">
+ <li><strong>Hostname:</strong> {{ data.hostnamectl['Static hostname'] or"N/A" }}</li>
+ <li><strong>OS:</strong> {{ data.hostnamectl['Operating System'] or"N/A" }}</li>
+ <li><strong>Kernel:</strong> {{ data.hostnamectl['Kernel'] or"N/A" }}</li>
+ <li><strong>Arch:</strong> {{ data.hostnamectl['Architecture'] or"N/A" }}</li>
+ </ul>
+ </div>
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-base font-medium mb-2">
+ <i class="fas fa-microchip mr-2"></i> CPU
+ </h3>
+ <ul class="space-y-1 text-sm">
+ <li><strong>Model:</strong> {{ data.cpuinfo['Model name'] or"N/A" }}</li>
+ <li><strong>CPU(s):</strong> {{ data.cpuinfo['CPU(s)'] or"N/A" }}</li>
+ <li><strong>Vendor:</strong> {{ data.cpuinfo['Vendor ID'] or"N/A" }}</li>
+ <li><strong>Threads/Core:</strong> {{ data.cpuinfo['Thread(s) per core'] or"N/A" }}</li>
+ <li><strong>Cores/Socket:</strong> {{ data.cpuinfo['Core(s) per socket'] or"N/A" }}</li>
+ <li><strong>Sockets:</strong> {{ data.cpuinfo['Socket(s)'] or"N/A" }}</li>
+ </ul>
+ </div>
+ </div>
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-base font-medium mb-2">
+ <i class="fas fa-microchip mr-2"></i> Physnet NUMA Nodes
+ </h3>
+ {% if data.physnets %}
+ <p class="text-sm mb-2">NUMA nodes associated with physical networks:</p>
+ <ul class="space-y-1 text-sm mb-3">
+ {% for name, numa in data.physnets.items() %}
+ <li><strong>{{ name }}:</strong> {{ numa.numa_nodes | join(', ') }}</li>
+ {% endfor %}
+ </ul>
+ {% else %}
+ <div class="text-center py-8">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
+ <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No physnet NUMA nodes found</div>
+ </div>
+ {% endif %}
+ </div>
+ </div>
+
+ {% if data.cpuinfo['NUMA node(s)'] %}
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-base font-medium mb-3">
+ <i class="fas fa-plug mr-2"></i> NUMA Nodes
+ </h3>
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+ {% for i in range(0, 4) %}
+ {% set node_cpus = data.cpuinfo['NUMA node' ~ i ~ ' CPU(s) (parsed)'] %}
+ {% if node_cpus %}
+ <div class="text-sm">
+ <strong class="block mb-2">NUMA Node {{ i }}:</strong>
+ <div class="flex gap-4">
+ {% set rows_per_column = 17 %}
+ {% set num_columns = ((node_cpus|length - 1) // rows_per_column) + 1 %}
+ {% for col in range(num_columns) %}
+ <div class="flex flex-col gap-2">
+ {% for row in range(rows_per_column) %}
+ {% set idx = col * rows_per_column + row %}
+ {% if idx < node_cpus|length %}
+ {% set cpu_id = node_cpus[idx] %}
+ {% if cpu_id in data.cpu_topology %}
+ {% set topo = data.cpu_topology[cpu_id] %}
+ <span
+ class="cpu-badge {{ cpu_to_numa_color[cpu_id|string] or '' }} text-xs font-mono px-2 py-0.5 rounded-sm text-center whitespace-nowrap transition-all duration-300"
+ data-cpu-id="{{ cpu_id }}"
+ data-siblings="{{ topo.siblings|join(',') }}"
+ title="Socket {{ topo.socket_id }}, Core {{ topo.core_id }}, Siblings: {{ topo.siblings|join(', ') }}">
+ {{ cpu_id }} (S:{{ topo.socket_id }} C:{{ topo.core_id }})
+ </span>
+ {% else %}
+ {# /proc/cpuinfo had no core/socket ids for this CPU (or was not collected) #}
+ <span class="cpu-badge text-xs font-mono px-2 py-0.5 rounded-sm text-center whitespace-nowrap" data-cpu-id="{{ cpu_id }}">{{ cpu_id }}</span>
+ {% endif %}
+ {% endif %}
+ {% endfor %}
+ </div>
+ {% endfor %}
+ </div>
+ </div>
+ {% endif %}
+ {% endfor %}
+ </div>
+ </div>
+ {% endif %}
+
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+ <div class="panel rounded-lg shadow-sm text-sm">
+ <header class="mb-4">
+ <h3 class="text-base font-semibold flex items-center">
+ <i class="fas fa-clipboard-check"></i>
+ Memory Validation Results
+ </h3>
+ </header>
+
+ <section class="mb-6">
+ <h4 class="font-semibold mb-1">OvsDpdkMemoryChannels</h4>
+ <p class="mb-2">
+ Maps memory channels in the CPU per NUMA node.
+ </p>
+ <ul class="list-disc list-inside mb-2 space-y-1">
+ <li>Number of populated memory channels per CPU.</li>
+ </ul>
+ <div>
+ <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-sm px-2 py-1 font-mono text-xs">
+ <strong>dpdk-extra:</strong> {{ data.ovs_config['dpdk-extra'] or"N/A" }}
+ </code>
+ </div>
+ </section>
+
+ <section class="mb-6">
+ <h4 class="font-semibold mb-1">OvsDpdkSocketMemory</h4>
+ <p class="mb-2">
+ Specifies the amount of memory in MB to pre-allocate from the hugepage pool, per NUMA node.
+ </p>
+ <ul class="list-disc list-inside mb-2 space-y-1">
+ <li>Provide as a comma-separated list.</li>
+ <li>For a NUMA node without a DPDK NIC, use the static recommendation of 1024 MB (1GB).</li>
+ <li>Calculate the <strong>OvsDpdkSocketMemory</strong> value from the MTU value of each NIC on the NUMA node.</li>
+ </ul>
+ <div>
+ <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-sm px-2 py-1 font-mono text-xs">
+ <strong>dpdk-socket-mem:</strong> {{ data.ovs_config['dpdk-socket-mem'] or"N/A" }}
+ </code>
+ </div>
+ </section>
+
+ <section class="space-y-3">
+ <div class="flex flex-col gap-2 max-w-xs">
+ <label class="flex items-center justify-between">
+ <span>MTU Interface 1:</span>
+ <input
+ id="mtu1"
+ type="number"
+ min="0"
+ placeholder="9000"
+ class="w-24 rounded-sm bg-white text-gray-900 border border-gray-300 dark:border-gray-600 px-2 py-1 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+ />
+ </label>
+
+ <label class="flex items-center justify-between">
+ <span>MTU Interface 2:</span>
+ <input
+ id="mtu2"
+ type="number"
+ min="0"
+ placeholder="9000"
+ class="w-24 rounded-sm bg-white text-gray-900 border border-gray-300 dark:border-gray-600 px-2 py-1 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+ />
+ </label>
+ </div>
+
+ <button
+ id="calculate-btn"
+ class="px-4 py-2 rounded-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+ >
+ Calculate Recommended Memory
+ </button>
+
+ <p id="result" class="mt-2 font-mono text-xs"></p>
+ </section>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm text-sm wrap-break-word">
+ <header class="mb-5">
+ <h3 class="text-base font-semibold flex items-center">
+ <i class="fas fa-clipboard-check"></i>
+ CPU Validation Results
+ </h3>
+ </header>
+
+ <ul class="space-y-6">
+ <li>
+ <h4 class="font-semibold mb-2">IsolCpusList</h4>
+ <p class="mb-2">
+ The <strong>IsolCpusList</strong> must match the list of cores in <strong>OvsPmdCoreList</strong> and <strong>NovaComputeCpuDedicatedSet</strong>.
+ </p>
+ <p class="mb-3">
+ A set of CPU cores isolated from the host processes. <strong>IsolCpusList</strong> is the <strong>isolated_cores</strong> value in the <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">cpu-partitioning-variable.conf</code> file for the <strong>tuned-profiles-cpu-partitioning</strong> component.
+ </p>
+
+ {% if data.cmdline['isolcpus'] %}
+ <div class="flex flex-wrap gap-1">
+ {% for cpu in data.cmdline['isolcpus.expanded'] %}
+ {% set topo = data.cpu_topology.get(cpu, {}) %}
+ <span class="cpu-badge {{ cpu_to_numa_color[cpu|string] or '' }} text-xs font-mono px-2 py-0.5 rounded-sm transition-all duration-300"
+ data-cpu-id="{{ cpu }}"
+ data-siblings="{{ topo.get('siblings', [])|join(',') }}">
+ {{ cpu }}
+ </span>
+ {% endfor %}
+ </div>
+ {% else %}
+ <div class="text-center py-8">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
+ <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No data found in this section</div>
+ </div>
+ {% endif %}
+ </li>
+
+ <li>
+ <h4 class="font-semibold mb-2">OvsPmdCoreList</h4>
+ <p class="mb-3">
+ Provides the CPU cores used for the DPDK poll mode drivers (PMD). Choose CPU cores associated with the local NUMA nodes of the DPDK interfaces.
+ </p>
+ <ul class="list-disc list-inside space-y-1 mb-3 text-sm">
+ <li>Pair the sibling threads together.</li>
+ <li>Performance depends on the number of physical cores allocated for this PMD Core list. On the NUMA node associated with DPDK NIC, allocate the required cores.</li>
+ <li>For NUMA nodes with a DPDK NIC, determine physical core requirements based on performance, including all sibling threads (logical CPUs) for each physical core.</li>
+ <li>For NUMA nodes without DPDK NICs, allocate sibling threads or logical CPUs of any physical core except the first physical core of the NUMA node.</li>
+ <li>Note: Reserve DPDK PMD threads on both NUMA nodes, even if a NUMA node does not have an associated DPDK NIC.</li>
+ </ul>
+ {% if data.ovs_config['pmd-cpu-mask'] %}
+ <div class="flex flex-wrap gap-1">
+ {% for cpu in data.ovs_config['pmd-cpu-mask']['cpus'] %}
+ {% set topo = data.cpu_topology.get(cpu, {}) %}
+ <span class="cpu-badge {{ cpu_to_numa_color[cpu|string] or '' }} text-xs font-mono px-2 py-0.5 rounded-sm transition-all duration-300"
+ data-cpu-id="{{ cpu }}"
+ data-siblings="{{ topo.get('siblings', [])|join(',') }}">
+ {{ cpu }}
+ </span>
+ {% endfor %}
+ </div>
+ {% else %}
+ <div class="text-center py-8">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
+ <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No data found in this section</div>
+ </div>
+ {% endif %}
+ </li>
+
+ <li>
+ <h4 class="font-semibold mb-2">NovaComputeCpuDedicatedSet</h4>
+ <p class="mb-2">
+ The <strong>NovaComputeCpuDedicatedSet</strong> must exclude all cores from the <strong>OvsPmdCoreList</strong>.
+ </p>
+ <p class="mb-3">
+ A comma-separated list or range of physical host CPU numbers to which processes for pinned instance CPUs can be scheduled.
+ </p>
+ <ul class="list-disc list-inside space-y-1 mb-3">
+ <li>Exclude all cores from the OvsPmdCoreList.</li>
+ <li>Include all remaining cores.</li>
+ <li>Pair the sibling threads together.</li>
+ </ul>
+
+ {% if data.nova_cpu_sets['cpu_dedicated_set'] %}
+ <div class="flex flex-wrap gap-1">
+ {% for cpu in data.nova_cpu_sets['cpu_dedicated_set'] %}
+ {% set topo = data.cpu_topology.get(cpu, {}) %}
+ <span class="cpu-badge {{ cpu_to_numa_color[cpu|string] or '' }} text-xs font-mono px-2 py-0.5 rounded-sm transition-all duration-300"
+ data-cpu-id="{{ cpu }}"
+ data-siblings="{{ topo.get('siblings', [])|join(',') }}">
+ {{ cpu }}
+ </span>
+ {% endfor %}
+ </div>
+ {% else %}
+ <div class="text-center py-8">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
+ <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No data found in this section</div>
+ </div>
+ {% endif %}
+ </li>
+
+ <li>
+ <h4 class="font-semibold mb-2">NovaComputeCpuSharedSet</h4>
+ <p class="mb-2">
+ The <strong>NovaComputeCpuSharedSet</strong> must be excluded from <strong>OvsPmdCoreList</strong> and <strong>IsolCpusList</strong>.
+ </p>
+ <p class="mb-3">
+ A comma-separated list or range of physical host CPU numbers used to determine the host CPUs for instance emulator threads.
+ </p>
+
+ {% if data.nova_cpu_sets['cpu_shared_set'] %}
+ <div class="flex flex-wrap gap-1">
+ {% for cpu in data.nova_cpu_sets['cpu_shared_set'] %}
+ {% set topo = data.cpu_topology.get(cpu, {}) %}
+ <span class="cpu-badge {{ cpu_to_numa_color[cpu|string] or '' }} text-xs font-mono px-2 py-0.5 rounded-sm transition-all duration-300"
+ data-cpu-id="{{ cpu }}"
+ data-siblings="{{ topo.get('siblings', [])|join(',') }}">
+ {{ cpu }}
+ </span>
+ {% endfor %}
+ </div>
+ {% else %}
+ <p >N/A</p>
+ {% endif %}
+ </li>
+ </ul>
+ </div>
+ </div>
+
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+ <div class="space-y-4">
+ <div class="panel rounded-lg shadow-sm text-xs">
+ <header class="mb-4">
+ <h3 class="text-base font-medium flex items-center">
+ <i class="fas fa-terminal"></i>
+ Kernel Boot Params
+ </h3>
+ </header>
+
+ <table class="w-full text-xs border-collapse mb-6">
+ <tbody>
+ {% if data.cmdline %}
+ {% for key, value in data.cmdline.items() %}
+ {% if key not in special_params %}
+ <tr class="border-b hover:bg-gray-50">
+ <td class="py-1 px-2 align-top font-semibold whitespace-nowrap">{{ key }}:</td>
+ <td class="py-1 px-2">{{ value or"N/A" }}</td>
+ </tr>
+ {% endif %}
+ {% endfor %}
+ {% else %}
+ <tr>
+ <td colspan="2">
+ <div class="text-center py-8">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
+ <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No kernel parameters found</div>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+ </tbody>
+ </table>
+
+ <ul class="space-y-3">
+ {% if data.cmdline %}
+ {% set special_params = ['isolcpus.expanded', 'nohz_full.expanded', 'rcu_nocbs.expanded', 'tuned.non_isolcpus.expanded'] %}
+ {% for param in special_params %}
+ <li>
+ <strong>{{ param }}:</strong>
+ {% if data.cmdline[param] %}
+ <div class="mt-1 flex flex-wrap gap-1">
+ {% for cpu in data.cmdline[param] %}
+ {% set topo = data.cpu_topology.get(cpu, {}) %}
+ <span class="cpu-badge {{ cpu_to_numa_color[cpu|string] or '' }} px-1.5 py-0.5 rounded-sm font-mono text-[11px] transition-all duration-300"
+ data-cpu-id="{{ cpu }}"
+ data-siblings="{{ topo.get('siblings', [])|join(',') }}">
+ {{ cpu }}
+ </span>
+ {% endfor %}
+ </div>
+ {% else %}
+ <span class="ml-1">N/A</span>
+ {% endif %}
+ </li>
+ {% endfor %}
+ {% else %}
+ <div class="text-center py-8">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
+ <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No configuration found</div>
+ </div>
+ {% endif %}
+ </ul>
+ </div>
+ <div class="panel rounded-lg shadow-sm text-xs wrap-break-word">
+ <header class="mb-4">
+ <h3 class="text-base font-medium flex items-center">
+ <i class="fas fa-cogs"></i>
+ OVS DPDK
+ </h3>
+ </header>
+
+ <ul class="space-y-2">
+ {% if data.ovs_config %}
+ {% for key, value in data.ovs_config.items() %}
+ <li>
+ <strong>{{ key }}:</strong>
+ {# Handle 'pmd-cpu-mask' specially to show hex and CPUs #}
+ {% if key == 'pmd-cpu-mask' %}
+ {{ value.get('hex',"N/A") }}
+ <div class="mt-2 flex flex-wrap gap-1">
+ {% for cpu in value.get('cpus', []) %}
+ {% set topo = data.cpu_topology.get(cpu, {}) %}
+ <span class="cpu-badge {{ cpu_to_numa_color[cpu|string] or '' }} font-mono text-xs px-2 py-0.5 rounded-sm transition-all duration-300"
+ data-cpu-id="{{ cpu }}"
+ data-siblings="{{ topo.get('siblings', [])|join(',') }}">
+ {{ cpu }}
+ </span>
+ {% endfor %}
+ {% if not value.get('cpus') %}
+ <span class="text-sm">N/A</span>
+ {% endif %}
+ </div>
+ {% else %}
+ {{ value or"N/A" }}
+ {% endif %}
+ </li>
+ {% endfor %}
+ {% else %}
+ <li>
+ <div class="text-center py-8">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
+ <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No OVS DPDK configuration found</div>
+ </div>
+ </li>
+ {% endif %}
+ </ul>
+ </div>
+ </div>
+ <div class="panel rounded-lg shadow-sm text-sm">
+ <header class="mb-4">
+ <h3 class="text-base font-medium flex items-center">
+ <i class="fas fa-network-wired"></i>
+ OVS-DPDK Troubleshooting
+ </h3>
+ </header>
+
+ <section class="mb-6">
+ <h3 class="text-base font-medium mb-2 flex items-center">
+ <i class="fas fa-tools"></i>
+ Troubleshooting Steps
+ </h3>
+ <div class="space-y-2">
+ <details class="rounded-lg p-3 bg-white border border-gray-200 mb-2">
+ <summary class="cursor-pointer font-semibold">Optimizing Memory Channels</summary>
+ <ul class="list-decimal list-inside mt-2 space-y-1">
+ <li>Identify the CPU model and the number of CPUs installed.</li>
+ <li>Determine how many memory channels each CPU has.</li>
+ <li>Navigate to <strong>System → System Information</strong> to check RAM DIMMs and slots.</li>
+ <li>Refer to hardware memory guidelines to map slots to channels.</li>
+ <li>Set <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">dpdk-extra: -n N</code>, where <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">N</code> is number of channels with installed DIMM.</li>
+ </ul>
+ </details>
+
+ <details class="rounded-lg p-3 bg-white border border-gray-200 mb-2">
+ <summary class="cursor-pointer font-semibold">MTU-Based Memory Estimation</summary>
+ <ol class="list-decimal list-inside mt-2 space-y-1">
+ <li>Round MTU of each NIC on a NUMA node to nearest 1024.</li>
+ <li>Formula: <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">(ROUNDUP_MTU + 800) * (4096 * 64)</code> bytes.</li>
+ <li>Calculate per NIC: <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">(9216 + 800) * (4096 * 64)</code> = <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">2625634304</code> bytes.</li>
+ <li>Total with buffer: <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">2625634304 + 2625634304 + 536870912</code> = <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">5788139520</code> bytes.</li>
+ <li>Convert to MB: <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">5788139520 / (1024 * 1024) = 5520</code> MB → Round to <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">6144</code> MB.</li>
+ <li>Final config: <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">dpdk-socket-mem: 1024,6144</code> (use <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">1024</code> for NUMA Node with no NIC).</li>
+ </ol>
+ </details>
+
+ <details class="rounded-lg p-3 bg-white border border-gray-200 mb-2">
+ <summary class="cursor-pointer font-semibold">Adjusting MBUF Size</summary>
+ <ul class="list-decimal list-inside mt-2 space-y-1">
+ <li>Default mbuf size is <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">4096 * 64</code> — per NUMA node.</li>
+ <li>Run: <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">ovs-vsctl list interface dpdk1</code> where <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">dpdk1</code> is your NIC interface.</li>
+ <li>If <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">rx_mbuf_allocation_errors > 0</code>, increase <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">4096 * 64</code> in your MTU-Based Memory Estimation formula.</li>
+ </ul>
+ </details>
+
+ <details class="rounded-lg p-3 bg-white border border-gray-200 mb-2">
+ <summary class="cursor-pointer font-semibold">Verify RSS Load Distribution</summary>
+ <ul class="list-decimal list-inside mt-2 space-y-1">
+ <li>Run: <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">ovs-appctl dpif-netdev/pmd-rxq-show | egrep"pmd thread|dpdk"</code>.</li>
+ <li>Analyze PMD and NIC RXQ usage; spot underutilized ones.</li>
+ <li>Uneven spread? May relate to TCP/UDP header presence and traffic patterns.</li>
+ <li>Auto PMD rebalance may happen every few seconds >70% with 25% improvement.</li>
+ <li>The issue can be uneven RXQ traffic. Investigate traffic patterns.</li>
+ </ul>
+ </details>
+
+ <details class="rounded-lg p-3 bg-white border border-gray-200 mb-2">
+ <summary class="cursor-pointer font-semibold">Analyze EMC vs Megaflow Hits</summary>
+ <ul class="list-decimal list-inside mt-2 space-y-1">
+ <li>Clear stats: <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">ovs-appctl dpif-netdev/pmd-stats-clear</code>.</li>
+ <li>Inspect: <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">ovs-appctl dpif-netdev/pmd-stats-show</code>.</li>
+ <li>High EMC Hits → repetitive flows. Good for performance but can degrade if traffic changes.</li>
+ <li>High Megaflow Hits → >5120 unique flows overflown and performance can degrade.</li>
+ </ul>
+ </details>
+
+ <details class="rounded-lg p-3 bg-white border border-gray-200 mb-2">
+ <summary class="cursor-pointer font-semibold">PMD Thread Performance & Load</summary>
+ <ul class="list-decimal list-inside mt-2 space-y-1">
+ <li>Check stats: <code class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded-sm text-xs font-mono">ovs-appctl dpif-netdev/pmd-perf-show</code>.</li>
+ <li>Clear old stats if needed.</li>
+ <li>Review iterations: How active is each PMD thread?</li>
+ <li><strong>Busy 99%</strong> indicates over utilized PMDs.</li>
+ <li>Ensure a proper traffic pattern is used for testing.</li>
+ <li>More PMD threads don’t help if traffic isn't well-distributed.</li>
+ <li>Look for idle PMDs — consider adding NIC queues to them.</li>
+ <li>Look for EMC/Megaflow hit % and understand the traffic pattern.</li>
+ </ul>
+ </details>
+ </div>
+ </section>
+
+ <section class="mb-6">
+ <h3 class="text-base font-medium mb-2 flex items-center">
+ <i class="fas fa-bug"></i>
+ Common Issues & Checks
+ </h3>
+ <table class="min-w-full rounded-sm table-auto text-left text-sm">
+ <thead>
+ <tr class="border-b hover:bg-gray-50">
+ <th class="px-3 py-2">Issue</th>
+ <th class="px-3 py-2">What to Check</th>
+ </tr>
+ </thead>
+ <tbody>
+ <tr class="border-b hover:bg-gray-50">
+ <td class="px-3 py-2 font-medium">OVS-DPDK too slow to drain Physical NICs</td>
+ <td class="px-3 py-2">Check <strong>rx_dropped=0</strong> on <strong>dpdk0</strong>/<strong>dpdk1</strong>.</td>
+ </tr>
+ <tr class="border-b hover:bg-gray-50">
+ <td class="px-3 py-2 font-medium">VM too slow to drain vhost-user</td>
+ <td class="px-3 py-2">Check <strong>tx_dropped=0</strong> on <strong>vhost-user</strong> interface.</td>
+ </tr>
+ <tr class="border-b hover:bg-gray-50">
+ <td class="px-3 py-2 font-medium">OVS-DPDK too slow to drain vhost-user</td>
+ <td class="px-3 py-2">Check <strong>rx_dropped=0</strong> on <strong>vhost-user</strong> interface.</td>
+ </tr>
+ <tr class="border-b hover:bg-gray-50">
+ <td class="px-3 py-2 font-medium">PCIe ↔ RAM slow</td>
+ <td class="px-3 py-2">Misconfigured memory channels or PCIe x4? Check <strong>tx_dropped=0</strong> on <strong>dpdk0</strong>/<strong>dpdk1</strong>.</td>
+ </tr>
+ </tbody>
+ </table>
+ </section>
+
+ <section>
+ <h3 class="text-base font-medium mb-2 flex items-center">
+ <i class="fas fa-book"></i>
+ Resources
+ </h3>
+ <table class="min-w-full rounded-sm table-auto text-left text-sm">
+ <thead>
+ <tr class="border-b hover:bg-gray-50">
+ <th class="px-3 py-2">Links</th>
+ </tr>
+ </thead>
+ <tbody>
+ <tr class="border-b hover:bg-gray-50">
+ <td class="px-3 py-2 font-medium">
+ <a href="https://fast.dpdk.org/doc/perf/" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">DPDK NIC Performance Guide</a>
+ </td>
+ </tr>
+ <tr class="border-b hover:bg-gray-50">
+ <td class="px-3 py-2 font-medium">
+ <a href="https://www.dell.com/support/manuals/en-au/oth-r660/r660_ism_pub/system-memory-guidelines?guid=guid-5d549479-c3fa-47ca-9860-de5f2c0a2b34&lang=en-us" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">Dell R660 Product Memory Guidelines</a>
+ </td>
+ </tr>
+ </tbody>
+ </table>
+ </section>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-base font-medium mb-4">
+ <i class="fas fa-network-wired mr-2"></i> Open vSwitch Interfaces
+ </h3>
+ <input id="ovs-search" type="text" placeholder="Search OVS interfaces..." class="mb-3 p-2 w-full rounded-sm text-sm border border-gray-300 dark:border-gray-600 focus:outline-hidden focus:ring-2 focus:ring-blue-500" onkeyup="filterOvsTable()" />
+
+ <div class="flex justify-between items-center mb-2">
+ <div id="ovsCount" class="text-xs">Showing all interfaces</div>
+ <div class="flex items-center">
+ <label class="text-xs">Rows per page:</label>
+ <select id="ovsPageSize" onchange="changeOvsPageSize()" class="px-2 py-1 text-white text-xs rounded-md">
+ <option value="25">25</option>
+ <option value="50" selected>50</option>
+ <option value="100">100</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+
+ <div class="overflow-x-auto">
+
+ <table id="ovs-interface-table" class="min-w-full text-xs rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr class="text-left">
+ <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(0)">Name <i id="ovs-sort-0" class="fas text-sm ml-1"></i></th>
+ <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(1)">Type <i id="ovs-sort-1" class="fas text-sm ml-1"></i></th>
+ <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(2, true)">MTU <i id="ovs-sort-2" class="fas text-sm ml-1"></i></th>
+ <th class="px-2 py-2">MAC (ext)</th>
+ <th class="px-2 py-2">MAC (in use)</th>
+ <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(5)">Admin State <i id="ovs-sort-5" class="fas text-sm ml-1"></i></th>
+ <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(6)">Link State <i id="ovs-sort-6" class="fas text-sm ml-1"></i></th>
+ <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(7, true)">NUMA <i id="ovs-sort-7" class="fas text-sm ml-1"></i></th>
+ <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(8, true)">RX Packets <i id="ovs-sort-8" class="fas text-sm ml-1"></i></th>
+ <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(9, true)">TX Packets <i id="ovs-sort-9" class="fas text-sm ml-1"></i></th>
+ <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(10, true)">RX Drops <i id="ovs-sort-10" class="fas text-sm ml-1"></i></th>
+ <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(11, true)">TX Drops <i id="ovs-sort-11" class="fas text-sm ml-1"></i></th>
+ <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(12, true)">RX Errors <i id="ovs-sort-12" class="fas text-sm ml-1"></i></th>
+ <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(13, true)">RX Missed Errors <i id="ovs-sort-13" class="fas text-sm ml-1"></i></th>
+ <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(14, true)">OvS TX Retries <i id="ovs-sort-14" class="fas text-sm ml-1"></i></th>
+ </tr>
+ </thead>
+ <tbody>
+ {% if data.ovs_interfaces %}
+ {% for iface in data.ovs_interfaces %}
+ <tr class="border-b hover:bg-gray-50">
+ <td class="px-2 py-1">{{ iface['name'] }}</td>
+ <td class="px-2 py-1">{{ iface.get('type', 'N/A') }}</td>
+ <td class="px-2 py-1">{{ iface.get('mtu', 'N/A') }}</td>
+ <td class="px-2 py-1">{{ iface.get('external_ids', {}).get('mac', '—') }}</td>
+ <td class="px-2 py-1">{{ iface.get('mac_in_use', '—') }}</td>
+ <td class="px-2 py-1">{{ iface.get('admin_state', 'N/A') }}</td>
+ <td class="px-2 py-1">{{ iface.get('link_state', 'N/A') }}</td>
+ <td class="px-2 py-1">{{ iface.get('status', {}).get('numa', '—') }}</td>
+ <td class="px-2 py-1">{{ iface.get('statistics', {}).get('rx_packets', '0') }}</td>
+ <td class="px-2 py-1">{{ iface.get('statistics', {}).get('tx_packets', '0') }}</td>
+ <td class="px-2 py-1">{{ iface.get('statistics', {}).get('rx_dropped', '0') }}</td>
+ <td class="px-2 py-1">{{ iface.get('statistics', {}).get('tx_dropped', '0') }}</td>
+ <td class="px-2 py-1">{{ iface.get('statistics', {}).get('rx_errors', '0') }}</td>
+ <td class="px-2 py-1">{{ iface.get('statistics', {}).get('rx_missed_errors', '0') }}</td>
+ <td class="px-2 py-1">{{ iface.get('statistics', {}).get('ovs_tx_retries', '0') }}</td>
+ </tr>
+ {% endfor %}
+ {% else %}
+ <tr>
+ <td colspan="15">
+ <div class="text-center py-8">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
+ <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No interface data found</div>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+ </tbody>
+ </table>
+ <div id="ovsPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-base font-medium mb-4">
+ <i class="fas fa-microchip mr-2"></i> PMD Queue Statistics
+ </h3>
+
+ <input id="pmd-search" type="text" placeholder="Search PMD statistics..." class="mb-3 p-2 w-full rounded-sm text-sm border border-gray-300 dark:border-gray-600 focus:outline-hidden focus:ring-2 focus:ring-blue-500" onkeyup="filterPmdTable()" />
+
+ <div class="overflow-x-auto">
+ <table id="pmd-stats-table" class="min-w-full text-xs">
+ <thead>
+ <tr class="text-left border-b">
+ <th class="px-2 py-1">NUMA ID</th>
+ <th class="px-2 py-1">Core ID</th>
+ <th class="px-2 py-1">Packets</th>
+ <th class="px-2 py-1">Recirculations</th>
+ <th class="px-2 py-1">Idle Cycles</th>
+ <th class="px-2 py-1">Processing Cycles</th>
+ <th class="px-2 py-1">Avg Cycles/Pkt</th>
+ <th class="px-2 py-1">Avg Proc Cycles/Pkt</th>
+ <th class="px-2 py-1">pmd Overhead (%)</th>
+ <th class="px-2 py-1">EMC Hits</th>
+ <th class="px-2 py-1">SMC Hits</th>
+ <th class="px-2 py-1">Megaflow Hits</th>
+ <th class="px-2 py-1">Avg Subtable Lookups/Megaflow Hit</th>
+ <th class="px-2 py-1">Miss with Success Upcall</th>
+ <th class="px-2 py-1">Miss with Failed Upcall</th>
+ <th class="px-2 py-1">Avg Packets/Output Batch</th>
+ <th class="px-2 py-1">Port</th>
+ <th class="px-2 py-1">Queue ID</th>
+ <th class="px-2 py-1">Enabled</th>
+ <th class="px-2 py-1">PMD Usage %</th>
+ </tr>
+ </thead>
+
+ <tbody>
+ {% if data.pmd_stats %}
+ {% for pmd in data.pmd_stats %}
+ {% if pmd.ports %}
+ {% for port in pmd.ports %}
+ <tr class="border-b hover:bg-gray-50">
+ <td class="px-2 py-1">{{ pmd.get('numa_id', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('core_id', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('packets_received', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('packet_recirculations', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('idle_cycles') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('processing_cycles') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('avg_cycles_per_packet', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('avg_processing_cycles_per_packet', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('pmd_overhead', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('emc_hits', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('smc_hits', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('megaflow_hits', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('avg._subtable_lookups_per_megaflow_hit', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('miss_with_success_upcall', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('miss_with_failed_upcall', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('avg._packets_per_output_batch', '—') }}</td>
+ <td class="px-2 py-1 font-mono whitespace-nowrap">
+ {{ port.port }}
+ </td>
+ <td class="px-2 py-1 text-center">
+ {{ port.queue_id }}
+ </td>
+ <td class="px-2 py-1 text-center">
+ {{ 'Yes' if port.enabled else 'No' }}
+ </td>
+ <td class="px-2 py-1 text-right">
+ {{ port.pmd_usage_percent }}%
+ </td>
+ </tr>
+ {% endfor %}
+ {% else %}
+ <tr class="border-b hover:bg-gray-50">
+ <td class="px-2 py-1">{{ pmd.get('numa_id', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('core_id', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('packets_received', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('packet_recirculations', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('idle_cycles') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('processing_cycles') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('avg_cycles_per_packet', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('avg_processing_cycles_per_packet', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('pmd_overhead', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('emc_hits', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('smc_hits', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('megaflow_hits', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('avg._subtable_lookups_per_megaflow_hit', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('miss_with_success_upcall', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('miss_with_failed_upcall', '—') }}</td>
+ <td class="px-2 py-1">{{ pmd.get('avg._packets_per_output_batch', '—') }}</td>
+ <td class="px-2 py-1 text-center" colspan="4">&mdash;</td>
+ </tr>
+ {% endif %}
+ {% endfor %}
+ {% else %}
+ <tr>
+ <td colspan="22">
+ <div class="text-center py-8">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
+ <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No PMD queue statistics found</div>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+ </tbody>
+
+ </table>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-base font-medium mb-4">
+ <i class="fas fa-tachometer-alt mr-2"></i> PMD Thread Performance
+ </h3>
+ <p class="text-sm mb-2">
+ <strong>Note:</strong> Make sure to run the following command to clear statistics before performance testing.
+ </p>
+ <pre class="text-sm rounded-sm mb-2 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 p-2">ovs-appctl dpif-netdev/pmd-stats-clear</pre>
+
+ <input id="pmd-perf-search" type="text" placeholder="Search PMD performance..." class="mb-3 p-2 w-full rounded-sm text-sm border border-gray-300 dark:border-gray-600 focus:outline-hidden focus:ring-2 focus:ring-blue-500" onkeyup="filterPmdPerfTable()" />
+
+ <div class="overflow-x-auto">
+ <table id="pmd-perf-table" class="min-w-full text-xs">
+ <thead>
+ <tr class="text-left border-b">
+ <th class="px-2 py-1">NUMA ID</th>
+ <th class="px-2 py-1">Core ID</th>
+ <th class="px-2 py-1">Iterations</th>
+ <th class="px-2 py-1">Used TSC Cycles</th>
+ <th class="px-2 py-1">Idle Iterations</th>
+ <th class="px-2 py-1">Busy Iterations</th>
+ <th class="px-2 py-1">Rx Packets</th>
+ <th class="px-2 py-1">Tx Packets</th>
+ <th class="px-2 py-1">Tx Batches</th>
+ <th class="px-2 py-1">EMC Hits</th>
+ <th class="px-2 py-1">Megaflow Hits</th>
+ <th class="px-2 py-1">Upcalls</th>
+ <th class="px-2 py-1">Lost Upcalls</th>
+ </tr>
+ </thead>
+ <tbody>
+ {% if data.pmd_perf %}
+ {% for thread in data.pmd_perf %}
+ <tr class="border-b hover:bg-gray-50">
+ <td class="px-2 py-1">{{ thread.get('numa_id', '—') }}</td>
+ <td class="px-2 py-1">{{ thread.get('core_id', '—') }}</td>
+ <td class="px-2 py-1">{{ thread.get('iterations', '—') }}</td>
+ <td class="px-2 py-1">{{ thread.get('used_tsc_cycles', '—') }}</td>
+ <td class="px-2 py-1">{{ thread.get('idle_iterations', '—') }}</td>
+ <td class="px-2 py-1">{{ thread.get('busy_iterations', '—') }}</td>
+ <td class="px-2 py-1">{{ thread.get('rx_packets', '—') }}</td>
+ <td class="px-2 py-1">{{ thread.get('tx_packets', '—') }}</td>
+ <td class="px-2 py-1">{{ thread.get('tx_batches', '—') }}</td>
+ <td class="px-2 py-1">{{ thread.get('emc_hits', '—') }}</td>
+ <td class="px-2 py-1">{{ thread.get('megaflow_hits', '—') }}</td>
+ <td class="px-2 py-1">{{ thread.get('upcalls', '—') }}</td>
+ <td class="px-2 py-1">{{ thread.get('lost_upcalls', '—') }}</td>
+ </tr>
+ {% endfor %}
+ {% else %}
+ <tr>
+ <td colspan="13">
+ <div class="text-center py-8">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
+ <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No PMD thread performance data found</div>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+ </tbody>
+ </table>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-base font-medium mb-4">
+ <i class="fas fa-microchip mr-2"></i> Instances
+ </h3>
+
+ <input id="instance-search" type="text" placeholder="Search instances..." class="mb-3 p-2 w-full rounded-sm text-sm border border-gray-300 dark:border-gray-600 focus:outline-hidden focus:ring-2 focus:ring-blue-500" onkeyup="filterInstanceTable()" />
+
+ <div class="overflow-x-auto">
+ <table id="instance-table" class="min-w-full text-xs">
+ <thead>
+ <tr class="text-left border-b">
+ <th class="px-2 py-1">Name</th>
+ <th class="px-2 py-1">Flavor</th>
+ <th class="px-2 py-1">vCPUs</th>
+ <th class="px-2 py-1">RAM (MiB)</th>
+ <th class="px-2 py-1">Disk (GB)</th>
+ <th class="px-2 py-1">Created</th>
+ <th class="px-2 py-1">User</th>
+ <th class="px-2 py-1">Project</th>
+ <th class="px-2 py-1">Root Image</th>
+ <th class="px-2 py-1">Ports</th>
+ <th class="px-2 py-1">IPs</th>
+ <th class="px-2 py-1">Memory Total</th>
+ <th class="px-2 py-1">Memory Current</th>
+ <th class="px-2 py-1">Hugepages</th>
+ <th class="px-2 py-1">vCPU Pinning</th>
+ <th class="px-2 py-1">Interfaces</th>
+ <th class="px-2 py-1">Disks</th>
+ </tr>
+ </thead>
+ <tbody>
+ {% if data.instances %}
+ {% for filename, instance in data.instances.items() %}
+ {% set metadata = instance.get('metadata', {}) %}
+ {% set flavor = metadata.get('flavor', {}) %}
+ {% set owner = metadata.get('owner', {}) %}
+ {% set user = owner.get('user', {}) %}
+ {% set project = owner.get('project', {}) %}
+ {% set root = metadata.get('root', {}) %}
+ <tr class="border-b hover:bg-gray-50">
+ <td class="px-2 py-1">{{ metadata.get('name') or filename }}</td>
+ <td class="px-2 py-1">{{ flavor.get('name', 'N/A') }}</td>
+ <td class="px-2 py-1">{{ flavor.get('vcpus', '—') }}</td>
+ <td class="px-2 py-1">{{ flavor.get('memory', '—') }}</td>
+ <td class="px-2 py-1">{{ flavor.get('disk', '—') }}</td>
+ <td class="px-2 py-1">{{ metadata.get('creation_time', '—') }}</td>
+ <td class="px-2 py-1">{{ user.get('name', '—') }}</td>
+ <td class="px-2 py-1">{{ project.get('name', '—') }}</td>
+ <td class="px-2 py-1">
+ {{ root.get('type', '—') }}<br>
+ <span class="font-mono text-xs">{{ root.get('uuid', '') }}</span>
+ </td>
+ <td class="px-2 py-1">
+ {% for port in metadata.get('ports', []) %}
+ <div class="font-mono text-xs">{{ port.get('uuid', '—') }}</div>
+ {% endfor %}
+ </td>
+ <td class="px-2 py-1">
+ {% for port in metadata.get('ports', []) %}
+ {% for ip in port.get('ips', []) %}
+ <div>[{{ ip.get('type', '') }}] {{ ip.get('address', '') }}</div>
+ {% endfor %}
+ {% endfor %}
+ </td>
+ <td class="px-2 py-1">{{ instance.get('memory', {}).get('total_kib', '—') }} KiB</td>
+ <td class="px-2 py-1">{{ instance.get('memory', {}).get('current_kib', '—') }} KiB</td>
+ <td class="px-2 py-1">
+ {% for page in instance.get('memory', {}).get('hugepages', []) %}
+ <div>{{ page.get('size_kib', '?') }} KiB / Node {{ page.get('nodeset', '?') }}</div>
+ {% endfor %}
+ </td>
+ <td class="px-2 py-1">
+ <div class="flex flex-wrap gap-1">
+ {% for vcpu, cpu in instance.get('vcpupins', {}).items() %}
+ {% set topo = data.cpu_topology.get(cpu, {}) %}
+ <span class="cpu-badge font-mono text-xs px-2 py-0.5 rounded-sm transition-all duration-300"
+ data-cpu-id="{{ cpu }}"
+ data-siblings="{{ topo.get('siblings', [])|join(',') }}">
+ {{ vcpu }}→{{ cpu }}
+ </span>
+ {% endfor %}
+ </div>
+ </td>
+
+ <td class="px-2 py-1">
+ {% for iface in instance.get('interfaces', []) %}
+ <div>{{ iface.get('name', '—') }} <span class="font-mono text-xs">({{ iface.get('mac', '—') }})</span>
+ queues:{{ iface.get('queues', '—') }}
+ rxq:{{ iface.get('rx_queue_size', '—') }}
+ txq:{{ iface.get('tx_queue_size', '—') }}
+ </div>
+ {% endfor %}
+ </td>
+ <td class="px-2 py-1">
+ {% for disk in instance.get('disks', []) %}
+ <div><strong>{{ disk.get('target', '—') }}</strong>: <span class="font-mono text-xs">{{ disk.get('source', '—') }}</span></div>
+ {% endfor %}
+ </td>
+ </tr>
+ {% endfor %}
+ {% else %}
+ <tr>
+ <td colspan="17">
+ <div class="text-center py-8">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
+ <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No instance data found</div>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+ </tbody>
+ </table>
+ </div>
+ </div>
+ </div>
+</div>
+<script>
+ // Define functions in global scope
+ window.filterInstanceTable = function() {
+ const input = document.getElementById("instance-search");
+ const filter = input.value.toLowerCase();
+ const rows = document.querySelectorAll("#instance-table tbody tr");
+
+ rows.forEach(row => {
+ const text = row.textContent.toLowerCase();
+ row.style.display = text.includes(filter) ?"" :"none";
+ });
+ }
+
+ window.filterPmdTable = function() {
+ const input = document.getElementById("pmd-search");
+ const filter = input.value.toLowerCase();
+ const table = document.getElementById("pmd-stats-table");
+ const tr = table.getElementsByTagName("tr");
+
+ for (let i = 1; i < tr.length; i++) {
+ const tds = tr[i].getElementsByTagName("td");
+ let rowMatches = false;
+
+ for (let j = 0; j < tds.length; j++) {
+ const td = tds[j];
+ if (td && td.textContent.toLowerCase().includes(filter)) {
+ rowMatches = true;
+ break;
+ }
+ }
+
+ tr[i].style.display = rowMatches ?"" :"none";
+ }
+ }
+
+ window.filterPmdPerfTable = function() {
+ const input = document.getElementById("pmd-perf-search");
+ const filter = input.value.toLowerCase();
+ const table = document.getElementById("pmd-perf-table");
+ const tr = table.getElementsByTagName("tr");
+
+ for (let i = 1; i < tr.length; i++) {
+ const tds = tr[i].getElementsByTagName("td");
+ let rowMatches = false;
+
+ for (let j = 0; j < tds.length; j++) {
+ const td = tds[j];
+ if (td && td.textContent.toLowerCase().includes(filter)) {
+ rowMatches = true;
+ break;
+ }
+ }
+
+ tr[i].style.display = rowMatches ?"" :"none";
+ }
+ }
+
+ // OVS Interfaces pagination variables
+ var ovsCurrentPage = 1;
+ var ovsPageSize = 50;
+ var ovsLastFilter = '';
+ var ovsCurrentSortKey = null;
+ var ovsSortDirections = {};
+
+ window.filterOvsTable = function() {
+ const input = document.getElementById("ovs-search");
+ const filter = input.value.toLowerCase();
+ const tbody = document.querySelector("#ovs-interface-table tbody");
+ const allRows = Array.from(tbody.getElementsByTagName("tr"));
+
+ // Reset to page 1 if filter changed
+ if (filter !== ovsLastFilter) {
+ ovsCurrentPage = 1;
+ ovsLastFilter = filter;
+ }
+
+ let filteredRows = allRows.filter(row => {
+ const cells = row.getElementsByTagName("td");
+ for (let j = 0; j < cells.length; j++) {
+ if ((cells[j].textContent ||"").toLowerCase().includes(filter)) {
+ return true;
+ }
+ }
+ return false;
+ });
+
+ // Hide all rows first
+ allRows.forEach(row => row.style.display ="none");
+
+ // Show paginated rows
+ const totalCount = filteredRows.length;
+ const start = ovsPageSize === -1 ? 0 : (ovsCurrentPage - 1) * ovsPageSize;
+ const end = ovsPageSize === -1 ? totalCount : Math.min(start + ovsPageSize, totalCount);
+
+ for (let i = start; i < end; i++) {
+ filteredRows[i].style.display ="";
+ }
+
+ updateOvsCount(totalCount, allRows.length);
+ updateOvsPagination(totalCount);
+ }
+
+ function updateOvsCount(filtered, total) {
+ const countDiv = document.getElementById('ovsCount');
+ let text;
+ if (ovsPageSize === -1) {
+ text = filtered === total
+ ? `Showing all ${total} interfaces`
+ : `Showing ${filtered} of ${total} interfaces`;
+ } else {
+ const start = (ovsCurrentPage - 1) * ovsPageSize + 1;
+ const end = Math.min(ovsCurrentPage * ovsPageSize, filtered);
+ text = filtered === total
+ ? `Showing ${start}-${end} of ${total} interfaces`
+ : `Showing ${start}-${end} of ${filtered} (filtered from ${total})`;
+ }
+ countDiv.textContent = text;
+ }
+
+ function updateOvsPagination(totalCount) {
+ const controls = document.getElementById('ovsPaginationControls');
+
+ if (ovsPageSize === -1 || totalCount <= ovsPageSize) {
+ controls.innerHTML = '';
+ return;
+ }
+
+ const totalPages = Math.ceil(totalCount / ovsPageSize);
+ let html = '';
+
+ html += `<button onclick="goToOvsPage(1)" ${ovsCurrentPage === 1 ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${ovsCurrentPage === 1 ? 'bg-gray-600 text-gray-400 dark:text-gray-500' : ' text-white '}">
+ First</button>`;
+
+ html += `<button onclick="goToOvsPage(${ovsCurrentPage - 1})" ${ovsCurrentPage === 1 ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${ovsCurrentPage === 1 ? 'bg-gray-600 text-gray-400 dark:text-gray-500' : ' text-white '}">
+ Prev</button>`;
+
+ const maxButtons = 5;
+ let startPage = Math.max(1, ovsCurrentPage - Math.floor(maxButtons / 2));
+ let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+
+ if (endPage - startPage < maxButtons - 1) {
+ startPage = Math.max(1, endPage - maxButtons + 1);
+ }
+
+ if (startPage > 1) html += '<span class="px-2">...</span>';
+
+ for (let i = startPage; i <= endPage; i++) {
+ html += `<button onclick="goToOvsPage(${i})"
+ class="px-3 py-1 text-sm rounded-sm ${i === ovsCurrentPage ? ' text-white font-bold border-2 current-page' : ' text-white '}">
+ ${i}</button>`;
+ }
+
+ if (endPage < totalPages) html += '<span class="px-2">...</span>';
+
+ html += `<button onclick="goToOvsPage(${ovsCurrentPage + 1})" ${ovsCurrentPage === totalPages ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${ovsCurrentPage === totalPages ? 'bg-gray-600 text-gray-400 dark:text-gray-500' : ' text-white '}">
+ Next</button>`;
+
+ html += `<button onclick="goToOvsPage(${totalPages})" ${ovsCurrentPage === totalPages ? 'disabled' : ''}
+ class="px-3 py-1 text-sm rounded-sm ${ovsCurrentPage === totalPages ? 'bg-gray-600 text-gray-400 dark:text-gray-500' : ' text-white '}">
+ Last</button>`;
+
+ controls.innerHTML = html;
+ }
+
+ window.goToOvsPage = function(page) {
+ ovsCurrentPage = page;
+ window.filterOvsTable();
+ }
+
+ window.changeOvsPageSize = function() {
+ ovsPageSize = parseInt(document.getElementById('ovsPageSize').value);
+ ovsCurrentPage = 1;
+ window.filterOvsTable();
+ }
+
+ function resetOvsIndicators() {
+ for (let i = 0; i < 15; i++) {
+ const indicator = document.getElementById(`ovs-sort-${i}`);
+ if (indicator) {
+ indicator.classList.remove('fa-caret-up', 'fa-caret-down');
+ }
+ }
+ }
+
+ function updateOvsSortIndicator(colIndex, ascending) {
+ const indicator = document.getElementById(`ovs-sort-${colIndex}`);
+ if (indicator) {
+ indicator.classList.remove('fa-caret-up', 'fa-caret-down');
+ indicator.classList.add(ascending ? 'fa-caret-up' : 'fa-caret-down');
+ }
+ }
+
+ window.sortOvsTable = function(colIndex, isNumeric = false) {
+ const table = document.getElementById("ovs-interface-table");
+ const tbody = table.querySelector("tbody");
+ const rows = Array.from(tbody.querySelectorAll("tr"));
+ const sortKey = `ovs-${colIndex}-${isNumeric}`;
+
+ if (ovsCurrentSortKey !== sortKey) {
+ ovsCurrentSortKey = sortKey;
+ ovsSortDirections[sortKey] = true;
+ resetOvsIndicators();
+ } else {
+ ovsSortDirections[sortKey] = !ovsSortDirections[sortKey];
+ }
+
+ updateOvsSortIndicator(colIndex, ovsSortDirections[sortKey]);
+
+ rows.sort((a, b) => {
+ const cellA = a.children[colIndex];
+ const cellB = b.children[colIndex];
+
+ let valA, valB;
+
+ if (isNumeric) {
+ valA = parseFloat(cellA.textContent.trim()) || 0;
+ valB = parseFloat(cellB.textContent.trim()) || 0;
+ } else {
+ valA = cellA.textContent.toLowerCase().trim();
+ valB = cellB.textContent.toLowerCase().trim();
+ }
+
+ if (valA < valB) return ovsSortDirections[sortKey] ? -1 : 1;
+ if (valA > valB) return ovsSortDirections[sortKey] ? 1 : -1;
+ return 0;
+ });
+
+ rows.forEach(row => tbody.appendChild(row));
+
+ // Re-apply pagination after sorting
+ window.filterOvsTable();
+ }
+
+ // Initialize OVS table with default sort by RX Packets (descending)
+ sortOvsTable(8, true);
+ sortOvsTable(8, true);
+
+ // CPU sibling highlighting on hover
+ document.querySelectorAll('.cpu-badge').forEach(badge => {
+ badge.addEventListener('mouseenter', function() {
+ const cpuId = this.getAttribute('data-cpu-id');
+ const siblings = this.getAttribute('data-siblings');
+
+ // Highlight the hovered badge itself
+ this.style.boxShadow = '0 0 0 2px #3b82f6';
+ this.style.transform = 'scale(1.05)';
+
+ if (!siblings) return;
+
+ const siblingIds = siblings.split(',').map(s => s.trim());
+
+ // Highlight all siblings
+ document.querySelectorAll('.cpu-badge').forEach(b => {
+ const badgeCpuId = b.getAttribute('data-cpu-id');
+ if (siblingIds.includes(badgeCpuId) && badgeCpuId !== cpuId) {
+ b.style.boxShadow = '0 0 0 2px #3b82f6';
+ b.style.transform = 'scale(1.05)';
+ }
+ });
+ });
+
+ badge.addEventListener('mouseleave', function() {
+ // Remove highlighting from all badges
+ document.querySelectorAll('.cpu-badge').forEach(b => {
+ b.style.boxShadow = '';
+ b.style.transform = '';
+ });
+ });
+ });
+
+ function roundUpTo1024(value) {
+ return Math.ceil(value / 1024) * 1024;
+ }
+
+ const calculateBtn = document.getElementById('calculate-btn');
+ if (calculateBtn) {
+ calculateBtn.addEventListener('click', function() {
+ const mtu1 = Number(document.getElementById('mtu1').value);
+ const mtu2 = Number(document.getElementById('mtu2').value);
+
+ if (!mtu1 || mtu1 <= 0 || !mtu2 || mtu2 <= 0) {
+ document.getElementById('result').textContent = 'Please enter valid positive MTU values for both interfaces.';
+ return;
+ }
+
+ const overhead = 800;
+ const packets = 4096 * 64;
+ const bufferBytes = 512 * 1024 * 1024;
+
+ const mtuBytes1 = roundUpTo1024(mtu1);
+ const mtuBytes2 = roundUpTo1024(mtu2);
+
+ const mem1 = (mtuBytes1 + overhead) * packets;
+ const mem2 = (mtuBytes2 + overhead) * packets;
+
+ const totalBytes = mem1 + mem2 + bufferBytes;
+
+ let totalMB = totalBytes / (1024 * 1024);
+
+ totalMB = Math.ceil(totalMB / 1024) * 1024;
+
+ document.getElementById('result').textContent = `Recommended dpdk-socket-mem: ${totalMB} MB`;
+ });
+ }
+</script>
+

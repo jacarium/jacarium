@@ -1,0 +1,468 @@
+{
+  "version": "1.0",
+  "formatVersion": 1,
+  "exportDate": "2026-10-13T01:12:21.817Z",
+  "documents": [
+    {
+      "title": "Meeting notes",
+      "content": "# Notes\n\nA synthetic note with **bold** text.\n",
+      "category": "Notes",
+      "locked": false,
+      "updatedAt": 1791853941797,
+      "stableId": "6fcad851-f7ee-402d-9d70-43bb29f725ec",
+      "id": 3
+    },
+    {
+      "title": "Cluster upgrade checklist",
+      "content": "# Checklist\n\n- [ ] Back up etcd\n- [x] Announce the window\n",
+      "category": "Runbooks",
+      "locked": false,
+      "updatedAt": 1791853941797,
+      "stableId": "48ff9a15-033a-44a6-abe9-1d3869cebea6",
+      "id": 2
+    },
+    {
+      "title": "Rotate the web tier certificate",
+      "content": "# Rotate the web tier certificate\n\nSynthetic runbook.\n\n![Diagram](attachment:diagram.png)\n\n```bash\nkubectl get pods -n web\n```\n",
+      "category": "Runbooks",
+      "locked": false,
+      "updatedAt": 1791853941796,
+      "stableId": "4bf6566d-7f30-4ffc-8a80-4b7d318fdab7",
+      "id": 1
+    }
+  ],
+  "documentCategories": [
+    {
+      "name": "Runbooks",
+      "icon": "book",
+      "position": 0,
+      "createdAt": "2026-10-13T01:12:21.782Z",
+      "updatedAt": "2026-10-13T01:12:21.782Z",
+      "syncId": "850a815d-fb48-4bff-bcee-ea8c4863c89a",
+      "id": 1
+    },
+    {
+      "name": "Notes",
+      "icon": "note",
+      "position": 1,
+      "createdAt": "2026-10-13T01:12:21.795Z",
+      "updatedAt": "2026-10-13T01:12:21.795Z",
+      "syncId": "9365126d-4b3e-4a8c-89ca-eae97fc0f937",
+      "id": 2
+    }
+  ],
+  "documentTemplates": [
+    {
+      "name": "Incident template",
+      "content": "# Incident {{title}}\n\n## Timeline\n",
+      "tags": [],
+      "category": "Runbooks",
+      "description": "Synthetic template",
+      "updatedAt": 1791853941798,
+      "syncId": "ae20c390-2beb-4556-85d0-64358ccf0ac6",
+      "id": 1
+    }
+  ],
+  "jqlTemplates": [
+    {
+      "name": "My open issues",
+      "category": "Work",
+      "jql": "assignee = currentUser() AND resolution = Unresolved",
+      "rootGroup": null,
+      "createdAt": "2026-09-02T10:00:00.000Z",
+      "updatedAt": "2026-09-02T10:00:00.000Z",
+      "syncId": "b4554974-24aa-448c-a73d-7fd59edb8b73",
+      "id": 1
+    }
+  ],
+  "engineTemplates": [
+    {
+      "name": "Docs search",
+      "urlTemplate": "https://docs.example.com/search?q={query}",
+      "category": "General",
+      "description": "Synthetic search engine",
+      "createdAt": "2026-10-13T01:12:21.800Z",
+      "updatedAt": "2026-10-13T01:12:21.800Z",
+      "syncId": "a60fdc07-8a55-40a0-a14a-473c607837ee",
+      "id": 1
+    }
+  ],
+  "workflows": [
+    {
+      "title": "Nightly check",
+      "category": "General",
+      "nodes": [
+        {
+          "id": "node-1",
+          "type": "beginPlay",
+          "position": {
+            "x": 0,
+            "y": 0
+          },
+          "data": {}
+        },
+        {
+          "id": "node-2",
+          "type": "result",
+          "position": {
+            "x": 300,
+            "y": 0
+          },
+          "data": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "source": "node-1",
+          "target": "node-2",
+          "sourceHandle": "exec-out",
+          "targetHandle": "exec-in"
+        }
+      ],
+      "inCloud": false,
+      "ownerId": null,
+      "cloudLastUpdated": null,
+      "createdAt": 1791853941800,
+      "updatedAt": 1791853941800,
+      "syncId": "fe492acb-6581-40c6-9c38-8e8a20692d77",
+      "id": 1
+    }
+  ],
+  "kanbanBoards": [
+    {
+      "title": "Platform work",
+      "category": "General",
+      "columns": [
+        {
+          "id": "todo",
+          "title": "To Do",
+          "color": "#94a3b8"
+        },
+        {
+          "id": "in-progress",
+          "title": "In Progress",
+          "color": "#3b82f6"
+        },
+        {
+          "id": "review",
+          "title": "Review",
+          "color": "#f59e0b"
+        },
+        {
+          "id": "done",
+          "title": "Done",
+          "color": "#10b981"
+        }
+      ],
+      "createdAt": "2026-10-13T01:12:21.802Z",
+      "updatedAt": "2026-10-13T01:12:21.807Z",
+      "syncId": "aa62e130-2ae5-405e-adeb-cf8463bf4070",
+      "id": 1
+    }
+  ],
+  "kanbanCards": [
+    {
+      "boardId": 1,
+      "title": "Rotate certificates",
+      "status": "todo",
+      "description": "Synthetic card",
+      "position": 0,
+      "tags": [
+        "synthetic"
+      ],
+      "assignee": "",
+      "priority": "medium",
+      "yjsId": "dec25b7a-4810-4af8-b407-a5af6ad47be6",
+      "createdAt": "2026-10-13T01:12:21.803Z",
+      "updatedAt": "2026-10-13T01:12:21.803Z",
+      "id": 1
+    },
+    {
+      "boardId": 1,
+      "title": "Upgrade etcd",
+      "status": "in-progress",
+      "description": "Synthetic card",
+      "position": 1,
+      "tags": [
+        "synthetic"
+      ],
+      "assignee": "",
+      "priority": "medium",
+      "yjsId": "6b8c0301-de3a-49f4-a75b-b0f323a4d503",
+      "createdAt": "2026-10-13T01:12:21.805Z",
+      "updatedAt": "2026-10-13T01:12:21.805Z",
+      "id": 2
+    },
+    {
+      "boardId": 1,
+      "title": "Review runbooks",
+      "status": "done",
+      "description": "Synthetic card",
+      "position": 2,
+      "tags": [
+        "synthetic"
+      ],
+      "assignee": "",
+      "priority": "medium",
+      "yjsId": "d4f91ea3-8fc0-437a-b7ad-d860a98b849e",
+      "createdAt": "2026-10-13T01:12:21.806Z",
+      "updatedAt": "2026-10-13T01:12:21.806Z",
+      "id": 3
+    }
+  ],
+  "taskwarriorInstances": [
+    {
+      "name": "Work",
+      "category": "General",
+      "description": "Synthetic instance",
+      "rcPath": "~/.taskrc",
+      "dataPath": "~/.task",
+      "isActive": 1,
+      "inCloud": 0,
+      "ownerId": null,
+      "permissions": null,
+      "cloudDocumentId": null,
+      "createdAt": "2026-10-13T01:12:21.807Z",
+      "updatedAt": "2026-10-13T01:12:21.807Z",
+      "syncId": "5531e4c6-53e8-4020-8d60-d5cb0b199fbc",
+      "id": 1
+    }
+  ],
+  "taskwarriorReports": [],
+  "customReports": [
+    {
+      "name": "High priority",
+      "category": "General",
+      "instanceId": 1,
+      "filter": "priority:H",
+      "description": "Synthetic report",
+      "createdAt": "2026-10-13T01:12:21.810Z",
+      "updatedAt": "2026-10-13T01:12:21.810Z",
+      "syncId": "5cb68d88-ae5e-4085-a428-eef8cce4aa9e",
+      "id": 1
+    }
+  ],
+  "calendarEventTemplates": [
+    {
+      "name": "Weekly sync",
+      "titleTemplate": "[Team][Sync][{{topic}}]",
+      "durationMinutes": 30,
+      "createdAt": "2026-09-04T10:00:00.000Z",
+      "updatedAt": "2026-09-04T10:00:00.000Z",
+      "syncId": "3ef3adab-0f8f-4e5a-8f6f-fd6a1592ae00",
+      "id": 1
+    }
+  ],
+  "sshCommands": [
+    {
+      "name": "Disk usage",
+      "command": "df -h",
+      "description": "Synthetic command",
+      "category": "General",
+      "createdAt": "2026-10-13T01:12:21.811Z",
+      "updatedAt": "2026-10-13T01:12:21.811Z",
+      "syncId": "60d55c3e-ee72-441f-a864-e90f5ff7de0c",
+      "id": 1
+    }
+  ],
+  "customGrids": [
+    {
+      "id": "grid-synthetic-1",
+      "createdAt": "2026-09-05T10:00:00.000Z",
+      "name": "Linux basics grid",
+      "categories": [
+        {
+          "id": "c1",
+          "name": "Shell",
+          "questions": [
+            {
+              "points": 100,
+              "question": "Lists files",
+              "answer": "ls"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "customQuizzes": [
+    {
+      "id": "quiz-synthetic-1",
+      "createdAt": "2026-09-05T10:00:00.000Z",
+      "name": "Linux quiz",
+      "questions": [
+        {
+          "question": "Prints the working directory",
+          "answer": "pwd",
+          "hints": [
+            "p",
+            "pw",
+            "pw_"
+          ]
+        }
+      ]
+    }
+  ],
+  "openshiftTemplates": [
+    {
+      "name": "Namespace",
+      "category": "General",
+      "yaml": "apiVersion: v1\nkind: Namespace\nmetadata:\n  name: example\n",
+      "icon": "box",
+      "description": "Synthetic template",
+      "createdAt": "2026-10-13T01:12:21.811Z",
+      "updatedAt": "2026-10-13T01:12:21.811Z",
+      "syncId": "c762c67b-6cba-4e90-a26c-296c39c6e74d",
+      "id": 1
+    }
+  ],
+  "gtfobinsFunctions": [
+    {
+      "funcId": "shell",
+      "label": "Shell",
+      "description": "Spawns a shell",
+      "sortOrder": 1,
+      "isBuiltIn": 0,
+      "syncId": "e314da00-a19a-455d-be1f-5a8c488f6130",
+      "id": 1
+    }
+  ],
+  "gtfobinsExecutables": [
+    {
+      "name": "awk",
+      "comment": "Synthetic entry",
+      "alias": null,
+      "functions": {
+        "shell": [
+          {
+            "code": "awk 'BEGIN {system(\"/bin/sh\")}'",
+            "contexts": {
+              "unprivileged": true
+            }
+          }
+        ]
+      },
+      "functionIds": [
+        "shell"
+      ],
+      "isBuiltIn": 0,
+      "updatedAt": "2026-10-13T01:12:21.814Z",
+      "syncId": "72bdf0cc-96e6-4d6a-9981-f64dbbda5f58",
+      "id": 1
+    }
+  ],
+  "gtfobinsContexts": [],
+  "media": [
+    {
+      "filename": "diagram.png",
+      "data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      "mimeType": "image/png",
+      "size": 70,
+      "uploadedAt": "2026-09-01T10:00:00.000Z"
+    }
+  ],
+  "localStorage": {
+    "innerSidebarVisible": true,
+    "expandedDocumentCategories": [
+      "Runbooks"
+    ],
+    "kanbanSortBy": "position"
+  },
+  "tasks": [
+    {
+      "uuid": "d007a279-5993-4ad2-8c72-2dca9ea6592d",
+      "description": "Write the upgrade runbook",
+      "status": "pending",
+      "project": "platform",
+      "tags": [
+        "synthetic"
+      ],
+      "priority": "H",
+      "entry": "2026-09-03T09:00:00.000Z",
+      "modified": "2026-09-03T09:00:00.000Z",
+      "due": null,
+      "wait": null,
+      "until": null,
+      "scheduled": null,
+      "depends": [],
+      "annotations": [],
+      "start": null,
+      "end": null,
+      "urgency": null,
+      "recur": null,
+      "instanceId": 1,
+      "id": 1
+    },
+    {
+      "uuid": "5d349276-ac18-46f3-91d5-633085976473",
+      "description": "Review alert thresholds",
+      "status": "pending",
+      "project": "ops",
+      "tags": [
+        "synthetic"
+      ],
+      "priority": "M",
+      "entry": "2026-09-03T09:00:00.000Z",
+      "modified": "2026-09-03T09:00:00.000Z",
+      "due": null,
+      "wait": null,
+      "until": null,
+      "scheduled": null,
+      "depends": [],
+      "annotations": [],
+      "start": null,
+      "end": null,
+      "urgency": null,
+      "recur": null,
+      "instanceId": 1,
+      "id": 2
+    },
+    {
+      "uuid": "664b3cdb-d778-480c-b3fa-70262d9c05b4",
+      "description": "Clean the dashboards",
+      "status": "pending",
+      "project": "ops",
+      "tags": [
+        "synthetic"
+      ],
+      "priority": "L",
+      "entry": "2026-09-03T09:00:00.000Z",
+      "modified": "2026-09-03T09:00:00.000Z",
+      "due": null,
+      "wait": null,
+      "until": null,
+      "scheduled": null,
+      "depends": [],
+      "annotations": [],
+      "start": null,
+      "end": null,
+      "urgency": null,
+      "recur": null,
+      "instanceId": 1,
+      "id": 3
+    },
+    {
+      "uuid": "8ecc37bc-0a56-466a-b589-2b9db0230754",
+      "description": "A completed task",
+      "status": "completed",
+      "project": "ops",
+      "tags": [],
+      "priority": "",
+      "entry": "2026-09-03T09:00:00.000Z",
+      "modified": "2026-09-03T09:00:00.000Z",
+      "due": null,
+      "wait": null,
+      "until": null,
+      "scheduled": null,
+      "depends": [],
+      "annotations": [],
+      "start": null,
+      "end": "2026-09-03T09:00:00.000Z",
+      "urgency": null,
+      "recur": null,
+      "instanceId": 1,
+      "id": 4
+    }
+  ]
+}

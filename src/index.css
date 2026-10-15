@@ -1,0 +1,2075 @@
+/* Tailwind CSS v4, configured here (CSS-first) - the former tailwind.config.js
+   content/darkMode/safelist/theme live in the @source/@custom-variant/@theme
+   blocks below. Compiled by @tailwindcss/vite (vite.config.js).
+
+   The three parts of `@import "tailwindcss"` are imported separately so the
+   utilities stay UNLAYERED, as they were in v3. v4 puts them in
+   @layer utilities, where any unlayered rule beats them regardless of
+   specificity - a plain `td { padding }` in the backend's styles.css (inlined
+   into the Diagnostics frames) or in the custom rules below would then
+   override `py-2`, which it never did in v3. Unlayered, the v3 cascade
+   (specificity, then source order) applies unchanged. Theme and preflight
+   keep their layers: they sit below everything, as v3's base styles did. */
+@layer theme, base, components;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css' source(none);
+
+/* Same scan scope as the v3 `content` globs: the app only. The legacy
+   dashboard templates in backend/templates have their own stylesheet
+   (scripts/tailwind.legacy.css) and must not leak classes into this one. */
+@source "../index.html";
+@source "../src";
+
+/* Classes the v3 safelist generated regardless of usage: every bg/text/border
+   utility of the theme colours below, so class names assembled at runtime
+   (`bg-${status}` style) keep resolving. */
+@source inline("{bg,text,border}-{os-masthead,os-sidebar,os-sidebar-hover,os-canvas,os-card,os-card-secondary,os-modal,os-blue,os-blue-hover,os-border,os-text-primary,os-text-secondary,os-text-muted,os-divider,os-input-bg,os-input-border,status-success,status-warning,status-danger}");
+/* Workflow node palette: WorkflowNodeLibrary / ConnectionMenu build
+   `bg-${node.color}-50` and `text-${node.color}-600` from the node
+   definitions' colour names. */
+@source inline("{bg-{amber,yellow,purple,orange,green,cyan,blue,violet,teal,slate,sky,red}-50,text-{amber,yellow,purple,orange,green,cyan,blue,violet,teal,slate,sky,red}-600}");
+
+/* darkMode: 'class' - ThemeContext toggles .dark on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* v3 applied hover: styles on every device; v4 gates them behind
+   @media (hover: hover), which drops them on touch-capable laptops. Keep the
+   v3 behaviour. */
+@custom-variant hover (&:hover);
+
+@theme {
+  /* Corner radius scale (tests/rounded-corners.test.mjs): rounded-xs 6,
+     rounded-sm / rounded 8 (inputs, buttons, chips), rounded-md 10 (menus),
+     rounded-lg 14 (cards, dialogs), rounded-xl 16, rounded-2xl 20,
+     rounded-3xl 28 (the brand hero), rounded-full for pills. A nested
+     corner takes the outer radius minus the padding. Sidebars, split panes,
+     the editor textarea, table cells and scrollbars stay square (the
+     exceptions at the end of this file). */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 28px;
+  /* Where the scale is used (src/components/ui/primitives.jsx): */
+  --radius-control: var(--radius-sm);   /* buttons, fields */
+  --radius-card: var(--radius-lg);      /* cards, dialogs, floating windows */
+  --radius-menu: var(--radius-lg);      /* dropdown and context menus */
+  --radius-chip: var(--radius-xs);      /* badges, chips, inline code */
+  --radius-check: 5px;                  /* checkboxes */
+  /* Type weights: controls and labels are normal, headings 600 */
+  --weight-control: 400;
+  --weight-label: 400;
+  --weight-heading: 600;
+
+  /* Brand accent colours (the red underscore and its neutrals) */
+  --color-rh-red: #EE0000;
+  --color-rh-black: #151515;
+  --color-rh-gray: #F0F0F0;
+  --color-rh-border: #D2D2D2;
+  --color-rh-terminal: #0F0F0F;
+  --color-rh-terminal-text: #00FF00;
+
+  /* OpenShift Console colours (CSS variables, see :root / .dark below) */
+  --color-os-masthead: var(--os-masthead);
+  --color-os-sidebar: var(--os-sidebar);
+  --color-os-sidebar-hover: var(--os-sidebar-hover);
+  --color-os-canvas: var(--os-canvas);
+  --color-os-card: var(--os-card);
+  --color-os-card-secondary: var(--os-card-secondary);
+  --color-os-modal: var(--os-modal);
+  --color-os-blue: var(--os-blue);
+  --color-os-blue-hover: var(--os-blue-hover);
+  --color-os-border: var(--os-border);
+  --color-os-text-primary: var(--os-text-primary);
+  --color-os-text-secondary: var(--os-text-secondary);
+  --color-os-text-muted: var(--os-text-muted);
+  --color-os-divider: var(--os-divider);
+  --color-os-input-bg: var(--os-input-bg);
+  --color-os-input-border: var(--os-input-border);
+  /* The navigation rail (CompactSidebar): dark in every theme, deep violet
+     in the Jacaranda dark theme, a gradient in the gradient themes */
+  --color-os-rail: var(--os-rail);
+  --color-os-rail-border: var(--os-rail-border);
+  --color-os-rail-hover: var(--os-rail-hover);
+  --color-os-rail-active: var(--os-rail-active);
+  --color-os-rail-text: var(--os-rail-text);
+  --color-os-rail-text-active: var(--os-rail-text-active);
+  --color-os-rail-tooltip: var(--os-rail-tooltip);
+  --color-os-rail-separator: var(--os-rail-separator);
+
+  /* Status indicators */
+  --color-status-success: var(--os-status-success);
+  --color-status-warning: #F0AB00;
+  --color-status-danger: #C9190B;
+
+  /* Typography: Sora is the app font (chrome, headings, forms - the
+     default sans), Red Hat Text the reading font of the document preview,
+     Red Hat Mono the code font (editor, logs, terminals). Sora sits a touch
+     wide, so the app tracks it by one token; code and the preview reset it. */
+  --font-sans: "Sora", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Sora", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-text: "Sora", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-reading: "Red Hat Text", Roboto, sans-serif;
+  --font-mono: "Red Hat Mono", Consolas, monospace;
+  --app-letter-spacing: -0.005em;
+
+  /* v3 ring defaults: 3px wide, blue-500 at 50% when no ring colour is set
+     (v4: 1px, currentColor). */
+  --default-ring-width: 3px;
+  --default-ring-color: rgb(59 130 246 / 0.5);
+
+  /* v3 line-heights for the text-* utilities, in rem. v4 defines them as
+     unitless ratios (e.g. calc(1.25 / 0.875)), which resolve the same on the
+     element itself but are inherited as a RATIO: a descendant whose
+     font-size other CSS changes (the backend styles.css table cells inside
+     the Diagnostics frames, for one) then gets a different line-height than
+     v3's inherited absolute value, and every row shifts. */
+  --text-xs--line-height: 1rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+}
+
+/*
+  Tailwind v4 changed these preflight defaults; the UI was written against
+  the v3 ones, so they are restored here. If any is ever removed, every
+  element that relies on the default needs an explicit utility instead.
+  Guarded by tests/tailwind-visual-regression.test.mjs.
+*/
+@layer base {
+  /* v3: gray-200. v4: currentColor. */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  /* v3: gray-400. v4: the text colour at 50% opacity. */
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+
+  /* v3: pointer. v4: the browser default arrow. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Light OpenShift theme */
+body {
+  background-color: #E5E7EB;
+  color: #151515;
+}
+
+/* Dark theme */
+.dark body {
+  background-color: var(--os-canvas);
+  color: var(--os-text-primary);
+}
+
+/* Light theme colors (default) */
+:root {
+  --os-masthead: #151515;
+  --os-sidebar: #212427;
+  --os-sidebar-hover: #2c3034;
+  --os-canvas: #F5F5F5;
+  --os-card: #FFFFFF;
+  --os-card-secondary: #F0F0F0;
+  --os-modal: #FFFFFF;
+  --os-blue: #0066CC;
+  --os-blue-hover: #004C99;
+  --os-border: #D2D2D2;
+  --os-text-primary: #151515;
+  --os-text-secondary: #6A6E73;
+  --os-text-muted: #8A8D93;
+  --os-divider: #EDEDED;
+  --os-input-bg: #FFFFFF;
+  --os-input-border: #D2D2D2;
+  --os-status-success: #3E8635;
+  --os-code-bg: #f6f8fa;
+
+  /* The navigation rail is dark in the light theme too (neutral greys) */
+  --os-rail: #1a1a1a;
+  --os-rail-border: #1f2937;
+  --os-rail-hover: #1f2937;
+  --os-rail-active: #374151;
+  --os-rail-text: #9ca3af;
+  --os-rail-text-active: #ffffff;
+  --os-rail-tooltip: #111827;
+  --os-rail-separator: #374151;
+
+  /* Brand (Jacarium): the accent is for brand elements only; the blossom of
+     the mark is white on light surfaces; the hero card of the brand pages
+     (sign-in, setup, About) is blossom lilac. */
+  --brand-accent: #7B5CE0;
+  --brand-blossom: #FFFFFF;
+  --brand-ink: #15121F;
+  --brand-hero-bg: #F6F2FF;
+  --brand-hero-text: #15121F;
+  --brand-hero-muted: #5B4E7A;
+  --brand-page-bg: var(--os-canvas);
+
+  /* Terminal-style log/code panes (.os-terminal below). Light theme: a light
+     surface with dark text, like every other pane in the light UI. Every
+     status colour is >= 4.5:1 against --os-terminal-bg. */
+  --os-terminal-bg: #F5F5F5;
+  --os-terminal-text: #151515;
+  --os-terminal-muted: #6A6E73;
+  --os-terminal-border: #D2D2D2;
+  --os-terminal-success: #166534;
+  --os-terminal-warning: #854D0E;
+  --os-terminal-error: #B91C1C;
+  --os-terminal-selection: rgba(0, 102, 204, 0.2);
+
+  /* Syntax-highlight tokens for fenced code in the Documents preview / PDF
+     (src/utils/codeHighlight.js, .hljs-* rules below). Light theme: every
+     colour is >= 4.5:1 against the code block's #f6f8fa background. */
+  --os-code-keyword: #cf222e;
+  --os-code-string: #0a3069;
+  --os-code-number: #0550ae;
+  --os-code-comment: #57606a;
+  --os-code-title: #6639ba;
+  --os-code-attr: #116329;
+  --os-code-builtin: #953800;
+  --os-code-variable: #953800;
+  --os-code-meta: #6639ba;
+}
+
+/* Dark theme colors: "Jacaranda (dark)", the default dark theme (Auto on a
+   dark system, and "Dark"). Night-ink surfaces, lilac text, the brand accent
+   for the rail's active item, leaf green for success. Every text/surface
+   pair below is >= 4.5:1 (tests/jacaranda-theme.test.mjs computes them). */
+.dark {
+  --os-masthead: #0F0D16;
+  --os-sidebar: #15121F;
+  --os-sidebar-hover: #1E1930;
+  --os-canvas: #0F0D16;
+  --os-card: #17141F;
+  --os-card-secondary: #211C30;
+  --os-modal: #17141F;
+  --os-blue: #4a9eff;
+  --os-blue-hover: #6bb0ff;
+  --os-border: #2A2438;
+  --os-text-primary: #EDE6FF;
+  --os-text-secondary: #B9AFD6;
+  --os-text-muted: #8F84AD;
+  --os-divider: #221C33;
+  --os-input-bg: #1E1930;
+  --os-input-border: #3A3350;
+  --os-status-success: #3FA37A;
+  --os-code-bg: #141120;
+
+  --os-rail: #1B1530;
+  --os-rail-border: #2A2438;
+  --os-rail-hover: #261E42;
+  --os-rail-active: #7B5CE0;
+  --os-rail-text: #B9AFD6;
+  --os-rail-text-active: #FFFFFF;
+  --os-rail-tooltip: #0F0D16;
+  --os-rail-separator: #3A3350;
+
+  /* Brand on dark surfaces: lilac blossom, night-ink hero card and page */
+  --brand-blossom: #EDE6FF;
+  --brand-hero-bg: #17141F;
+  --brand-hero-text: #F3EFFF;
+  --brand-hero-muted: #B9AFD6;
+  --brand-page-bg: #0F0D16;
+
+  /* Terminal-style panes: night ink, lilac text */
+  --os-terminal-bg: #0B0A10;
+  --os-terminal-text: #D9D2EA;
+  --os-terminal-muted: #8F84AD;
+  --os-terminal-border: #2A2438;
+  --os-terminal-success: #5FCF9A;
+  --os-terminal-warning: #facc15;
+  --os-terminal-error: #f87171;
+  --os-terminal-selection: rgba(123, 92, 224, 0.35);
+
+  /* Syntax-highlight tokens, dark theme: every colour is >= 4.5:1 against
+     the dark code block background (#161b22). */
+  --os-code-keyword: #ff7b72;
+  --os-code-string: #a5d6ff;
+  --os-code-number: #79c0ff;
+  --os-code-comment: #8b949e;
+  --os-code-title: #d2a8ff;
+  --os-code-attr: #7ee787;
+  --os-code-builtin: #ffa657;
+  --os-code-variable: #ffa657;
+  --os-code-meta: #d2a8ff;
+}
+
+/* "Dark (neutral)": the dark theme as it was before Jacaranda - neutral
+   greys, selectable in Settings > General > Color Scheme; the gradient
+   themes paint their rail over these surfaces too. */
+.dark[data-dark-variant="neutral"] {
+  --os-masthead: #0f0f0f;
+  --os-sidebar: #1a1a1a;
+  --os-sidebar-hover: #262626;
+  --os-canvas: #151515;
+  --os-card: #1f1f1f;
+  --os-card-secondary: #2a2a2a;
+  --os-modal: #1f1f1f;
+  --os-blue: #4a9eff;
+  --os-blue-hover: #6bb0ff;
+  --os-border: #3a3a3a;
+  --os-text-primary: #f0f0f0;
+  --os-text-secondary: #b0b0b0;
+  --os-text-muted: #808080;
+  --os-divider: #2a2a2a;
+  --os-input-bg: #2a2a2a;
+  --os-input-border: #3a3a3a;
+  --os-status-success: #3E8635;
+  --os-code-bg: #161b22;
+
+  --os-rail: #1a1a1a;
+  --os-rail-border: #1f2937;
+  --os-rail-hover: #1f2937;
+  --os-rail-active: #374151;
+  --os-rail-text: #9ca3af;
+  --os-rail-text-active: #ffffff;
+  --os-rail-tooltip: #111827;
+  --os-rail-separator: #374151;
+
+  --os-terminal-bg: #0d0d0d;
+  --os-terminal-text: #d4d4d4;
+  --os-terminal-muted: #808080;
+  --os-terminal-border: #3a3a3a;
+  --os-terminal-success: #4ade80;
+  --os-terminal-warning: #facc15;
+  --os-terminal-error: #f87171;
+  --os-terminal-selection: rgba(74, 158, 255, 0.35);
+}
+
+/* Light theme - fix bg-os-blue with opacity */
+.bg-os-blue.bg-opacity-10 {
+  background-color: rgba(0, 102, 204, 0.1) !important;
+}
+
+/* Terminal-style log / code panes (ExportProgressModal, documents
+   ImportModal + ImportInputModal preview). One shared definition driven by
+   the --os-terminal-* tokens above, so the pane follows the theme like the
+   rest of the UI: light surface in the light theme, the classic dark pane in
+   the dark theme. color-scheme keeps native form controls/scrollbars in the
+   pane consistent with its own surface. */
+.os-terminal {
+  background-color: var(--os-terminal-bg);
+  color: var(--os-terminal-text);
+  border: 1px solid var(--os-terminal-border);
+  caret-color: var(--os-blue);
+  color-scheme: light;
+}
+
+.dark .os-terminal {
+  color-scheme: dark;
+}
+
+.os-terminal ::selection,
+.os-terminal::selection {
+  background-color: var(--os-terminal-selection);
+}
+
+/* Both a textarea that IS the pane and inputs inside one */
+.os-terminal ::placeholder,
+.os-terminal::placeholder {
+  color: var(--os-terminal-muted);
+}
+
+.os-terminal a {
+  color: var(--os-blue);
+  text-decoration: underline;
+}
+
+.os-terminal-muted { color: var(--os-terminal-muted); }
+.os-terminal-success { color: var(--os-terminal-success); }
+.os-terminal-warning { color: var(--os-terminal-warning); }
+.os-terminal-error { color: var(--os-terminal-error); }
+
+/* Dark theme specific utility classes */
+.dark .bg-blue-50 {
+  background-color: rgba(74, 158, 255, 0.15) !important;
+}
+
+.dark .bg-os-blue.bg-opacity-10 {
+  background-color: rgba(74, 158, 255, 0.15) !important;
+}
+
+.dark .bg-green-50 {
+  background-color: rgba(34, 197, 94, 0.15) !important;
+}
+
+.dark .bg-green-100 {
+  background-color: rgba(34, 197, 94, 0.25) !important;
+}
+
+.dark .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+
+.dark .bg-red-100 {
+  background-color: rgba(239, 68, 68, 0.25) !important;
+}
+
+.dark .bg-purple-50 {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+}
+
+.dark .bg-purple-100 {
+  background-color: rgba(168, 85, 247, 0.25) !important;
+}
+
+.dark .bg-purple-200 {
+  background-color: rgba(168, 85, 247, 0.35) !important;
+}
+
+/* Purple text colors - lighter in dark mode for better readability */
+.dark .text-purple-600 {
+  color: #d8b4fe !important;
+}
+
+.dark .text-purple-700 {
+  color: #e9d5ff !important;
+}
+
+/* Purple backgrounds - more subtle in dark mode */
+.dark .bg-purple-600 {
+  background-color: #a855f7 !important;
+}
+
+.dark .bg-purple-700,
+.dark .hover\:bg-purple-700:hover {
+  background-color: #c084fc !important;
+}
+
+/* Purple border colors */
+.dark .border-purple-200 {
+  border-color: #7c3aed !important;
+}
+
+.dark .bg-orange-50 {
+  background-color: rgba(249, 115, 22, 0.15) !important;
+}
+
+.dark .text-orange-500 {
+  color: #fdba74 !important;
+}
+
+.dark .text-orange-600 {
+  color: #fb923c !important;
+}
+
+.dark .bg-yellow-50 {
+  background-color: rgba(234, 179, 8, 0.15) !important;
+}
+
+.dark .border-yellow-200 {
+  border-color: rgba(234, 179, 8, 0.3) !important;
+}
+
+.dark .text-yellow-700 {
+  color: #fcd34d !important;
+}
+
+.dark .text-yellow-800 {
+  color: #fde047 !important;
+}
+
+.dark .border-green-200 {
+  border-color: rgba(34, 197, 94, 0.3) !important;
+}
+
+.dark .border-blue-400 {
+  border-color: rgba(96, 165, 250, 0.4) !important;
+}
+
+.dark .text-blue-700 {
+  color: #93c5fd !important;
+}
+
+.dark .text-blue-600 {
+  color: #93c5fd !important;
+}
+
+.dark .text-blue-800 {
+  color: #bfdbfe !important;
+}
+
+.dark .text-blue-900 {
+  color: #f0f9ff !important;
+}
+
+.dark .text-green-600 {
+  color: #86efac !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: #2a2a2a !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: #353535 !important;
+}
+
+.dark .bg-gray-200 {
+  background-color: #3a3a3a !important;
+}
+
+.dark .bg-gray-300 {
+  background-color: #3a3a3a !important;
+}
+
+/* Form controls and buttons, app-wide: the control radius and the normal
+   weight come from the tokens, so a one-off class is the exception
+   (tests/ui-primitives.test.mjs sweeps for them). Utility classes still win
+   (rounded-full for pills, rounded-none for a tab strip). */
+button, [role="button"] {
+  border-radius: var(--radius-control);
+  font-weight: var(--weight-control);
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
+select,
+textarea {
+  border-radius: var(--radius-control);
+  font-weight: var(--weight-control);
+}
+/* Fields share the input surface, border and focus ring; a utility class on
+   the element still wins where a page needs a variant (a transparent inline
+   field, the editor textarea). */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
+select,
+textarea {
+  background-color: var(--os-input-bg);
+  border-color: var(--os-input-border);
+  color: var(--os-text-primary);
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]):focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--os-blue);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--os-blue) 40%, transparent);
+}
+/* Intentionally borderless inline fields - a note's text, an idea's label,
+   the chip input of a multi-value field, a submenu's filter box - where the
+   surrounding element is the field: no surface, border or focus ring of
+   their own (the caret, or the parent's own focus look, shows focus). */
+input.field-inline,
+textarea.field-inline {
+  background-color: transparent;
+  border-color: transparent;
+}
+input.field-inline:focus-visible,
+textarea.field-inline:focus-visible {
+  border-color: transparent;
+  box-shadow: none;
+}
+input[type="checkbox"] { border-radius: var(--radius-check); accent-color: var(--os-blue); }
+input[type="radio"] { border-radius: 9999px; accent-color: var(--os-blue); }
+input[type="range"] { accent-color: var(--os-blue); }
+label { font-weight: var(--weight-label); }
+
+/* The app's letter-spacing for Sora; code, the reading font and inputs in
+   the code font keep the natural spacing. */
+html { letter-spacing: var(--app-letter-spacing); }
+code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-spacing: 0; }
+
+/* Markdown Preview Styles (the reading font, see --font-reading) */
+.markdown-preview {
+  font-family: var(--font-reading);
+  letter-spacing: 0;
+  font-size: 16px;
+  line-height: 1.7;
+  color: #24292f;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.dark .markdown-preview {
+  color: var(--os-text-primary);
+}
+
+/* Interactive markdown element states (replaces the inline onfocus/onblur/
+   onmouseover/onmouseout handlers formerly generated by interactiveMarkdown.js;
+   !important is required to beat the elements' own inline style attributes) */
+.markdown-preview .interactive-input:focus,
+.markdown-preview .interactive-textarea:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 1px #3b82f6 !important;
+}
+
+.markdown-preview .interactive-button:hover {
+  background-color: #1d4ed8 !important;
+}
+
+.markdown-preview .interactive-submit:hover {
+  background-color: #059669 !important;
+}
+
+/* PDF layout directives ([[pagebreak]] / [[blankpage]]): purely cosmetic
+   markers in the on-screen preview so the author can see where they placed
+   them - a labeled dashed divider, inert to clicks/selection. The PDF
+   export replaces them with real page-sized spacers. */
+.markdown-preview .pdf-directive {
+  display: flex;
+  align-items: center;
+  margin: 16px 0;
+  color: #8b949e;
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1;
+  user-select: none;
+  pointer-events: none;
+}
+
+.markdown-preview .pdf-directive::before,
+.markdown-preview .pdf-directive::after {
+  content: '';
+  flex: 1;
+  border-top: 1px dashed #b6bfc9;
+}
+
+.markdown-preview .pdf-directive::before {
+  margin-right: 8px;
+}
+
+.markdown-preview .pdf-directive::after {
+  margin-left: 8px;
+}
+
+.dark .markdown-preview .pdf-directive {
+  color: #7d8590;
+}
+
+.dark .markdown-preview .pdf-directive::before,
+.dark .markdown-preview .pdf-directive::after {
+  border-top-color: #4a4a4a;
+}
+
+/* [[centerpage]]...[[/centerpage]]: in the preview, a page-like dashed box
+   with the content actually vertically centered, so the author gets a real
+   sense of the cover-page layout. The box is representational (fixed
+   min-height, not A4-scale); the PDF export sizes it to the true page
+   height. Content inside stays normal, selectable markdown. */
+.markdown-preview .pdf-centerpage {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  min-height: 420px;
+  margin: 16px 0;
+  padding: 24px;
+  border: 1px dashed #b6bfc9;
+  border-radius: var(--radius-sm);
+  position: relative;
+}
+
+.markdown-preview .pdf-centerpage::before {
+  content: 'Centered page';
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1;
+  color: #8b949e;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Cover pages don't want section-rule underlines under their headings */
+.markdown-preview .pdf-centerpage h1,
+.markdown-preview .pdf-centerpage h2,
+.markdown-preview .pdf-centerpage h3,
+.markdown-preview .pdf-centerpage h4,
+.markdown-preview .pdf-centerpage h5,
+.markdown-preview .pdf-centerpage h6 {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.dark .markdown-preview .pdf-centerpage {
+  border-color: #4a4a4a;
+}
+
+.dark .markdown-preview .pdf-centerpage::before {
+  color: #7d8590;
+}
+
+/* [[header]]/[[footer]]: repeated in the top/bottom margin of every PDF
+   page. In the preview they simply render inline where placed, inside a
+   labeled dashed box consistent with the other directive markers. Content
+   stays normal, selectable markdown. */
+.markdown-preview .pdf-header,
+.markdown-preview .pdf-footer {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border: 1px dashed #b6bfc9;
+  border-radius: var(--radius-sm);
+  position: relative;
+}
+
+.markdown-preview .pdf-header::before,
+.markdown-preview .pdf-footer::before {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1;
+  color: #8b949e;
+  user-select: none;
+  pointer-events: none;
+}
+
+.markdown-preview .pdf-header::before {
+  content: 'Header (every PDF page)';
+}
+
+.markdown-preview .pdf-footer::before {
+  content: 'Footer (every PDF page)';
+}
+
+.dark .markdown-preview .pdf-header,
+.dark .markdown-preview .pdf-footer {
+  border-color: #4a4a4a;
+}
+
+.dark .markdown-preview .pdf-header::before,
+.dark .markdown-preview .pdf-footer::before {
+  color: #7d8590;
+}
+
+/* .pdf-toc intentionally has no preview styling: the generated Table of
+   Contents must look exactly like the plain link list. Its page-number
+   column exists only in the PDF export. */
+
+.markdown-preview h1 {
+  font-size: 2em;
+  font-weight: 600;
+  margin-top: 24px;
+  margin-bottom: 16px;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid #d8dee4;
+  color: #24292f;
+  line-height: 1.25;
+}
+
+.dark .markdown-preview h1,
+.dark .markdown-preview h2,
+.dark .markdown-preview h3,
+.dark .markdown-preview h4,
+.dark .markdown-preview h5,
+.dark .markdown-preview h6 {
+  color: #e6edf3;
+  border-bottom-color: #3a3a3a;
+}
+
+.markdown-preview h1:first-child {
+  margin-top: 0;
+}
+
+.markdown-preview h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin-top: 24px;
+  margin-bottom: 16px;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid #d8dee4;
+  color: #24292f;
+  line-height: 1.25;
+}
+
+.markdown-preview h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin-top: 24px;
+  margin-bottom: 16px;
+  color: #24292f;
+  line-height: 1.25;
+}
+
+.markdown-preview h4 {
+  font-size: 1em;
+  font-weight: 600;
+  margin-top: 24px;
+  margin-bottom: 16px;
+  color: #24292f;
+  line-height: 1.25;
+}
+
+.markdown-preview h5 {
+  font-size: 0.875em;
+  font-weight: 600;
+  margin-top: 24px;
+  margin-bottom: 16px;
+  color: #24292f;
+  line-height: 1.25;
+}
+
+.markdown-preview h6 {
+  font-size: 0.85em;
+  font-weight: 600;
+  margin-top: 24px;
+  margin-bottom: 16px;
+  color: #57606a;
+  line-height: 1.25;
+}
+
+.markdown-preview p {
+  margin-top: 0;
+  margin-bottom: 16px;
+  line-height: 1.7;
+}
+
+.markdown-preview p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-preview blockquote {
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+  color: #57606a;
+  border-left: 0.25em solid #d0d7de;
+}
+
+.markdown-preview blockquote > :first-child {
+  margin-top: 0;
+}
+
+.markdown-preview blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-preview code {
+  padding: 0.2em 0.4em;
+  margin: 0;
+  font-size: 85%;
+  background-color: rgba(175, 184, 193, 0.2);
+  border-radius: var(--radius-xs);
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+.dark .markdown-preview code {
+  background-color: rgba(110, 118, 129, 0.4);
+}
+
+.markdown-preview pre {
+  padding: 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  font-size: 85%;
+  line-height: 1.45;
+  background-color: #f6f8fa;
+  border-radius: var(--radius-xs);
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.dark .markdown-preview pre {
+  background-color: var(--os-code-bg);
+}
+
+.markdown-preview pre code {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  line-height: inherit;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  background-color: transparent;
+  border: 0;
+  font-size: 100%;
+}
+
+/* Override any inline styles (pasted HTML) in code blocks for dark mode.
+   The renderer's own syntax-highlight tokens (<span class="hljs-*">, see
+   "Fenced code syntax highlighting" below) are excluded so they keep their
+   per-theme --os-code-* colours; everything else inside a block is forced
+   to the dark code colour on a transparent background. */
+.dark .markdown-preview pre code,
+.dark .markdown-preview pre code *:not([class*="hljs-"]),
+.dark .markdown-preview pre *:not([class*="hljs-"]) {
+  color: #e6edf3 !important;
+  background-color: transparent !important;
+  background: none !important;
+}
+
+.dark .markdown-preview code {
+  color: #e6edf3 !important;
+}
+
+/* Remove any background highlights on spans and other elements inside code blocks */
+.dark .markdown-preview pre code span:not([class*="hljs-"]),
+.dark .markdown-preview pre span:not([class*="hljs-"]),
+.dark .markdown-preview code span:not([class*="hljs-"]),
+.dark .markdown-preview pre code div,
+.dark .markdown-preview pre div {
+  background-color: transparent !important;
+  background: none !important;
+  color: inherit !important;
+}
+
+/* Fenced code syntax highlighting (src/utils/codeHighlight.js, wired by
+   src/utils/interactiveMarkdown.js renderer.code): ```python / ```go /
+   ```bash / ```yaml / ```json fences are emitted as the usual
+   <pre><code class="hljs language-X"> with the escaped code wrapped in
+   <span class="hljs-*"> tokens. Only the token colours are set here, from
+   the --os-code-* variables (:root light, .dark dark, all >= 4.5:1 on the
+   block background) so the block keeps its existing background, font,
+   padding and wrapping in both themes and in the PDF export (which
+   renders with the light variables). Any other fence stays plain text. */
+.markdown-preview .hljs-keyword,
+.markdown-preview .hljs-selector-tag,
+.markdown-preview .hljs-doctag,
+.markdown-preview .hljs-template-tag,
+.markdown-preview .hljs-meta .hljs-keyword {
+  color: var(--os-code-keyword);
+}
+
+.markdown-preview .hljs-string,
+.markdown-preview .hljs-regexp,
+.markdown-preview .hljs-meta .hljs-string,
+.markdown-preview .hljs-addition {
+  color: var(--os-code-string);
+}
+
+.markdown-preview .hljs-number,
+.markdown-preview .hljs-literal,
+.markdown-preview .hljs-symbol,
+.markdown-preview .hljs-bullet {
+  color: var(--os-code-number);
+}
+
+.markdown-preview .hljs-comment,
+.markdown-preview .hljs-quote {
+  color: var(--os-code-comment);
+  font-style: italic;
+}
+
+.markdown-preview .hljs-title,
+.markdown-preview .hljs-title.function_,
+.markdown-preview .hljs-title.class_,
+.markdown-preview .hljs-section {
+  color: var(--os-code-title);
+}
+
+.markdown-preview .hljs-attr,
+.markdown-preview .hljs-attribute,
+.markdown-preview .hljs-property,
+.markdown-preview .hljs-name,
+.markdown-preview .hljs-selector-attr {
+  color: var(--os-code-attr);
+}
+
+.markdown-preview .hljs-built_in,
+.markdown-preview .hljs-type,
+.markdown-preview .hljs-params {
+  color: var(--os-code-builtin);
+}
+
+.markdown-preview .hljs-variable,
+.markdown-preview .hljs-template-variable,
+.markdown-preview .hljs-variable.language_,
+.markdown-preview .hljs-variable.constant_,
+.markdown-preview .hljs-subst,
+.markdown-preview .hljs-deletion {
+  color: var(--os-code-variable);
+}
+
+.markdown-preview .hljs-meta {
+  color: var(--os-code-meta);
+}
+
+.markdown-preview .hljs-strong {
+  font-weight: 600;
+}
+
+.markdown-preview .hljs-emphasis {
+  font-style: italic;
+}
+
+/* ```mermaid fences (src/utils/mermaidDiagrams.js): the placeholder holds
+   the source as an ordinary code block until the diagram is drawn into it.
+   Once rendered, the source stays in the DOM (hidden) so a theme change can
+   re-render from it; on a parse error the source stays visible under an
+   inline error box, styled like the preview's other "missing data" notes
+   (red, small). The block is atomic for the PDF export. */
+.markdown-preview .mermaid-diagram {
+  margin: 0 0 16px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.markdown-preview .mermaid-diagram[data-mermaid="rendered"] > pre {
+  display: none;
+}
+
+.markdown-preview .mermaid-diagram-output {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+.markdown-preview .mermaid-diagram-output svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-preview .mermaid-diagram-error {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-xs);
+  background-color: #fef2f2;
+  color: #dc2626;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.markdown-preview .mermaid-diagram-error-title {
+  font-weight: 600;
+  font-style: italic;
+  margin-bottom: 4px;
+}
+
+.markdown-preview .mermaid-diagram-error-message {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dark .markdown-preview .mermaid-diagram-error {
+  border-color: #7f1d1d;
+  background-color: rgba(127, 29, 29, 0.25);
+  color: #f87171;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+
+.markdown-preview ul {
+  list-style-type: disc;
+}
+
+.markdown-preview ol {
+  list-style-type: decimal;
+}
+
+.markdown-preview ul ul {
+  list-style-type: circle;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.markdown-preview ul ul ul {
+  list-style-type: square;
+}
+
+.markdown-preview ol ol,
+.markdown-preview ol ul,
+.markdown-preview ul ol,
+.markdown-preview ul ul {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.markdown-preview li {
+  margin-bottom: 0.25em;
+}
+
+.markdown-preview li > p {
+  margin-top: 16px;
+}
+
+.markdown-preview li + li {
+  margin-top: 0.25em;
+}
+
+.markdown-preview a {
+  color: #0969da;
+  text-decoration: none;
+}
+
+.markdown-preview a:hover {
+  text-decoration: underline;
+}
+
+.dark .markdown-preview a {
+  color: #4a9eff;
+}
+
+.dark .markdown-preview blockquote {
+  color: #b0b0b0;
+  border-left-color: #3a3a3a;
+}
+
+.markdown-preview table {
+  border-spacing: 0;
+  border-collapse: collapse;
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow: auto;
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.markdown-preview table tr {
+  background-color: #ffffff;
+  border-top: 1px solid #d0d7de;
+}
+
+.markdown-preview table tr:nth-child(2n) {
+  background-color: #f6f8fa;
+}
+
+.markdown-preview table th,
+.markdown-preview table td {
+  padding: 6px 13px;
+  border: 1px solid #d0d7de;
+}
+
+.markdown-preview table th {
+  font-weight: 600;
+  background-color: #f6f8fa;
+}
+
+.dark .markdown-preview table tr {
+  background-color: #1f1f1f;
+  border-top-color: #3a3a3a;
+}
+
+.dark .markdown-preview table tr:nth-child(2n) {
+  background-color: #161b22;
+}
+
+.dark .markdown-preview table th,
+.dark .markdown-preview table td {
+  border-color: #3a3a3a;
+}
+
+.dark .markdown-preview table th {
+  background-color: #161b22;
+}
+
+.dark .markdown-preview hr {
+  background-color: #3a3a3a;
+}
+
+.dark .markdown-preview img {
+  background-color: #1f1f1f;
+}
+
+.dark .markdown-preview kbd {
+  color: #e6edf3;
+  background-color: #161b22;
+  border-color: #3a3a3a;
+  box-shadow: inset 0 -1px 0 #3a3a3a;
+}
+
+.markdown-preview hr {
+  height: 0.25em;
+  padding: 0;
+  margin: 24px 0;
+  background-color: #d0d7de;
+  border: 0;
+}
+
+.markdown-preview strong {
+  font-weight: 600;
+}
+
+.markdown-preview em {
+  font-style: italic;
+}
+
+.markdown-preview del {
+  text-decoration: line-through;
+}
+
+.markdown-preview img {
+  max-width: 100%;
+  height: auto;
+  box-sizing: content-box;
+  background-color: #ffffff;
+}
+
+.markdown-preview kbd {
+  display: inline-block;
+  padding: 3px 5px;
+  font-size: 11px;
+  line-height: 10px;
+  color: #24292f;
+  vertical-align: middle;
+  background-color: #f6f8fa;
+  border: solid 1px rgba(175, 184, 193, 0.2);
+  border-bottom-color: rgba(175, 184, 193, 0.2);
+  border-radius: var(--radius-xs);
+  box-shadow: inset 0 -1px 0 rgba(175, 184, 193, 0.2);
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+.markdown-preview mark {
+  background-color: #fff8c5;
+  padding: 0.1em 0.2em;
+  border-radius: 2px;
+}
+
+.dark .markdown-preview mark {
+  background-color: #6e5a00;
+  color: #e6edf3;
+}
+
+/* Dark mode overrides for any HTML elements in preview */
+.dark .markdown-preview * {
+  border-color: #3a3a3a;
+}
+
+/* Force dark backgrounds for common container elements */
+.dark .markdown-preview div,
+.dark .markdown-preview section,
+.dark .markdown-preview article,
+.dark .markdown-preview aside,
+.dark .markdown-preview main,
+.dark .markdown-preview header,
+.dark .markdown-preview footer,
+.dark .markdown-preview nav {
+  background-color: transparent !important;
+  color: inherit;
+}
+
+/* Override any inline white/light backgrounds */
+.dark .markdown-preview [style*="background-color: white"],
+.dark .markdown-preview [style*="background-color: #fff"],
+.dark .markdown-preview [style*="background-color: #ffffff"],
+.dark .markdown-preview [style*="background: white"],
+.dark .markdown-preview [style*="background: #fff"],
+.dark .markdown-preview [style*="background: #ffffff"] {
+  background-color: transparent !important;
+}
+
+/* Override any inline black/dark text colors */
+.dark .markdown-preview [style*="color: black"],
+.dark .markdown-preview [style*="color: #000"],
+.dark .markdown-preview [style*="color: #000000"] {
+  color: #e6edf3 !important;
+}
+
+/* Form elements in preview */
+.dark .markdown-preview input,
+.dark .markdown-preview textarea,
+.dark .markdown-preview select,
+.dark .markdown-preview button {
+  background-color: #1f1f1f;
+  color: #e6edf3;
+  border-color: #3a3a3a;
+}
+
+/* Definition lists */
+.dark .markdown-preview dl {
+  color: #e6edf3;
+}
+
+.dark .markdown-preview dt {
+  font-weight: 600;
+  color: #e6edf3;
+}
+
+.dark .markdown-preview dd {
+  color: #b0b0b0;
+}
+
+/* Markdown Preview for AI Chat */
+.markdown-preview-ai {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.markdown-preview-ai h1,
+.markdown-preview-ai h2,
+.markdown-preview-ai h3,
+.markdown-preview-ai h4,
+.markdown-preview-ai h5,
+.markdown-preview-ai h6 {
+  font-weight: bold;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.markdown-preview-ai h1 {
+  font-size: 1.25em;
+}
+
+.markdown-preview-ai h2 {
+  font-size: 1.15em;
+}
+
+.markdown-preview-ai h3 {
+  font-size: 1.05em;
+}
+
+.markdown-preview-ai p {
+  margin-top: 0;
+  margin-bottom: 0.75em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.markdown-preview-ai p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-preview-ai blockquote {
+  margin: 0.5em 0;
+  padding: 0.25em 0.75em;
+  border-left: 3px solid #4b5563;
+  background-color: rgba(0, 0, 0, 0.03);
+  font-style: italic;
+}
+
+.dark .markdown-preview-ai blockquote {
+  background-color: rgba(255, 255, 255, 0.03);
+  border-left-color: #808080;
+}
+
+.markdown-preview-ai code {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.15em 0.3em;
+  border-radius: var(--radius-xs);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.dark .markdown-preview-ai code {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.markdown-preview-ai pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.75em;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  margin: 0.5em 0;
+  max-width: 100%;
+}
+
+.dark .markdown-preview-ai pre {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.markdown-preview-ai pre code {
+  background-color: transparent;
+  padding: 0;
+  font-size: 0.85em;
+  display: block;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.markdown-preview-ai ul,
+.markdown-preview-ai ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.markdown-preview-ai ul {
+  list-style-type: disc;
+  list-style-position: outside;
+}
+
+.markdown-preview-ai ol {
+  list-style-type: decimal;
+  list-style-position: outside;
+}
+
+.markdown-preview-ai ul ul {
+  list-style-type: circle;
+}
+
+.markdown-preview-ai ul ul ul {
+  list-style-type: square;
+}
+
+.markdown-preview-ai li {
+  margin-bottom: 0.25em;
+  display: list-item;
+}
+
+.markdown-preview-ai a {
+  color: #2563eb;
+  text-decoration: underline;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.markdown-preview-ai a:hover {
+  color: #1d4ed8;
+}
+
+.markdown-preview-ai strong {
+  font-weight: bold;
+}
+
+.markdown-preview-ai em {
+  font-style: italic;
+}
+
+.markdown-preview-ai del {
+  text-decoration: line-through;
+}
+
+.markdown-preview-ai hr {
+  border: none;
+  border-top: 1px solid #d1d5db;
+  margin: 1em 0;
+}
+
+.dark .markdown-preview-ai hr {
+  border-top-color: #3a3a3a;
+}
+
+.markdown-preview-ai table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+  font-size: 0.9em;
+}
+
+.markdown-preview-ai th,
+.markdown-preview-ai td {
+  border: 1px solid #d1d5db;
+  padding: 0.4em 0.6em;
+  text-align: left;
+}
+
+.dark .markdown-preview-ai th,
+.dark .markdown-preview-ai td {
+  border-color: #3a3a3a;
+}
+
+.markdown-preview-ai th {
+  background-color: rgba(0, 0, 0, 0.05);
+  font-weight: bold;
+}
+
+.dark .markdown-preview-ai th {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* User message markdown (white text on blue background) */
+.markdown-preview-ai-user {
+  color: white;
+}
+
+.markdown-preview-ai-user code {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.markdown-preview-ai-user pre {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.markdown-preview-ai-user pre code {
+  background-color: transparent;
+  color: white;
+}
+
+.markdown-preview-ai-user blockquote {
+  border-left-color: rgba(255, 255, 255, 0.5);
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.markdown-preview-ai-user a {
+  color: #93c5fd;
+  text-decoration: underline;
+}
+
+.markdown-preview-ai-user a:hover {
+  color: #bfdbfe;
+}
+
+.markdown-preview-ai-user hr {
+  border-top-color: rgba(255, 255, 255, 0.3);
+}
+
+.markdown-preview-ai-user th,
+.markdown-preview-ai-user td {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.markdown-preview-ai-user th {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* No global rule on [title]. An earlier `[title] { position: relative }`
+   (a tooltip-styling leftover that styled nothing - native tooltips cannot
+   be styled) outranked the `absolute` utility, since an unlayered rule beats
+   @layer utilities, and silently pulled every absolutely positioned element
+   with a tooltip back into document flow: the clear button of the node
+   library filter rendered under its input, resize grips and hover delete
+   buttons sat in the wrong place. tests/ui-primitives.test.mjs keeps it out. */
+
+/* Scrollbar Styling - Hidden by default, visible on hover */
+* ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 0; /* scrollbars stay square */
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Show scrollbar on hover */
+*:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.dark *:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+*:hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.dark *:hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Firefox scrollbar styling - hidden by default */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+/* Show scrollbar on hover for Firefox */
+*:hover {
+  scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+}
+
+.dark *:hover {
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+/* Cloud Sync Notification Animation */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* Match React Flow node wrapper to inner content styling */
+.react-flow__node {
+  border-radius: var(--radius-md);
+}
+
+/* Selected node: one ring - the node's own 2px border turns blue (notes and
+   ideas colour their border inline, see NoteNode.jsx / IdeaNode.jsx). The
+   React Flow default (an outline with a gap outside the border) read as a
+   doubled frame. */
+.react-flow__node.selected .workflow-node:not(.workflow-note):not(.workflow-idea) {
+  border-color: #3b82f6 !important;
+}
+
+/* Selection box styling */
+.react-flow__selection {
+  background: rgba(59, 130, 246, 0.1) !important;
+  border: 2px solid #3b82f6 !important;
+}
+
+/* Workflow canvas: node hover/selection/status feedback (see nodeShellClass) */
+.workflow-node {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.react-flow__node:hover .workflow-node {
+  box-shadow: 0 12px 28px -10px rgba(0, 0, 0, 0.45);
+}
+
+.react-flow__node.selected .workflow-node {
+  box-shadow: 0 12px 28px -10px rgba(0, 0, 0, 0.45);
+}
+
+@keyframes workflow-node-processing {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.55); }
+  50% { box-shadow: 0 0 0 7px rgba(59, 130, 246, 0); }
+}
+
+.workflow-node-processing {
+  animation: workflow-node-processing 1.2s ease-out infinite;
+}
+
+/* Pins (NodeComponents.jsx): the <Handle> is the pin, drawn on the node's
+   border and vertically centred on its label row. A row is `relative`; the
+   handle keeps React Flow's own absolute placement (top 50%, translated up
+   by half its height) and is pushed out horizontally so that its CENTRE sits
+   on the centre line of the node's 2px border: half the pin width, plus 1px
+   into the border, plus the row's own inset from the border (--pin-inset:
+   the 12px body padding for body rows, 0 for the header, which spans the
+   whole node width). Execution pins are white triangles (an inline SVG, so
+   they keep a dark outline on light cards), data pins purple circles. A
+   transparent ::after halo widens the hit area a little - React Flow gives the
+   pin under the cursor priority over the nearest pin, so a wide halo would
+   steal drops meant for a neighbouring node's pin. */
+.workflow-pin-row {
+  position: relative;
+  --pin-inset: 12px;
+}
+
+.workflow-node-header {
+  --pin-inset: 0px;
+}
+
+.react-flow__handle.workflow-pin {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: box-shadow 0.12s ease, transform 0.12s ease;
+}
+
+.react-flow__handle.workflow-pin-data.react-flow__handle-left {
+  left: calc(-7px - var(--pin-inset));
+}
+
+.react-flow__handle.workflow-pin-data.react-flow__handle-right {
+  right: calc(-7px - var(--pin-inset));
+}
+
+.react-flow__handle.workflow-pin-exec.react-flow__handle-left {
+  left: calc(-8px - var(--pin-inset));
+}
+
+.react-flow__handle.workflow-pin-exec.react-flow__handle-right {
+  right: calc(-8px - var(--pin-inset));
+}
+
+.react-flow__handle.workflow-pin::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+}
+
+.react-flow__handle.workflow-pin-data {
+  background: #9333ea;
+  border-radius: 9999px;
+}
+
+.react-flow__handle.workflow-pin-exec {
+  width: 14px;
+  height: 14px;
+}
+
+.react-flow__handle.workflow-pin-exec svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: #f5f5f5;
+  stroke: #5a5a5a;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+
+/* A pin the dragged wire may not land on (isValidConnection said no) turns red */
+.react-flow__handle.workflow-pin.connecting:not(.valid) {
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.45) !important;
+}
+
+/* Halo on hover / while a wire is being dragged, in the pin's own colour */
+.react-flow__handle.workflow-pin-data:hover,
+.react-flow__handle.workflow-pin-data.connecting,
+.react-flow__handle.workflow-pin-data.valid {
+  box-shadow: 0 0 0 4px rgba(147, 51, 234, 0.35);
+}
+
+.react-flow__handle.workflow-pin-exec:hover,
+.react-flow__handle.workflow-pin-exec.connecting,
+.react-flow__handle.workflow-pin-exec.valid {
+  box-shadow: 0 0 0 4px rgba(245, 245, 245, 0.3);
+}
+
+.workflow-link-handle:hover,
+.workflow-link-handle.connecting,
+.workflow-link-handle.valid {
+  box-shadow: 0 0 0 4px rgba(147, 51, 234, 0.35) !important;
+}
+
+/* Note/idea link pins stay subtle until the node is hovered or selected */
+.workflow-link-handle {
+  opacity: 0;
+  transition: opacity 0.15s ease, box-shadow 0.12s ease;
+}
+
+.react-flow__node:hover .workflow-link-handle,
+.react-flow__node.selected .workflow-link-handle,
+.react-flow__handle.connecting.workflow-link-handle {
+  opacity: 1;
+}
+
+/* Edges: a wire lights up blue on hover and when selected (click selects
+   it; Delete removes it), with a wider stroke so the state is easy to see */
+.react-flow__edge-path,
+.workflow-edge-outline {
+  transition: stroke 0.12s ease, stroke-width 0.12s ease;
+}
+
+.react-flow__edge:hover .workflow-edge-outline {
+  stroke: #3b82f6 !important;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 3px !important;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 3px !important;
+}
+
+/* Pane cursors: grabbing while panning; grab while Space is held (the pan
+   key - WorkflowBuilder puts .workflow-space-pan on the canvas wrapper) */
+.react-flow__pane.dragging {
+  cursor: grabbing !important;
+}
+
+.workflow-space-pan .react-flow__pane {
+  cursor: grab !important;
+}
+
+.workflow-space-pan .react-flow__pane.dragging {
+  cursor: grabbing !important;
+}
+
+/* The dotted background follows the theme's border tone */
+.react-flow__background circle {
+  fill: var(--os-border);
+}
+
+/* Theme the built-in controls / minimap: a raised card (secondary surface,
+   border, shadow) so the panels read as panels over nodes in both themes -
+   the canvas itself is the card colour, so the card colour alone vanished */
+.react-flow__controls {
+  background: var(--os-card-secondary) !important;
+  border: 1px solid var(--os-border) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: var(--os-card-secondary) !important;
+  border-bottom: 1px solid var(--os-border) !important;
+  color: var(--os-text-primary);
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: 0 !important;
+}
+
+.react-flow__controls-button svg {
+  fill: var(--os-text-primary);
+}
+
+.react-flow__controls-button:hover {
+  background: var(--os-card) !important;
+}
+
+.react-flow__minimap {
+  background: var(--os-card-secondary) !important;
+  border: 1px solid var(--os-border) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+/* Diagnostics content styling overrides for theme support */
+/* The tab fragments (backend/templates/tabs) render inside the sandboxed
+   Diagnostics frame, which inlines this stylesheet and mirrors the app's
+   theme attributes onto its <html> (DiagnosticsPage.jsx), so the os-* tokens
+   resolve there exactly as in the app. Everything here is a token: light,
+   Jacaranda dark, the neutral dark and the gradient themes all follow, live.
+   Severity colours (OK / WARN / ERROR, chart series) stay in the templates. */
+
+#diagnostics-content {
+  color: var(--os-text-primary);
+}
+
+/* Cards: the app's Card surface (bg-os-card, border-os-border, the card radius) */
+#diagnostics-content .card,
+#diagnostics-content .panel {
+  background-color: var(--os-card) !important;
+  border: 1px solid var(--os-border) !important;
+  border-radius: var(--radius-lg);
+  box-shadow: none !important;
+}
+
+/* Surfaces the templates paint white / light grey */
+#diagnostics-content .bg-white,
+#diagnostics-content .bg-gray-50,
+#diagnostics-content .bg-gray-100,
+#diagnostics-content .bg-light {
+  background-color: var(--os-card-secondary) !important;
+}
+#diagnostics-content .bg-gray-200,
+#diagnostics-content .bg-gray-300,
+#diagnostics-content .bg-gray-600,
+#diagnostics-content .bg-gray-700,
+#diagnostics-content .bg-gray-800,
+#diagnostics-content .bg-gray-900 {
+  background-color: var(--os-card-secondary) !important;
+  color: var(--os-text-primary) !important;
+}
+
+/* Table hover states */
+#diagnostics-content table tr:hover,
+#diagnostics-content table tbody tr:hover {
+  background-color: var(--os-card-secondary) !important;
+}
+
+/* Input fields */
+#diagnostics-content input[type="text"],
+#diagnostics-content input[type="search"],
+#diagnostics-content input[type="number"],
+#diagnostics-content input[type="email"],
+#diagnostics-content input[type="password"],
+#diagnostics-content input[type="url"],
+#diagnostics-content textarea,
+#diagnostics-content select {
+  background-color: var(--os-input-bg) !important;
+  color: var(--os-text-primary) !important;
+  border-color: var(--os-input-border) !important;
+}
+
+/* Buttons with light backgrounds */
+#diagnostics-content button,
+#diagnostics-content .btn {
+  background-color: var(--os-card-secondary) !important;
+  color: var(--os-text-primary) !important;
+  border-color: var(--os-border) !important;
+}
+
+/* Chart.js and SVG charts: text and grid follow the tokens (the series keep
+   their own colours; the templates' scripts ask diagnosticsThemeColor()) */
+#diagnostics-content svg text {
+  fill: var(--os-text-secondary) !important;
+}
+#diagnostics-content .chart-grid line,
+#diagnostics-content .grid line {
+  stroke: var(--os-border) !important;
+  stroke-opacity: 0.5 !important;
+}
+#diagnostics-content [stroke="#fff"],
+#diagnostics-content [stroke="#ffffff"],
+#diagnostics-content [stroke="white"] {
+  stroke: var(--os-text-secondary) !important;
+}
+#diagnostics-content [fill="#fff"],
+#diagnostics-content [fill="#ffffff"],
+#diagnostics-content [fill="white"] {
+  fill: var(--os-text-secondary) !important;
+}
+
+/* Text the templates colour by hand */
+#diagnostics-content [color="#000"],
+#diagnostics-content [color="#000000"],
+#diagnostics-content [color="black"],
+#diagnostics-content .text-black,
+#diagnostics-content .text-dark,
+#diagnostics-content .text-gray-900,
+#diagnostics-content .text-gray-800,
+#diagnostics-content .text-gray-100,
+#diagnostics-content .text-gray-200,
+#diagnostics-content .text-white:not(button):not(.badge):not([class*="bg-"]) {
+  color: var(--os-text-primary) !important;
+}
+#diagnostics-content svg text[fill="#000"],
+#diagnostics-content svg text[fill="#000000"],
+#diagnostics-content svg text[fill="black"] {
+  fill: var(--os-text-primary) !important;
+}
+#diagnostics-content .text-gray-700,
+#diagnostics-content .text-gray-600,
+#diagnostics-content .text-gray-500,
+#diagnostics-content .text-gray-400,
+#diagnostics-content .text-gray-300 {
+  color: var(--os-text-secondary) !important;
+}
+#diagnostics-content .legend,
+#diagnostics-content .chart-legend,
+#diagnostics-content legend,
+#diagnostics-content label,
+#diagnostics-content .label {
+  color: var(--os-text-primary) !important;
+}
+
+/* Table borders: the same divider as the app's cards */
+#diagnostics-content table,
+#diagnostics-content table th,
+#diagnostics-content table td,
+#diagnostics-content table tr {
+  border-color: var(--os-border) !important;
+}
+#diagnostics-content table tbody tr,
+#diagnostics-content table thead tr {
+  border-bottom: 1px solid var(--os-border) !important;
+}
+#diagnostics-content .border-gray-200,
+#diagnostics-content .border-gray-300,
+#diagnostics-content .border-gray-600,
+#diagnostics-content .border-gray-700,
+#diagnostics-content div[class*="border-gray"],
+#diagnostics-content .divide-y > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--os-border) !important;
+}
+
+/* Grid Buzzer Button Styles */
+
+/* Phones (the browser build on an iPhone; desktop widths are untouched).
+   index.html sets viewport-fit=cover so the page extends under the notch and
+   the home indicator; the insets keep the app's own box clear of them (they
+   are 0 everywhere else). */
+@supports (padding: env(safe-area-inset-left)) {
+  body {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .h-screen.w-screen {
+    height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    width: calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right));
+  }
+}
+@media (max-width: 767px) {
+  /* iOS Safari zooms into any field smaller than 16px (the :not() parts
+     keep these ahead of single-class utilities such as .text-xs) */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea:not([hidden]),
+  select:not([hidden]) {
+    font-size: max(1em, 16px);
+  }
+  /* the document tab strip scrolls inside itself (touch swipe, snap), never the page */
+  .sc-tab-strip {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  .sc-tab-strip::-webkit-scrollbar {
+    display: none;
+  }
+  .sc-tab-strip > [data-testid="document-tab"] {
+    scroll-snap-align: start;
+  }
+  /* the editor toolbar is one swipeable row instead of three stacked rows */
+  .sc-editor-toolbar {
+    scrollbar-width: none;
+  }
+  .sc-editor-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+  .sc-editor-toolbar > * {
+    flex-shrink: 0;
+  }
+}
+
+/* Brand typography: the wordmark and tagline of the brand pages
+   (src/brand/BrandMark.jsx), in the app font. */
+.brand-wordmark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--os-text-primary);
+}
+.brand-tagline {
+  color: var(--os-text-secondary);
+}
+
+/* Brand pages (sign-in, setup, Settings > About): the hero card carries the
+   mark, the wordmark and the tagline on the brand surfaces (blossom lilac
+   on light, night ink on dark); in the dark theme the form card below it
+   takes the same tinted surface so the page reads as one design, in the
+   light theme it keeps the app's neutral card. */
+.brand-page { background: var(--brand-page-bg); }
+.brand-hero { background: var(--brand-hero-bg); border-radius: var(--radius-3xl); }
+.brand-hero-strip { border-radius: var(--radius-2xl); }
+.brand-hero-title { color: var(--brand-hero-text); }
+.brand-hero-sub { color: var(--brand-hero-muted); }
+.brand-form-card { background: var(--os-modal); border: 1px solid var(--os-border); border-radius: var(--radius-xl); box-shadow: 0 1px 2px rgb(0 0 0 / 0.06); }
+.dark .brand-form-card { background: var(--brand-hero-bg); border-color: transparent; border-radius: var(--radius-2xl); }
+.brand-page-foot { color: var(--os-text-secondary); }
+.brand-link { color: var(--brand-accent); }
+
+/* Corner exceptions (see the radius scale in @theme): the tabs of a tab
+   strip (open documents, workflows, boards, tasks, calendars, tools -
+   src/components/features/documents/TabBar.jsx and its look-alikes carry
+   .sc-tab-strip) are square like the sidebar list rows, idle, hovered and
+   active, whatever utility a tab carries - not the Settings sub-tabs or a
+   segmented control, which are controls; table cells and the editor's
+   textarea stay square too (the [class] forms outrank a single utility
+   class). */
+.sc-tab-strip > *, [data-testid="document-tab"] { border-radius: 0; }
+.sc-row, .sc-row:hover, .sc-row:focus-visible { border-radius: 0; }   /* sidebar list rows (src/components/common/sidebar/ItemList.jsx) */
+td, th, td[class], th[class] { border-radius: 0; }
+textarea.resize-none.h-full { border-radius: 0; }
+
+/* The in-app mark on the gradient colour schemes (src/brand/BrandMark.jsx):
+   the brand violet would clash with the gradient at the top of the rail, so
+   each theme gives the mark a tinted-white arch (also the centre dot) with
+   the blossom in the theme's deep tone - the arch stays >= 3:1 against the
+   gradient's top colour, the blossom >= 4.5:1 against the arch
+   (tests/brand.test.mjs computes them). Light, Jacaranda and the neutral
+   dark keep the default violet; the app icon never changes. */
+[data-theme="gradient-red-purple"] { --mark-arch: #FFE4E6; --mark-blossom: #9F1239; }   /* Magma */
+[data-theme="gradient-blue-purple"] { --mark-arch: #E0E7FF; --mark-blossom: #3730A3; }  /* Nebula */
+[data-theme="gradient-green-blue"] { --mark-arch: #D1FAE5; --mark-blossom: #065F46; }   /* Vulkan */
+[data-theme="gradient-orange-red"] { --mark-arch: #FFEDD5; --mark-blossom: #9A3412; }   /* Sunset */
+[data-theme="gradient-pink-purple"] { --mark-arch: #FCE7F3; --mark-blossom: #9D174D; }  /* Aurora */

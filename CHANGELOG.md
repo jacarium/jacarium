@@ -1,0 +1,1211 @@
+# Changelog
+
+What changed in each release of Jacarium. The app shows the same notes
+under What's New; `npm run release` adds each new version at the top
+(see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
+
+## What's New in v3.1.8
+
+_2026-10-15_
+
+### [DOCUMENTS]
+
+README: the split view next to the Documents screenshot
+
+### [DIAGNOSTICS]
+
+README: no Diagnostics screenshot, no log viewer mention
+
+### [SECURITY]
+
+SECURITY.md: private vulnerability reports, supported versions, how Jacarium is kept secure
+
+### [UI]
+
+README: a phone gets the web app in its browser, not a mobile-optimised app
+
+Support Jacarium: GitHub Sponsors next to Ko-fi (About, desktop About)
+
+### [DESKTOP]
+
+package-lock: the root package's funding field, as npm writes it
+
+### [TESTS]
+
+The previous app name is gone from everything users read: Jacarium everywhere
+
+### [MISC]
+
+CHANGELOG.md renders to the end: "&lt;" is written as &lt;
+
+Review fixes: the screenshot allowance checks WebP bytes; README claims match the app
+
+README is the project's pitch; release notes move to CHANGELOG.md, guides to docs/
+
+export-source.sh: fixes from review
+
+scripts/export-source.sh: mirror a committed version into a publishing checkout
+
+
+## What's New in v3.1.7
+
+_2026-10-15_
+
+### [TEAM]
+
+Licence: AGPL-3.0 (was MIT)
+
+### [SETTINGS]
+
+About: report-an-issue link, the licence links to its text, credits for the fonts and React Flow
+
+### [UI]
+
+Support Jacarium: tip on Ko-fi (About, desktop About, README, FUNDING.yml)
+
+About: source code link (github.com/jacarium/jacarium) and the author's GitHub
+
+### [MISC]
+
+Drop .github/FUNDING.yml while the repository is private
+
+Screenshot workflow: five clear columns, wires without loops, the minimap corner kept free
+
+
+## What's New in v3.1.6
+
+_2026-10-15_
+
+### [DOCUMENTS]
+
+QuickWorkflow: reuse FloatingSSHTerminal for the interactive SSH window
+
+### [WORKFLOWS]
+
+Workflows: cloud wording back for sharing actions
+
+Command palette: a proper search field, and arrow keys that scroll the list
+
+Workflows: "Export Workflow (JSON)" in the context menus
+
+Workflows: wiring feedback, snap to grid, align / distribute, auto-tidy, shortcuts help
+
+Workflows: node search in the library and a quick-add palette
+
+Workflow canvas: Figma/Blueprints-style navigation
+
+Workflow canvas: pins on the node border, wires that end at them, themed chrome
+
+Workflows: undo and redo on the canvas
+
+Workflows: retire the CloudSync-era leftovers, keep team sharing
+
+InteractiveSSHTerminal: split the session, tab completion and command sidebar
+
+WorkflowList: split the menus and rows out, dedupe the cloud actions
+
+WorkflowBuilder: move the canvas interactions into useWorkflowCanvas
+
+WorkflowBuilder: move the library actions into useWorkflowLibraryActions
+
+WorkflowBuilder: move the editor session into useWorkflowSession
+
+WorkflowBuilder: extract the Base64 modal, bulk-move modal and tab menu
+
+Workflow nodes: shared field editors, hooks and body blocks
+
+Remove unused workflow code
+
+Workflow engine: one execution context, input resolution split from node logic
+
+### [CALENDAR]
+
+Settings text no longer points users at the README
+
+### [UI]
+
+Context menus: every Delete item is red, icon included
+
+Context menus: icons for every action
+
+Node library filter: magnifier and clear button inside the field
+
+Connection notices once for the app: no Offline/Online pair at start, none lost on a page switch
+
+### [TESTS]
+
+Workflow engine: pin the current execution semantics with tests
+
+
+## What's New in v3.1.5
+
+_2026-10-14_
+
+### [MISC]
+
+Screenshot tool: neutral theme, split-view shot, free backend port
+
+Screenshot tool with synthetic content for the website
+
+
+## What's New in v3.1.4
+
+_2026-10-14_
+
+### [DIAGNOSTICS]
+
+Diagnostics card radius is the token without !important
+
+Diagnostics tab frames follow the app theme
+
+### [SYNC]
+
+Sync safety snapshots: once per replica, three kept, labelled
+
+One connection indicator for the home server
+
+### [SETTINGS]
+
+Settings opens on the integration the page asked for
+
+Backend integrations work whenever they are configured
+
+### [UI]
+
+What's New is one list per major line, grouped by category
+
+### [TESTS]
+
+Orphaned-banner test counts only the cleanup's backend calls
+
+
+## What's New in v3.1.3
+
+_2026-10-14_
+
+### [CALENDAR]
+
+Google Calendar is optional
+
+### [SETTINGS]
+
+Offline Mode wording matches what it blocks
+
+### [TESTS]
+
+scripts test finds the end of the README history by its heading
+
+
+## What's New in v3.1.2
+
+_2026-10-14_
+
+### [TEAM]
+
+Connection-status callbacks read the { connected } they are given
+
+Central server names itself "Jacarium central server"
+
+Game share pages work behind the console's /central prefix
+
+### [SECURITY]
+
+Sign-in page without the icon and the password-recovery hint
+
+### [UI]
+
+Tab strips are square, like the sidebar list rows
+
+### [DEPLOY]
+
+Deploy removes the unused enrollment secret of 3.0/3.1
+
+### [TESTS]
+
+Taskwarrior follow test compares import stamps as a window
+
+What's New live test measures scrolling with a synthetic long entry
+
+
+## What's New in v3.1.1
+
+_2026-10-14_
+
+### [TEAM]
+
+Central server through the home server only, Cloud Sync settings removed
+
+### [SECURITY]
+
+Root certificate endpoint answers without a sign-in
+
+Desktop pins the home server's CA root, not its renewing certificate
+
+### [DEPLOY]
+
+One container: the central server runs inside the console image
+
+
+## What's New in v3.1.0
+
+_2026-10-14_
+
+### [DOCUMENTS]
+
+Documents: sync notices in the editor's notice strip
+
+### [DIAGNOSTICS]
+
+Diagnostics: Security overview, DPDK guard and parser fixes
+
+### [TEAM]
+
+Central server behind the console at /central, account tickets instead of pairing
+
+### [TESTS]
+
+Brand pages test: read the sync protocol from protocol.json
+
+
+## What's New in v3.0.3
+
+_2026-10-13_
+
+### [DOCUMENTS]
+
+Documents open local first; the server's changes arrive in the background
+
+### [TASKS]
+
+Rewrite only another machine's Taskwarrior paths at import; test and README follow-ups
+
+Taskwarrior follows imports and the first pull, with this device's paths
+
+### [WORKFLOWS]
+
+Workflows rows use the shared list row
+
+### [JIRA]
+
+Jira is optional
+
+### [SETTINGS]
+
+The old-database offer only where an old database exists
+
+Administer the home server from the desktop app
+
+### [UI]
+
+Sidebar lists: square full-width rows everywhere
+
+### [DEPLOY]
+
+Browser deployment: static files by existence, the entry and hashed assets explicit
+
+Browser deployment: the built files are public, with a real favicon.ico
+
+rebuild.sh: the mac default is the dmg
+
+rebuild.sh: default package format per platform
+
+### [TESTS]
+
+generate.py: --copy-to no longer deletes its own copies
+
+Mock sosreport and must-gather for trying the Diagnostics page
+
+
+## What's New in v3.0.2
+
+_2026-10-13_
+
+### [DOCUMENTS]
+
+Documents context menu: the Preview item is text only
+
+Keep the Documents tab strip working where CSS.escape is missing
+
+Make the Documents tabs usable on a phone
+
+### [JIRA]
+
+Jira proxy: refuse a bad path before checking the configuration
+
+Make the Jira site a setting (JIRA_URL) with no built-in default
+
+### [TEAM]
+
+Rename the central server folder to jacarium-central
+
+### [SECURITY]
+
+Privacy scan: keep its own comment out of the user@IP check
+
+Add a privacy scan for the source archive; strip icon metadata
+
+### [UI]
+
+The mark follows the gradient colour schemes
+
+Sidebar mark opens Settings
+
+Menu items and fields: the shared look everywhere
+
+Text buttons and menus: text only
+
+Jacaranda dark theme
+
+Empty states, headings and the last decorative icons
+
+Neutral colours from the theme tokens
+
+Buttons and form controls: one radius, normal weight, no icons in text buttons
+
+UI primitives and design tokens
+
+Sora as the app font
+
+Rounded corners across the app
+
+Brand pages: sign-in hero, About, What's New and downloads headers, sidebar mark
+
+Jacarium icon and brand sources
+
+Neutral placeholders, prompts and examples
+
+Make What's New text only
+
+### [DESKTOP]
+
+Packaged-app launches are isolated or refused
+
+### [DEPLOY]
+
+One entry point per task for the shell scripts
+
+### [TESTS]
+
+Code highlight test: the dark code block background comes from the token
+
+Import fixtures from the previous name
+
+### [MISC]
+
+Rename the internal identifiers and paths
+
+Rename the app to Jacarium
+
+Neutral wording in comments, tests and examples
+
+Add the MIT license; keep the desktop metadata's version in step
+
+
+## What's New in v3.0.1
+
+_2026-10-12_
+
+### [SYNC]
+
+Upload what a linked profile already had; package protocol.json; the home server ignores Offline Mode
+
+### [DEPLOY]
+
+Publish the source code next to the desktop installers
+
+publish-desktop --build starts from a clean dist-electron
+
+### [TESTS]
+
+Fix the npm audit finding in http-cache-semantics (GHSA-ch52-4w7c-c8xp)
+
+
+## What's New in v3.0.0
+
+_2026-10-12_
+
+### [DOCUMENTS]
+
+Cloud Sync is a Settings tab; the Documents menu loses its Cloud Settings entry
+
+Share the merge rules between import and sync; keep each account's records on the server
+
+Use the backend's browser-mode services and move Settings to the Documents menu
+
+Offer page size and orientation for the Documents PDF export
+
+Remove the jsPDF/html2canvas PDF exporter; the desktop app prints PDFs
+
+Export Documents to PDF with Chromium's print engine under Electron
+
+### [TASKS]
+
+Check the Taskwarrior version without rc overrides; count only image inputs; adapt the bundle guard
+
+Close the Taskwarrior command-execution holes and confine instance paths
+
+Say "backend not reachable" on the Tasks page instead of blaming Taskwarrior
+
+### [WORKFLOWS]
+
+Run the central server on Node 24 with a working health check
+
+### [AI]
+
+Turn SSH connection reuse off behind the proxy; load the configured settings file in the AI models route
+
+Send system prompts to Gemini as a system instruction
+
+Move Gemini chat from the deprecated google-generativeai SDK to google-genai
+
+### [DIAGNOSTICS]
+
+Keep the desktop's Diagnostics directory string as the user typed it
+
+### [TEAM]
+
+Send the session cookie with every backend request
+
+The cloud identity is the account: one identity on every device, paired once
+
+Cloud settings: explain how to pair a browser and say why a connection test failed
+
+Deploy the central server for browser users: SAN certificates, image cleanup, health, clear CORS setup
+
+Let the browser app's origin through the central server's CORS without locking out the desktop
+
+Show the chosen display name in the games and on the Kanban board too
+
+Give each browser its own cloud-sync identity instead of unknown@unknown
+
+Apply the 7-day min-release-age rule to central-p2p-server
+
+Fix central-p2p-server npm audit findings
+
+### [SYNC]
+
+Desktop-to-server version check, and the desktop installers served by the server
+
+Admin hardening, sessions, an audit log, and "Delete all my data on the server"
+
+Switch accounts cleanly in one browser or one desktop profile
+
+Taskwarrior follows the account: tasks reach every device's own Taskwarrior
+
+Link a desktop profile to the home server with a device token
+
+Synchronise the app's database with the home server
+
+### [SECURITY]
+
+One look for the Settings dialog, with Users, Audit and the data deletion
+
+Recover a forgotten password from the server: reset-password and list-users
+
+Adopt a container's pre-accounts data when the first administrator is created
+
+Keep every account's files apart on the server
+
+Add sign-in with accounts to the browser deployment
+
+Describe what the browser deployment refuses without a sign-in
+
+Bump source-map-js and override global-agent to fix npm audit findings
+
+Override katex and postcss-selector-parser to fix npm audit findings
+
+Bump proxy-addr and joi to fix npm audit findings
+
+### [SETTINGS]
+
+Sign in from the app: setup and sign-in pages, one database per account
+
+Refuse process-steering names in Settings saves
+
+Make the app degrade cleanly in a plain browser
+
+### [UI]
+
+Drop the Tailwind v3 sRGB palette shim; use Tailwind 4's oklch palette
+
+Migrate the build from Tailwind CSS 3.4 to 4.3
+
+Point both Tailwind stylesheets at their config with @config
+
+Pick What's New versions from a dropdown, one at a time
+
+### [DESKTOP]
+
+Desktop profiles: several sets of data in one installation, with a picker
+
+Keep the Settings dialog's secrets out of the desktop renderer
+
+### [DEPLOY]
+
+Survive a redeploy in an open browser: cache headers, assets kept, reload once
+
+Tell the target which components are unchanged, so it never restarts them for a retagged image
+
+Deploy with sign-in by default; leave a component alone when its inputs did not change
+
+Deploy the browser console and the central server to another host over SSH
+
+Build the deployment image in docker format so the HEALTHCHECK works
+
+Refuse to start the deployment when its image is not built
+
+Remove the container images a build supersedes, by this project's label only
+
+Run the backend on Python 3.14 locally and in the container
+
+Fix the backend's vulnerable Python packages and lock one set of versions for venv and container
+
+Package the app for a browser: one UBI 9 container with Caddy and gunicorn
+
+### [TESTS]
+
+Test two browsers syncing through a real central server container
+
+Test the Electron PDF export against the browser exporter
+
+Dismiss What's New and emulate focus in the visual snapshot driver
+
+Add real-app visual snapshot driver and Tailwind regression test
+
+### [MISC]
+
+Remove the backend's unused machine ID endpoint
+
+Remove the unused Flatpak manifest and its build script
+
+Add the backend routes the app needs when it runs in a browser
+
+Rewrite Tailwind class names for v4 across the app and legacy templates
+
+Bump shell-quote to 1.11.0 for GHSA-pqg4-j6r4-53mv
+
+
+## What's New in v2.6.0
+
+_2026-10-03_
+
+### [DOCUMENTS]
+
+Make the Find in Files selection visible and drop its focus outline
+
+Restyle Find in Files and scope it with a category dropdown
+
+Show the whole document in a resizable Find in Files preview
+
+Replace Documents sidebar search with a Find in Files window
+
+Rework Documents import/export with dry run, merge modes and images
+
+Keep double spaces in the Documents editor on macOS
+
+Export/import tasks as per-instance TaskWarrior JSON
+
+Add "Create Document In" to the Tasks right-click menu
+
+Add /task command with Quick Tasks window in Documents editor
+
+Highlight python/go/bash/yaml/json code blocks in Documents preview
+
+Make export/import terminal panes follow light and dark themes
+
+Fix merge DB import and add Dry Run with import statistics
+
+Bake arrowhead markers into SVG export so Illustrator keeps edge lines
+
+Inline computed styles in SVG export so edges survive CSS-less viewers
+
+Add Download SVG context menu on Mermaid diagrams; stop needless redraws
+
+Ensure readable Mermaid labels in dark mode
+
+Recalibrate editor gutter when the textarea remounts after preview
+
+Fix trailing blank page in Documents PDF export
+
+Add Mermaid diagram support to Documents preview and PDF export
+
+Fix duplicated document categories and self-heal existing duplicates
+
+Use overlay scrollbars on Linux to remove sidebar right-edge gap
+
+Render GTFOBins comments as sanitized Markdown
+
+Add GTFOBins reference tool under a new Security category
+
+Fix uneven word spacing in Documents PDF export
+
+Fix sub-pixel gutter/cursor misalignment in the Documents Page editor
+
+Fix Documents Page gutter line numbers drifting out of sync
+
+Add progress modal to database, document, and category exports
+
+PDF export: header/footer directives, page numbers, and ToC/text fixes
+
+Add Table of Contents insert button and clickable PDF links
+
+Add Export PDF to the single-document context menu
+
+Add heading ids to document preview so ToC anchor links work
+
+Add Export Document (ZIP) to the single-document context menu
+
+Fix dark theme on locked-documents bulk delete modal
+
+Add global preview-all-documents state to the preview toggle
+
+Fix Ctrl+F highlight misalignment caused by line-height rounding
+
+Fix middle-click tab close pasting clipboard text into editor
+
+Move offline document banner below the toolbar
+
+Add middle-click to close document tabs
+
+Fix two more unclamped context menus found in a codebase-wide audit
+
+Match merge-imported documents by a stable UUID, not title+category
+
+Add opt-in merge mode to database import
+
+Repair broken syntax in orphaned FloatingDraft and AskAIPopup
+
+Replace remaining native dialogs in documents, AI chat and kanban
+
+Migrate locked-document delete to shared typed-confirmation modal
+
+Switch DocumentsPage list state to metadata-only documents
+
+Stop the 3s fallback from duplicating text documents on slow sync
+
+Fix missing truncation on sidebar category headers when sidebar is narrow
+
+Make the sticky search band transparent so only the pill occludes
+
+Redesign document search as a sticky pill inside the scroll container
+
+Move read-only banners below the toolbar in DocumentEditor
+
+Targeted peer-update handling and Yjs-aware autosave in document sync
+
+Signal unloadable Yjs snapshots to clients; show local copy read-only instead of silently reseeding
+
+Fix collaborative cursor rendering: flicker under concurrent typing and invisibility in wrapped documents
+
+Persist Yjs documents to disk with AES-256-GCM encryption at rest
+
+Gate Yjs debug logging, scope broadcasts to document rooms, evict idle docs
+
+Remove unused DocumentsPage.backup.jsx
+
+Preserve cloudDocumentId on received cloud documents so live Yjs sync engages
+
+Fix cloud-doc editor: engage live Yjs sync on upload and keep gutter line numbers live
+
+Remove per-keystroke overhead from the document editor typing path
+
+### [TASKS]
+
+Break down TaskWarrior export log by task status
+
+Show and clean orphaned cached tasks on the Tasks page
+
+Close .env injection, log leaks, token perms and task argv gaps (L1-L8)
+
+Replace native confirm() in task pages and query/template sidebars
+
+Replace native dialogs in TaskWarrior instance management
+
+Open TaskWarrior download link in the external browser
+
+Fix silent no-op when deleting a task via /api/taskwarrior/update
+
+Fix purge-deleted using the wrong TaskWarrior verb; add tests for both fixes
+
+Add timeouts to custom AI requests and batch TaskWarrior purge
+
+### [KANBAN]
+
+Auto-save and resume Sentence Builder board state
+
+Dim Sentence Builder bank words once placed on the board
+
+Fix silent data loss on shared Kanban boards (id collision + resurrection)
+
+Deduplicate UUID v4 generator into shared util; add DEBUG_LOGGING gate for noisy logs
+
+### [WORKFLOWS]
+
+Replace node-forge in the CSR generator with WebCrypto and pkijs
+
+Stop marquee node selection from also text-selecting node content
+
+Fix node palette scroll overshoot and persist category collapse state
+
+Fix parallel execution live-updates, add node layer ordering and edge direction arrows
+
+Refactor Workflow Page graph UX, fix node-drag vs text-select bug
+
+Block forged sync ownership and sandbox workflow transform code
+
+Pin .nvmrc to exact Node 24.18.0
+
+Restore Fast Refresh eligibility for component files
+
+Replace native dialogs in workflow components
+
+### [CALENDAR]
+
+Add middle-click tab close to Calendar and Tools pages
+
+### [JIRA]
+
+Open JIRA token settings link in the external browser
+
+Lazy-load page components to split the renderer bundle
+
+### [AI]
+
+Fix RAG retrieval quality and dataset chat streaming bugs
+
+Prevent shell injection in SSH AI chat via base64 message transport
+
+Port the Documents-sidebar sticky-pill search to AI Chat conversations
+
+Remove SSH chat debug timing logs added for the pool hang diagnosis
+
+Fix indefinite hang when SSH AI command template is saved blank
+
+Add timing/progress debug logs to AI Chat SSH pipeline
+
+Fix AI-chat SSH read timeouts and paramiko TripleDES warning
+
+Make AI-chat SSH failures diagnosable and pooled-connection reuse robust
+
+Memoize per-message markdown rendering in AI chat
+
+Split backend/app.py into feature modules with a shared extensions kernel
+
+### [DIAGNOSTICS]
+
+Render sosreport log viewer when no journal or timestamps are available
+
+Inline Red Hat fonts in diagnostics srcdoc frame
+
+Skip unreadable log files in Log Viewer instead of failing load_tab
+
+Fix diagnostics iframe showing its own scrollbar during load
+
+Add pagination to CPU/Memory Accounting tabs, fix load-time layout jitter
+
+Fix invisible current-page highlighting in diagnostics pagination
+
+Fix diagnostics iframe not shrinking after content size decreases
+
+Fix crash on SAR tabs with no CPU/disk/memory/network data
+
+Fix 401 Unauthorized on Log Viewer/haproxy backend calls in diagnostics iframe
+
+Fix dark theme readability of Services tab memory/task bar labels
+
+Close unclosed &lt;script> tag in PCI devices diagnostics template
+
+Fix Chart.js and malformed-template errors in diagnostics iframe
+
+Fix diagnostics iframe CSS not loading in packaged builds
+
+Sandbox DiagnosticsPage script execution to fix critical XSS
+
+Fix 401 Unauthorized on sosreport log viewer and haproxy tabs
+
+Resolve must-gather image dir for any registry via one shared helper
+
+Deduplicate window-opener IPC handlers and getMachineId wrappers; remove dead backup files
+
+### [TEAM]
+
+Gate first-time device enrollment behind a shared secret (H4)
+
+Harden renderer, Electron shell, SSH route and central server (H1-H5)
+
+Fix compiler-critical react-hooks violations across seven files
+
+Mark game players disconnected on every exit path, not just app auth
+
+Expire abandoned games by disconnect duration, not game age
+
+Replace native dialogs in game modes
+
+Harden central-p2p-server against malformed Yjs messages crashing it
+
+Sweep stale PyInstaller onefile temp dirs in run.sh; drop tracked central-p2p-server.tar.gz
+
+Add getDocumentsMetadata() to avoid loading full content for document lists
+
+Stop re-broadcasting full grid/quiz state on every timer tick
+
+Split central-p2p-server/server.js into feature modules
+
+Add per-client secret auth to central-p2p-server (fix machine_id spoofing)
+
+### [SECURITY]
+
+Override lodash-es to 4.18.1 to fix npm audit advisories
+
+Harden Offline Mode after review; shorten settings description
+
+Fix joi and js-yaml npm audit vulnerabilities
+
+Close SSRF, injection, traversal, session and fan-out gaps (M1-M8)
+
+Fix XSS and injection vulnerabilities found in security audit
+
+Fix all 15 npm audit vulnerabilities (1 low, 1 moderate, 13 high)
+
+Reuse SSH connections across workflow-node commands (ControlMaster)
+
+Add shared-secret auth token to close unauthenticated local backend
+
+### [SETTINGS]
+
+Add Offline Mode (default on) blocking all outbound connections
+
+Declutter the General settings tab
+
+Restyle debug status bar as a bottom-right corner pill
+
+Change first-run default UI zoom from 0.75 to 0.9
+
+Add persisted UI Scale (zoom) control to Settings > General
+
+### [UI]
+
+Square off GTFOBins chips, always show Function edit/delete
+
+Add page layout directives to PDF export: pagebreak, blankpage, centerpage
+
+Replace hardcoded example IP with a generic placeholder in run scripts
+
+Show upload confirmation preview in Media Library Upload tab
+
+Unify active-item color in the utility More menu dropdown
+
+Fix context menus rendering far from the cursor/button
+
+Fix off-screen context menus in CompactSidebar
+
+Make the sidebar visibility toggle truly global
+
+Add sidebar toggle button and fix two CompactSidebar UI bugs
+
+Lift CompactSidebar nav rail to z-40 so its flyouts clear sticky page content
+
+Render confirmation dialogs above always-on-top floating widgets
+
+Fix dark-theme contrast in ConfirmationModal's typed-confirmation input
+
+Require typed confirmation phrase before wiping the database
+
+Add tool search to ToolsSidebar using the sticky-pill sidebar pattern
+
+Load quicktype target languages on demand in JsonToInterfaceTool
+
+### [DESKTOP]
+
+Remove auto-update, GitLab release links and CI configs
+
+Enable webSecurity and proxy workflow HTTP requests through main process
+
+Collapse File menu database items into a Database submenu
+
+Add toggleable debug status bar (FPS, CPU, memory) to every window
+
+Fix ui-settings.json writes to merge instead of clobbering the file
+
+Switch packaged backend from PyInstaller onefile to onedir
+
+Use socketio.run() in the packaged backend entrypoint
+
+Ignore macOS AppleDouble (._*) resource-fork files
+
+Add macOS support and port-in-use guard to run1.sh
+
+Add macOS support and port-in-use guard to run2.sh; respect PORT env in backend/app.py
+
+Scope self-signed certificate allowance to the configured central server
+
+Remove dead firewall toggle IPC handlers (shell injection surface)
+
+### [DEPLOY]
+
+Pin backend build to Homebrew Python 3.13
+
+Widen supply-chain cooldown window from 2 to 7 days
+
+Fix npm audit vulnerabilities, upgrade build venv pip, add pip cooldown
+
+Pin Containerfile to exact Node 24.18.0
+
+Fix infinite "Image not found" spam and width=px parsing
+
+Fix rootless-podman EACCES on clients.json and move server state out of the checkout
+
+Wire Yjs encryption key + persistent data volume into deploy-podman.sh; remove unused local/systemd deployment scripts
+
+Fix container image missing the modules split out of server.js
+
+Fix Flask debug mode, sshpass argv exposure, and SSH host-key TOFU
+
+### [TESTS]
+
+Add reusable Linux container toolkit under tests/linux
+
+Fix rebuild-test.sh backend build success check for onedir output
+
+Fix two stale tests broken by the XSS/injection security audit
+
+Extend diagnostics test driver: height-report recording, scrollbar/inner-scroll probes, Log Viewer helpers
+
+Save reusable Playwright driver for live DiagnosticsPage testing
+
+Fix npm audit vulnerabilities (7: 1 moderate, 6 high)
+
+Force plain-text logs in yjs eviction test's spawned server
+
+Add promise-based useConfirmation hook with modal interaction tests
+
+Add tests/run-all.sh to run the whole test suite in one command
+
+### [MISC]
+
+Rebuild What's New on FloatingWindow and make releases local-only
+
+Bump locked dependency versions
+
+Bump transitive undici to fix GHSA-3wwx-pv8p-q78v
+
+Show inherit targets on GTFOBins Inherit function chips
+
+Make suid/capabilities context extras editable, show suid override
+
+Polish Executables table: drop count column, search code too
+
+Replace Functions/Contexts tables with pill pickers
+
+Drop bundled GTFOBins dataset now that IndexedDB is seeded
+
+Fix pagebreak/blankpage/centerpage landing position drifting downward
+
+Add npm min-release-age supply-chain protection
+
+Refactor Media Library: usage tracking, tags, filters, bulk delete
+
+Export ZIP: per-category images/ folder instead of shared _media/, sanitize entry names
+
+Sanitize spaces from Media Library filenames on upload
+
+Make Sentence Builder group boundary box draggable
+
+Support optional width sizing for Media Library attachment images
+
+Add Sentence Builder tool
+
+Fix unclamped DatePicker/DateTimePicker and add precise sizing
+
+Show mapped plaintext letter in Substitution Cipher frequency list
+
+Fix Substitution Cipher Reset Key to fully clear the grid
+
+Enhance Substitution Cipher Key grid: shift badge and sorting
+
+Add Caesar, Affine, and XOR cipher tools
+
+Revert "Add Multi Decoder tool"
+
+Add Multi Decoder tool
+
+Fix white-on-white key input in Substitution Cipher tool
+
+Add Substitution Cipher tool
+
+Add Binary to String tool
+
+Add Histogram and Morse Code tools
+
+Prune stale optional lockfile entries
+
+Clear the remaining mechanical lint rules - repo is now ESLint-clean
+
+Delete remaining dead code flagged by no-unused-vars (267 -> 0)
+
+Drop unused imports and unused catch bindings repo-wide
+
+Finish react-hooks cleanup: all 210 compiler-lint findings resolved
+
+Clear react-hooks refs long tail and first half of set-state-in-effect
+
+Resolve react-hooks refs/immutability errors in twelve more files
+
+Remove dead handlers and stale setter calls that referenced missing state
+
+Scope ESLint globals correctly and exclude build artifacts
+
+Accept legacy positional addNotification(message, type) calls
+
+Debounce the command palette search trigger
+
+Lazy-load tool components so ToolsPage stops bundling all 41 tools
+
+Ignore .claude directory in eslint config to fix 8-minute lint runs
+
+Add new backend modules to PyInstaller hiddenimports
+
+Check for existing process on backend port before launching
+
+
+## What's New in v2.5.5
+
+_2026-07-26_
+
+### [TEAM] Quiz Improvements
+
+Added new Quiz game mode Grid.
+
+Refactor the code for Quiz.
+
+### [SETTINGS] Offline Mode
+
+New Offline Mode switch in Settings > General, ON by default. While it is on the application makes no outbound network connections at all: Cloud Sync, Jira, Google Calendar, remote AI providers, URL fetching, WHOIS, update checks and workflow REST API / SSH nodes are refused with a clear message. Only connections to this machine (the local backend, a local Ollama) are allowed; links still open in your system browser.
+
+The switch is enforced centrally in the desktop shell and the local backend, not just per feature, and a small cloud-off icon in the bottom-right corner (next to the FPS counter when that is enabled) shows when it is active. Turn it off in Settings to re-enable sync and the other network features; it applies immediately, no restart needed.
+
+Fonts and the Diagnostics charts are now bundled with the app instead of being loaded from a CDN, so they work with Offline Mode on.
+
+
+## What's New in v2.5.4
+
+### [TEAM] AI Quiz
+
+You can now upload documentation files to generate quiz questions.
+
+Added optional topic field for "From URL" and "From File" modes. When generating questions from large documents or URLs, you can now specify a specific topic to focus on (e.g., "Installation", "Networking").
+
+The AI will analyze your uploaded document or URL and create technical questions based on the actual content, perfect for testing knowledge on specific documentation or training materials.
+
+
+## What's New in v2.5.3
+
+### [DOCUMENTS] Sample Templates Added
+
+Added sample templates to several tools to help you get started quickly.
+
+Click the "Samples" button to load pre-configured examples and see how each tool works. Samples include common patterns for regex validation, JSON structures, SQL queries, and more.
+
+
+## What's New in v2.5.2
+
+### [DOCUMENTS] Documents Changes
+
+Improved document creation workflow to be category-aware.
+
+When creating a new document using the "Add New" button, it will now be created in the same category as the currently active document. If no document is selected, it defaults to the General category.
+
+### [MISC] New Tools Added
+
+Added three new tools to enhance your productivity:
+
+IPv4 Subnet Calculator - Calculate subnet mask, network address, broadcast address, first/last host, total/usable hosts, IP class, and binary representation for IPv4 networks.
+
+IPv6 Subnet Calculator - Calculate network address, first/last address, address type (Global Unicast, Link-Local, etc.), and binary representation for IPv6 networks. Supports both compressed and expanded IPv6 formats.
+
+Cron Parser - Parse and understand cron expressions with human-readable descriptions, field breakdowns, and next execution times. Includes common examples and format help.
+
+### [MISC] Timer Tools Enhancement
+
+Added pause and resume functionality to Stopwatch and Countdown Timer tools.
+
+You can now pause either tool mid-run and resume from where you left off, making it easier to manage timing tasks without losing your progress.
+
+
+## What's New in v2.5.1
+
+### [DESKTOP] Think Out of the Box
+
+Added the ability to open Tools, Diagnostics, and Search pages in separate external windows.
+
+Right-click on the Tools, Diagnostics, or Search icon in the sidebar and select "Open in External Window" to work with these pages independently while keeping the main window focused on Documents or other tasks.
+
+
+## What's New in v2.5.0
+
+### [CALENDAR] Calendar Sync Fixes
+
+Fixed calendar sync to properly remove events deleted from Google Calendar.
+
+Fixed all-day events appearing on wrong day due to timezone handling.
+
+Calendar sync now only updates events within the viewed time range, preserving cached events from other months.
+
+### [MISC] Tooling Around
+
+Added new Tools page with 38+ developer utilities organized into 8 categories:
+
+Calculate: Hash Calculator (MD5, SHA1, SHA256, SHA384, SHA512), SLA Calculator
+
+Conversion: Base64, Color Converter, CSV/JSON, HTML to Markdown, JSON/YAML, XML to JSON, Number Base Converter, String Utilities, Time Format Converter
+
+Encode/Decode: Backslash Escape, HTML Entities, JWT Decoder, URL Encoder/Decoder
+
+Format: CSS, HTML, JSON, SQL Formatters
+
+Generate: Barcode, CSR, JSON to TypeScript Interface, Lorem Ipsum, QR Code, UUID
+
+Miscellaneous: Countdown Timer, Markdown Preview, Stopwatch, String Analyzer, Text Diff, URL Exploder
+
+Networking: WHOIS Lookup
+
+Validate: IBAN Validator, Regex Validator
+
+
+## What's New in v2.4.21
+
+### [DOCUMENTS] Document Editor
+
+Shows IndexedDB content while Yjs is loading.
+
+Update textarea when server content loads.
+
+
+## What's New in v2.4.20
+
+### [TEAM] Quiz-ed the Bugs!
+
+Corrected "Correct Answer" not showing to all players when everyone answered.
+
+Fixed Duplicate Quiz Invites.
+
+
+## What's New in v2.4.19
+
+### [DIAGNOSTICS] Log View-er
+
+Filter logs within selected severity or process for more precise diagnostics. The new filters work seamlessly together to help you find exactly what you need.
+
+Access from Diagnostics → sosreport → Log Viewer.
+
+### [TEAM] Challenge your friends!
+
+We have added cross-platform support for Quiz! Challenge your friends by sharing the link accessible from Web Browser.
+
+Access from Quiz → Select Topic → Create a Lobby → Share Link (Web).
+
+### [UI] Make it your own!
+
+Customize your Jacarium sidebar with beautiful themes including Magma, Nebula, Vulkan, Sunset, and Aurora.
+
+Access them from Application Settings → Theme Settings → Color Scheme to transform your sidebar with vibrant colour.

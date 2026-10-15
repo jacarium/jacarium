@@ -1,0 +1,15 @@
+[
+  {
+    "title": "Fine document",
+    "content": "ok"
+  },
+  {
+    "category": "No title or content"
+  },
+  null,
+  "just a string",
+  {
+    "title": 42,
+    "content": "numeric title"
+  }
+]

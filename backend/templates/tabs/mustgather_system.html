@@ -1,0 +1,534 @@
+<div id="operatorListPanel" class="space-y-4">
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-cogs mr-2"></i> Cluster Details
+ </h3>
+ <ul class="space-y-1 text-sm">
+ <li><strong>Cluster Version:</strong> {{ data.cluster_version.version or"N/A" }}</li>
+ <li><strong>Channel:</strong> {{ data.cluster_version.channel or"N/A" }}</li>
+ <li><strong>Kubernetes Version:</strong> {{ data.kubernetes_version or"N/A" }}</li>
+ <li><strong>Network Type:</strong> {{ data.network_type or"N/A" }}</li>
+ <li><strong>Install Method:</strong> {{ data.install_method or"N/A" }}</li>
+ <li><strong>Platform:</strong> {{ data.platform or"N/A" }}</li>
+ </ul>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-clock mr-2"></i> Collection Time
+ </h3>
+ <ul class="space-y-1 text-sm">
+ <li><strong>Start:</strong> <span id="collectionStartTime">{{ data.collection_timestamps.first or"N/A" }}</span></li>
+ <li><strong>End:</strong> <span id="collectionEndTime">{{ data.collection_timestamps.last or"N/A" }}</span></li>
+ <li><strong>Total:</strong> <span id="collectionTotalTime">Calculating...</span></li>
+ </ul>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-network-wired mr-2"></i> Proxy Configuration
+ </h3>
+ {% if data.proxy_config and data.proxy_config.configured %}
+ <ul class="space-y-1 text-sm">
+ {% if data.proxy_config.http_proxy %}
+ <li><strong>HTTP Proxy:</strong> {{ data.proxy_config.http_proxy }}</li>
+ {% endif %}
+ {% if data.proxy_config.https_proxy %}
+ <li><strong>HTTPS Proxy:</strong> {{ data.proxy_config.https_proxy }}</li>
+ {% endif %}
+ {% if data.proxy_config.no_proxy %}
+ <li><strong>No Proxy (Bypass Rules):</strong> <span class="text-xs font-mono break-all">{{ data.proxy_config.no_proxy }}</span></li>
+ {% endif %}
+ {% if data.proxy_config.trusted_ca %}
+ <li><strong>Trusted CA:</strong> {{ data.proxy_config.trusted_ca }}</li>
+ {% endif %}
+ </ul>
+ {% else %}
+ <div class="text-sm text-gray-500">
+ <i class="fas fa-info-circle mr-1"></i> Proxy cluster bypass rule path entries are empty or unmanaged.
+ </div>
+ {% endif %}
+ </div>
+
+ <div class="panel rounded-lg shadow-sm w-full">
+ <h3 class="text-lg font-medium mb-4">
+ <i class="fas fa-table mr-2"></i> Cluster Operators
+ </h3>
+
+ <div class="mb-2">
+ <input id="operatorSearchInput" type="text" placeholder="Search operators..." class="w-full px-3 py-2 text-sm border" />
+ </div>
+
+ <div class="flex justify-between items-center mb-2">
+ <div id="filteredOperatorCount" class="text-sm">Showing all operators</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs font-semibold">Per Page:</label>
+ <select id="operatorPageSizeSelect" onchange="window.changeOperatorPageSize()" class="px-3 py-1 text-sm border">
+ <option value="25">25</option>
+ <option value="50" selected>50</option>
+ <option value="100">100</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ <table class="w-full min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortOperatorsBy('name')">Name</th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortOperatorsBy('available')">Available</th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortOperatorsBy('progressing')">Progressing</th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortOperatorsBy('degraded')">Degraded</th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortOperatorsBy('lastTransitionTime')">Last Transition</th>
+ </tr>
+ </thead>
+ <tbody id="operator-table-body"></tbody>
+ </table>
+ <div id="operatorPaginationButtons" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+</div>
+
+
+<div id="operatorPanel" style="display: none;">
+ <div class="space-y-4">
+ <div class="mb-4">
+ <button onclick="window.backFromOperatorModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ Back
+ </button>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-info-circle mr-2"></i> Operator Details
+ </h2>
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm" id="operatorDetailsTable"></table>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-stethoscope mr-2"></i> Operator Conditions
+ </h2>
+ <div id="operatorConditionsTable" class="text-sm space-y-2"></div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-file mr-2"></i> Operator YAML
+ </h2>
+ <div class="mb-2">
+ <input
+ id="operatorYamlFilter"
+ type="text"
+ placeholder="Filter YAML lines..."
+ class="w-full px-3 py-2 text-sm border"
+ />
+ </div>
+ <div id="operatorJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
+ </div>
+ </div>
+</div>
+<script>
+ var clusterOperators = {{ data.cluster_operators | tojson }};
+ var currentOperatorSort = { key: 'lastTransitionTime', direction: -1 };
+ var operatorCurrentPage = 1;
+ var operatorPageSize = 50;
+
+ var operatorTableBody = document.getElementById("operator-table-body");
+ var operatorSearchInput = document.getElementById("operatorSearchInput");
+ var filteredOperatorCount = document.getElementById("filteredOperatorCount");
+
+ var operatorListPanel = document.getElementById("operatorListPanel");
+ var operatorPanel = document.getElementById("operatorPanel");
+
+ var operatorDetailsViewer = document.getElementById("operatorJsonViewer");
+ var operatorDetailsTable = document.getElementById("operatorDetailsTable");
+
+ var flattenedOperators = [];
+ var currentOperator = null;
+ var lastClickedRow = null;
+
+ function flattenOperators() {
+ flattenedOperators = clusterOperators.map(op => {
+ const conditions = op?.status?.conditions || [];
+ const available = conditions.find(c => c.type ==="Available")?.status ||"Unknown";
+ const progressing = conditions.find(c => c.type ==="Progressing")?.status ||"Unknown";
+ const degraded = conditions.find(c => c.type ==="Degraded")?.status ||"Unknown";
+
+ let lastTransitionTime = null;
+ for (const cond of conditions) {
+ if (cond.lastTransitionTime) {
+ const condTime = new Date(cond.lastTransitionTime);
+ if (!lastTransitionTime || condTime > lastTransitionTime) {
+ lastTransitionTime = condTime;
+ }
+ }
+ }
+
+ return {
+ name: op.metadata?.name ||"N/A",
+ available: available,
+ progressing: progressing,
+ degraded: degraded,
+ lastTransitionTime: lastTransitionTime ? lastTransitionTime.getTime() : 0,
+ raw: op
+ };
+ });
+ }
+
+
+ function renderOperatorTable(data) {
+ const totalCount = data.length;
+ const start = operatorPageSize === -1 ? 0 : (operatorCurrentPage - 1) * operatorPageSize;
+ const end = operatorPageSize === -1 ? totalCount : Math.min(start + operatorPageSize, totalCount);
+ const paginatedData = operatorPageSize === -1 ? data : data.slice(start, end);
+
+ operatorTableBody.innerHTML = '';
+ paginatedData.forEach(op => {
+ const row = document.createElement("tr");
+ row.className = "cursor-pointer border-b hover:bg-gray-50 dark:hover:bg-gray-800";
+
+ const lastTransitionDisplay = op.lastTransitionTime
+ ? new Date(op.lastTransitionTime).toLocaleString('en-US', {
+     month: 'short',
+     day: '2-digit',
+     year: 'numeric',
+     hour: '2-digit',
+     minute: '2-digit',
+     timeZone: 'UTC',
+     timeZoneName: 'short'
+   })
+ :"N/A";
+
+ row.innerHTML = `
+ <td class="px-4 py-2">${op.name}</td>
+ <td class="px-4 py-2">${op.available}</td>
+ <td class="px-4 py-2">${op.progressing}</td>
+ <td class="px-4 py-2">${op.degraded}</td>
+ <td class="px-4 py-2">${lastTransitionDisplay}</td>
+ `;
+
+ row.addEventListener("click", () => {
+ lastClickedRow = row;
+ showOperatorDetails(op);
+ });
+ operatorTableBody.appendChild(row);
+ });
+
+ const countText = operatorPageSize === -1
+ ? `Showing all ${totalCount} operators`
+ : `Showing ${start + 1}-${end} of ${totalCount} operators`;
+ filteredOperatorCount.textContent = countText;
+ updateOperatorPagination(totalCount);
+ }
+
+ function updateOperatorPagination(totalCount) {
+ const totalPages = operatorPageSize === -1 ? 1 : Math.ceil(totalCount / operatorPageSize);
+ const container = document.getElementById("operatorPaginationButtons");
+ container.innerHTML ="";
+
+ if (totalPages <= 1) return;
+
+ const prevBtn = document.createElement("button");
+ prevBtn.textContent ="Previous";
+ prevBtn.className = operatorCurrentPage === 1
+ ? "px-3 py-1 text-sm bg-gray-300 text-gray-500 cursor-not-allowed"
+ : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
+ prevBtn.disabled = operatorCurrentPage === 1;
+ prevBtn.onclick = () => operatorCurrentPage > 1 && window.goToOperatorPage(operatorCurrentPage - 1);
+ container.appendChild(prevBtn);
+
+ const maxButtons = 5;
+ let startPage = Math.max(1, operatorCurrentPage - Math.floor(maxButtons / 2));
+ let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+ if (endPage - startPage < maxButtons - 1) {
+ startPage = Math.max(1, endPage - maxButtons + 1);
+ }
+
+ for (let i = startPage; i <= endPage; i++) {
+ const btn = document.createElement("button");
+ btn.textContent = i;
+ btn.className = i === operatorCurrentPage
+ ? "px-3 py-1 text-sm bg-blue-700 text-white font-bold current-page"
+ : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
+ btn.onclick = () => window.goToOperatorPage(i);
+ container.appendChild(btn);
+ }
+
+ const nextBtn = document.createElement("button");
+ nextBtn.textContent ="Next";
+ nextBtn.className = operatorCurrentPage === totalPages
+ ? "px-3 py-1 text-sm bg-gray-300 text-gray-500 cursor-not-allowed"
+ : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
+ nextBtn.disabled = operatorCurrentPage === totalPages;
+ nextBtn.onclick = () => operatorCurrentPage < totalPages && window.goToOperatorPage(operatorCurrentPage + 1);
+ container.appendChild(nextBtn);
+ }
+
+ window.goToOperatorPage = function(page) {
+ operatorCurrentPage = page;
+ applyOperatorFiltersAndRender();
+ }
+
+ window.changeOperatorPageSize = function() {
+ const select = document.getElementById("operatorPageSizeSelect");
+ operatorPageSize = parseInt(select.value);
+ operatorCurrentPage = 1;
+ applyOperatorFiltersAndRender();
+ }
+
+ operatorSearchInput.addEventListener("input", () => {
+ operatorCurrentPage = 1;
+ applyOperatorFiltersAndRender();
+ });
+
+ function applyOperatorFiltersAndRender() {
+ const searchTerm = operatorSearchInput.value.trim().toLowerCase();
+ let filtered = [...flattenedOperators];
+
+ if (searchTerm) {
+ filtered = filtered.filter(op => op.name.toLowerCase().includes(searchTerm));
+ }
+
+ if (currentOperatorSort.key) {
+ filtered.sort((a, b) => {
+ let valA = a[currentOperatorSort.key];
+ let valB = b[currentOperatorSort.key];
+
+ valA = valA === undefined || valA === null ? (currentOperatorSort.direction === 1 ? Infinity : -Infinity) : valA;
+ valB = valB === undefined || valB === null ? (currentOperatorSort.direction === 1 ? Infinity : -Infinity) : valB;
+
+ if (typeof valA === 'number' && typeof valB === 'number') {
+ return (valA - valB) * currentOperatorSort.direction;
+ }
+
+ valA = valA.toString().toLowerCase();
+ valB = valB.toString().toLowerCase();
+ return (valA > valB ? 1 : valA < valB ? -1 : 0) * currentOperatorSort.direction;
+ });
+ }
+
+
+ renderOperatorTable(filtered);
+ }
+
+ window.sortOperatorsBy = function(key) {
+ if (currentOperatorSort.key === key) {
+ currentOperatorSort.direction *= -1;
+ } else {
+ currentOperatorSort.key = key;
+ currentOperatorSort.direction = 1;
+ }
+ operatorCurrentPage = 1;
+ applyOperatorFiltersAndRender();
+ }
+
+ function showOperatorDetails(op) {
+ currentOperator = op;
+
+ operatorDetailsViewer.innerHTML = renderJSONWithoutHighlight(op.raw);
+ operatorListPanel.style.setProperty('display', 'none', 'important');
+ operatorPanel.style.setProperty('display', 'grid', 'important');
+
+ // Scroll to top - find the scrollable parent by walking up the DOM
+ setTimeout(() => {
+ function findScrollableParent(element) {
+ let parent = element.parentElement;
+ while (parent) {
+ const overflow = window.getComputedStyle(parent).overflow;
+ const overflowY = window.getComputedStyle(parent).overflowY;
+ if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
+ parent.scrollHeight > parent.clientHeight) {
+ return parent;
+ }
+ parent = parent.parentElement;
+ }
+ return null;
+ }
+
+ const scrollableParent = findScrollableParent(operatorPanel);
+ if (scrollableParent) {
+ scrollableParent.scrollTo({top: 0, behavior: 'instant'});
+ }
+ }, 0);
+
+ operatorDetailsTable.innerHTML = `
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Name:</td><td class="py-2">${op.name}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Available:</td><td class="py-2">${op.available}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Progressing:</td><td class="py-2">${op.progressing}</td></tr>
+ <tr><td class="py-2 pr-4 font-semibold">Degraded:</td><td class="py-2">${op.degraded}</td></tr>
+ `;
+
+ const conditions = op.raw?.status?.conditions || [];
+
+ const conditionsTable = document.getElementById("operatorConditionsTable");
+
+ if (conditions.length === 0) {
+ conditionsTable.innerHTML =
+ '<div class="p-4 rounded-lg">' +
+ '<p class="text-center">No conditions available</p>' +
+ '</div>';
+ } else {
+ conditions.sort((a, b) => {
+ const timeA = a.lastTransitionTime ? new Date(a.lastTransitionTime).getTime() : 0;
+ const timeB = b.lastTransitionTime ? new Date(b.lastTransitionTime).getTime() : 0;
+ return timeB - timeA;
+ });
+
+ let tableHTML =
+ `<div class="text-sm mb-2">Showing ${conditions.length} condition(s)</div>` +
+ '<table class="w-full min-w-full text-sm rounded-lg shadow-md">' +
+ '<thead class="border-b">' +
+ '<tr>' +
+ '<th class="px-4 py-2 text-left">Type</th>' +
+ '<th class="px-4 py-2 text-left">Status</th>' +
+ '<th class="px-4 py-2 text-left">Reason</th>' +
+ '<th class="px-4 py-2 text-left">Message</th>' +
+ '<th class="px-4 py-2 text-left">Last Updated</th>' +
+ '<th class="px-4 py-2 text-left">Last Transition</th>' +
+ '</tr>' +
+ '</thead>' +
+ '<tbody>';
+
+ for (const cond of conditions) {
+ tableHTML +=
+ '<tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-800">' +
+ `<td class="px-4 py-2">${cond.type}</td>` +
+ `<td class="px-4 py-2">${cond.status}</td>` +
+ `<td class="px-4 py-2">${cond.reason || ''}</td>` +
+ `<td class="px-4 py-2 break-all">${cond.message || ''}</td>` +
+ `<td class="px-4 py-2">${cond.lastUpdateTime ? new Date(cond.lastUpdateTime).toLocaleString('en-US', {
+     month: 'short',
+     day: '2-digit',
+     year: 'numeric',
+     hour: '2-digit',
+     minute: '2-digit',
+     timeZone: 'UTC',
+     timeZoneName: 'short'
+   }) : ''}</td>` +
+ `<td class="px-4 py-2">${cond.lastTransitionTime ? new Date(cond.lastTransitionTime).toLocaleString('en-US', {
+     month: 'short',
+     day: '2-digit',
+     year: 'numeric',
+     hour: '2-digit',
+     minute: '2-digit',
+     timeZone: 'UTC',
+     timeZoneName: 'short'
+   }) : ''}</td>` +
+ '</tr>';
+ }
+
+ tableHTML += '</tbody></table>';
+ conditionsTable.innerHTML = tableHTML;
+ }
+
+ // Setup YAML filter
+ const yamlFilterInput = document.getElementById('operatorYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ yamlFilterInput.removeEventListener('input', filterOperatorYaml);
+ yamlFilterInput.addEventListener('input', filterOperatorYaml);
+ }
+ }
+
+ function highlightJSON(line) {
+ line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+ return line
+ .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
+ .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
+ .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
+ .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
+ .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
+ }
+
+ function renderJSONWithoutHighlight(data, filter = '') {
+ const formatted = JSON.stringify(data, null, 2);
+ return formatted.split('\n')
+ .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
+ .map(line => {
+ const highlighted = highlightJSON(line);
+ return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
+ }).join('');
+ }
+
+ function filterOperatorYaml() {
+ if (!currentOperator) return;
+ const filterInput = document.getElementById('operatorYamlFilter');
+ const filterValue = filterInput ? filterInput.value : '';
+ operatorDetailsViewer.innerHTML = renderJSONWithoutHighlight(currentOperator.raw, filterValue);
+ }
+
+ window.backFromOperatorModal = function() {
+ operatorPanel.style.setProperty('display', 'none', 'important');
+ operatorListPanel.style.setProperty('display', 'grid', 'important');
+ operatorDetailsViewer.innerHTML = '';
+
+ const yamlFilterInput = document.getElementById('operatorYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ }
+
+ // Scroll back to the last clicked row
+ if (lastClickedRow) {
+ setTimeout(() => {
+ lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
+ }, 0);
+ }
+ }
+
+ flattenOperators();
+ applyOperatorFiltersAndRender();
+
+ // Calculate collection time duration
+ (function calculateCollectionTime() {
+ const startTimeEl = document.getElementById('collectionStartTime');
+ const endTimeEl = document.getElementById('collectionEndTime');
+ const totalTimeEl = document.getElementById('collectionTotalTime');
+
+ if (!startTimeEl || !endTimeEl || !totalTimeEl) return;
+
+ const startText = startTimeEl.textContent.trim();
+ const endText = endTimeEl.textContent.trim();
+
+ if (startText === 'N/A' || endText === 'N/A') {
+ totalTimeEl.textContent = 'N/A';
+ return;
+ }
+
+ try {
+ // Parse timestamp format: "2026-04-13 14:02:58.640004158 -0700 PDT m=+0.146292020"
+ // Extract the datetime portion before timezone
+ const parseTimestamp = (text) => {
+ const match = text.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)/);
+ if (!match) return null;
+ return new Date(match[1].replace(' ', 'T'));
+ };
+
+ const startTime = parseTimestamp(startText);
+ const endTime = parseTimestamp(endText);
+
+ if (!startTime || !endTime || isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+ totalTimeEl.textContent = 'N/A';
+ return;
+ }
+
+ const durationMs = endTime - startTime;
+ const durationSeconds = Math.floor(durationMs / 1000);
+
+ // Format duration as human-readable
+ const minutes = Math.floor(durationSeconds / 60);
+ const seconds = durationSeconds % 60;
+
+ if (minutes > 0) {
+ totalTimeEl.textContent = `${minutes}m ${seconds}s`;
+ } else {
+ totalTimeEl.textContent = `${seconds}s`;
+ }
+ } catch (e) {
+ console.error('Error calculating collection time:', e);
+ totalTimeEl.textContent = 'N/A';
+ }
+ })();
+</script>

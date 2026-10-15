@@ -1,0 +1,130 @@
+{
+  "documents": [
+    {
+      "title": "Server runbook",
+      "content": "# Server runbook\n\nSynthetic, from an account backup.\n\n![Diagram](attachment:diagram.png)\n",
+      "category": "Runbooks",
+      "tags": [
+        "synthetic"
+      ],
+      "stableId": "doc-1",
+      "createdAt": "2026-09-10T10:00:00.000Z",
+      "updatedAt": "2026-09-10T10:00:00.000Z",
+      "id": 1
+    },
+    {
+      "title": "Account notes",
+      "content": "# Notes\n",
+      "category": "Notes",
+      "tags": [],
+      "stableId": "doc-2",
+      "createdAt": "2026-09-10T10:00:00.000Z",
+      "updatedAt": "2026-09-11T10:00:00.000Z",
+      "id": 2
+    }
+  ],
+  "documentCategories": [
+    {
+      "name": "Runbooks",
+      "icon": "book",
+      "position": 0,
+      "id": 1
+    }
+  ],
+  "documentTemplates": [],
+  "jqlTemplates": [],
+  "engineTemplates": [],
+  "workflows": [],
+  "kanbanBoards": [
+    {
+      "title": "Account board",
+      "category": "General",
+      "columns": [
+        {
+          "id": "todo",
+          "title": "To Do",
+          "color": "#94a3b8"
+        },
+        {
+          "id": "done",
+          "title": "Done",
+          "color": "#10b981"
+        }
+      ],
+      "syncId": "board-1",
+      "createdAt": "2026-09-10T10:00:00.000Z",
+      "updatedAt": "2026-09-10T10:00:00.000Z",
+      "id": 1
+    }
+  ],
+  "kanbanCards": [
+    {
+      "title": "Restore from backup",
+      "status": "todo",
+      "description": "Synthetic card",
+      "position": 0,
+      "tags": [],
+      "yjsId": "card-1",
+      "createdAt": "2026-09-10T10:00:00.000Z",
+      "updatedAt": "2026-09-10T10:00:00.000Z",
+      "boardId": 1,
+      "id": 1
+    }
+  ],
+  "taskwarriorInstances": [
+    {
+      "name": "Work",
+      "category": "General",
+      "description": "",
+      "rcPath": "~/.taskrc",
+      "dataPath": "~/.task",
+      "isActive": 1,
+      "syncId": "inst-1",
+      "createdAt": "2026-09-10T10:00:00.000Z",
+      "updatedAt": "2026-09-10T10:00:00.000Z",
+      "id": 1
+    }
+  ],
+  "tasks": [
+    {
+      "uuid": "11111111-2222-4333-8444-555555555555",
+      "description": "Verify the restore",
+      "status": "pending",
+      "priority": "H",
+      "project": "ops",
+      "tags": [
+        "synthetic"
+      ],
+      "entry": "2026-09-10T10:00:00.000Z",
+      "modified": "2026-09-10T10:00:00.000Z",
+      "instanceId": 1,
+      "id": 1
+    }
+  ],
+  "taskwarriorReports": [],
+  "customReports": [],
+  "calendarEventTemplates": [],
+  "sshCommands": [],
+  "openshiftTemplates": [],
+  "gtfobinsFunctions": [],
+  "gtfobinsExecutables": [],
+  "gtfobinsContexts": [],
+  "media": [
+    {
+      "filename": "diagram.png",
+      "mimeType": "image/png",
+      "size": 70,
+      "uploadedAt": "2026-09-10T10:00:00.000Z",
+      "tags": [],
+      "data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwDwADgwGA2dD38wAAAABJRU5ErkJggg==",
+      "id": 1
+    }
+  ],
+  "version": "1.0",
+  "formatVersion": 1,
+  "exportDate": "2026-09-12T08:00:00Z",
+  "source": "server backup before \"Delete all my data on the server\"",
+  "customGrids": [],
+  "customQuizzes": [],
+  "localStorage": {}
+}

@@ -1,0 +1,436 @@
+{% if data.status or data.crm_mon or data.config or data.properties or data.quorum or data.stonith_history %}
+<div class="grid grid-cols-1 gap-4">
+ <!-- Cluster Configuration & Details -->
+ {% if data.config or data.properties or data.quorum or data.stonith_history or data.status %}
+ <div class="panel rounded-lg shadow-sm">
+ <div class="mb-4">
+ <h3 class="text-lg font-medium">
+ <i class="fas fa-cogs mr-2"></i> Cluster Configuration & Details
+ </h3>
+ </div>
+
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left w-8"></th>
+ <th class="px-4 py-2 text-left">Section</th>
+ <th class="px-4 py-2 text-left">Details</th>
+ </tr>
+ </thead>
+ <tbody>
+ <!-- Pacemaker Status -->
+ {% if data.status and data.status.raw_output %}
+ <tr class="config-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ data-index="status">
+ <td class="px-4 py-2">
+ <i class="fas fa-caret-right expand-icon"></i>
+ </td>
+ <td class="px-4 py-2 font-semibold">
+ <i class="fas fa-heartbeat mr-2"></i>Pacemaker Status
+ </td>
+ <td class="px-4 py-2 text-xs">Full pcs status output</td>
+ </tr>
+ <tr class="config-details hidden" data-parent="status">
+ <td colspan="3" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+ <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
+ <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Pacemaker Status:</h4>
+ <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{% for line in data.status.raw_output %}{{ line }}
+{% endfor %}</pre>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+
+ <!-- All Cluster Properties -->
+ {% if data.properties and data.properties.properties %}
+ <tr class="config-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ data-index="all-properties">
+ <td class="px-4 py-2">
+ <i class="fas fa-caret-right expand-icon"></i>
+ </td>
+ <td class="px-4 py-2 font-semibold">
+ <i class="fas fa-list mr-2"></i>All Cluster Properties
+ </td>
+ <td class="px-4 py-2 text-xs">{{ data.properties.properties|length }} properties</td>
+ </tr>
+ <tr class="config-details hidden" data-parent="all-properties">
+ <td colspan="3" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+ <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
+ <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">All Cluster Properties:</h4>
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+ {% for key, value in data.properties.properties.items() %}
+ <div class="text-xs font-mono">
+ <span class="font-semibold text-os-text-primary">{{ key }}:</span>
+ <span class="text-os-text-secondary">{{ value }}</span>
+ </div>
+ {% endfor %}
+ </div>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+
+ <!-- Quorum Details -->
+ {% if data.quorum and data.quorum.raw_output %}
+ <tr class="config-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ data-index="quorum-details">
+ <td class="px-4 py-2">
+ <i class="fas fa-caret-right expand-icon"></i>
+ </td>
+ <td class="px-4 py-2 font-semibold">
+ <i class="fas fa-vote-yea mr-2"></i>Quorum Details
+ </td>
+ <td class="px-4 py-2 text-xs">Full quorum status output</td>
+ </tr>
+ <tr class="config-details hidden" data-parent="quorum-details">
+ <td colspan="3" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+ <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
+ <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Quorum Status Output:</h4>
+ <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{% for line in data.quorum.raw_output %}{{ line }}
+{% endfor %}</pre>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+
+ <!-- STONITH History -->
+ {% if data.stonith_history and data.stonith_history.raw_output %}
+ <tr class="config-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ data-index="stonith-history">
+ <td class="px-4 py-2">
+ <i class="fas fa-caret-right expand-icon"></i>
+ </td>
+ <td class="px-4 py-2 font-semibold">
+ <i class="fas fa-history mr-2"></i>STONITH History
+ </td>
+ <td class="px-4 py-2 text-xs">Fence action history</td>
+ </tr>
+ <tr class="config-details hidden" data-parent="stonith-history">
+ <td colspan="3" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+ <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
+ <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">STONITH History:</h4>
+ <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{% for line in data.stonith_history.raw_output %}{{ line }}
+{% endfor %}</pre>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+
+ <!-- Raw Configuration -->
+ {% if data.config and data.config.raw_config %}
+ <tr class="config-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ data-index="raw">
+ <td class="px-4 py-2">
+ <i class="fas fa-caret-right expand-icon"></i>
+ </td>
+ <td class="px-4 py-2 font-semibold">
+ <i class="fas fa-file-alt mr-2"></i>Full Configuration
+ </td>
+ <td class="px-4 py-2 text-xs">Complete pcs config output</td>
+ </tr>
+ <tr class="config-details hidden" data-parent="raw">
+ <td colspan="3" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+ <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
+ <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Full Configuration:</h4>
+ <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{% for line in data.config.raw_config %}{{ line }}
+{% endfor %}</pre>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+ </tbody>
+ </table>
+ </div>
+ </div>
+ {% endif %}
+
+ <!-- Node Status -->
+ {% if data.status and data.status.nodes %}
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-4">
+ <i class="fas fa-server mr-2"></i> Node Status
+ </h3>
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left">Node</th>
+ <th class="px-4 py-2 text-left">Status</th>
+ </tr>
+ </thead>
+ <tbody>
+ {% for node in data.status.nodes %}
+ <tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-4 py-2 font-semibold">{{ node.name }}</td>
+ <td class="px-4 py-2">
+ <span class="px-2 py-1 rounded-sm text-xs {% if node.status == 'online' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200{% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200{% endif %}">
+ <i class="fas fa-{% if node.status == 'online' %}check-circle{% else %}times-circle{% endif %} mr-1"></i>{{ node.status|upper }}
+ </span>
+ </td>
+ </tr>
+ {% endfor %}
+ </tbody>
+ </table>
+ </div>
+ </div>
+ {% endif %}
+
+ <!-- Resources -->
+ {% if data.status and data.status.resources %}
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-4">
+ <i class="fas fa-cubes mr-2"></i> Resources
+ </h3>
+ <div class="mb-4">
+ <input type="text" id="resource-filter"
+ class="w-full px-3 py-2 text-sm rounded-sm border"
+ placeholder="Filter resources..."
+ autocomplete="off">
+ </div>
+ <p id="resource-count" class="text-xs mb-2"></p>
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left w-8"></th>
+ <th class="px-4 py-2 text-left">Resource</th>
+ <th class="px-4 py-2 text-left">Type</th>
+ <th class="px-4 py-2 text-left">Status</th>
+ <th class="px-4 py-2 text-left">Node</th>
+ </tr>
+ </thead>
+ <tbody id="resource-container">
+ {% for resource in data.status.resources %}
+ <tr class="resource-entry border-b hover:bg-gray-50 dark:hover:bg-gray-800 {% if resource.config %}cursor-pointer{% endif %}"
+ data-name="{{ resource.name|lower }}"
+ data-index="{{ loop.index0 }}">
+ <td class="px-4 py-2">
+ {% if resource.config %}
+ <i class="fas fa-caret-right expand-icon"></i>
+ {% endif %}
+ </td>
+ <td class="px-4 py-2 font-mono font-semibold">{{ resource.name }}</td>
+ <td class="px-4 py-2 text-xs">{{ resource.type }}</td>
+ <td class="px-4 py-2">
+ <span class="px-2 py-1 rounded text-xs
+ {% if resource.status in ['Started', 'Active', 'Master'] %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200
+ {% elif resource.status in ['Stopped', 'Slave'] %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200
+ {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200{% endif %}">
+ {{ resource.status }}
+ </span>
+ </td>
+ <td class="px-4 py-2">{{ resource.node or '-' }}</td>
+ </tr>
+ {% if resource.config %}
+ <tr class="resource-details hidden" data-parent="{{ loop.index0 }}">
+ <td colspan="5" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+ <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
+ <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Resource Configuration:</h4>
+ <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{{ resource.config }}</pre>
+ </div>
+ </td>
+ </tr>
+ {% endif %}
+ {% endfor %}
+ </tbody>
+ </table>
+ </div>
+ </div>
+ {% endif %}
+
+ <!-- Failed Actions -->
+ {% if data.status and data.status.failures and data.status.failures|length > 0 %}
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-4">
+ <i class="fas fa-exclamation-triangle mr-2"></i> Failed Actions
+ </h3>
+ <div class="mb-4">
+ <input type="text" id="failure-filter"
+ class="w-full px-3 py-2 text-sm rounded-sm border"
+ placeholder="Filter failed actions..."
+ autocomplete="off">
+ </div>
+ <p id="failure-count" class="text-xs mb-2"></p>
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left">Resource</th>
+ <th class="px-4 py-2 text-left">Action</th>
+ <th class="px-4 py-2 text-left">Node</th>
+ <th class="px-4 py-2 text-left">Exit Code</th>
+ <th class="px-4 py-2 text-left">Message</th>
+ </tr>
+ </thead>
+ <tbody id="failure-container">
+ {% for failure in data.status.failures %}
+ <tr class="failure-entry border-b hover:bg-gray-50 dark:hover:bg-gray-800">
+ <td class="px-4 py-2 font-mono">{{ failure.resource }}</td>
+ <td class="px-4 py-2">{{ failure.action }}</td>
+ <td class="px-4 py-2">{{ failure.node }}</td>
+ <td class="px-4 py-2 font-mono">{{ failure.exit_code }}</td>
+ <td class="px-4 py-2 text-xs whitespace-normal wrap-break-word max-w-lg">{{ failure.message }}</td>
+ </tr>
+ {% endfor %}
+ </tbody>
+ </table>
+ </div>
+ </div>
+ {% endif %}
+</div>
+
+<script>
+ (() => {
+ // Resource filtering
+ const resourceFilter = document.getElementById('resource-filter');
+ const resourceContainer = document.getElementById('resource-container');
+ const resourceCount = document.getElementById('resource-count');
+
+ if (resourceFilter && resourceContainer) {
+ function updateResourceCount() {
+ const entries = resourceContainer.querySelectorAll('.resource-entry');
+ const visible = [...entries].filter(e => !e.hasAttribute('hidden'));
+ resourceCount.textContent = `Showing ${visible.length} of ${entries.length} resources`;
+ }
+
+ function filterResources() {
+ const query = resourceFilter.value.trim().toLowerCase();
+ let regex = null;
+
+ if (query.length > 0) {
+ try {
+ regex = new RegExp(query, 'i');
+ } catch (e) {
+ regex = null;
+ }
+ }
+
+ resourceContainer.querySelectorAll('.resource-entry').forEach(entry => {
+ const name = entry.dataset.name;
+ const text = entry.textContent.toLowerCase();
+ const index = entry.dataset.index;
+ const detailsRow = document.querySelector(`.resource-details[data-parent="${index}"]`);
+
+ // Include config/details text in search
+ let combinedText = text;
+ if (detailsRow) {
+ combinedText += ' ' + detailsRow.textContent.toLowerCase();
+ }
+
+ const matches = !query || (
+ regex ? regex.test(combinedText) : combinedText.includes(query)
+ );
+
+ if (matches) {
+ entry.removeAttribute('hidden');
+ // Always remove filter attribute from details row when parent is shown
+ // The expand/collapse state is controlled by the 'hidden' class, not the attribute
+ if (detailsRow) {
+ detailsRow.removeAttribute('hidden');
+ }
+ } else {
+ entry.setAttribute('hidden', '');
+ if (detailsRow) {
+ detailsRow.setAttribute('hidden', '');
+ }
+ }
+ });
+
+ updateResourceCount();
+ }
+
+ resourceFilter.addEventListener('input', filterResources);
+ updateResourceCount();
+ }
+
+ // Handle resource row clicks to expand/collapse configuration
+ if (resourceContainer) {
+ resourceContainer.querySelectorAll('.resource-entry').forEach(row => {
+ row.addEventListener('click', function() {
+ const index = this.dataset.index;
+ const detailsRow = document.querySelector(`.resource-details[data-parent="${index}"]`);
+ const icon = this.querySelector('.expand-icon');
+
+ if (detailsRow && icon) {
+ const isHidden = detailsRow.classList.contains('hidden');
+ detailsRow.classList.toggle('hidden');
+ icon.classList.toggle('fa-caret-right', !isHidden);
+ icon.classList.toggle('fa-caret-down', isHidden);
+ }
+ });
+ });
+ }
+
+ // Failed actions filtering
+ const failureFilter = document.getElementById('failure-filter');
+ const failureContainer = document.getElementById('failure-container');
+ const failureCount = document.getElementById('failure-count');
+
+ if (failureFilter && failureContainer) {
+ function updateFailureCount() {
+ const entries = failureContainer.querySelectorAll('.failure-entry');
+ const visible = [...entries].filter(e => !e.hasAttribute('hidden'));
+ failureCount.textContent = `Showing ${visible.length} of ${entries.length} failed actions`;
+ }
+
+ function filterFailures() {
+ const query = failureFilter.value.trim().toLowerCase();
+ let regex = null;
+
+ if (query.length > 0) {
+ try {
+ regex = new RegExp(query, 'i');
+ } catch (e) {
+ regex = null;
+ }
+ }
+
+ failureContainer.querySelectorAll('.failure-entry').forEach(entry => {
+ const text = entry.textContent.toLowerCase();
+
+ const matches = !query || (
+ regex ? regex.test(text) : text.includes(query)
+ );
+
+ if (matches) {
+ entry.removeAttribute('hidden');
+ } else {
+ entry.setAttribute('hidden', '');
+ }
+ });
+
+ updateFailureCount();
+ }
+
+ failureFilter.addEventListener('input', filterFailures);
+ updateFailureCount();
+ }
+
+ // Expandable config sections
+ const configEntries = document.querySelectorAll('.config-entry');
+ configEntries.forEach(row => {
+ row.addEventListener('click', function() {
+ const detailsRow = this.nextElementSibling;
+ const icon = this.querySelector('.expand-icon');
+
+ if (detailsRow && detailsRow.classList.contains('config-details')) {
+ const isHidden = detailsRow.classList.contains('hidden');
+ detailsRow.classList.toggle('hidden');
+ icon.classList.toggle('fa-caret-right', !isHidden);
+ icon.classList.toggle('fa-caret-down', isHidden);
+ }
+ });
+ });
+ })();
+</script>
+
+{% else %}
+<div class="flex flex-col items-center justify-center py-12 text-center">
+ <svg class="shrink-0 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 4rem; max-height: 4rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+ </svg>
+ <div class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No Pacemaker Data Available</div>
+ <div class="text-sm text-gray-500 dark:text-gray-400">No Pacemaker cluster information found in this sosreport</div>
+</div>
+{% endif %}

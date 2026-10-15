@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.jacarium.app</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-only</project_license>
+  <name>Jacarium</name>
+  <summary>Everything you know and use for technical work, in one place.</summary>
+
+  <description>
+    <p>
+      Jacarium keeps your notes, cases and tools for technical work in one place:
+      documents with real-time collaboration, Taskwarrior and Jira integration, a
+      workflow builder, diagnostics for support reports and AI assistance.
+      Everything you know and use for technical work, in one place.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Document management with real-time collaboration</li>
+      <li>TaskWarrior integration for task tracking</li>
+      <li>JIRA integration for issue management</li>
+      <li>Advanced search and filtering</li>
+      <li>AI-powered analysis and diagnostics</li>
+      <li>Workflow builder for automation</li>
+      <li>Cloud synchronization support</li>
+      <li>Multi-instance task management</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">com.jacarium.app.desktop</launchable>
+  <url type="homepage">https://jacarium.com</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main document view</caption>
+    </screenshot>
+  </screenshots>
+
+
+  <developer_name>Robin Cernin</developer_name>
+
+  <releases>
+    <release version="3.1.8" date="2026-10-15">
+      <description>
+        <p>See the What's New entry for this version in the application (Help menu).</p>
+      </description>
+    </release>
+  </releases>
+
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-info">moderate</content_attribute>
+  </content_rating>
+
+  <categories>
+    <category>Utility</category>
+    <category>Office</category>
+  </categories>
+
+  <keywords>
+    <keyword>documents</keyword>
+    <keyword>support</keyword>
+    <keyword>tasks</keyword>
+    <keyword>taskwarrior</keyword>
+    <keyword>jira</keyword>
+  </keywords>
+</component>

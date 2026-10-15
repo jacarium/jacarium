@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Notice banner theme harness (tests only)</title>
+  </head>
+  <body>
+    <!--
+      Served by the Vite dev server at /tests/helpers/notice-banner-harness.html
+      for tests/notice-banner-theme.test.mjs. Mounts the REAL shared notice
+      strip (src/components/common/NoticeBanner.jsx) in every tone the app
+      uses - the Documents editor's offline / read-only / server-copy notices
+      and the Tasks page's orphaned-tasks notice with its "Clean it?" action -
+      over synthetic text, so they can be measured and screenshotted in both
+      themes. Nothing touches IndexedDB or the network. Not part of the app
+      bundle.
+    -->
+    <div id="root"></div>
+    <script type="module" src="./notice-banner-harness-entry.jsx"></script>
+  </body>
+</html>

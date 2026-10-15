@@ -1,0 +1,572 @@
+<div id="alertPanel" class="grid grid-cols-1 gap-4">
+ <div class="panel rounded-lg shadow-sm w-full">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-chart-bar mr-2"></i> Firing Alerts by Severity
+ </h3>
+ <div>
+ {% if data and data.firing %}
+ <div style="max-height: 300px; position: relative;">
+ <canvas id="severityChart"></canvas>
+ </div>
+ {% else %}
+ <div class="flex flex-col items-center justify-center py-8 text-center">
+ <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+ </svg>
+ <div class="text-sm font-medium text-gray-900 mb-1">No Firing Alerts</div>
+ <div class="text-xs text-gray-500">No alerts currently firing</div>
+ </div>
+ {% endif %}
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm w-full">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-bell mr-2"></i> Alert Rules
+ </h3>
+ <div class="mb-2">
+ <label class="inline-flex items-center text-xs font-semibold">
+ <input type="checkbox" id="show-firing-only" class="form-checkbox" checked />
+ <span class="ml-2">Show Firing Only</span>
+ </label>
+ </div>
+ <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
+ <div>
+ <label for="alertSeverityFilter" class="block text-xs font-semibold mb-1">Severity</label>
+ <select id="alertSeverityFilter" class="w-full px-3 py-2 text-sm border">
+ <option value="">All</option>
+ </select>
+ </div>
+ <div>
+ <label for="alertStateFilter" class="block text-xs font-semibold mb-1">State</label>
+ <select id="alertStateFilter" class="w-full px-3 py-2 text-sm border">
+ <option value="">All</option>
+ <option value="firing">Firing</option>
+ <option value="pending">Pending</option>
+ <option value="inactive">Inactive</option>
+ </select>
+ </div>
+ <div class="md:col-span-6">
+ <label for="alertSearchInput" class="block text-xs font-semibold mb-1">Search All</label>
+ <input id="alertSearchInput" type="text" placeholder="Search alerts..." class="w-full px-3 py-2 text-sm border"/>
+ </div>
+ </div>
+ <div class="flex justify-between items-center mb-2">
+ <div id="filteredAlertCount" class="text-sm">Showing all alerts</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs font-semibold">Per Page:</label>
+ <select id="alertPageSizeSelect" onchange="window.changeAlertPageSize()" class="px-3 py-1 text-sm border">
+ <option value="50">50</option>
+ <option value="100" selected>100</option>
+ <option value="250">250</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ <table class="w-full min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAlertsBy('name')">Rule <i id="alert-indicator-name" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAlertsBy('severity')">Severity <i id="alert-indicator-severity" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAlertsBy('state')">State <i id="alert-indicator-state" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAlertsBy('age')">Last Evaluation <i id="alert-indicator-age" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAlertsBy('alerts')">Alerts <i id="alert-indicator-alerts" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAlertsBy('activeSince')">Active Since <i id="alert-indicator-activeSince" class="ml-1 fas text-sm"></i></th>
+ </tr>
+ </thead>
+ <tbody id="alertTableBody"></tbody>
+ </table>
+ <div id="alertPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+</div>
+
+<div id="alertDetailsPanel" style="display: none;">
+ <div class="space-y-4">
+ <div class="mb-4">
+ <button onclick="window.backFromAlertModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ Back
+ </button>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-info-circle mr-2"></i> Alert Details
+ </h3>
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm" id="alertDetailsTable"></table>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-tag mr-2"></i> Labels
+ </h3>
+ <div id="alertLabelsTable" class="text-sm"></div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-comment mr-2"></i> Annotations
+ </h3>
+ <div id="alertAnnotationsTable" class="text-sm"></div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-fire mr-2"></i> Active Alert Instances
+ </h2>
+ <div id="activeAlertsTable" class="text-sm"></div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-file mr-2"></i> Alert Rule JSON
+ </h2>
+ <div class="mb-2">
+ <input id="alertJsonFilter" type="text" placeholder="Filter JSON lines..." class="w-full px-3 py-2 text-sm border"/>
+ </div>
+ <div id="alertJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
+ </div>
+ </div>
+</div>
+
+
+<script>
+ var alertsData = {{ data | tojson }};
+ var currentSort = { key: null, direction: 1 };
+ var alertCurrentPage = 1;
+ var alertPageSize = 100;
+ var currentAlertDetails = null;
+
+ var alertTableBody = document.getElementById("alertTableBody");
+ var alertSeverityFilter = document.getElementById("alertSeverityFilter");
+ var alertStateFilter = document.getElementById("alertStateFilter");
+ var alertSearchInput = document.getElementById("alertSearchInput");
+ var showFiringOnlyCheckbox = document.getElementById("show-firing-only");
+ var alertPanel = document.getElementById("alertPanel");
+ var alertDetailsPanel = document.getElementById("alertDetailsPanel");
+
+ function calculateAge(ageSeconds) {
+ if (ageSeconds === undefined || ageSeconds === null) return '-';
+ try {
+ var diff = Math.abs(ageSeconds); // Use pre-calculated age from server
+
+ if (diff < 60) return diff + 's';
+ if (diff < 3600) return Math.floor(diff / 60) + 'm';
+ if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+ return Math.floor(diff / 86400) + 'd';
+ } catch(e) {
+ return '-';
+ }
+ }
+
+ function formatTimestamp(timestamp) {
+ if (!timestamp) return '-';
+ try {
+ var date = new Date(timestamp);
+ return date.toLocaleString('en-US', {
+ month: 'short',
+ day: '2-digit',
+ year: '2-digit',
+ hour: '2-digit',
+ minute: '2-digit',
+ timeZone: 'UTC',
+ timeZoneName: 'short'
+ });
+ } catch(e) {
+ return timestamp;
+ }
+ }
+
+ function populateFilters() {
+ var severities = new Set();
+ alertsData.all.forEach(function(alert) {
+ severities.add(alert.severity);
+ });
+
+ alertSeverityFilter.innerHTML = '<option value="">All</option>';
+ Array.from(severities).sort().forEach(function(severity) {
+ var option = document.createElement("option");
+ option.value = severity;
+ option.textContent = severity;
+ alertSeverityFilter.appendChild(option);
+ });
+ }
+
+ function getFilteredAlerts() {
+ var alerts = showFiringOnlyCheckbox.checked ? alertsData.firing : alertsData.all;
+ var selectedSeverity = alertSeverityFilter.value;
+ var selectedState = alertStateFilter.value;
+ var searchTerm = alertSearchInput.value.toLowerCase();
+
+ return alerts.filter(function(alert) {
+ if (selectedSeverity && alert.severity !== selectedSeverity) return false;
+ if (selectedState && alert.state !== selectedState) return false;
+ if (searchTerm) {
+ var searchableText = [
+ alert.name,
+ alert.severity,
+ alert.state,
+ alert.group,
+ JSON.stringify(alert.annotations)
+ ].join(' ').toLowerCase();
+ if (!searchableText.includes(searchTerm)) return false;
+ }
+ return true;
+ });
+ }
+
+ function renderAlertTable() {
+ var filtered = getFilteredAlerts();
+
+ if (currentSort.key) {
+ filtered.sort(function(a, b) {
+ var aVal = getSortValue(a, currentSort.key);
+ var bVal = getSortValue(b, currentSort.key);
+
+ if (aVal < bVal) return -1 * currentSort.direction;
+ if (aVal > bVal) return 1 * currentSort.direction;
+ return 0;
+ });
+ }
+
+ var totalAlerts = filtered.length;
+ var startIndex = alertPageSize === -1 ? 0 : (alertCurrentPage - 1) * alertPageSize;
+ var endIndex = alertPageSize === -1 ? totalAlerts : Math.min(startIndex + alertPageSize, totalAlerts);
+ var paginated = filtered.slice(startIndex, endIndex);
+
+ alertTableBody.innerHTML = "";
+ paginated.forEach(function(alert) {
+ var row = createAlertRow(alert);
+ alertTableBody.appendChild(row);
+ });
+
+ updateFilteredCount(totalAlerts, startIndex, endIndex);
+ renderAlertPaginationControls(totalAlerts);
+ updateSortIndicators();
+ }
+
+ function getSortValue(alert, key) {
+ switch(key) {
+ case 'name': return alert.name;
+ case 'severity': return alert.severity;
+ case 'state': return alert.state;
+ case 'age': return alert.last_evaluation;
+ case 'alerts': return alert.alerts_count;
+ case 'activeSince': return alert.active_since;
+ default: return '';
+ }
+ }
+
+ function createAlertRow(alert) {
+ var row = document.createElement("tr");
+ row.className = "cursor-pointer border-b hover:bg-gray-50 dark:hover:bg-gray-800";
+
+ var age = calculateAge(alert.age_seconds);
+ var activeSince = formatTimestamp(alert.active_since);
+
+ row.innerHTML =
+ '<td class="px-4 py-2">' + alert.name + '</td>' +
+ '<td class="px-4 py-2">' + alert.severity + '</td>' +
+ '<td class="px-4 py-2">' + alert.state + '</td>' +
+ '<td class="px-4 py-2">' + age + '</td>' +
+ '<td class="px-4 py-2">' + alert.alerts_count + '</td>' +
+ '<td class="px-4 py-2">' + activeSince + '</td>';
+
+ row.onclick = function() { showAlertDetails(alert); };
+ return row;
+ }
+
+ function showAlertDetails(alert) {
+ currentAlertDetails = alert;
+ alertPanel.style.display = "none";
+ alertDetailsPanel.style.display = "block";
+
+ var detailsTable = document.getElementById("alertDetailsTable");
+ detailsTable.innerHTML =
+ '<tr><td class="font-semibold pr-4 py-1">Name:</td><td>' + alert.name + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Group:</td><td>' + alert.group + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Severity:</td><td>' + alert.severity + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">State:</td><td>' + alert.state + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Last Evaluation:</td><td>' + calculateAge(alert.age_seconds) + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Query:</td><td class="font-mono text-xs break-all">' + alert.query + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Duration:</td><td>' + alert.duration + 's</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Last Evaluation:</td><td>' + formatTimestamp(alert.last_evaluation) + '</td></tr>';
+
+ // Labels
+ var labelsDiv = document.getElementById("alertLabelsTable");
+ if (alert.labels && Object.keys(alert.labels).length > 0) {
+ var labelsHtml = '<div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-sm"><code class="text-xs">';
+ for (var key in alert.labels) {
+ labelsHtml += key + ': ' + alert.labels[key] + '<br>';
+ }
+ labelsHtml += '</code></div>';
+ labelsDiv.innerHTML = labelsHtml;
+ } else {
+ labelsDiv.innerHTML = '<div class="text-gray-500">No labels</div>';
+ }
+
+ // Annotations
+ var annotationsDiv = document.getElementById("alertAnnotationsTable");
+ if (alert.annotations && Object.keys(alert.annotations).length > 0) {
+ var annotationsHtml = '<div class="space-y-2">';
+ for (var key in alert.annotations) {
+ annotationsHtml += '<div><span class="font-semibold">' + key + ':</span><div class="text-xs mt-1 p-2 bg-gray-50 dark:bg-gray-800 rounded-sm">' + alert.annotations[key] + '</div></div>';
+ }
+ annotationsHtml += '</div>';
+ annotationsDiv.innerHTML = annotationsHtml;
+ } else {
+ annotationsDiv.innerHTML = '<div class="text-gray-500">No annotations</div>';
+ }
+
+ // Active alert instances
+ var activeAlertsDiv = document.getElementById("activeAlertsTable");
+ if (alert.alerts && alert.alerts.length > 0) {
+ var activeHtml = '<div class="overflow-x-auto"><table class="min-w-full text-xs"><thead class="border-b"><tr>' +
+ '<th class="px-4 py-2 text-left">Labels</th>' +
+ '<th class="px-4 py-2 text-left">State</th>' +
+ '<th class="px-4 py-2 text-left">Active At</th>' +
+ '<th class="px-4 py-2 text-left">Value</th>' +
+ '</tr></thead><tbody>';
+
+ alert.alerts.forEach(function(instance) {
+ var labels = instance.labels || {};
+ // Format labels as key=value pairs with line breaks
+ var labelsHtml = '';
+ for (var key in labels) {
+ labelsHtml += '<div class="whitespace-nowrap"><span class="text-blue-700 dark:text-blue-300">' + key + '</span>=<span class="text-green-700 dark:text-green-300">"' + labels[key] + '"</span></div>';
+ }
+
+ activeHtml += '<tr class="border-b">' +
+ '<td class="px-4 py-2 font-mono text-xs max-w-md wrap-break-word">' + labelsHtml + '</td>' +
+ '<td class="px-4 py-2 whitespace-nowrap">' + instance.state + '</td>' +
+ '<td class="px-4 py-2 whitespace-nowrap">' + formatTimestamp(instance.activeAt) + '</td>' +
+ '<td class="px-4 py-2 whitespace-nowrap">' + (instance.value || '-') + '</td>' +
+ '</tr>';
+ });
+ activeHtml += '</tbody></table></div>';
+ activeAlertsDiv.innerHTML = activeHtml;
+ } else {
+ activeAlertsDiv.innerHTML = '<div class="text-gray-500">No active alert instances</div>';
+ }
+
+ // JSON viewer
+ renderAlertJson();
+ }
+
+ function highlightJSON(line) {
+ line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+ return line
+ .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
+ .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
+ .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
+ .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
+ .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
+ }
+
+ function renderJSONWithoutHighlight(data, filter) {
+ var formatted = JSON.stringify(data, null, 2);
+ return formatted.split('\n')
+ .filter(function(line) {
+ return !filter || line.toLowerCase().includes(filter.toLowerCase());
+ })
+ .map(function(line) {
+ var highlighted = highlightJSON(line);
+ return '<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">' + highlighted + '</div>';
+ }).join('');
+ }
+
+ function renderAlertJson() {
+ var viewer = document.getElementById("alertJsonViewer");
+ var filter = document.getElementById("alertJsonFilter");
+
+ function updateJson() {
+ var filterText = filter.value;
+ viewer.innerHTML = renderJSONWithoutHighlight(currentAlertDetails.raw, filterText);
+ }
+
+ filter.oninput = updateJson;
+ updateJson();
+ }
+
+ window.backFromAlertModal = function() {
+ alertDetailsPanel.style.display = "none";
+ alertPanel.style.display = "block";
+ };
+
+ function updateFilteredCount(total, start, end) {
+ var countDiv = document.getElementById("filteredAlertCount");
+ if (alertPageSize === -1) {
+ countDiv.textContent = "Showing all " + total + " alert(s)";
+ } else {
+ countDiv.textContent = "Showing " + (start + 1) + "-" + end + " of " + total + " alert(s)";
+ }
+ }
+
+ function renderAlertPaginationControls(totalAlerts) {
+ var controls = document.getElementById("alertPaginationControls");
+ if (alertPageSize === -1) {
+ controls.innerHTML = "";
+ return;
+ }
+
+ var totalPages = Math.ceil(totalAlerts / alertPageSize);
+ var html = "";
+
+ if (alertCurrentPage > 1) {
+ html += '<button onclick="window.changeAlertPage(' + (alertCurrentPage - 1) + ')" class="px-3 py-1 border rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700">Previous</button>';
+ }
+
+ var startPage = Math.max(1, alertCurrentPage - 2);
+ var endPage = Math.min(totalPages, alertCurrentPage + 2);
+
+ for (var i = startPage; i <= endPage; i++) {
+ var activeClass = i === alertCurrentPage ? "bg-blue-500 text-white current-page" : "border hover:bg-gray-100 dark:hover:bg-gray-700";
+ html += '<button onclick="window.changeAlertPage(' + i + ')" class="px-3 py-1 rounded-sm ' + activeClass + '">' + i + '</button>';
+ }
+
+ if (alertCurrentPage < totalPages) {
+ html += '<button onclick="window.changeAlertPage(' + (alertCurrentPage + 1) + ')" class="px-3 py-1 border rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700">Next</button>';
+ }
+
+ controls.innerHTML = html;
+ }
+
+ window.changeAlertPage = function(page) {
+ alertCurrentPage = page;
+ renderAlertTable();
+ };
+
+ window.changeAlertPageSize = function() {
+ var select = document.getElementById("alertPageSizeSelect");
+ alertPageSize = parseInt(select.value);
+ alertCurrentPage = 1;
+ renderAlertTable();
+ };
+
+ window.sortAlertsBy = function(key) {
+ if (currentSort.key === key) {
+ currentSort.direction *= -1;
+ } else {
+ currentSort.key = key;
+ currentSort.direction = 1;
+ }
+ renderAlertTable();
+ };
+
+ function updateSortIndicators() {
+ ["name", "severity", "state", "age", "alerts", "activeSince"].forEach(function(key) {
+ var indicator = document.getElementById("alert-indicator-" + key);
+ if (currentSort.key === key) {
+ indicator.className = "ml-1 fas " + (currentSort.direction === 1 ? "fa-sort-up" : "fa-sort-down");
+ } else {
+ indicator.className = "ml-1 fas";
+ }
+ });
+ }
+
+ // Event listeners
+ alertSeverityFilter.addEventListener("change", function() {
+ alertCurrentPage = 1;
+ renderAlertTable();
+ });
+
+ alertStateFilter.addEventListener("change", function() {
+ alertCurrentPage = 1;
+ renderAlertTable();
+ });
+
+ alertSearchInput.addEventListener("input", function() {
+ alertCurrentPage = 1;
+ renderAlertTable();
+ });
+
+ showFiringOnlyCheckbox.addEventListener("change", function() {
+ alertCurrentPage = 1;
+ renderAlertTable();
+ });
+
+ // Severity chart
+ function renderSeverityChart() {
+ if (!alertsData.firing || alertsData.firing.length === 0) {
+ return;
+ }
+
+ var severityCounts = {};
+ alertsData.firing.forEach(function(alert) {
+ var severity = alert.severity || 'none';
+ severityCounts[severity] = (severityCounts[severity] || 0) + 1;
+ });
+
+ var severityOrder = ['critical', 'warning', 'info', 'none'];
+ var labels = [];
+ var data = [];
+ var colors = [];
+
+ var colorMap = {
+ 'critical': 'rgb(239, 68, 68)',
+ 'warning': 'rgb(245, 158, 11)',
+ 'info': 'rgb(59, 130, 246)',
+ 'none': 'rgb(156, 163, 175)'
+ };
+
+ severityOrder.forEach(function(severity) {
+ if (severityCounts[severity]) {
+ labels.push(severity);
+ data.push(severityCounts[severity]);
+ colors.push(colorMap[severity] || 'rgb(156, 163, 175)');
+ }
+ });
+
+ // Add any other severities not in the order
+ for (var severity in severityCounts) {
+ if (!severityOrder.includes(severity)) {
+ labels.push(severity);
+ data.push(severityCounts[severity]);
+ colors.push('rgb(156, 163, 175)');
+ }
+ }
+
+ var ctx = document.getElementById('severityChart');
+ new Chart(ctx, {
+ type: 'bar',
+ data: {
+ labels: labels,
+ datasets: [{
+ label: 'Firing Alerts',
+ data: data,
+ backgroundColor: colors
+ }]
+ },
+ options: {
+ responsive: true,
+ maintainAspectRatio: false,
+ scales: {
+ x: {
+ ticks: { color: diagnosticsThemeColor('text') },
+ grid: { color: diagnosticsThemeColor('grid') }
+ },
+ y: {
+ beginAtZero: true,
+ ticks: {
+ stepSize: 1,
+ color: diagnosticsThemeColor('text')
+ },
+ grid: { color: diagnosticsThemeColor('grid') }
+ }
+ },
+ plugins: {
+ legend: {
+ display: false
+ }
+ }
+ }
+ });
+ }
+
+ // Initialize
+ populateFilters();
+ renderAlertTable();
+ renderSeverityChart();
+
+</script>

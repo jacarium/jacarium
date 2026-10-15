@@ -1,0 +1,1896 @@
+<div class="panel rounded-lg shadow-sm">
+  <script>
+    console.log('[Log Viewer] Initial data:', {{ data | tojson }});
+  </script>
+
+  {% if data.available_logs %}
+
+  <!-- Charts -->
+  <div id="charts-panel" class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="panel rounded-lg shadow-sm p-3">
+      <h3 class="text-sm font-medium mb-2">
+        <i class="fas fa-chart-bar mr-2"></i> Logs per Process
+      </h3>
+      <canvas id="processChart" style="max-height: 250px;"></canvas>
+    </div>
+    <div class="panel rounded-lg shadow-sm p-3">
+      <h3 class="text-sm font-medium mb-2">
+        <i class="fas fa-chart-bar mr-2"></i> Logs per Severity
+      </h3>
+      <canvas id="severityChart" style="max-height: 250px;"></canvas>
+    </div>
+  </div>
+
+  <!-- Date Range Filter -->
+  <div class="mb-4 p-3 rounded-sm">
+    <!-- Date Range Slider -->
+    <div class="mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <label class="block text-xs font-medium">Date Range</label>
+        <div class="flex items-center gap-2">
+          <div class="relative">
+            <button
+              id="single-date-button"
+              type="button"
+              class="px-3 py-1.5 text-xs border rounded-sm transition-colors bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              <span id="single-date-display">Select Range</span>
+            </button>
+            <div id="date-calendar" class="hidden fixed z-50 border rounded-lg shadow-lg p-3 min-w-[280px] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600">
+              <!-- Header -->
+              <div class="flex items-center justify-between mb-3">
+                <button type="button" id="cal-prev-month" class="p-1 rounded-sm transition-colors text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                  <i class="fas fa-chevron-left text-xs"></i>
+                </button>
+                <div class="text-sm font-medium" id="cal-month-year"></div>
+                <button type="button" id="cal-next-month" class="p-1 rounded-sm transition-colors text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                  <i class="fas fa-chevron-right text-xs"></i>
+                </button>
+              </div>
+              <!-- Day names -->
+              <div class="grid grid-cols-7 gap-1 mb-1">
+                <div class="text-center text-xs font-medium opacity-70 py-1">Sun</div>
+                <div class="text-center text-xs font-medium opacity-70 py-1">Mon</div>
+                <div class="text-center text-xs font-medium opacity-70 py-1">Tue</div>
+                <div class="text-center text-xs font-medium opacity-70 py-1">Wed</div>
+                <div class="text-center text-xs font-medium opacity-70 py-1">Thu</div>
+                <div class="text-center text-xs font-medium opacity-70 py-1">Fri</div>
+                <div class="text-center text-xs font-medium opacity-70 py-1">Sat</div>
+              </div>
+              <!-- Calendar grid -->
+              <div id="cal-grid" class="grid grid-cols-7 gap-1"></div>
+              <!-- Action buttons -->
+              <div class="mt-3 pt-3 flex gap-2 border-t border-gray-200 dark:border-gray-700">
+                <button type="button" id="cal-today" class="flex-1 px-3 py-1.5 text-xs rounded-sm transition-colors bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600">
+                  Today
+                </button>
+                <button type="button" id="cal-clear" class="flex-1 px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-sm transition-colors">
+                  Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="relative px-2">
+        <div class="flex justify-between text-xs opacity-70 mb-1">
+          {# start/end are None when no readable log had a parseable timestamp #}
+          <span id="date-start-label">{{ data.date_range.start[:10] if data.date_range.start else 'unknown' }}</span>
+          <span id="date-end-label">{{ data.date_range.end[:10] if data.date_range.end else 'unknown' }}</span>
+        </div>
+        <div class="relative h-8" id="date-slider-container">
+          <!-- Background track -->
+          <div class="absolute w-full top-1/2 -translate-y-1/2 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-sm"></div>
+          <!-- Selected range highlight -->
+          <div id="date-range-highlight" class="absolute top-1/2 -translate-y-1/2 h-1.5 bg-blue-500 rounded-sm" style="left: 0%; width: 100%;"></div>
+          <!-- Sliders -->
+          <input type="range" id="date-slider-start" class="absolute w-full range-slider top-1/2 -translate-y-1/2" style="pointer-events: none;">
+          <input type="range" id="date-slider-end" class="absolute w-full range-slider top-1/2 -translate-y-1/2" style="pointer-events: none;">
+        </div>
+      </div>
+    </div>
+
+    <div class="flex gap-3 items-center flex-wrap">
+      <!-- Log Files Dropdown -->
+      <div class="relative">
+        <label class="block text-xs font-medium mb-1">Log Files</label>
+        <button
+          type="button"
+          id="log-file-dropdown-btn"
+          class="px-3 py-1.5 text-sm border rounded-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 flex items-center gap-2 min-w-[200px]"
+        >
+          <span id="log-file-selection-display" class="flex-1 text-left truncate">1 file selected</span>
+          <i class="fas fa-chevron-down text-xs"></i>
+        </button>
+
+        <!-- Dropdown panel -->
+        <div
+          id="log-file-dropdown-panel"
+          class="hidden fixed z-50 w-80 border rounded-lg shadow-lg bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+          style="max-height: 80vh;"
+        >
+          <!-- Search input -->
+          <div class="p-2 border-b border-gray-200 dark:border-gray-700">
+            <input
+              type="text"
+              id="log-file-search"
+              placeholder="Search log files..."
+              class="w-full px-3 py-1.5 text-sm border rounded-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              autocomplete="off"
+            />
+          </div>
+
+          <!-- File list -->
+          <div id="log-file-list" class="max-h-64 overflow-y-auto">
+            {% for log in data.available_logs %}
+            <label class="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer log-file-item" data-log-name="{{ log.name | lower }}">
+              <input
+                type="checkbox"
+                class="log-file-checkbox"
+                data-path="{{ log.path }}"
+                data-name="{{ log.name }}"
+                {% if log.type == 'system' %}checked{% endif %}
+              />
+              <div class="flex-1 min-w-0">
+                <div class="text-xs font-medium truncate">{{ log.name }}</div>
+                <div class="text-xs opacity-70">{{ (log.size / 1024 / 1024) | round(2) }} MB</div>
+              </div>
+            </label>
+            {% endfor %}
+          </div>
+
+          {% if data.unavailable_logs %}
+          <!-- Log files present in the report tree that cannot be opened:
+               dangling symlinks (var/log/containers/*.log pointing into a
+               var/log/pods/ tree the collector did not capture) or unreadable
+               files. Listed as unavailable instead of failing the whole tab;
+               hover for the file names. -->
+          <div
+            id="log-file-unavailable"
+            class="px-3 py-2 border-t border-gray-200 dark:border-gray-700 text-xs opacity-70"
+            title="{% for log in data.unavailable_logs %}{{ log.name }}{% if not loop.last %}&#10;{% endif %}{% endfor %}"
+          >
+            <i class="fas fa-exclamation-triangle mr-1"></i>
+            {{ data.unavailable_logs | length }} log file{{ 's' if data.unavailable_logs | length != 1 else '' }} unavailable (not captured in this report)
+          </div>
+          {% endif %}
+
+          <!-- Action buttons -->
+          <div class="p-2 border-t border-gray-200 dark:border-gray-700 flex gap-2">
+            <button
+              type="button"
+              id="select-all-logs"
+              class="flex-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-sm transition-colors"
+            >
+              Select All
+            </button>
+            <button
+              type="button"
+              id="clear-all-logs"
+              class="flex-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-sm transition-colors"
+            >
+              Clear All
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Get Date Range Button -->
+      <div>
+        <label class="block text-xs font-medium mb-1">&nbsp;</label>
+        <button id="get-range-btn" class="px-4 py-1.5 text-sm rounded-sm border">
+          Get Date Range
+        </button>
+      </div>
+
+      <!-- Load Logs Button -->
+      <div>
+        <label class="block text-xs font-medium mb-1">&nbsp;</label>
+        <button id="load-logs-btn" class="px-4 py-1.5 text-sm rounded-sm border">
+          Load Logs
+        </button>
+      </div>
+
+      <!-- Export CSV Button -->
+      <div>
+        <label class="block text-xs font-medium mb-1">&nbsp;</label>
+        <button id="export-csv-btn" class="px-4 py-1.5 text-sm rounded-sm border" disabled>
+          <i class="fas fa-download mr-1"></i>
+          Export CSV
+        </button>
+      </div>
+
+      <!-- Status Indicators -->
+      <div class="flex items-center gap-2">
+        <label class="block text-xs font-medium mb-1">&nbsp;</label>
+        <div class="flex gap-2 items-center">
+          <span id="loading-indicator" class="hidden text-xs opacity-70">
+            <i class="fas fa-spinner fa-spin mr-1"></i>
+            Loading...
+          </span>
+          <span id="logs-loaded-info" class="hidden text-xs">
+            <span id="loaded-count"></span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Controls -->
+  <div id="filter-panel" class="mb-3 space-y-2">
+    <div class="flex gap-2 items-center">
+      <input
+        type="text"
+        id="log-search"
+        placeholder="Search logs... (comma-separated, quotes for phrase: &quot;error, fail&quot;, escape: \&quot;)"
+        class="flex-1 px-3 py-1.5 text-sm border rounded-sm"
+        autocomplete="off"
+      />
+      <input
+        type="text"
+        id="log-exclude"
+        placeholder="Filter out... (comma-separated, quotes for phrase: &quot;ok, success&quot;, escape: \&quot;)"
+        class="flex-1 px-3 py-1.5 text-sm border rounded-sm"
+        autocomplete="off"
+      />
+      <select id="severity-filter" class="px-3 py-1.5 text-sm border rounded-sm">
+        <option value="">All Levels</option>
+        <option value="critical">Critical</option>
+        <option value="error">Error</option>
+        <option value="warning">Warning</option>
+        <option value="info">Information</option>
+        <option value="debug">Debug</option>
+        <option value="other">Other</option>
+      </select>
+      <select id="process-filter" class="px-3 py-1.5 text-sm border rounded-sm">
+        <option value="">All Processes</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Log Table -->
+  <div id="log-table-container" class="">
+    <!-- Showing Count (Top) -->
+    <div class="mb-3 text-xs">
+      <div id="entry-count-top" class="opacity-70"></div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-xs">
+        <thead class="border-b">
+          <tr>
+            <th class="px-3 py-2 text-left font-medium cursor-pointer" onclick="sortTable(0)" style="width: 140px;">
+              Timestamp <i id="sort-0" class="fas fa-sort ml-1 opacity-50"></i>
+            </th>
+            <th class="px-3 py-2 text-left font-medium cursor-pointer" onclick="sortTable(1)" style="width: 90px;">
+              Level <i id="sort-1" class="fas fa-sort ml-1 opacity-50"></i>
+            </th>
+            <th class="px-3 py-2 text-left font-medium cursor-pointer" onclick="sortTable(2)" style="width: 150px;">
+              Hostname <i id="sort-2" class="fas fa-sort ml-1 opacity-50"></i>
+            </th>
+            <th class="px-3 py-2 text-left font-medium cursor-pointer" onclick="sortTable(3)" style="width: 180px;">
+              Process <i id="sort-3" class="fas fa-sort ml-1 opacity-50"></i>
+            </th>
+            <th class="px-3 py-2 text-left font-medium">
+              Message
+            </th>
+          </tr>
+        </thead>
+        <tbody id="log-table-body">
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="flex justify-between items-center mt-3 text-xs">
+      <div id="entry-count" class="opacity-70"></div>
+      <div class="flex gap-2 items-center">
+        <span class="opacity-70">Rows per page:</span>
+        <select id="page-size" class="px-2 py-1 text-xs border rounded-sm" onchange="changePageSize()">
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+          <option value="250">250</option>
+          <option value="500">500</option>
+          <option value="-1">All</option>
+        </select>
+        <div id="pagination-controls" class="flex items-center gap-2"></div>
+      </div>
+    </div>
+
+    <div id="no-results" class="hidden text-center py-8 opacity-70">
+      <div class="text-sm">No matching logs found</div>
+    </div>
+  </div>
+
+  {% else %}
+  <div class="text-center py-12 opacity-70">
+    <i class="fas fa-exclamation-triangle text-2xl mb-2"></i>
+    <div class="text-sm font-medium">No Readable Log Files Found</div>
+    <div class="text-xs mt-1">
+      The file <code class="px-2 py-1 rounded-sm border text-xs">/sos_commands/logs/journalctl_--no-pager</code> was not found, and no other log file could be read.
+    </div>
+    {% if data.unavailable_logs %}
+    <div id="log-file-unavailable" class="text-xs mt-2"
+         title="{% for log in data.unavailable_logs %}{{ log.name }}{% if not loop.last %}&#10;{% endif %}{% endfor %}">
+      {{ data.unavailable_logs | length }} log file{{ 's' if data.unavailable_logs | length != 1 else '' }} present but unavailable (not captured in this report)
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Alert/Info Modal -->
+  <div id="alert-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-96 max-w-[90vw]">
+      <div class="p-6">
+        <div class="text-center mb-6">
+          <i id="alert-modal-icon" class="fas fa-info-circle text-5xl mb-3"></i>
+          <h3 id="alert-modal-title" class="text-xl font-bold mb-2 text-gray-900 dark:text-gray-100"></h3>
+          <p id="alert-modal-message" class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap"></p>
+        </div>
+        <div class="flex justify-center">
+          <button
+            id="alert-modal-ok"
+            class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-sm transition-colors font-medium"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const loadLogsBtn = document.getElementById('load-logs-btn');
+  const getRangeBtn = document.getElementById('get-range-btn');
+  const logFileDropdownBtn = document.getElementById('log-file-dropdown-btn');
+  const logFileDropdownPanel = document.getElementById('log-file-dropdown-panel');
+  const logFileSelectionDisplay = document.getElementById('log-file-selection-display');
+  const logFileSearch = document.getElementById('log-file-search');
+  const logFileList = document.getElementById('log-file-list');
+  const selectAllLogsBtn = document.getElementById('select-all-logs');
+  const clearAllLogsBtn = document.getElementById('clear-all-logs');
+  const dateSliderStart = document.getElementById('date-slider-start');
+  const dateSliderEnd = document.getElementById('date-slider-end');
+  const dateStartLabel = document.getElementById('date-start-label');
+  const dateEndLabel = document.getElementById('date-end-label');
+  const dateRangeHighlight = document.getElementById('date-range-highlight');
+  const singleDateButton = document.getElementById('single-date-button');
+  const singleDateDisplay = document.getElementById('single-date-display');
+  const dateCalendar = document.getElementById('date-calendar');
+  const calGrid = document.getElementById('cal-grid');
+  const calMonthYear = document.getElementById('cal-month-year');
+  const calPrevMonth = document.getElementById('cal-prev-month');
+  const calNextMonth = document.getElementById('cal-next-month');
+  const calToday = document.getElementById('cal-today');
+  const calClear = document.getElementById('cal-clear');
+  const loadingIndicator = document.getElementById('loading-indicator');
+  const chartsPanel = document.getElementById('charts-panel');
+
+  let processChart = null;
+  let severityChart = null;
+  const logsLoadedInfo = document.getElementById('logs-loaded-info');
+  const loadedCount = document.getElementById('loaded-count');
+  const filterPanel = document.getElementById('filter-panel');
+  const logTableContainer = document.getElementById('log-table-container');
+  const logTableBody = document.getElementById('log-table-body');
+  const noResults = document.getElementById('no-results');
+  const searchInput = document.getElementById('log-search');
+  const severityFilter = document.getElementById('severity-filter');
+  const processFilter = document.getElementById('process-filter');
+  const entryCount = document.getElementById('entry-count');
+  const pageInfo = document.getElementById('page-info');
+
+  // Modal elements
+  const alertModal = document.getElementById('alert-modal');
+  const alertModalIcon = document.getElementById('alert-modal-icon');
+  const alertModalTitle = document.getElementById('alert-modal-title');
+  const alertModalMessage = document.getElementById('alert-modal-message');
+  const alertModalOk = document.getElementById('alert-modal-ok');
+
+  // Show alert modal
+  function showAlert(title, message, type = 'info') {
+    alertModalTitle.textContent = title;
+    alertModalMessage.textContent = message;
+
+    // Update icon based on type
+    alertModalIcon.className = 'fas text-5xl mb-3 ';
+    if (type === 'error') {
+      alertModalIcon.className += 'fa-exclamation-circle text-red-500';
+    } else if (type === 'warning') {
+      alertModalIcon.className += 'fa-exclamation-triangle text-orange-500';
+    } else if (type === 'success') {
+      alertModalIcon.className += 'fa-check-circle text-green-500';
+    } else {
+      alertModalIcon.className += 'fa-info-circle text-blue-500';
+    }
+
+    alertModal.classList.remove('hidden');
+  }
+
+  // Close modal
+  alertModalOk?.addEventListener('click', () => {
+    alertModal.classList.add('hidden');
+  });
+
+  // Close modal on background click
+  alertModal?.addEventListener('click', (e) => {
+    if (e.target === alertModal) {
+      alertModal.classList.add('hidden');
+    }
+  });
+
+  let allEntries = [];
+  let filteredEntries = [];
+  let currentPage = 0;
+  let pageSize = 100;
+  let currentDirectory = '{{ directory | default("") }}';
+  let backendUrl = null;
+  let sortColumn = -1;
+  let sortAscending = true;
+
+  // Loading state for abort functionality
+  let isLoading = false;
+  let currentReader = null;
+
+  // Update selection display
+  function updateSelectionDisplay() {
+    const checkboxes = document.querySelectorAll('.log-file-checkbox:checked');
+    const count = checkboxes.length;
+
+    if (count === 0) {
+      logFileSelectionDisplay.textContent = 'No files selected';
+    } else if (count === 1) {
+      const fileName = checkboxes[0].getAttribute('data-name');
+      logFileSelectionDisplay.textContent = fileName;
+    } else {
+      logFileSelectionDisplay.textContent = `${count} files selected`;
+    }
+  }
+
+  // Toggle dropdown
+  logFileDropdownBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+
+    if (logFileDropdownPanel.classList.contains('hidden')) {
+      // Position the dropdown
+      const rect = logFileDropdownBtn.getBoundingClientRect();
+      const panelHeight = 400; // Approximate max height
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+
+      // Position below by default, above if not enough space
+      if (spaceBelow >= panelHeight || spaceBelow >= spaceAbove) {
+        logFileDropdownPanel.style.top = `${rect.bottom + 4}px`;
+      } else {
+        logFileDropdownPanel.style.top = `${rect.top - panelHeight - 4}px`;
+      }
+
+      logFileDropdownPanel.style.left = `${rect.left}px`;
+      logFileDropdownPanel.classList.remove('hidden');
+
+      logFileSearch.value = '';
+      logFileSearch.focus();
+      // Show all items
+      document.querySelectorAll('.log-file-item').forEach(item => {
+        item.style.display = 'flex';
+      });
+    } else {
+      logFileDropdownPanel.classList.add('hidden');
+    }
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!logFileDropdownPanel.contains(e.target) && !logFileDropdownBtn.contains(e.target)) {
+      logFileDropdownPanel.classList.add('hidden');
+    }
+  });
+
+  // Prevent dropdown from closing when clicking inside
+  logFileDropdownPanel?.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+
+  // Log file search functionality
+  logFileSearch?.addEventListener('input', () => {
+    const searchTerm = logFileSearch.value.toLowerCase();
+    const items = document.querySelectorAll('.log-file-item');
+
+    items.forEach(item => {
+      const logName = item.getAttribute('data-log-name');
+      if (logName.includes(searchTerm)) {
+        item.style.display = 'flex';
+      } else {
+        item.style.display = 'none';
+      }
+    });
+  });
+
+  // Update display when checkboxes change
+  document.querySelectorAll('.log-file-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', updateSelectionDisplay);
+  });
+
+  // Select All button
+  selectAllLogsBtn?.addEventListener('click', () => {
+    const visibleCheckboxes = Array.from(document.querySelectorAll('.log-file-item'))
+      .filter(item => item.style.display !== 'none')
+      .map(item => item.querySelector('.log-file-checkbox'));
+
+    visibleCheckboxes.forEach(cb => cb.checked = true);
+    updateSelectionDisplay();
+  });
+
+  // Clear All button
+  clearAllLogsBtn?.addEventListener('click', () => {
+    document.querySelectorAll('.log-file-checkbox').forEach(cb => cb.checked = false);
+    updateSelectionDisplay();
+  });
+
+  // Initialize display
+  updateSelectionDisplay();
+
+  // Date range from server - parse as UTC to avoid timezone issues.
+  // null (not a string) when no readable log had a parseable timestamp.
+  const minDateStr = {{ data.date_range.start | tojson }};
+  const maxDateStr = {{ data.date_range.end | tojson }};
+
+  // Helper to check if timestamp has timezone info (Z, +00:00, -05:00, etc.)
+  const hasTimezone = (str) => str.includes('Z') || str.includes('+') || str.match(/-\d{2}:\d{2}$/);
+
+  // Parse an ISO string as UTC; null/unparseable -> null.
+  // Handle both 'Z' and '+00:00' timezone formats
+  const parseServerDate = (str) => {
+    if (typeof str !== 'string' || !str) return null;
+    const d = new Date(hasTimezone(str) ? str : str + 'Z');
+    return isNaN(d.getTime()) ? null : d;
+  };
+  const midnightUTC = (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+
+  let minDateParsed = parseServerDate(minDateStr);
+  let maxDateParsed = parseServerDate(maxDateStr);
+
+  // Whether the slider bounds are real. When false the labels read "unknown",
+  // the slider is a single point (today) and Load Logs asks for a range first.
+  let dateRangeKnown = !!(minDateParsed && maxDateParsed);
+  if (!dateRangeKnown) {
+    minDateParsed = new Date();
+    maxDateParsed = minDateParsed;
+  }
+
+  // Normalize to midnight UTC
+  let minDate = midnightUTC(minDateParsed);
+  let maxDate = midnightUTC(maxDateParsed);
+  let totalDays = Math.max(0, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)));
+
+  console.log('[DatePicker] minDateStr:', minDateStr);
+  console.log('[DatePicker] maxDateStr:', maxDateStr);
+  console.log('[DatePicker] dateRangeKnown:', dateRangeKnown);
+  console.log('[DatePicker] minDate (normalized to midnight UTC):', minDate);
+  console.log('[DatePicker] minDate UTC string:', minDate.toISOString());
+  console.log('[DatePicker] maxDate (normalized to midnight UTC):', maxDate);
+  console.log('[DatePicker] totalDays:', totalDays);
+
+  // Initialize date sliders
+  dateSliderStart.min = 0;
+  dateSliderStart.max = totalDays;
+  dateSliderStart.value = 0;
+  dateSliderEnd.min = 0;
+  dateSliderEnd.max = totalDays;
+  dateSliderEnd.value = totalDays;
+
+  function updateDateLabel() {
+    const startDays = parseInt(dateSliderStart.value);
+    const endDays = parseInt(dateSliderEnd.value);
+
+    console.log('[DatePicker] updateDateLabel:');
+    console.log('[DatePicker]   startDays:', startDays);
+    console.log('[DatePicker]   endDays:', endDays);
+
+    // Create dates in UTC to avoid timezone shifting
+    const startDate = new Date(Date.UTC(
+      minDate.getUTCFullYear(),
+      minDate.getUTCMonth(),
+      minDate.getUTCDate() + startDays,
+      0, 0, 0, 0
+    ));
+
+    const endDate = new Date(Date.UTC(
+      minDate.getUTCFullYear(),
+      minDate.getUTCMonth(),
+      minDate.getUTCDate() + endDays,
+      0, 0, 0, 0
+    ));
+
+    console.log('[DatePicker]   startDate:', startDate.toISOString());
+    console.log('[DatePicker]   endDate:', endDate.toISOString());
+
+    if (dateRangeKnown) {
+      dateStartLabel.textContent = startDate.toISOString().split('T')[0];
+      dateEndLabel.textContent = endDate.toISOString().split('T')[0];
+    } else {
+      dateStartLabel.textContent = 'unknown';
+      dateEndLabel.textContent = 'unknown';
+    }
+
+    // Update visual range highlight (max is 0 for a single-day/unknown range)
+    const max = parseInt(dateSliderStart.max) || 1;
+    const startPercent = (startDays / max) * 100;
+    const endPercent = (endDays / max) * 100;
+
+    dateRangeHighlight.style.left = `${startPercent}%`;
+    dateRangeHighlight.style.width = `${endPercent - startPercent}%`;
+
+    // Update calendar picker's selected range
+    rangeStartDate = startDate;
+    rangeEndDate = endDate;
+
+    // Update the calendar picker display text
+    singleDateDisplay.textContent = formatDateDisplay();
+
+    // Re-render calendar if it's currently visible
+    if (!dateCalendar.classList.contains('hidden')) {
+      renderCalendar();
+    }
+  }
+
+  // Dual slider interaction handler
+  function setupDualSlider(container, startSlider, endSlider, updateCallback) {
+    let activeSlider = null;
+    let isDragging = false;
+
+    function updateSliderFromMouse(e) {
+      if (!isDragging || !activeSlider) return;
+
+      const rect = container.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const percent = Math.max(0, Math.min(1, clickX / rect.width));
+      const clickValue = percent * (parseInt(activeSlider.max) - parseInt(activeSlider.min)) + parseInt(activeSlider.min);
+
+      activeSlider.value = Math.round(clickValue);
+
+      // Constrain values
+      if (activeSlider === startSlider) {
+        if (parseInt(startSlider.value) > parseInt(endSlider.value)) {
+          startSlider.value = endSlider.value;
+        }
+      } else {
+        if (parseInt(endSlider.value) < parseInt(startSlider.value)) {
+          endSlider.value = startSlider.value;
+        }
+      }
+
+      updateCallback();
+    }
+
+    container.addEventListener('mousedown', (e) => {
+      const rect = container.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const percent = clickX / rect.width;
+      const clickValue = percent * (parseInt(startSlider.max) - parseInt(startSlider.min)) + parseInt(startSlider.min);
+
+      const startValue = parseInt(startSlider.value);
+      const endValue = parseInt(endSlider.value);
+
+      // Determine which handle is closer
+      const distToStart = Math.abs(clickValue - startValue);
+      const distToEnd = Math.abs(clickValue - endValue);
+
+      if (distToStart <= distToEnd) {
+        activeSlider = startSlider;
+        startSlider.style.pointerEvents = 'auto';
+        endSlider.style.pointerEvents = 'none';
+        startSlider.style.zIndex = '2';
+        endSlider.style.zIndex = '1';
+      } else {
+        activeSlider = endSlider;
+        endSlider.style.pointerEvents = 'auto';
+        startSlider.style.pointerEvents = 'none';
+        endSlider.style.zIndex = '2';
+        startSlider.style.zIndex = '1';
+      }
+
+      isDragging = true;
+      updateSliderFromMouse(e);
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (isDragging) {
+        updateSliderFromMouse(e);
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        startSlider.style.pointerEvents = 'none';
+        endSlider.style.pointerEvents = 'none';
+        activeSlider = null;
+      }
+    });
+
+    startSlider.addEventListener('input', () => {
+      if (parseInt(startSlider.value) > parseInt(endSlider.value)) {
+        startSlider.value = endSlider.value;
+      }
+      updateCallback();
+    });
+
+    endSlider.addEventListener('input', () => {
+      if (parseInt(endSlider.value) < parseInt(startSlider.value)) {
+        endSlider.value = startSlider.value;
+      }
+      updateCallback();
+    });
+  }
+
+  setupDualSlider(document.getElementById('date-slider-container'), dateSliderStart, dateSliderEnd, updateDateLabel);
+
+  // Custom date picker - range selection (use UTC dates)
+  const now = new Date();
+  let calendarViewDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+  let rangeStartDate = null;
+  let rangeEndDate = null;
+
+  function formatDateDisplay() {
+    if (!rangeStartDate && !rangeEndDate) return 'Select Range';
+    if (rangeStartDate && !rangeEndDate) {
+      return `${rangeStartDate.getUTCFullYear()}-${String(rangeStartDate.getUTCMonth() + 1).padStart(2, '0')}-${String(rangeStartDate.getUTCDate()).padStart(2, '0')}`;
+    }
+    if (rangeStartDate && rangeEndDate) {
+      const startStr = `${rangeStartDate.getUTCFullYear()}-${String(rangeStartDate.getUTCMonth() + 1).padStart(2, '0')}-${String(rangeStartDate.getUTCDate()).padStart(2, '0')}`;
+      const endStr = `${rangeEndDate.getUTCFullYear()}-${String(rangeEndDate.getUTCMonth() + 1).padStart(2, '0')}-${String(rangeEndDate.getUTCDate()).padStart(2, '0')}`;
+      if (rangeStartDate.getTime() === rangeEndDate.getTime()) {
+        return startStr;
+      }
+      return `${startStr} - ${endStr}`;
+    }
+    return 'Select Range';
+  }
+
+  function isSameDay(date1, date2) {
+    if (!date1 || !date2) return false;
+    return date1.getUTCFullYear() === date2.getUTCFullYear() &&
+           date1.getUTCMonth() === date2.getUTCMonth() &&
+           date1.getUTCDate() === date2.getUTCDate();
+  }
+
+  function isDateInRange(date, start, end) {
+    if (!start || !end) return false;
+    const time = date.getTime();
+    const startTime = start.getTime();
+    const endTime = end.getTime();
+    return time >= Math.min(startTime, endTime) && time <= Math.max(startTime, endTime);
+  }
+
+  function renderCalendar() {
+    const year = calendarViewDate.getUTCFullYear();
+    const month = calendarViewDate.getUTCMonth();
+
+    calMonthYear.textContent = `${['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'][month]} ${year}`;
+
+    const firstDay = new Date(Date.UTC(year, month, 1));
+    const lastDay = new Date(Date.UTC(year, month + 1, 0));
+    const daysInMonth = lastDay.getUTCDate();
+    const startingDayOfWeek = firstDay.getUTCDay();
+    const prevMonthLastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+    calGrid.innerHTML = '';
+
+    // Previous month days
+    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+      const day = prevMonthLastDay - i;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = day;
+      btn.className = 'p-2 text-xs rounded-sm transition-colors opacity-40 text-gray-400 dark:text-gray-600';
+      calGrid.appendChild(btn);
+    }
+
+    // Current month days
+    const today = new Date();
+    const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(Date.UTC(year, month, day));
+
+      // Debug for day 14
+      if (day === 14 && month === 4) { // May is month 4 (0-indexed)
+        console.log('[DatePicker] Creating May 14th button:');
+        console.log('[DatePicker]   Date object:', date);
+        console.log('[DatePicker]   ISO:', date.toISOString());
+        console.log('[DatePicker]   UTC components:', {
+          year: date.getUTCFullYear(),
+          month: date.getUTCMonth(),
+          day: date.getUTCDate()
+        });
+      }
+
+      const isStart = isSameDay(date, rangeStartDate);
+      const isEnd = isSameDay(date, rangeEndDate);
+      const inRange = rangeStartDate && rangeEndDate && isDateInRange(date, rangeStartDate, rangeEndDate);
+      const isToday = isSameDay(date, todayUTC);
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = day;
+
+      let btnClass = 'p-2 text-xs rounded-sm transition-colors ';
+
+      if (isStart || isEnd || inRange) {
+        btnClass += 'bg-blue-500 text-white font-medium';
+      } else if (isToday) {
+        btnClass += 'bg-gray-200 dark:bg-gray-700 font-medium';
+      } else {
+        btnClass += 'hover:bg-gray-100 dark:hover:bg-gray-700';
+      }
+
+      btn.className = btnClass;
+      btn.addEventListener('click', () => selectDate(date));
+      calGrid.appendChild(btn);
+    }
+
+    // Next month days to fill grid
+    const totalCells = calGrid.children.length;
+    const remainingCells = 42 - totalCells;
+    for (let day = 1; day <= remainingCells; day++) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = day;
+      btn.className = 'p-2 text-xs rounded-sm transition-colors opacity-40 text-gray-400 dark:text-gray-600';
+      calGrid.appendChild(btn);
+    }
+  }
+
+  function selectDate(date) {
+    console.log('[DatePicker] selectDate called with:', date);
+    console.log('[DatePicker] date ISO:', date.toISOString());
+    console.log('[DatePicker] date UTC components:', {
+      year: date.getUTCFullYear(),
+      month: date.getUTCMonth(),
+      day: date.getUTCDate()
+    });
+
+    if (!rangeStartDate) {
+      // First click - set start date (keep calendar open)
+      rangeStartDate = date;
+      rangeEndDate = null;
+      console.log('[DatePicker] Set start date:', rangeStartDate.toISOString());
+      singleDateDisplay.textContent = formatDateDisplay();
+      renderCalendar();
+    } else if (!rangeEndDate) {
+      // Second click - set end date and show highlighted range
+      rangeEndDate = date;
+      console.log('[DatePicker] Set end date:', rangeEndDate.toISOString());
+      singleDateDisplay.textContent = formatDateDisplay();
+
+      // Render calendar to show the range highlight
+      renderCalendar();
+
+      // Update sliders - dates are already UTC
+      const start = rangeStartDate.getTime() < rangeEndDate.getTime() ? rangeStartDate : rangeEndDate;
+      const end = rangeStartDate.getTime() < rangeEndDate.getTime() ? rangeEndDate : rangeStartDate;
+
+      console.log('[DatePicker] Calculation:');
+      console.log('[DatePicker]   start:', start.toISOString());
+      console.log('[DatePicker]   end:', end.toISOString());
+      console.log('[DatePicker]   minDate:', minDate.toISOString());
+      console.log('[DatePicker]   start - minDate (ms):', start - minDate);
+      console.log('[DatePicker]   ms per day:', 1000 * 60 * 60 * 24);
+
+      const startDays = Math.floor((start - minDate) / (1000 * 60 * 60 * 24));
+      const endDays = Math.floor((end - minDate) / (1000 * 60 * 60 * 24));
+
+      console.log('[DatePicker]   startDays:', startDays);
+      console.log('[DatePicker]   endDays:', endDays);
+
+      dateSliderStart.value = startDays;
+      dateSliderEnd.value = endDays;
+      updateDateLabel();
+    } else {
+      // Third click - restart selection
+      rangeStartDate = date;
+      rangeEndDate = null;
+      console.log('[DatePicker] Restart - new start date:', rangeStartDate.toISOString());
+      singleDateDisplay.textContent = formatDateDisplay();
+      renderCalendar();
+    }
+  }
+
+  singleDateButton?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const rect = singleDateButton.getBoundingClientRect();
+    const calendarWidth = 280; // min-w-[280px]
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+
+    // Calculate position
+    let top = rect.bottom + 4;
+    let left = rect.left;
+
+    // Check if calendar would overflow right edge
+    if (left + calendarWidth > windowWidth) {
+      left = windowWidth - calendarWidth - 10; // 10px margin from edge
+    }
+
+    // Check if calendar would overflow bottom edge
+    const calendarHeight = 380; // approximate height
+    if (top + calendarHeight > windowHeight) {
+      top = rect.top - calendarHeight - 4; // Position above the button instead
+    }
+
+    // Make sure it doesn't go off the left edge
+    if (left < 10) {
+      left = 10;
+    }
+
+    dateCalendar.style.top = `${top}px`;
+    dateCalendar.style.left = `${left}px`;
+    dateCalendar.classList.toggle('hidden');
+    if (!dateCalendar.classList.contains('hidden')) {
+      renderCalendar();
+    }
+  });
+
+  calPrevMonth?.addEventListener('click', () => {
+    calendarViewDate = new Date(Date.UTC(calendarViewDate.getUTCFullYear(), calendarViewDate.getUTCMonth() - 1, 1));
+    renderCalendar();
+  });
+
+  calNextMonth?.addEventListener('click', () => {
+    calendarViewDate = new Date(Date.UTC(calendarViewDate.getUTCFullYear(), calendarViewDate.getUTCMonth() + 1, 1));
+    renderCalendar();
+  });
+
+  calToday?.addEventListener('click', () => {
+    const today = new Date();
+    const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+    rangeStartDate = todayUTC;
+    rangeEndDate = todayUTC;
+    singleDateDisplay.textContent = formatDateDisplay();
+
+    // Update sliders to today
+    const daysDiff = Math.floor((todayUTC - minDate) / (1000 * 60 * 60 * 24));
+    dateSliderStart.value = daysDiff;
+    dateSliderEnd.value = daysDiff;
+    updateDateLabel();
+
+    dateCalendar.classList.add('hidden');
+  });
+
+  calClear?.addEventListener('click', () => {
+    rangeStartDate = null;
+    rangeEndDate = null;
+    singleDateDisplay.textContent = 'Select Range';
+    dateCalendar.classList.add('hidden');
+    renderCalendar();
+  });
+
+  // Prevent calendar clicks from closing it
+  dateCalendar?.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+
+  // Close calendar on outside click
+  document.addEventListener('click', (e) => {
+    if (!dateCalendar.contains(e.target) && !singleDateButton.contains(e.target)) {
+      dateCalendar.classList.add('hidden');
+    }
+  });
+
+  updateDateLabel();
+
+  // Initialize empty charts
+  updateProcessChart([]);
+  updateSeverityChart([]);
+
+  // Helper to truncate long strings with middle ellipsis
+  function truncateMiddle(str, maxLength = 30) {
+    if (str.length <= maxLength) return str;
+    const partLength = Math.floor((maxLength - 3) / 2);
+    return str.substring(0, partLength) + '...' + str.substring(str.length - partLength);
+  }
+
+  function updateProcessChart(entries) {
+    const processCounts = {};
+
+    entries.forEach(entry => {
+      if (entry.process) {
+        processCounts[entry.process] = (processCounts[entry.process] || 0) + 1;
+      }
+    });
+
+    // Sort by count and take top 15
+    const sortedProcesses = Object.entries(processCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15);
+
+    // Store full names for tooltips
+    const fullNames = sortedProcesses.length > 0 ? sortedProcesses.map(p => p[0]) : ['No Data'];
+
+    // Truncate labels for display
+    const labels = fullNames.map(name => truncateMiddle(name, 30));
+    const data = sortedProcesses.length > 0 ? sortedProcesses.map(p => p[1]) : [0];
+
+    const config = {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Log Count',
+          data,
+          backgroundColor: 'rgba(59, 130, 246, 0.6)',
+          borderColor: 'rgba(59, 130, 246, 1)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              // Show full process name in tooltip
+              title: (ctx) => fullNames[ctx[0].dataIndex],
+              label: ctx => ` ${ctx.raw} logs`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: diagnosticsThemeColor('text'),
+              maxRotation: 45,
+              minRotation: 45
+            },
+            grid: { color: diagnosticsThemeColor('grid') }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color: diagnosticsThemeColor('text') },
+            grid: { color: diagnosticsThemeColor('grid') }
+          }
+        }
+      }
+    };
+
+    const ctx = document.getElementById('processChart').getContext('2d');
+    if (processChart) {
+      processChart.destroy();
+    }
+    processChart = new Chart(ctx, config);
+  }
+
+  function updateSeverityChart(entries) {
+    const severityCounts = {
+      critical: 0,
+      error: 0,
+      warning: 0,
+      info: 0,
+      debug: 0,
+      other: 0
+    };
+
+    entries.forEach(entry => {
+      if (entry.severity && severityCounts.hasOwnProperty(entry.severity)) {
+        severityCounts[entry.severity]++;
+      }
+    });
+
+    const labels = entries.length > 0 ? Object.keys(severityCounts) : ['No Data'];
+    const data = entries.length > 0 ? Object.values(severityCounts) : [0];
+
+    const colors = {
+      critical: 'rgba(220, 38, 38, 0.6)',
+      error: 'rgba(239, 68, 68, 0.6)',
+      warning: 'rgba(245, 158, 11, 0.6)',
+      info: 'rgba(59, 130, 246, 0.6)',
+      debug: 'rgba(107, 114, 128, 0.6)',
+      other: 'rgba(107, 114, 128, 0.6)',
+      'No Data': 'rgba(107, 114, 128, 0.2)'
+    };
+
+    const borderColors = {
+      critical: 'rgba(220, 38, 38, 1)',
+      error: 'rgba(239, 68, 68, 1)',
+      warning: 'rgba(245, 158, 11, 1)',
+      info: 'rgba(59, 130, 246, 1)',
+      debug: 'rgba(107, 114, 128, 1)',
+      other: 'rgba(107, 114, 128, 1)',
+      'No Data': 'rgba(107, 114, 128, 0.4)'
+    };
+
+    const backgroundColors = labels.map(label => colors[label] || colors['No Data']);
+    const borderColorsList = labels.map(label => borderColors[label] || borderColors['No Data']);
+
+    const config = {
+      type: 'bar',
+      data: {
+        labels: labels.map(l => l === 'No Data' ? l : l.charAt(0).toUpperCase() + l.slice(1)),
+        datasets: [{
+          label: 'Log Count',
+          data,
+          backgroundColor: backgroundColors,
+          borderColor: borderColorsList,
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.raw} logs`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: diagnosticsThemeColor('text') },
+            grid: { color: diagnosticsThemeColor('grid') }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color: diagnosticsThemeColor('text') },
+            grid: { color: diagnosticsThemeColor('grid') }
+          }
+        }
+      }
+    };
+
+    const ctx = document.getElementById('severityChart').getContext('2d');
+    if (severityChart) {
+      severityChart.destroy();
+    }
+    severityChart = new Chart(ctx, config);
+  }
+
+  async function getBackendUrl() {
+    if (backendUrl) return backendUrl;
+    if (window.electronAPI?.getBackendPort) {
+      const port = await window.electronAPI.getBackendPort();
+      backendUrl = `http://localhost:${port}`;
+      return backendUrl;
+    }
+    backendUrl = 'http://localhost:8080';
+    return backendUrl;
+  }
+
+  // Get Range button handler
+  getRangeBtn?.addEventListener('click', async () => {
+    const checkboxes = document.querySelectorAll('.log-file-checkbox:checked');
+    const selectedPaths = Array.from(checkboxes).map(cb => cb.getAttribute('data-path'));
+
+    if (selectedPaths.length === 0) {
+      showAlert('No Files Selected', 'Please select at least one log file', 'warning');
+      return;
+    }
+
+    getRangeBtn.disabled = true;
+    getRangeBtn.textContent = 'Getting range...';
+
+    try {
+      // Backend calls are proxied through the trusted parent window: this
+      // sandboxed iframe has no window.electronAPI, so it cannot attach the
+      // required X-App-Token itself (doing so unauthenticated 401s). See
+      // window.diagnosticsApiRequest (injected into the frame's <head>) and the
+      // allowlisted proxy in src/components/DiagnosticsPage.jsx.
+      const response = await window.diagnosticsApiRequest('/get_log_date_range', {
+        directory: currentDirectory,
+        log_paths: selectedPaths
+      });
+
+      if (!response.ok) {
+        throw new Error((response.json && response.json.error) || 'Failed to get date range');
+      }
+
+      const result = response.json;
+
+      // Update min/max dates and reinitialize sliders
+      const newRange = (result && result.date_range) || {};
+      const newMin = parseServerDate(newRange.start);
+      const newMax = parseServerDate(newRange.end);
+      if (!newMin || !newMax) {
+        throw new Error('Could not extract date range from selected files.');
+      }
+      minDateParsed = newMin;
+      maxDateParsed = newMax;
+      dateRangeKnown = true;
+
+      minDate = midnightUTC(minDateParsed);
+      maxDate = midnightUTC(maxDateParsed);
+      totalDays = Math.max(0, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)));
+
+      console.log('[Get Range] Updated date range:', {
+        minDate: minDate.toISOString(),
+        maxDate: maxDate.toISOString(),
+        totalDays
+      });
+
+      // Update slider limits and values
+      dateSliderStart.max = totalDays;
+      dateSliderEnd.max = totalDays;
+      dateSliderStart.value = 0;
+      dateSliderEnd.value = totalDays;
+
+      updateDateLabel();
+
+    } catch (error) {
+      console.error('[Get Range] Error:', error);
+
+      // Reset sliders to 0 on error
+      dateRangeKnown = false;
+      minDate = midnightUTC(new Date());
+      maxDate = minDate;
+      totalDays = 0;
+
+      dateSliderStart.max = 0;
+      dateSliderEnd.max = 0;
+      dateSliderStart.value = 0;
+      dateSliderEnd.value = 0;
+
+      updateDateLabel();
+
+      showAlert('Error Getting Date Range', error.message, 'error');
+    } finally {
+      getRangeBtn.disabled = false;
+      getRangeBtn.textContent = 'Get Date Range';
+    }
+  });
+
+  async function loadLogs() {
+    // Collect selected log file paths
+    const checkboxes = document.querySelectorAll('.log-file-checkbox:checked');
+    const selectedPaths = Array.from(checkboxes).map(cb => cb.getAttribute('data-path'));
+
+    if (selectedPaths.length === 0) {
+      showAlert('No Files Selected', 'Please select at least one log file', 'warning');
+      return;
+    }
+
+    if (!dateRangeKnown) {
+      showAlert('Date Range Unknown',
+        'No timestamps could be read from the default log files. Select the log files to view and click "Get Date Range" first.',
+        'warning');
+      return;
+    }
+
+    // Calculate start and end datetime from date slider (full days)
+    const startDays = parseInt(dateSliderStart.value);
+    const endDays = parseInt(dateSliderEnd.value);
+
+    // Create dates in UTC to avoid timezone shifting
+    const startDate = new Date(Date.UTC(
+      minDate.getUTCFullYear(),
+      minDate.getUTCMonth(),
+      minDate.getUTCDate() + startDays,
+      0, 0, 0, 0
+    ));
+
+    const endDate = new Date(Date.UTC(
+      minDate.getUTCFullYear(),
+      minDate.getUTCMonth(),
+      minDate.getUTCDate() + endDays,
+      23, 59, 59, 999
+    ));
+
+    const startDateStr = startDate.toISOString().slice(0, 16);
+    const endDateStr = endDate.toISOString().slice(0, 16);
+
+    isLoading = true;
+    loadLogsBtn.textContent = 'Abort Loading';
+    loadLogsBtn.classList.add('bg-red-500', 'hover:bg-red-600', 'text-white');
+    loadingIndicator?.classList.remove('hidden');
+    loadingIndicator.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Loading logs...';
+    logsLoadedInfo?.classList.add('hidden');
+
+    // Reset state
+    allEntries = [];
+    filteredEntries = [];
+
+    try {
+      // Streamed backend call, proxied through the trusted parent window (this
+      // sandboxed iframe cannot attach the X-App-Token itself). The parent reads
+      // the SSE ReadableStream and forwards decoded text chunks; we reassemble
+      // and parse them here exactly as before, and can still abort mid-stream via
+      // the returned handle. See window.diagnosticsApiStream and the allowlisted
+      // proxy in src/components/DiagnosticsPage.jsx.
+      let buffer = '';
+
+      const processText = (text) => {
+        // Add decoded text to the buffer and process complete SSE messages
+        // (lines starting with "data: ").
+        buffer += text;
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const jsonStr = line.substring(6); // Remove "data: " prefix
+            if (!jsonStr.trim()) continue;
+
+            try {
+              const chunk = JSON.parse(jsonStr);
+
+              if (chunk.error) {
+                throw new Error(chunk.error);
+              }
+
+              if (chunk.done) {
+                console.log('[Log Viewer] Streaming complete');
+
+                // Final render to ensure table/pagination are up to date
+                const excludeInputFinal = document.getElementById('log-exclude');
+                if (!searchInput.value && !severityFilter.value && !processFilter.value && !excludeInputFinal?.value) {
+                  applyFilters();
+                }
+
+                if (loadedCount) {
+                  loadedCount.textContent = `Loaded ${allEntries.length.toLocaleString()} entries`;
+                }
+                break;
+              }
+
+              // Add entries from this chunk
+              if (chunk.entries && chunk.entries.length > 0) {
+                allEntries.push(...chunk.entries);
+                filteredEntries = [...allEntries];
+
+                // Update UI progressively
+                const currentProcessSelection = processFilter.value;
+                const uniqueProcs = [...new Set(allEntries.map(e => e.process).filter(p => p))].sort();
+                processFilter.innerHTML = '<option value="">All Processes</option>' +
+                  uniqueProcs.map(proc => `<option value="${proc}">${proc}</option>`).join('');
+                processFilter.value = currentProcessSelection;
+
+                updateProcessChart(allEntries);
+                updateSeverityChart(allEntries);
+
+                // Update table if no active filters (pagination won't update due to isStreaming flag)
+                const excludeInput = document.getElementById('log-exclude');
+                if (!searchInput.value && !severityFilter.value && !processFilter.value && !excludeInput?.value) {
+                  applyFilters();
+                }
+
+                // Update progress
+                if (loadedCount) {
+                  const totalCount = chunk.total_count || allEntries.length;
+                  loadedCount.textContent = `Loaded ${allEntries.length.toLocaleString()} / ${totalCount.toLocaleString()} entries`;
+                  logsLoadedInfo?.classList.remove('hidden');
+                }
+              }
+            } catch (e) {
+              console.error('[Log Viewer] Error parsing chunk:', e);
+            }
+          }
+        }
+      };
+
+      const stream = window.diagnosticsApiStream('/parse_log_viewer_stream', {
+        directory: currentDirectory,
+        start_date: startDateStr,
+        end_date: endDateStr,
+        log_paths: selectedPaths
+      }, processText);
+      currentReader = stream; // handle exposes .cancel() for abortLoading()
+      await stream.done;
+
+    } catch (error) {
+      console.error('Error loading logs:', error);
+      if (error.name !== 'AbortError') {
+        showAlert('Error Loading Logs', error.message, 'error');
+      }
+    } finally {
+      isLoading = false;
+      currentReader = null;
+      loadLogsBtn.textContent = 'Load Logs';
+      loadLogsBtn.classList.remove('bg-red-500', 'hover:bg-red-600', 'text-white');
+      loadingIndicator?.classList.add('hidden');
+    }
+  }
+
+  function abortLoading() {
+    if (currentReader) {
+      console.log('[Log Viewer] Aborting stream...');
+      currentReader.cancel();
+      currentReader = null;
+      isLoading = false;
+      loadLogsBtn.textContent = 'Load Logs';
+      loadLogsBtn.classList.remove('bg-red-500', 'hover:bg-red-600', 'text-white');
+      loadingIndicator?.classList.add('hidden');
+
+      if (allEntries.length > 0) {
+        // Make sure table/pagination are updated with loaded data
+        const excludeInputAbort = document.getElementById('log-exclude');
+        if (!searchInput.value && !severityFilter.value && !processFilter.value && !excludeInputAbort?.value) {
+          applyFilters();
+        }
+
+        if (loadedCount) {
+          loadedCount.textContent = `Loaded ${allEntries.length.toLocaleString()} entries (aborted)`;
+          logsLoadedInfo?.classList.remove('hidden');
+        }
+      }
+    }
+  }
+
+  // Helper function to parse comma-separated values with quote support
+  function parseCommaSeparated(input) {
+    if (!input || !input.trim()) return [];
+
+    const terms = [];
+    let current = '';
+    let inQuotes = false;
+    let quoteChar = null;
+    let escaped = false;
+
+    for (let i = 0; i < input.length; i++) {
+      const char = input[i];
+
+      if (escaped) {
+        // Previous char was backslash - add this char literally
+        current += char;
+        escaped = false;
+      } else if (char === '\\') {
+        // Start escape sequence
+        escaped = true;
+      } else if ((char === '"' || char === "'") && !inQuotes) {
+        // Start of quoted string
+        inQuotes = true;
+        quoteChar = char;
+      } else if (char === quoteChar && inQuotes) {
+        // End of quoted string
+        inQuotes = false;
+        quoteChar = null;
+      } else if (char === ',' && !inQuotes) {
+        // Comma outside quotes - split here
+        const term = current.trim();
+        if (term) terms.push(term);
+        current = '';
+      } else {
+        // Regular character
+        current += char;
+      }
+    }
+
+    // Add the last term
+    const term = current.trim();
+    if (term) terms.push(term);
+
+    // Convert to lowercase for case-insensitive matching
+    return terms.map(t => t.toLowerCase());
+  }
+
+  function applyFilters() {
+    const searchQuery = searchInput?.value?.trim() || '';
+    const excludeQuery = document.getElementById('log-exclude')?.value?.trim() || '';
+    const severity = severityFilter?.value || '';
+    const process = processFilter?.value || '';
+
+    // Parse search filters (comma-separated list with quote support - OR matching)
+    const searchTerms = parseCommaSeparated(searchQuery);
+
+    // Parse exclusion filters (comma-separated list with quote support)
+    const excludeTerms = parseCommaSeparated(excludeQuery);
+
+    // Stage 1: Apply severity/process filters first (if any selected)
+    let filtered = allEntries;
+
+    if (severity || process) {
+      filtered = filtered.filter(entry => {
+        const severityMatch = !severity || entry.severity === severity;
+        const processMatch = !process || entry.process === process;
+        return severityMatch && processMatch;
+      });
+    }
+
+    // Stage 2: Apply search/exclude filters within the dropdown selection
+    filteredEntries = filtered.filter(entry => {
+      // Search across all columns (inclusion) - match ANY search term (OR logic)
+      const searchMatch = searchTerms.length === 0 || searchTerms.some(term => {
+        const searchableText = [
+          entry.timestamp || '',
+          entry.severity || '',
+          entry.hostname || '',
+          entry.process || '',
+          entry.pid || '',
+          entry.message || ''
+        ].join(' ').toLowerCase();
+
+        return searchableText.includes(term);
+      });
+
+      // Exclusion filter - if any exclude term matches, exclude this entry
+      const excludeMatch = excludeTerms.length === 0 || !excludeTerms.some(term => {
+        const searchableText = [
+          entry.timestamp || '',
+          entry.severity || '',
+          entry.hostname || '',
+          entry.process || '',
+          entry.pid || '',
+          entry.message || ''
+        ].join(' ').toLowerCase();
+
+        return searchableText.includes(term);
+      });
+
+      return searchMatch && excludeMatch;
+    });
+
+    // Only update dropdowns if search/exclude inputs are completely empty
+    // This preserves dropdown selections while typing
+    if (!searchQuery && !excludeQuery) {
+      // Update dropdowns with available options from dropdown-filtered results
+      const availableSeverities = new Set();
+      const availableProcesses = new Set();
+
+      filtered.forEach(entry => {
+        if (entry.severity) availableSeverities.add(entry.severity);
+        if (entry.process) availableProcesses.add(entry.process);
+      });
+
+      // Update Severity dropdown
+      const currentSeverity = severityFilter?.value || '';
+      const severityOptions = ['critical', 'error', 'warning', 'info', 'debug', 'other'];
+      severityFilter.innerHTML = '<option value="">All Levels</option>' +
+        severityOptions
+          .filter(sev => availableSeverities.has(sev))
+          .map(sev => `<option value="${sev}">${sev.charAt(0).toUpperCase() + sev.slice(1)}</option>`)
+          .join('');
+      severityFilter.value = currentSeverity; // Restore selection if still valid
+
+      // Update Process dropdown
+      const currentProcess = processFilter?.value || '';
+      const sortedProcesses = Array.from(availableProcesses).sort();
+      processFilter.innerHTML = '<option value="">All Processes</option>' +
+        sortedProcesses.map(proc => `<option value="${proc}">${proc}</option>`).join('');
+      processFilter.value = currentProcess; // Restore selection if still valid
+    }
+
+    // Update charts based on filtered data
+    if (severityChart && allEntries.length > 0) {
+      updateSeverityChart(filteredEntries);
+    }
+    if (processChart && allEntries.length > 0) {
+      updateProcessChart(filteredEntries);
+    }
+
+    // Enable/disable export button based on filtered data
+    const exportCsvBtn = document.getElementById('export-csv-btn');
+    if (exportCsvBtn) {
+      exportCsvBtn.disabled = filteredEntries.length === 0;
+    }
+
+    currentPage = 0;
+    renderTable();
+  }
+
+  function renderTable() {
+    if (!logTableBody) return;
+
+    const start = pageSize === -1 ? 0 : currentPage * pageSize;
+    const end = pageSize === -1 ? filteredEntries.length : start + pageSize;
+    const pageEntries = filteredEntries.slice(start, end);
+
+    if (filteredEntries.length === 0) {
+      logTableBody.innerHTML = '';
+      noResults?.classList.remove('hidden');
+      entryCount.textContent = 'No entries';
+      document.getElementById('entry-count-top').textContent = 'No entries';
+      pageInfo.textContent = '';
+      return;
+    }
+
+    noResults?.classList.add('hidden');
+
+    logTableBody.innerHTML = pageEntries.map((entry, idx) => {
+      // Escape HTML to prevent injection
+      const escapedMessage = entry.message
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+      const processDisplay = entry.pid ? `${entry.process}[${entry.pid}]` : entry.process;
+
+      return `
+        <tr class="border-b" data-severity="${entry.severity}">
+          <td class="px-3 py-2 font-mono whitespace-nowrap align-top">${entry.timestamp}</td>
+          <td class="px-3 py-2 align-top">
+            <span class="severity-badge severity-${entry.severity}">${entry.severity}</span>
+          </td>
+          <td class="px-3 py-2 align-top opacity-70">${entry.hostname || ''}</td>
+          <td class="px-3 py-2 align-top opacity-70 font-mono">${processDisplay || ''}</td>
+          <td class="px-3 py-2 font-mono whitespace-pre-wrap" style="word-break: break-word;">${escapedMessage}</td>
+        </tr>
+      `;
+    }).join('');
+
+    // Update pagination info
+    const showingText = `Showing ${start + 1}-${Math.min(end, filteredEntries.length)} of ${filteredEntries.length}`;
+    entryCount.textContent = showingText;
+    document.getElementById('entry-count-top').textContent = showingText;
+    updatePagination();
+  }
+
+  function updatePagination() {
+    const controls = document.getElementById('pagination-controls');
+
+    if (pageSize === -1 || filteredEntries.length <= pageSize) {
+      controls.innerHTML = '';
+      return;
+    }
+
+    const totalPages = Math.ceil(filteredEntries.length / pageSize);
+    const maxButtons = 7;
+
+    let startPage = Math.max(1, currentPage + 1 - Math.floor(maxButtons / 2));
+    let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+
+    if (endPage - startPage < maxButtons - 1) {
+      startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+
+    let html = '';
+
+    html += `<button onclick="goToPage(1)" ${currentPage === 0 ? 'disabled' : ''}
+      class="px-3 py-1 text-sm rounded-sm ${currentPage === 0 ? 'bg-gray-600 text-gray-400' : 'text-white'}">
+      First</button>`;
+
+    html += `<button onclick="goToPage(${currentPage})" ${currentPage === 0 ? 'disabled' : ''}
+      class="px-3 py-1 text-sm rounded-sm ${currentPage === 0 ? 'bg-gray-600 text-gray-400' : 'text-white'}">
+      Prev</button>`;
+
+    if (startPage > 1) {
+      html += '<span class="px-2">...</span>';
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      html += `<button onclick="goToPage(${i})"
+        class="px-3 py-1 text-sm rounded-sm ${i === currentPage + 1 ? 'bg-blue-600 text-white current-page' : 'text-white'}">
+        ${i}</button>`;
+    }
+
+    if (endPage < totalPages) {
+      html += '<span class="px-2">...</span>';
+    }
+
+    html += `<button onclick="goToPage(${currentPage + 2})" ${currentPage >= totalPages - 1 ? 'disabled' : ''}
+      class="px-3 py-1 text-sm rounded-sm ${currentPage >= totalPages - 1 ? 'bg-gray-600 text-gray-400' : 'text-white'}">
+      Next</button>`;
+
+    html += `<button onclick="goToPage(${totalPages})" ${currentPage >= totalPages - 1 ? 'disabled' : ''}
+      class="px-3 py-1 text-sm rounded-sm ${currentPage >= totalPages - 1 ? 'bg-gray-600 text-gray-400' : 'text-white'}">
+      Last</button>`;
+
+    controls.innerHTML = html;
+  }
+
+  window.sortTable = function(col) {
+    if (sortColumn === col) {
+      sortAscending = !sortAscending;
+    } else {
+      sortColumn = col;
+      sortAscending = true;
+    }
+
+    // Clear all sort icons
+    for (let i = 0; i < 4; i++) {
+      const icon = document.getElementById(`sort-${i}`);
+      if (icon) icon.className = 'fas fa-sort ml-1 opacity-50';
+    }
+
+    // Set current sort icon
+    const icon = document.getElementById(`sort-${col}`);
+    icon.className = `fas fa-sort-${sortAscending ? 'up' : 'down'} ml-1`;
+
+    filteredEntries.sort((a, b) => {
+      let valA, valB;
+      if (col === 0) { // Timestamp - use timestamp_obj for proper chronological sorting
+        valA = a.timestamp_obj || '';
+        valB = b.timestamp_obj || '';
+      } else if (col === 1) { // Severity
+        valA = a.severity;
+        valB = b.severity;
+      } else if (col === 2) { // Hostname
+        valA = a.hostname || '';
+        valB = b.hostname || '';
+      } else if (col === 3) { // Process
+        valA = a.process || '';
+        valB = b.process || '';
+      }
+
+      if (valA < valB) return sortAscending ? -1 : 1;
+      if (valA > valB) return sortAscending ? 1 : -1;
+      return 0;
+    });
+
+    renderTable();
+  };
+
+  window.changePageSize = function() {
+    pageSize = parseInt(document.getElementById('page-size').value);
+    currentPage = 0;
+    renderTable();
+  };
+
+  window.goToPage = function(page) {
+    currentPage = page - 1; // Convert to 0-indexed
+    renderTable();
+  };
+
+  loadLogsBtn?.addEventListener('click', () => {
+    if (isLoading) {
+      abortLoading();
+    } else {
+      loadLogs();
+    }
+  });
+
+  // Export CSV functionality
+  const exportCsvBtn = document.getElementById('export-csv-btn');
+  exportCsvBtn?.addEventListener('click', () => {
+    if (filteredEntries.length === 0) {
+      showAlert('No Data', 'No logs to export. Please load logs first.', 'warning');
+      return;
+    }
+
+    // Build CSV content
+    const headers = ['Timestamp', 'Level', 'Hostname', 'Process', 'PID', 'Message'];
+    let csvContent = headers.map(h => `"${h}"`).join(',') + '\n';
+
+    filteredEntries.forEach(entry => {
+      const row = [
+        entry.timestamp || '',
+        entry.severity || '',
+        entry.hostname || '',
+        entry.process || '',
+        entry.pid || '',
+        (entry.message || '').replace(/"/g, '""') // Escape quotes in message
+      ];
+      csvContent += row.map(field => `"${field}"`).join(',') + '\n';
+    });
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+
+    // Generate filename with date range
+    let startDateStr = 'all';
+    let endDateStr = 'all';
+
+    if (rangeStartDate) {
+      startDateStr = `${rangeStartDate.getUTCFullYear()}-${String(rangeStartDate.getUTCMonth() + 1).padStart(2, '0')}-${String(rangeStartDate.getUTCDate()).padStart(2, '0')}`;
+    }
+    if (rangeEndDate) {
+      endDateStr = `${rangeEndDate.getUTCFullYear()}-${String(rangeEndDate.getUTCMonth() + 1).padStart(2, '0')}-${String(rangeEndDate.getUTCDate()).padStart(2, '0')}`;
+    }
+
+    const filename = `logs_${startDateStr}_to_${endDateStr}_${filteredEntries.length}entries.csv`;
+
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showAlert('Export Complete', `Exported ${filteredEntries.length} log entries to ${filename}`, 'success');
+  });
+
+  searchInput?.addEventListener('input', applyFilters);
+  document.getElementById('log-exclude')?.addEventListener('input', applyFilters);
+  severityFilter?.addEventListener('change', applyFilters);
+  processFilter?.addEventListener('change', applyFilters);
+})();
+</script>
+
+<style>
+.severity-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.severity-critical {
+  background-color: rgba(220, 38, 38, 0.15);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.severity-error {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.severity-warning {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.severity-info {
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.severity-debug,
+.severity-other {
+  background-color: rgba(107, 114, 128, 0.15);
+  color: #6b7280;
+  border: 1px solid rgba(107, 114, 128, 0.3);
+}
+
+/* Range slider styling */
+.range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+}
+
+.range-slider::-webkit-slider-track {
+  height: 6px;
+  background: transparent;
+  border-radius: 3px;
+}
+
+.range-slider::-moz-range-track {
+  height: 6px;
+  background: transparent;
+  border-radius: 3px;
+}
+
+.range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #3b82f6;
+  cursor: pointer;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.range-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #3b82f6;
+  cursor: pointer;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.range-slider:hover::-webkit-slider-thumb {
+  background: #2563eb;
+}
+
+.range-slider:hover::-moz-range-thumb {
+  background: #2563eb;
+}
+
+#date-slider-container,
+#time-slider-container {
+  cursor: pointer;
+}
+
+</style>

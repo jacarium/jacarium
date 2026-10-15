@@ -1,0 +1,23 @@
+{
+  "version": "1.0",
+  "formatVersion": 2,
+  "exportDate": "2026-01-02T03:04:05.000Z",
+  "documents": [
+    {
+      "id": 1,
+      "stableId": "aaaaaaaa-0000-4000-8000-000000000001",
+      "title": "Backup doc",
+      "content": "from a database backup",
+      "category": "Backups",
+      "locked": false,
+      "updatedAt": 1735689600000
+    }
+  ],
+  "documentCategories": [],
+  "documentTemplates": [],
+  "jqlTemplates": [],
+  "engineTemplates": [],
+  "workflows": [],
+  "kanbanBoards": [],
+  "kanbanCards": []
+}

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task context menu theme harness (tests only)</title>
+  </head>
+  <body>
+    <!--
+      Served by the Vite dev server at /tests/helpers/task-context-menu-harness.html
+      for tests/tasks-create-document-in-theme.test.mjs. Mounts REAL Tasks
+      page rows (TaskItem) with the REAL task context menu (TaskContextMenu ->
+      shared CategorySubmenu) over synthetic tasks and categories, so the
+      menu can be measured and screenshotted in both themes without booting
+      the whole app. Nothing touches IndexedDB or the network. Not part of
+      the app bundle.
+    -->
+    <div id="root"></div>
+    <script type="module" src="./task-context-menu-harness-entry.jsx"></script>
+  </body>
+</html>

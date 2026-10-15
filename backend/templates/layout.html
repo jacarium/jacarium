@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+ <meta charset="UTF-8" />
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>{{ report_type | capitalize }} Dashboard</title>
+ <!-- Vendored locally by scripts/vendor-assets.mjs (no CDN) -->
+ <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css" />
+ <link rel="stylesheet" href="/static/vendor/tailwind.css" />
+ <link rel="stylesheet" href="/static/styles.css">
+ <script src="/static/vendor/chart.umd.js"></script>
+ <script>
+ // The tab templates ask diagnosticsThemeColor() for their chart text / grid /
+ // tooltip colours. In the app the Diagnostics frame defines it from the os-*
+ // tokens (src/components/DiagnosticsPage.jsx); this standalone dashboard has
+ // no tokens, so it answers with its own light / dark pair.
+ window.diagnosticsThemeColor = window.diagnosticsThemeColor || function (role) {
+ var dark = document.documentElement.classList.contains('dark') || window.matchMedia('(prefers-color-scheme: dark)').matches;
+ var pairs = { text: ['#1f2937', '#f0f0f0'], muted: ['#6b7280', '#b0b0b0'], grid: ['#e5e7eb', '#3a3a3a'], border: ['#e5e7eb', '#3a3a3a'], card: ['#ffffff', '#1f2937'], surface: ['#f0f0f0', '#2a2a2a'], tooltip: ['#f0f0f0', '#1f2937'] };
+ return (pairs[role] || pairs.text)[dark ? 1 : 0];
+ };
+ </script>
+</head>
+
+<body class="font-sans antialiased">
+
+<div class="flex h-screen overflow-hidden">
+ <button onclick="toggleSidebar()" class="absolute top-4 left-4 z-50 p-2 rounded-sm hover:bg-gray-700 transition-colors">
+ <i class="fas fa-bars text-2xl text-white"></i>
+ </button>
+
+ <aside id="sidebar" class="w-64 shadow-2xl flex flex-col transition-all duration-300 overflow-hidden">
+ <div class="flex flex-col items-center justify-center mt-10 mb-6">
+ <img src="/static/logo.png" alt="SOSMATE Logo" class="mb-3 w-24 h-auto sidebar-logo" />
+ <div class="flex items-center space-x-1">
+ <h1 class="text-3xl font-bold sidebar-text">SOS</h1>
+ <h1 class="text-3xl font-bold text-white sidebar-text">MATE</h1>
+ </div>
+ <div class="text-sm text-white mt-2 text-center px-4 break-all">
+ <div class="mt-1 max-h-12 overflow-x-auto text-xs font-mono p-1 rounded-sm">
+ {{ uploaded_dir.split('/')[-1] }}
+ </div>
+ </div>
+ <div class="mt-4 px-4 w-full">
+ <a href="/" class="block w-full px-3 py-2 bg-blue-600 text-white text-center text-sm font-medium rounded-sm hover:bg-blue-700 transition-colors">
+ <i class="fas fa-home mr-2"></i>Load New Report
+ </a>
+ </div>
+ </div>
+ <nav class="flex-1 overflow-y-auto px-4 pb-4 space-y-1">
+ {% for tab in tabs %}
+ <div>
+ <div class="flex items-center justify-between rounded-md px-3 py-2 cursor-pointer transition-colors duration-200"
+ onclick="switchTab('{{ tab.tab_name }}')">
+ <div class="flex items-center space-x-3 w-full text-left text-white">
+ <i class="{{ tab.icon }}"></i>
+ <span class="font-medium sidebar-text">{{ tab.label }}</span>
+ </div>
+ {% if tab.sub_tabs %}
+ <i id="expand-icon-{{ tab.tab_name }}"
+ class="fas fa-caret-down text-sm cursor-pointer"
+ onclick="event.stopPropagation(); toggleSubTabs('{{ tab.tab_name }}')"></i>
+ {% endif %}
+ </div>
+
+ {% if tab.sub_tabs %}
+ <div id="nested-tabs-{{ tab.tab_name }}" class="ml-5 mt-1 space-y-1 hidden">
+ {% for sub_tab in tab.sub_tabs %}
+ <button onclick="switchTab('{{ sub_tab.tab_name }}', '{{ tab.tab_name }}')"
+ class="flex items-center w-full px-3 py-2 text-sm text-left text-white rounded-md transition hover:bg-[#355E35]">
+ <i class="{{ sub_tab.icon }} mr-2 text-xs"></i>
+ <span class="sidebar-text">{{ sub_tab.label }}</span>
+ </button>
+ {% endfor %}
+ </div>
+ {% endif %}
+ </div>
+ {% endfor %}
+ </nav>
+ </aside>
+
+ <main class="flex-1 main-content p-6 overflow-auto">
+ <div class="panel rounded-lg shadow-xl" id="tab-container">
+ </div>
+ </main>
+</div>
+
+<script>
+ const reportType ="{{ report_type }}";
+ const uploadedDir ="{{ uploaded_dir }}";
+
+ function switchTab(tabName, parentTab = null) {
+ const tabKey = parentTab || tabName;
+ const subTab = parentTab ? tabName : null;
+
+ const container = document.getElementById("tab-container");
+ container.innerHTML = `
+ <div class="text-center py-10">
+ <i class="fas fa-spinner fa-spin text-2xl"></i>
+ </div>
+ `;
+
+ fetch("/load_tab", {
+ method:"POST",
+ headers: {"Content-Type":"application/json" },
+ body: JSON.stringify({
+ report_type: reportType,
+ directory: uploadedDir,
+ tab: tabKey,
+ sub_tab: subTab
+ })
+ })
+ .then(response => response.json())
+ .then(data => {
+ if (data.html) {
+ container.innerHTML = data.html;
+
+ const scripts = container.querySelectorAll("script");
+ scripts.forEach(oldScript => {
+ const newScript = document.createElement("script");
+
+ if (oldScript.src) {
+ newScript.src = oldScript.src;
+ newScript.async = false;
+ } else {
+ newScript.textContent = oldScript.textContent;
+ }
+
+ document.head.appendChild(newScript);
+ document.head.removeChild(newScript);
+ });
+
+ } else {
+ container.innerHTML = `<p class="text-red-400">Error: ${data.error}</p>`;
+ }
+ })
+ .catch(err => {
+ container.innerHTML = `<p class="text-red-400">Error loading content.</p>`;
+ console.error(err);
+ });
+ }
+
+
+ function toggleSubTabs(tabName) {
+ const nestedTabs = document.getElementById("nested-tabs-" + tabName);
+ const expandIcon = document.getElementById("expand-icon-" + tabName);
+
+ nestedTabs.classList.toggle("hidden");
+ expandIcon.classList.toggle("fa-caret-down");
+ expandIcon.classList.toggle("fa-caret-up");
+ }
+
+ function toggleSidebar() {
+ const sidebar = document.getElementById("sidebar");
+ sidebar.classList.toggle("w-0");
+ sidebar.classList.toggle("w-64");
+ }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,491 @@
+<div id="pdbListPanel" class="grid grid-cols-1 gap-4">
+ <div class="panel rounded-lg shadow-sm w-full">
+
+ <div class="mb-2">
+ <label class="inline-flex items-center text-xs font-semibold">
+ <input type="checkbox" id="show-empty-namespaces" class="form-checkbox">
+ <span class="ml-2">Show Empty Namespaces</span>
+ </label>
+ <label class="inline-flex items-center text-xs font-semibold ml-4">
+ <input type="checkbox" id="show-only-problematic" class="form-checkbox" checked>
+ <span class="ml-2">Show Only Problematic (minAvailable >= 1)</span>
+ </label>
+ </div>
+ <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
+ <div>
+ <label for="pdbNamespaceFilter" class="block text-xs font-semibold mb-1">Namespaces</label>
+ <select id="pdbNamespaceFilter" class="w-full px-3 py-2 text-sm border">
+ <option value="">All</option>
+ </select>
+ </div>
+ <div class="md:col-span-7">
+ <label for="search-input" class="block text-xs font-semibold mb-1">Search All</label>
+ <input id="search-input" type="text" placeholder="Search PDBs..." class="w-full px-3 py-2 text-sm border" />
+ </div>
+ </div>
+ <div class="flex justify-between items-center mb-2">
+ <div id="filteredPdbCount" class="text-sm">Showing all PDBs</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs font-semibold">Per Page:</label>
+ <select id="pdbPageSizeSelect" onchange="window.changePdbPageSize()" class="px-3 py-1 text-sm border">
+ <option value="50">50</option>
+ <option value="100" selected>100</option>
+ <option value="250">250</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ <table class="w-full min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('namespace')">Namespace <i id="pdb-indicator-namespace" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('name')">Name <i id="pdb-indicator-name" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('minAvailable')">Min Available <i id="pdb-indicator-minAvailable" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('maxUnavailable')">Max Unavailable <i id="pdb-indicator-maxUnavailable" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('currentHealthy')">Current/Desired Healthy <i id="pdb-indicator-currentHealthy" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('disruptionsAllowed')">Disruptions Allowed <i id="pdb-indicator-disruptionsAllowed" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('status')">Status <i id="pdb-indicator-status" class="ml-1 fas text-sm"></i></th>
+ </tr>
+ </thead>
+ <tbody id="pdb-table-body">
+ </tbody>
+ </table>
+ <div id="pdbPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+</div>
+
+<div id="pdbPanel" style="display: none;">
+ <div class="space-y-4">
+ <div class="mb-4">
+ <button onclick="window.backFromPdbModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ Back
+ </button>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-info-circle mr-2"></i> PDB Details
+ </h2>
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm" id="pdbDetailsTable"></table>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-shield-alt mr-2"></i> Selector
+ </h2>
+ <div id="pdbSelectorTable" class="text-sm space-y-2">
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-stethoscope mr-2"></i> PDB Conditions
+ </h2>
+ <div id="pdbConditionsTable" class="text-sm space-y-2">
+ </div>
+ </div>
+
+ <!-- Mitigation Commands -->
+ <div id="pdb-mitigation-panel" class="panel rounded-lg shadow-sm hidden">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-exclamation-triangle mr-2"></i> Node Drain Blocker
+ </h2>
+ <p class="text-sm mb-3">
+ This PDB will prevent node draining during upgrades. Temporarily patch to minAvailable: 0
+ </p>
+ <div class="space-y-2">
+ <div>
+ <label class="text-xs font-semibold block mb-1">Disable before upgrade:</label>
+ <div class="bg-gray-900 text-gray-100 p-2 rounded-sm font-mono text-xs overflow-x-auto">
+ <code id="pdb-patch-command"></code>
+ </div>
+ </div>
+ <div>
+ <label class="text-xs font-semibold block mb-1">Restore after upgrade:</label>
+ <div class="bg-gray-900 text-gray-100 p-2 rounded-sm font-mono text-xs overflow-x-auto">
+ <code id="pdb-restore-command"></code>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-file mr-2"></i> PDB YAML
+ </h2>
+ <div class="mb-2">
+ <input
+ id="pdbYamlFilter"
+ type="text"
+ placeholder="Filter YAML lines..."
+ class="w-full px-3 py-2 text-sm border"
+ />
+ </div>
+ <div id="pdbJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
+ </div>
+ </div>
+</div>
+
+<script>
+
+ var pdbsData = {{ data | tojson }};
+ var currentSort = { key: null, direction: 1 };
+ var pdbCurrentPage = 1;
+ var pdbPageSize = 100;
+
+ var pdbTableBody = document.getElementById("pdb-table-body");
+ var pdbNamespaceFilter = document.getElementById("pdbNamespaceFilter");
+ var searchInput = document.getElementById("search-input");
+ var showEmptyCheckbox = document.getElementById("show-empty-namespaces");
+ var showOnlyProblematicCheckbox = document.getElementById("show-only-problematic");
+ var pdbListPanel = document.getElementById("pdbListPanel");
+ var pdbPanel = document.getElementById("pdbPanel");
+
+ function populateNamespaceFilter() {
+ var namespaces = Object.keys(pdbsData).sort();
+ pdbNamespaceFilter.innerHTML = '<option value="">All</option>';
+ namespaces.forEach(function(ns) {
+ var option = document.createElement("option");
+ option.value = ns;
+ option.textContent = ns;
+ pdbNamespaceFilter.appendChild(option);
+ });
+ }
+
+ function isPdbProblematic(pdb) {
+ var minAvailable = pdb.spec?.minAvailable;
+ if (typeof minAvailable === 'number') {
+ return minAvailable >= 1;
+ }
+ // Handle percentage strings like "50%"
+ if (typeof minAvailable === 'string' && minAvailable.endsWith('%')) {
+ return true; // Percentage-based might also block
+ }
+ return false;
+ }
+
+ function getAllPdbs() {
+ var pdbs = [];
+ for (var namespace in pdbsData) {
+ var nsPdbs = pdbsData[namespace];
+ if (nsPdbs && typeof nsPdbs === 'object') {
+ for (var name in nsPdbs) {
+ var pdb = nsPdbs[name];
+ if (pdb && pdb.metadata) {
+ pdbs.push({
+ namespace: namespace,
+ name: name,
+ data: pdb
+ });
+ }
+ }
+ }
+ }
+ return pdbs;
+ }
+
+ function getFilteredPdbs() {
+ var allPdbs = getAllPdbs();
+ var selectedNamespace = pdbNamespaceFilter.value;
+ var searchTerm = searchInput.value.toLowerCase();
+ var showOnlyProblematic = showOnlyProblematicCheckbox.checked;
+
+ return allPdbs.filter(function(item) {
+ if (selectedNamespace && item.namespace !== selectedNamespace) return false;
+ if (searchTerm) {
+ var searchableText = [item.namespace, item.name].join(' ').toLowerCase();
+ if (!searchableText.includes(searchTerm)) return false;
+ }
+ if (showOnlyProblematic && !isPdbProblematic(item.data)) return false;
+ return true;
+ });
+ }
+
+ function renderPdbTable() {
+ var filtered = getFilteredPdbs();
+
+ if (currentSort.key) {
+ filtered.sort(function(a, b) {
+ var aVal = getSortValue(a, currentSort.key);
+ var bVal = getSortValue(b, currentSort.key);
+
+ if (aVal < bVal) return -1 * currentSort.direction;
+ if (aVal > bVal) return 1 * currentSort.direction;
+ return 0;
+ });
+ }
+
+ var totalPdbs = filtered.length;
+ var startIndex = pdbPageSize === -1 ? 0 : (pdbCurrentPage - 1) * pdbPageSize;
+ var endIndex = pdbPageSize === -1 ? totalPdbs : Math.min(startIndex + pdbPageSize, totalPdbs);
+ var paginated = filtered.slice(startIndex, endIndex);
+
+ pdbTableBody.innerHTML = "";
+ paginated.forEach(function(item) {
+ var row = createPdbRow(item);
+ pdbTableBody.appendChild(row);
+ });
+
+ updateFilteredCount(totalPdbs, startIndex, endIndex);
+ renderPdbPaginationControls(totalPdbs);
+ updateSortIndicators();
+ }
+
+ function getSortValue(item, key) {
+ var pdb = item.data;
+ switch(key) {
+ case 'namespace': return item.namespace;
+ case 'name': return item.name;
+ case 'minAvailable': return pdb.spec?.minAvailable || 0;
+ case 'maxUnavailable': return pdb.spec?.maxUnavailable || '';
+ case 'currentHealthy': return pdb.status?.currentHealthy || 0;
+ case 'disruptionsAllowed': return pdb.status?.disruptionsAllowed || 0;
+ case 'status':
+ var condition = pdb.status?.conditions?.[0];
+ return condition ? condition.status : '';
+ default: return '';
+ }
+ }
+
+ function createPdbRow(item) {
+ var pdb = item.data;
+ var row = document.createElement("tr");
+ row.className = "cursor-pointer border-b hover:bg-gray-50 dark:hover:bg-gray-800";
+
+ var minAvailable = pdb.spec?.minAvailable !== undefined ? pdb.spec.minAvailable : '-';
+ var maxUnavailable = pdb.spec?.maxUnavailable !== undefined ? pdb.spec.maxUnavailable : '-';
+ var currentHealthy = pdb.status?.currentHealthy || 0;
+ var desiredHealthy = pdb.status?.desiredHealthy || 0;
+ var disruptionsAllowed = pdb.status?.disruptionsAllowed !== undefined ? pdb.status.disruptionsAllowed : '-';
+
+ var condition = pdb.status?.conditions?.[0];
+ var statusText = '';
+ if (condition) {
+ statusText = condition.type + ': ' + condition.status;
+ }
+
+ row.innerHTML =
+ '<td class="px-4 py-2">' + item.namespace + '</td>' +
+ '<td class="px-4 py-2">' + item.name + '</td>' +
+ '<td class="px-4 py-2">' + minAvailable + '</td>' +
+ '<td class="px-4 py-2">' + maxUnavailable + '</td>' +
+ '<td class="px-4 py-2">' + currentHealthy + ' / ' + desiredHealthy + '</td>' +
+ '<td class="px-4 py-2">' + disruptionsAllowed + '</td>' +
+ '<td class="px-4 py-2">' + statusText + '</td>';
+
+ row.onclick = function() { showPdbDetails(item.namespace, item.name); };
+ return row;
+ }
+
+ function showPdbDetails(namespace, name) {
+ var pdb = pdbsData[namespace][name];
+
+ pdbListPanel.style.display = "none";
+ pdbPanel.style.display = "block";
+
+ var detailsTable = document.getElementById("pdbDetailsTable");
+ var metadata = pdb.metadata || {};
+ var spec = pdb.spec || {};
+ var status = pdb.status || {};
+
+ detailsTable.innerHTML =
+ '<tr><td class="font-semibold pr-4 py-1">Name:</td><td>' + (metadata.name || '-') + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Namespace:</td><td>' + (metadata.namespace || '-') + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Min Available:</td><td>' + (spec.minAvailable !== undefined ? spec.minAvailable : '-') + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Max Unavailable:</td><td>' + (spec.maxUnavailable !== undefined ? spec.maxUnavailable : '-') + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Current Healthy:</td><td>' + (status.currentHealthy || '-') + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Desired Healthy:</td><td>' + (status.desiredHealthy || '-') + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Disruptions Allowed:</td><td>' + (status.disruptionsAllowed !== undefined ? status.disruptionsAllowed : '-') + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Expected Pods:</td><td>' + (status.expectedPods || '-') + '</td></tr>' +
+ '<tr><td class="font-semibold pr-4 py-1">Created:</td><td>' + (metadata.creationTimestamp || '-') + '</td></tr>';
+
+ // Selector
+ var selectorDiv = document.getElementById("pdbSelectorTable");
+ if (spec.selector && spec.selector.matchLabels) {
+ var selectorHtml = '<div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-sm"><code class="text-xs">';
+ for (var key in spec.selector.matchLabels) {
+ selectorHtml += key + ': ' + spec.selector.matchLabels[key] + '<br>';
+ }
+ selectorHtml += '</code></div>';
+ selectorDiv.innerHTML = selectorHtml;
+ } else {
+ selectorDiv.innerHTML = '<div class="text-gray-500">No selector information</div>';
+ }
+
+ // Conditions
+ var conditionsDiv = document.getElementById("pdbConditionsTable");
+ if (status.conditions && status.conditions.length > 0) {
+ var conditionsHtml = '<table class="min-w-full"><thead class="border-b"><tr>' +
+ '<th class="px-4 py-2 text-left">Type</th>' +
+ '<th class="px-4 py-2 text-left">Status</th>' +
+ '<th class="px-4 py-2 text-left">Reason</th>' +
+ '<th class="px-4 py-2 text-left">Message</th>' +
+ '<th class="px-4 py-2 text-left">Last Transition</th>' +
+ '</tr></thead><tbody>';
+
+ status.conditions.forEach(function(condition) {
+ var statusClass = condition.status === 'True' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+ conditionsHtml += '<tr class="border-b">' +
+ '<td class="px-4 py-2">' + (condition.type || '-') + '</td>' +
+ '<td class="px-4 py-2 ' + statusClass + ' font-semibold">' + (condition.status || '-') + '</td>' +
+ '<td class="px-4 py-2">' + (condition.reason || '-') + '</td>' +
+ '<td class="px-4 py-2 text-xs">' + (condition.message || '-') + '</td>' +
+ '<td class="px-4 py-2 text-xs">' + (condition.lastTransitionTime || '-') + '</td>' +
+ '</tr>';
+ });
+ conditionsHtml += '</tbody></table>';
+ conditionsDiv.innerHTML = conditionsHtml;
+ } else {
+ conditionsDiv.innerHTML = '<div class="text-gray-500">No conditions</div>';
+ }
+
+ // Mitigation commands
+ var isProblematic = isPdbProblematic(pdb);
+ var mitigationPanel = document.getElementById('pdb-mitigation-panel');
+ if (isProblematic) {
+ mitigationPanel.classList.remove('hidden');
+ var originalMinAvailable = spec.minAvailable;
+ var patchCmd = 'oc patch pdb ' + metadata.name + ' -n ' + metadata.namespace + ' --type=merge -p \'{"spec":{"minAvailable":0}}\'';
+ var restoreCmd = 'oc patch pdb ' + metadata.name + ' -n ' + metadata.namespace + ' --type=merge -p \'{"spec":{"minAvailable":' + originalMinAvailable + '}}\'';
+
+ document.getElementById('pdb-patch-command').textContent = patchCmd;
+ document.getElementById('pdb-restore-command').textContent = restoreCmd;
+ } else {
+ mitigationPanel.classList.add('hidden');
+ }
+
+ // YAML viewer
+ var yamlViewer = document.getElementById("pdbJsonViewer");
+ var yamlFilter = document.getElementById("pdbYamlFilter");
+
+ function highlightJSON(line) {
+ line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+ return line
+ .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
+ .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
+ .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
+ .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
+ .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
+ }
+
+ function renderJSONWithoutHighlight(data, filter) {
+ var formatted = JSON.stringify(data, null, 2);
+ return formatted.split('\n')
+ .filter(function(line) {
+ return !filter || line.toLowerCase().includes(filter.toLowerCase());
+ })
+ .map(function(line) {
+ var highlighted = highlightJSON(line);
+ return '<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">' + highlighted + '</div>';
+ }).join('');
+ }
+
+ function renderYaml() {
+ var filterText = yamlFilter.value;
+ yamlViewer.innerHTML = renderJSONWithoutHighlight(pdb, filterText);
+ }
+
+ yamlFilter.oninput = renderYaml;
+ renderYaml();
+ }
+
+ window.backFromPdbModal = function() {
+ pdbPanel.style.display = "none";
+ pdbListPanel.style.display = "block";
+ };
+
+ function updateFilteredCount(total, start, end) {
+ var countDiv = document.getElementById("filteredPdbCount");
+ if (pdbPageSize === -1) {
+ countDiv.textContent = "Showing all " + total + " PDB(s)";
+ } else {
+ countDiv.textContent = "Showing " + (start + 1) + "-" + end + " of " + total + " PDB(s)";
+ }
+ }
+
+ function renderPdbPaginationControls(totalPdbs) {
+ var controls = document.getElementById("pdbPaginationControls");
+ if (pdbPageSize === -1) {
+ controls.innerHTML = "";
+ return;
+ }
+
+ var totalPages = Math.ceil(totalPdbs / pdbPageSize);
+ var html = "";
+
+ if (pdbCurrentPage > 1) {
+ html += '<button onclick="window.changePdbPage(' + (pdbCurrentPage - 1) + ')" class="px-3 py-1 border rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700">Previous</button>';
+ }
+
+ var startPage = Math.max(1, pdbCurrentPage - 2);
+ var endPage = Math.min(totalPages, pdbCurrentPage + 2);
+
+ for (var i = startPage; i <= endPage; i++) {
+ var activeClass = i === pdbCurrentPage ? "bg-blue-500 text-white current-page" : "border hover:bg-gray-100 dark:hover:bg-gray-700";
+ html += '<button onclick="window.changePdbPage(' + i + ')" class="px-3 py-1 rounded-sm ' + activeClass + '">' + i + '</button>';
+ }
+
+ if (pdbCurrentPage < totalPages) {
+ html += '<button onclick="window.changePdbPage(' + (pdbCurrentPage + 1) + ')" class="px-3 py-1 border rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700">Next</button>';
+ }
+
+ controls.innerHTML = html;
+ }
+
+ window.changePdbPage = function(page) {
+ pdbCurrentPage = page;
+ renderPdbTable();
+ };
+
+ window.changePdbPageSize = function() {
+ var select = document.getElementById("pdbPageSizeSelect");
+ pdbPageSize = parseInt(select.value);
+ pdbCurrentPage = 1;
+ renderPdbTable();
+ };
+
+ window.sortBy = function(key) {
+ if (currentSort.key === key) {
+ currentSort.direction *= -1;
+ } else {
+ currentSort.key = key;
+ currentSort.direction = 1;
+ }
+ renderPdbTable();
+ };
+
+ function updateSortIndicators() {
+ ["namespace", "name", "minAvailable", "maxUnavailable", "currentHealthy", "disruptionsAllowed", "status"].forEach(function(key) {
+ var indicator = document.getElementById("pdb-indicator-" + key);
+ if (currentSort.key === key) {
+ indicator.className = "ml-1 fas " + (currentSort.direction === 1 ? "fa-sort-up" : "fa-sort-down");
+ } else {
+ indicator.className = "ml-1 fas";
+ }
+ });
+ }
+
+ // Event listeners
+ pdbNamespaceFilter.addEventListener("change", function() {
+ pdbCurrentPage = 1;
+ renderPdbTable();
+ });
+
+ searchInput.addEventListener("input", function() {
+ pdbCurrentPage = 1;
+ renderPdbTable();
+ });
+
+ showEmptyCheckbox.addEventListener("change", renderPdbTable);
+ showOnlyProblematicCheckbox.addEventListener("change", function() {
+ pdbCurrentPage = 1;
+ renderPdbTable();
+ });
+
+ // Initialize
+ populateNamespaceFilter();
+ renderPdbTable();
+
+</script>

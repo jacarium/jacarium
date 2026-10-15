@@ -1,0 +1,402 @@
+<div class="grid grid-cols-1 gap-4">
+
+ {% if not data.cpus %}
+ <div class="panel rounded-lg shadow-sm">
+ <div class="empty-state">
+ <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+ </svg>
+ <div class="empty-state-title">No Data Available</div>
+ <div class="empty-state-description">No CPU C-State (cpuidle) data found in this report</div>
+ </div>
+ </div>
+ {% endif %}
+
+ {% if data.cpus %}
+ <!-- CPU C-States Legend (two columns) -->
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-question-circle mr-2"></i> CPU C-States Legend
+ </h3>
+ <p class="text-sm mb-3">Not all CPUs support every C-state. States start at C0, which is the normal CPU operating mode (CPU is 100% turned on). With increasing C number, the CPU sleep mode gets deeper &mdash; more circuits and signals are turned off, and more time is required for the CPU to return to C0 (wake up).</p>
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+ <table class="min-w-full text-sm rounded-sm">
+ <thead>
+ <tr class="border-b">
+ <th class="px-3 py-2 text-left">Mode</th>
+ <th class="px-3 py-2 text-left">Name</th>
+ <th class="px-3 py-2 text-left">What it does</th>
+ </tr>
+ </thead>
+ <tbody>
+ <tr><td class="px-3 py-1">C0</td><td class="px-3 py-1">Operating State</td><td class="px-3 py-1">CPU fully turned on</td></tr>
+ <tr><td class="px-3 py-1">C1</td><td class="px-3 py-1">Halt</td><td class="px-3 py-1">Stops CPU main internal clocks via software; bus interface unit and APIC are kept running at full speed</td></tr>
+ <tr><td class="px-3 py-1">C1E</td><td class="px-3 py-1">Enhanced Halt</td><td class="px-3 py-1">Stops CPU main internal clocks via software and reduces CPU voltage; bus interface unit and APIC are kept running at full speed</td></tr>
+ <tr><td class="px-3 py-1">C1E</td><td class="px-3 py-1">&mdash;</td><td class="px-3 py-1">Stops all CPU internal clocks</td></tr>
+ <tr><td class="px-3 py-1">C2</td><td class="px-3 py-1">Stop Grant</td><td class="px-3 py-1">Stops CPU main internal clocks via hardware; bus interface unit and APIC are kept running at full speed</td></tr>
+ <tr><td class="px-3 py-1">C2</td><td class="px-3 py-1">Stop Clock</td><td class="px-3 py-1">Stops CPU internal and external clocks via hardware</td></tr>
+ <tr><td class="px-3 py-1">C2E</td><td class="px-3 py-1">Extended Stop Grant</td><td class="px-3 py-1">Stops CPU main internal clocks via hardware and reduces CPU voltage; bus interface unit and APIC are kept running at full speed</td></tr>
+ <tr><td class="px-3 py-1">C3</td><td class="px-3 py-1">Sleep</td><td class="px-3 py-1">Stops all CPU internal clocks</td></tr>
+ <tr><td class="px-3 py-1">C3</td><td class="px-3 py-1">Deep Sleep</td><td class="px-3 py-1">Stops all CPU internal and external clocks</td></tr>
+ </tbody>
+ </table>
+ <table class="min-w-full text-sm rounded-sm">
+ <thead>
+ <tr class="border-b">
+ <th class="px-3 py-2 text-left">Mode</th>
+ <th class="px-3 py-2 text-left">Name</th>
+ <th class="px-3 py-2 text-left">What it does</th>
+ </tr>
+ </thead>
+ <tbody>
+ <tr><td class="px-3 py-1">C3</td><td class="px-3 py-1">AltVID</td><td class="px-3 py-1">Stops all CPU internal clocks and reduces CPU voltage</td></tr>
+ <tr><td class="px-3 py-1">C4</td><td class="px-3 py-1">Deeper Sleep</td><td class="px-3 py-1">Reduces CPU voltage</td></tr>
+ <tr><td class="px-3 py-1">C4E/C5</td><td class="px-3 py-1">Enhanced Deeper Sleep</td><td class="px-3 py-1">Reduces CPU voltage even more and turns off the memory cache</td></tr>
+ <tr><td class="px-3 py-1">C6</td><td class="px-3 py-1">Deep Power Down</td><td class="px-3 py-1">Reduces the CPU internal voltage to any value, including 0 V</td></tr>
+ <tr><td class="px-3 py-1">C7</td><td class="px-3 py-1">Deep Energy Saving</td><td class="px-3 py-1">The CPU tries to flush its L3 cache. If entirely cleared, cuts power to save energy. System agent power removed too.</td></tr>
+ <tr><td class="px-3 py-1">C7s</td><td class="px-3 py-1">&mdash;</td><td class="px-3 py-1">L3 cache flushed in one step with MWAIT(C7) and C7s sub-state hint. Allows I/O devices to enter low power mode.</td></tr>
+ <tr><td class="px-3 py-1">C8</td><td class="px-3 py-1">&mdash;</td><td class="px-3 py-1">The L3 cache is flushed in a single step. The power to the PLL is cut.</td></tr>
+ <tr><td class="px-3 py-1">C9</td><td class="px-3 py-1">&mdash;</td><td class="px-3 py-1">The VCCIN (VCC Input Voltage) gets lowered to a minimum.</td></tr>
+ <tr><td class="px-3 py-1">C10</td><td class="px-3 py-1">&mdash;</td><td class="px-3 py-1">The single phase core management system, VR12.6, goes into a low-power state. The CPU is almost shut down.</td></tr>
+ </tbody>
+ </table>
+ </div>
+ </div>
+
+ <!-- Per-CPU Stacked C-State Time Chart -->
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-chart-bar mr-2"></i> C-State Time per CPU
+ </h3>
+ <canvas id="cstateTimeChart" height="120"></canvas>
+ </div>
+
+ <!-- Per-CPU Table -->
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-table mr-2"></i> Per-CPU C-State Details
+ </h3>
+ <div class="mb-4">
+ <div class="grid grid-cols-1 md:grid-cols-12 gap-2">
+ <div class="md:col-span-3">
+ <label class="block text-xs font-semibold mb-1">CPU Filter</label>
+ <input type="number" id="cstateCpuFilter" oninput="window.filterCstateTable()"
+ class="w-full px-3 py-2 text-sm rounded-sm border focus:outline-hidden focus:ring-2"
+ placeholder="CPU number">
+ </div>
+ <div class="md:col-span-9">
+ <label class="block text-xs font-semibold mb-1">Search</label>
+ <input type="text" id="cstateSearchFilter" oninput="window.filterCstateTable()"
+ class="w-full px-3 py-2 text-sm rounded-sm border focus:outline-hidden focus:ring-2"
+ placeholder="Search across all columns...">
+ </div>
+ </div>
+ <div class="flex justify-between items-center mb-2 mt-4">
+ <div id="cstateFilteredCount" class="text-sm">Showing all {{ data.cpus | length }} CPUs</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs font-semibold">Per Page:</label>
+ <select id="cstatePageSizeSelect" onchange="window.changeCstatePageSize()" class="px-3 py-1 text-white text-sm rounded-md">
+ <option value="10">10</option>
+ <option value="25" selected>25</option>
+ <option value="50">50</option>
+ <option value="100">100</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ </div>
+ <div style="overflow-x: auto;">
+ <table id="cstateTable" class="min-w-full text-sm rounded-lg">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCstateTable(0)">CPU <i id="cstate-indicator-0" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCstateTable(1)">Cur Freq (MHz) <i id="cstate-indicator-1" class="fas text-sm ml-1"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCstateTable(2)">Max Freq (MHz) <i id="cstate-indicator-2" class="fas text-sm ml-1"></i></th>
+ {% for sname in data.state_names %}
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCstateTable({{ loop.index + 2 }})">{{ sname }} Time <i id="cstate-indicator-{{ loop.index + 2 }}" class="fas text-sm ml-1"></i></th>
+ {% endfor %}
+ {% for sname in data.state_names %}
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCstateTable({{ data.state_names | length + loop.index + 2 }})">{{ sname }} Usage <i id="cstate-indicator-{{ data.state_names | length + loop.index + 2 }}" class="fas text-sm ml-1"></i></th>
+ {% endfor %}
+ {% for sname in data.state_names %}
+ <th class="px-4 py-2 text-left">{{ sname }} Latency (µs)</th>
+ {% endfor %}
+ </tr>
+ </thead>
+ <tbody>
+ {% for cpuId, cpuInfo in data.cpus.items() %}
+ <tr>
+ <td class="px-4 py-2 font-medium">{{ cpuId }}</td>
+ <td class="px-4 py-2" data-raw="{{ cpuInfo.cur_freq or 0 }}">{% if cpuInfo.cur_freq is not none %}{{ (cpuInfo.cur_freq / 1000) | round(0) | int }}{% else %}-{% endif %}</td>
+ <td class="px-4 py-2" data-raw="{{ cpuInfo.max_freq or 0 }}">{% if cpuInfo.max_freq is not none %}{{ (cpuInfo.max_freq / 1000) | round(0) | int }}{% else %}-{% endif %}</td>
+ {% for sname in data.state_names %}
+ {% set ns = namespace(found=false, time=0) %}
+ {% for s in cpuInfo.states %}{% if s.name == sname %}{% set ns.found = true %}{% set ns.time = s.time %}{% endif %}{% endfor %}
+ <td class="px-4 py-2" data-raw="{{ ns.time }}">{% if ns.found %}{{ ns.time }}{% else %}-{% endif %}</td>
+ {% endfor %}
+ {% for sname in data.state_names %}
+ {% set ns = namespace(found=false, usage=0) %}
+ {% for s in cpuInfo.states %}{% if s.name == sname %}{% set ns.found = true %}{% set ns.usage = s.usage %}{% endif %}{% endfor %}
+ <td class="px-4 py-2">{% if ns.found %}{{ ns.usage }}{% else %}-{% endif %}</td>
+ {% endfor %}
+ {% for sname in data.state_names %}
+ {% set ns = namespace(found=false, latency=0) %}
+ {% for s in cpuInfo.states %}{% if s.name == sname %}{% set ns.found = true %}{% set ns.latency = s.latency %}{% endif %}{% endfor %}
+ <td class="px-4 py-2">{% if ns.found %}{{ ns.latency }}{% else %}-{% endif %}</td>
+ {% endfor %}
+ </tr>
+ {% endfor %}
+ </tbody>
+ </table>
+ </div>
+ <div id="cstatePaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+
+ {% endif %}
+</div>
+
+{% if data.cpus %}
+<script>
+(function() {
+ var cpuData = {{ data.cpus | tojson }};
+ var stateNames = {{ data.state_names | tojson }};
+ var numStates = stateNames.length;
+
+ function init() {
+ var table = document.getElementById('cstateTable');
+ if (!table) { setTimeout(init, 50); return; }
+
+ // --- Time formatting ---
+ function formatTime(microseconds) {
+  if (microseconds >= 1000000000) return (microseconds / 1000000000).toFixed(2) + 'h';
+  if (microseconds >= 1000000) return (microseconds / 1000000).toFixed(2) + 's';
+  if (microseconds >= 1000) return (microseconds / 1000).toFixed(2) + 'ms';
+  return microseconds + 'µs';
+ }
+
+ // Format time cells in the table
+ var rows = Array.from(table.getElementsByTagName('tr')).slice(1);
+ rows.forEach(function(row) {
+  var cells = row.getElementsByTagName('td');
+  for (var i = 3; i <= numStates + 2; i++) {
+   if (cells[i] && cells[i].getAttribute('data-raw')) {
+    var raw = parseInt(cells[i].getAttribute('data-raw'));
+    if (!isNaN(raw)) cells[i].textContent = formatTime(raw);
+   }
+  }
+ });
+
+ // --- Stacked Bar Chart (per CPU) ---
+ var cpuIds = Object.keys(cpuData).sort(function(a, b) { return parseInt(a) - parseInt(b); });
+ var cpuLabels = cpuIds.map(function(id) { return 'CPU ' + id; });
+
+ var isDark = document.documentElement.classList.contains('dark');
+ var chartColors = [
+  'rgba(59,130,246,0.7)', 'rgba(16,185,129,0.7)', 'rgba(245,158,11,0.7)',
+  'rgba(239,68,68,0.7)', 'rgba(139,92,246,0.7)', 'rgba(236,72,153,0.7)',
+  'rgba(20,184,166,0.7)', 'rgba(251,146,60,0.7)'
+ ];
+
+ var datasets = stateNames.map(function(sname, si) {
+  return {
+   label: sname,
+   data: cpuIds.map(function(cpuId) {
+    var cpu = cpuData[cpuId];
+    for (var i = 0; i < cpu.states.length; i++) {
+     if (cpu.states[i].name === sname) return cpu.states[i].time;
+    }
+    return 0;
+   }),
+   backgroundColor: chartColors[si % chartColors.length],
+  };
+ });
+
+ var ctx = document.getElementById('cstateTimeChart').getContext('2d');
+ var cstateChart = new Chart(ctx, {
+  type: 'bar',
+  data: {
+   labels: cpuLabels,
+   datasets: datasets
+  },
+  options: {
+   responsive: true,
+   plugins: {
+    legend: {
+     display: true,
+     labels: { color: diagnosticsThemeColor('text') }
+    },
+    tooltip: {
+     callbacks: {
+      label: function(context) { return context.dataset.label + ': ' + formatTime(context.raw); }
+     }
+    }
+   },
+   scales: {
+    y: {
+     stacked: true,
+     beginAtZero: true,
+     ticks: {
+      color: diagnosticsThemeColor('text'),
+      callback: function(val) { return formatTime(val); }
+     },
+     grid: { color: diagnosticsThemeColor('grid') }
+    },
+    x: {
+     stacked: true,
+     ticks: { color: diagnosticsThemeColor('text'), maxRotation: 90, minRotation: 45 },
+     grid: { color: diagnosticsThemeColor('grid') }
+    }
+   }
+  }
+ });
+
+ // Theme change observer
+ var observer = new MutationObserver(function() {
+  var dark = document.documentElement.classList.contains('dark');
+  cstateChart.options.scales.y.ticks.color = dark ? '#ccc' : '#333';
+  cstateChart.options.scales.x.ticks.color = dark ? '#ccc' : '#333';
+  cstateChart.options.scales.y.grid.color = dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+  cstateChart.options.scales.x.grid.color = dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+  cstateChart.options.plugins.legend.labels.color = dark ? '#ccc' : '#333';
+  cstateChart.update();
+ });
+ observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+ // --- Filtering, Sorting, Pagination ---
+ var cstateSortCol = null;
+ var cstateSortAsc = {};
+ var cstateCurrentPage = 1;
+ var cstatePageSize = 25;
+
+ function getFilteredRows() {
+  var cpuFilter = document.getElementById('cstateCpuFilter').value.trim();
+  var searchFilter = document.getElementById('cstateSearchFilter').value.trim();
+  var allRows = Array.from(table.getElementsByTagName('tr')).slice(1);
+  var searchRegex = null;
+  if (searchFilter) {
+   try { searchRegex = new RegExp(searchFilter, 'i'); } catch(e) { searchRegex = null; }
+  }
+  return allRows.filter(function(row) {
+   var cells = row.getElementsByTagName('td');
+   var cpuVal = cells[0].textContent.trim();
+   if (cpuFilter !== '' && cpuVal !== cpuFilter) return false;
+   if (searchRegex) {
+    var match = false;
+    for (var j = 0; j < cells.length; j++) {
+     if (searchRegex.test(cells[j].textContent)) { match = true; break; }
+    }
+    if (!match) return false;
+   }
+   return true;
+  });
+ }
+
+ function renderPage(filteredRows) {
+  var allRows = Array.from(table.getElementsByTagName('tr')).slice(1);
+  allRows.forEach(function(r) { r.style.display = 'none'; });
+
+  var total = filteredRows.length;
+  var start = 0, end = total;
+  if (cstatePageSize > 0) {
+   var maxPage = Math.max(1, Math.ceil(total / cstatePageSize));
+   if (cstateCurrentPage > maxPage) cstateCurrentPage = maxPage;
+   start = (cstateCurrentPage - 1) * cstatePageSize;
+   end = Math.min(start + cstatePageSize, total);
+  }
+
+  for (var i = start; i < end; i++) {
+   filteredRows[i].style.display = '';
+  }
+
+  document.getElementById('cstateFilteredCount').textContent =
+   'Showing ' + (end - start) + ' of ' + total + ' CPUs';
+
+  renderPagination(total);
+ }
+
+ function renderPagination(total) {
+  var container = document.getElementById('cstatePaginationControls');
+  if (!container) return;
+  container.innerHTML = '';
+  if (cstatePageSize <= 0 || total <= cstatePageSize) return;
+
+  var maxPage = Math.ceil(total / cstatePageSize);
+  var btnClass = 'px-3 py-1 text-sm rounded-sm border';
+
+  function addBtn(label, page, disabled) {
+   var btn = document.createElement('button');
+   btn.textContent = label;
+   btn.className = btnClass + (disabled ? ' opacity-50 cursor-not-allowed' : ' cursor-pointer');
+   btn.disabled = disabled;
+   btn.onclick = function() { cstateCurrentPage = page; renderPage(getFilteredRows()); };
+   container.appendChild(btn);
+  }
+
+  addBtn('First', 1, cstateCurrentPage === 1);
+  addBtn('Prev', cstateCurrentPage - 1, cstateCurrentPage === 1);
+
+  var startPage = Math.max(1, cstateCurrentPage - 2);
+  var endPage = Math.min(maxPage, cstateCurrentPage + 2);
+  for (var p = startPage; p <= endPage; p++) {
+   var btn = document.createElement('button');
+   btn.textContent = p;
+   btn.className = btnClass + (p === cstateCurrentPage ? ' font-bold current-page' : '');
+   btn.onclick = (function(pg) { return function() { cstateCurrentPage = pg; renderPage(getFilteredRows()); }; })(p);
+   container.appendChild(btn);
+  }
+
+  addBtn('Next', cstateCurrentPage + 1, cstateCurrentPage === maxPage);
+  addBtn('Last', maxPage, cstateCurrentPage === maxPage);
+ }
+
+ window.filterCstateTable = function() {
+  cstateCurrentPage = 1;
+  renderPage(getFilteredRows());
+ };
+
+ window.changeCstatePageSize = function() {
+  cstatePageSize = parseInt(document.getElementById('cstatePageSizeSelect').value);
+  cstateCurrentPage = 1;
+  renderPage(getFilteredRows());
+ };
+
+ window.sortCstateTable = function(colIndex) {
+  var allRows = Array.from(table.getElementsByTagName('tr')).slice(1);
+  if (cstateSortAsc[colIndex] === undefined) cstateSortAsc[colIndex] = true;
+  else cstateSortAsc[colIndex] = !cstateSortAsc[colIndex];
+  var asc = cstateSortAsc[colIndex];
+
+  // Clear indicators
+  var totalCols = 3 + numStates * 3;
+  for (var i = 0; i < totalCols; i++) {
+   var ind = document.getElementById('cstate-indicator-' + i);
+   if (ind) ind.className = 'fas text-sm ml-1';
+  }
+  var activeInd = document.getElementById('cstate-indicator-' + colIndex);
+  if (activeInd) activeInd.className = 'fas text-sm ml-1 ' + (asc ? 'fa-caret-up' : 'fa-caret-down');
+
+  allRows.sort(function(a, b) {
+   var cellA = a.getElementsByTagName('td')[colIndex];
+   var cellB = b.getElementsByTagName('td')[colIndex];
+   var valA = cellA.getAttribute('data-raw') || cellA.textContent.trim();
+   var valB = cellB.getAttribute('data-raw') || cellB.textContent.trim();
+   var numA = parseFloat(valA), numB = parseFloat(valB);
+   if (!isNaN(numA) && !isNaN(numB)) {
+    return asc ? numA - numB : numB - numA;
+   }
+   return asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+  });
+
+  var tbody = table.getElementsByTagName('tbody')[0];
+  allRows.forEach(function(r) { tbody.appendChild(r); });
+  cstateCurrentPage = 1;
+  renderPage(getFilteredRows());
+ };
+
+ // Initial render
+ renderPage(getFilteredRows());
+ }
+ init();
+})();
+</script>
+{% endif %}

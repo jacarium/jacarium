@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="48" height="48" role="img" aria-label="Jacarium">
+  <!-- Jacarium app icon at small sizes (48 px and below): the arch alone -->
+  <rect width="120" height="120" rx="28" fill="#7B5CE0"/>
+  <path d="M32 98 V58 A28 28 0 0 1 88 58 V98 Z" fill="#EDE6FF"/>
+</svg>

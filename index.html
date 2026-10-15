@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#7B5CE0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Jacarium</title>
+    <meta name="description" content="Everything you know and use for technical work, in one place." />
+    <!-- No remote assets here: the app must work without internet access.
+         The Red Hat fonts are bundled from the
+         @fontsource packages (imported in src/main.jsx) and Chart.js for the
+         diagnostics frames is inlined from the chart.js package
+         (src/components/DiagnosticsPage.jsx). tests/no-remote-assets.test.mjs
+         fails the build if a CDN reference comes back. -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

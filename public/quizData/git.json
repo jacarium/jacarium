@@ -1,0 +1,486 @@
+{
+  "title": "Git",
+  "description": "Advanced Git version control and workflows",
+  "questions": [
+    {
+      "id": "git-1",
+      "question": "What git command shows reference log history?",
+      "answer": "git reflog",
+      "hints": [
+        "Shows HEAD movement history",
+        "Can recover lost commits",
+        "Short for 'reference log'"
+      ],
+      "category": "recovery",
+      "difficulty": 100
+    },
+    {
+      "id": "git-2",
+      "question": "What git reset mode keeps changes in working directory?",
+      "answer": "--soft",
+      "hints": [
+        "Least destructive mode",
+        "Only moves HEAD",
+        "Keeps staging and working tree"
+      ],
+      "category": "reset",
+      "difficulty": 100
+    },
+    {
+      "id": "git-3",
+      "question": "What git command applies commit from another branch?",
+      "answer": "git cherry-pick",
+      "hints": [
+        "Selectively applies changes",
+        "Two words separated by dash",
+        "Useful for hotfixes"
+      ],
+      "category": "branching",
+      "difficulty": 100
+    },
+    {
+      "id": "git-4",
+      "question": "What git command finds commit that introduced a bug?",
+      "answer": "git bisect",
+      "hints": [
+        "Binary search through commits",
+        "Uses good/bad markers",
+        "Automates bug hunting"
+      ],
+      "category": "debugging",
+      "difficulty": 100
+    },
+    {
+      "id": "git-5",
+      "question": "What flag makes git rebase interactive?",
+      "answer": "-i",
+      "hints": [
+        "Single letter",
+        "Opens editor",
+        "Allows reordering, squashing commits"
+      ],
+      "category": "rebase",
+      "difficulty": 100
+    },
+    {
+      "id": "git-6",
+      "question": "What file extension do git hooks use?",
+      "answer": "none",
+      "hints": [
+        "No extension needed",
+        "Just executable scripts",
+        "Located in .git/hooks"
+      ],
+      "category": "hooks",
+      "difficulty": 100
+    },
+    {
+      "id": "git-7",
+      "question": "What git command manages submodules?",
+      "answer": "git submodule",
+      "hints": [
+        "Embeds repositories",
+        "Tracks specific commits",
+        "Two words as one command"
+      ],
+      "category": "submodules",
+      "difficulty": 100
+    },
+    {
+      "id": "git-8",
+      "question": "What git flag creates orphan branch with no history?",
+      "answer": "--orphan",
+      "hints": [
+        "Long flag for checkout",
+        "No parent commits",
+        "Useful for gh-pages"
+      ],
+      "category": "branching",
+      "difficulty": 100
+    },
+    {
+      "id": "git-9",
+      "question": "What git command temporarily shelves changes?",
+      "answer": "git stash",
+      "hints": [
+        "Saves work in progress",
+        "Can apply later",
+        "Creates stack of changes"
+      ],
+      "category": "stashing",
+      "difficulty": 200
+    },
+    {
+      "id": "git-10",
+      "question": "What git rebase flag preserves merge commits?",
+      "answer": "--preserve-merges",
+      "hints": [
+        "Long flag",
+        "Keeps merge history",
+        "Now deprecated, use --rebase-merges"
+      ],
+      "category": "rebase",
+      "difficulty": 200
+    },
+    {
+      "id": "git-11",
+      "question": "What git command creates lightweight tag?",
+      "answer": "git tag",
+      "hints": [
+        "No -a flag",
+        "Just pointer to commit",
+        "No metadata stored"
+      ],
+      "category": "tagging",
+      "difficulty": 200
+    },
+    {
+      "id": "git-12",
+      "question": "What git config sets default push behavior?",
+      "answer": "push.default",
+      "hints": [
+        "Config key",
+        "Values like 'simple' or 'current'",
+        "Dot notation"
+      ],
+      "category": "config",
+      "difficulty": 200
+    },
+    {
+      "id": "git-13",
+      "question": "What git command shows commit statistics?",
+      "answer": "git show --stat",
+      "hints": [
+        "Uses show command",
+        "With --stat flag",
+        "Shows files changed and lines"
+      ],
+      "category": "inspection",
+      "difficulty": 200
+    },
+    {
+      "id": "git-14",
+      "question": "What git clean flag removes untracked directories?",
+      "answer": "-d",
+      "hints": [
+        "Single letter",
+        "Stands for 'directories'",
+        "Use with -f for force"
+      ],
+      "category": "cleanup",
+      "difficulty": 200
+    },
+    {
+      "id": "git-15",
+      "question": "What git command lists remote branches?",
+      "answer": "git branch -r",
+      "hints": [
+        "Uses branch command",
+        "Single letter flag",
+        "r for 'remote'"
+      ],
+      "category": "remote",
+      "difficulty": 200
+    },
+    {
+      "id": "git-16",
+      "question": "What git rerere stands for?",
+      "answer": "reuse recorded resolution",
+      "hints": [
+        "Remembers conflict resolutions",
+        "3 words",
+        "Automates merge conflicts"
+      ],
+      "category": "merging",
+      "difficulty": 200
+    },
+    {
+      "id": "git-17",
+      "question": "What git command creates worktree in separate directory?",
+      "answer": "git worktree",
+      "hints": [
+        "Multiple working directories",
+        "Same repository",
+        "Work on different branches"
+      ],
+      "category": "worktree",
+      "difficulty": 300
+    },
+    {
+      "id": "git-18",
+      "question": "What git diff flag ignores whitespace changes?",
+      "answer": "-w",
+      "hints": [
+        "Single letter",
+        "Stands for 'ignore whitespace'",
+        "Useful for code formatting"
+      ],
+      "category": "diff",
+      "difficulty": 300
+    },
+    {
+      "id": "git-19",
+      "question": "What git command amends last commit without editing?",
+      "answer": "git commit --amend --no-edit",
+      "hints": [
+        "Uses --amend flag",
+        "Adds --no-edit",
+        "Keeps same message"
+      ],
+      "category": "commits",
+      "difficulty": 300
+    },
+    {
+      "id": "git-20",
+      "question": "What git blame flag shows email instead of name?",
+      "answer": "-e",
+      "hints": [
+        "Single letter",
+        "Shows author email",
+        "Stands for 'email'"
+      ],
+      "category": "inspection",
+      "difficulty": 300
+    },
+    {
+      "id": "git-21",
+      "question": "What git command fetches without merging?",
+      "answer": "git fetch",
+      "hints": [
+        "Downloads objects",
+        "Doesn't modify working tree",
+        "Opposite of pull's behavior"
+      ],
+      "category": "remote",
+      "difficulty": 300
+    },
+    {
+      "id": "git-22",
+      "question": "What git config enables colored output?",
+      "answer": "color.ui",
+      "hints": [
+        "Config key",
+        "Set to 'auto' or 'true'",
+        "Improves readability"
+      ],
+      "category": "config",
+      "difficulty": 300
+    },
+    {
+      "id": "git-23",
+      "question": "What git log flag shows graph of branches?",
+      "answer": "--graph",
+      "hints": [
+        "Long flag",
+        "Visual representation",
+        "Shows branch topology"
+      ],
+      "category": "history",
+      "difficulty": 300
+    },
+    {
+      "id": "git-24",
+      "question": "What git command lists tracked files?",
+      "answer": "git ls-files",
+      "hints": [
+        "Two words with dash",
+        "Shows index contents",
+        "Can filter by type"
+      ],
+      "category": "inspection",
+      "difficulty": 300
+    },
+    {
+      "id": "git-25",
+      "question": "What git revert flag doesn't create commit immediately?",
+      "answer": "-n",
+      "hints": [
+        "Single letter",
+        "Stands for 'no commit'",
+        "Stages changes only"
+      ],
+      "category": "reverting",
+      "difficulty": 400
+    },
+    {
+      "id": "git-26",
+      "question": "What git config sets commit template?",
+      "answer": "commit.template",
+      "hints": [
+        "Config key",
+        "Points to file path",
+        "Provides commit message structure"
+      ],
+      "category": "config",
+      "difficulty": 400
+    },
+    {
+      "id": "git-27",
+      "question": "What git command shows tracked remote branches?",
+      "answer": "git remote show origin",
+      "hints": [
+        "Uses remote subcommand",
+        "With 'show' action",
+        "Specify remote name"
+      ],
+      "category": "remote",
+      "difficulty": 400
+    },
+    {
+      "id": "git-28",
+      "question": "What git archive format creates zip file?",
+      "answer": "--format=zip",
+      "hints": [
+        "Long flag with equals",
+        "Alternative to tar",
+        "Creates compressed archive"
+      ],
+      "category": "export",
+      "difficulty": 400
+    },
+    {
+      "id": "git-29",
+      "question": "What git gc stands for?",
+      "answer": "garbage collect",
+      "hints": [
+        "Two words",
+        "Cleanup and optimize",
+        "Removes unreachable objects"
+      ],
+      "category": "maintenance",
+      "difficulty": 400
+    },
+    {
+      "id": "git-30",
+      "question": "What git grep flag shows line numbers?",
+      "answer": "-n",
+      "hints": [
+        "Single letter",
+        "Similar to grep -n",
+        "Stands for 'number'"
+      ],
+      "category": "search",
+      "difficulty": 400
+    },
+    {
+      "id": "git-31",
+      "question": "What git command lists commits not in upstream?",
+      "answer": "git log @{u}..",
+      "hints": [
+        "Uses log with range",
+        "@ represents HEAD",
+        "{u} is upstream shorthand"
+      ],
+      "category": "comparison",
+      "difficulty": 400
+    },
+    {
+      "id": "git-32",
+      "question": "What git format-patch flag creates single patch file?",
+      "answer": "--stdout",
+      "hints": [
+        "Long flag",
+        "Redirects output",
+        "Combine multiple commits"
+      ],
+      "category": "patches",
+      "difficulty": 400
+    },
+    {
+      "id": "git-33",
+      "question": "What git fsck stands for?",
+      "answer": "filesystem check",
+      "hints": [
+        "Two words",
+        "Verifies repository integrity",
+        "Finds corruption"
+      ],
+      "category": "maintenance",
+      "difficulty": 500
+    },
+    {
+      "id": "git-34",
+      "question": "What git shortlog flag sorts by commit count?",
+      "answer": "-n",
+      "hints": [
+        "Single letter",
+        "Numerical sort",
+        "Shows most active contributors"
+      ],
+      "category": "statistics",
+      "difficulty": 500
+    },
+    {
+      "id": "git-35",
+      "question": "What git merge strategy combines multiple merge bases?",
+      "answer": "recursive",
+      "hints": [
+        "Default strategy",
+        "Handles complex merges",
+        "Uses 3-way merge"
+      ],
+      "category": "merging",
+      "difficulty": 500
+    },
+    {
+      "id": "git-36",
+      "question": "What git command enables sparse checkout?",
+      "answer": "git sparse-checkout",
+      "hints": [
+        "Two words with dash",
+        "Partial working tree",
+        "Reduces checkout size"
+      ],
+      "category": "performance",
+      "difficulty": 500
+    },
+    {
+      "id": "git-37",
+      "question": "What git describe flag shows dirty working tree?",
+      "answer": "--dirty",
+      "hints": [
+        "Long flag",
+        "Appends suffix",
+        "Indicates uncommitted changes"
+      ],
+      "category": "tagging",
+      "difficulty": 500
+    },
+    {
+      "id": "git-38",
+      "question": "What git bundle creates repository archive?",
+      "answer": "git bundle create",
+      "hints": [
+        "Uses bundle subcommand",
+        "With 'create' action",
+        "Offline repository transfer"
+      ],
+      "category": "transfer",
+      "difficulty": 500
+    },
+    {
+      "id": "git-39",
+      "question": "What git replace creates substitute object?",
+      "answer": "git replace",
+      "hints": [
+        "Replaces object references",
+        "Non-destructive",
+        "Useful for fixing mistakes"
+      ],
+      "category": "advanced",
+      "difficulty": 500
+    },
+    {
+      "id": "git-40",
+      "question": "What git notes command adds metadata to commits?",
+      "answer": "git notes",
+      "hints": [
+        "Attaches notes",
+        "Doesn't change commit",
+        "Separate from commit message"
+      ],
+      "category": "metadata",
+      "difficulty": 500
+    }
+  ]
+}

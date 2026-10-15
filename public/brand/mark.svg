@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Jacarium">
+  <!-- Jacarium mark on dark surfaces: an arch holding a jacaranda blossom -->
+  <path d="M22 110 V54 A38 38 0 0 1 98 54 V110 Z" fill="#7B5CE0"/>
+  <g fill="#EDE6FF"><ellipse cx="60" cy="49" rx="8.5" ry="13" transform="rotate(0 60 64)"/><ellipse cx="60" cy="49" rx="8.5" ry="13" transform="rotate(72 60 64)"/><ellipse cx="60" cy="49" rx="8.5" ry="13" transform="rotate(144 60 64)"/><ellipse cx="60" cy="49" rx="8.5" ry="13" transform="rotate(216 60 64)"/><ellipse cx="60" cy="49" rx="8.5" ry="13" transform="rotate(288 60 64)"/></g>
+  <circle cx="60" cy="64" r="5" fill="#7B5CE0"/>
+</svg>

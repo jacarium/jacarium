@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jacarium Tiles</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      background-color: #151515;
+      color: #f0f0f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 750px;
+      background: #1f1f1f;
+      border-radius: 8px;
+      padding: 12px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .status {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .status-text {
+      font-size: 18px;
+      font-weight: 600;
+      color: #f0f0f0;
+      margin-bottom: 8px;
+    }
+
+    .game-id {
+      font-size: 12px;
+      color: #808080;
+      font-family: 'Courier New', monospace;
+    }
+
+    .join-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-group label {
+      font-size: 14px;
+      font-weight: 500;
+      color: #b0b0b0;
+    }
+
+    .input-group input {
+      padding: 10px 12px;
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      color: #f0f0f0;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .input-group input:focus {
+      border-color: #a855f7;
+      background: #2a2a2a;
+    }
+
+    .join-btn {
+      background: #a855f7;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 8px;
+    }
+
+    .join-btn:hover {
+      background: #9333ea;
+    }
+
+    .join-btn:disabled {
+      background: #3a3a3a;
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    .error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid #ef4444;
+      color: #fca5a5;
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 16px;
+      margin-bottom: 16px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #a855f7;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .lobby, .screen {
+      display: none;
+    }
+
+    .lobby.active, .screen.active {
+      display: block;
+    }
+
+    /* Lobby Screen */
+    .lobby-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      text-align: center;
+      color: #f0f0f0;
+    }
+
+    .players-list {
+      background: #2a2a2a;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 16px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .players-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #b0b0b0;
+      margin-bottom: 12px;
+    }
+
+    .player-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px;
+      background: #1f1f1f;
+      border-radius: 4px;
+      margin-bottom: 6px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .player-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .player-icon {
+      font-size: 16px;
+    }
+
+    .player-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: #f0f0f0;
+    }
+
+    .player-badge {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: 500;
+    }
+
+    .badge-you {
+      background: rgba(168, 85, 247, 0.15);
+      color: #c084fc;
+    }
+
+    .badge-ready {
+      background: rgba(34, 197, 94, 0.15);
+      color: #16a34a;
+    }
+
+    .badge-pending {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge-host {
+      background: #9333ea;
+      color: white;
+    }
+
+    .badge-disconnected {
+      background: rgba(128, 128, 128, 0.15);
+      color: #9ca3af;
+    }
+
+    .waiting-text {
+      text-align: center;
+      color: #808080;
+      font-style: italic;
+      padding: 12px;
+      font-size: 14px;
+    }
+
+    /* Tiles Game Board */
+    .game-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .moves-counter {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(168, 85, 247, 0.15);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      color: #c084fc;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .give-up-btn {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .give-up-btn:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: rgba(239, 68, 68, 0.5);
+    }
+
+    .give-up-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .tiles-board {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 16px;
+      justify-content: center;
+    }
+
+    .tiles-board.size-3 {
+      grid-template-columns: repeat(3, 1fr);
+      max-width: 240px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .tiles-board.size-4 {
+      grid-template-columns: repeat(4, 1fr);
+      max-width: 320px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .tiles-board.size-5 {
+      grid-template-columns: repeat(5, 1fr);
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .tiles-board.size-6 {
+      grid-template-columns: repeat(6, 1fr);
+      max-width: 480px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .tiles-board.size-7 {
+      grid-template-columns: repeat(7, 1fr);
+      max-width: 560px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .tile {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #2a2a2a;
+      border: 2px solid #3a3a3a;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      min-height: 60px;
+    }
+
+    .tile:hover:not(.disabled) {
+      transform: scale(1.05);
+      border-color: #a855f7;
+    }
+
+    .tile.on {
+      background: #a855f7;
+      border-color: #9333ea;
+      box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
+    }
+
+    .tile.disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    .leaderboard {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #3a3a3a;
+    }
+
+    .leaderboard-title {
+      font-size: 10px;
+      font-weight: 600;
+      color: #808080;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .standings-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .standings-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 12px;
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      min-width: 80px;
+      transition: all 0.2s;
+    }
+
+    .standings-item.you {
+      background: rgba(168, 85, 247, 0.15);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+
+    .standings-item.disconnected {
+      opacity: 0.6;
+    }
+
+    .standings-item.completed {
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .standings-item.gave-up {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .player-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: #f0f0f0;
+      margin-bottom: 4px;
+    }
+
+    .player-moves {
+      font-size: 16px;
+      font-weight: 700;
+      color: #c084fc;
+    }
+
+    .standings-item.completed .player-moves {
+      color: #6ee7b7;
+    }
+
+    .standings-item.gave-up .player-moves {
+      color: #fca5a5;
+    }
+
+    .player-badges {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .status-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: 500;
+    }
+
+    .badge-completed {
+      background: rgba(34, 197, 94, 0.25);
+      color: #6ee7b7;
+    }
+
+    .badge-gave-up {
+      background: rgba(239, 68, 68, 0.25);
+      color: #fca5a5;
+    }
+
+    /* Results Screen */
+    .results-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .trophy-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+
+    .results-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #f0f0f0;
+      margin-bottom: 8px;
+    }
+
+    .winner-label {
+      font-size: 14px;
+      color: #b0b0b0;
+    }
+
+    .winner-name {
+      font-weight: 700;
+      color: #a855f7;
+    }
+
+    .winner-moves {
+      font-size: 24px;
+      font-weight: 700;
+      color: #6ee7b7;
+      margin-top: 8px;
+    }
+
+    .final-standings {
+      background: #2a2a2a;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .standings-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #b0b0b0;
+      margin-bottom: 12px;
+    }
+
+    .final-standings-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      background: #1f1f1f;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .final-standings-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .final-standings-item.winner {
+      background: rgba(168, 85, 247, 0.15);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+
+    .standing-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .standing-rank {
+      font-size: 16px;
+      font-weight: 700;
+      color: #808080;
+      min-width: 30px;
+    }
+
+    .standing-rank.first {
+      color: #fbbf24;
+    }
+
+    .standing-rank.second {
+      color: #9ca3af;
+    }
+
+    .standing-rank.third {
+      color: #d97706;
+    }
+
+    .standing-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f0f0f0;
+    }
+
+    .standing-moves {
+      font-size: 18px;
+      font-weight: 700;
+      color: #6ee7b7;
+    }
+
+    .standing-moves.gave-up {
+      color: #fca5a5;
+    }
+
+    .footer {
+      width: 100%;
+      max-width: 750px;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #3a3a3a;
+      text-align: center;
+    }
+
+    .footer-text {
+      font-size: 13px;
+      color: #808080;
+    }
+
+    .footer-link {
+      color: #a855f7;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-link:hover {
+      color: #c084fc;
+      text-decoration: underline;
+    }
+
+    /* Responsive adjustments for smaller screens */
+    @media (max-width: 768px) {
+      .container {
+        max-width: 100%;
+        padding: 8px;
+      }
+
+      body {
+        padding: 8px;
+      }
+
+      .tile {
+        min-height: 50px;
+        border-radius: 4px;
+      }
+
+      .tiles-board {
+        gap: 6px;
+      }
+    }
+
+    /* Keep consistent width on larger screens */
+    @media (min-width: 1200px) {
+      .container {
+        max-width: 800px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Join Screen -->
+    <div id="joinScreen" class="status">
+      <div class="status-text">Join Tiles Game</div>
+      <div class="game-id" id="gameIdDisplay"></div>
+
+      <form class="join-form" onsubmit="joinTiles(event)">
+        <div class="input-group">
+          <label for="playerName">Your Name</label>
+          <input type="text" id="playerName" placeholder="Enter your name" required maxlength="20">
+        </div>
+        <button type="submit" class="join-btn" id="joinBtn">
+          <span id="joinBtnText">Join Game</span>
+          <span id="joinBtnSpinner" class="spinner" style="display: none;"></span>
+        </button>
+      </form>
+
+      <div id="errorMessage" class="error" style="display: none;"></div>
+    </div>
+
+    <!-- Lobby Screen -->
+    <div id="lobbyScreen" class="lobby">
+      <div class="lobby-title" id="lobbyTitle">Waiting for Game to Start</div>
+      <div class="players-list">
+        <div class="players-title">Players (<span id="playerCount">0</span>)</div>
+        <div id="playersList"></div>
+      </div>
+      <div class="waiting-text">Host will start the game soon...</div>
+    </div>
+
+    <!-- Game Board Screen -->
+    <div id="boardScreen" class="screen">
+      <div class="game-header" style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
+        <button class="give-up-btn" id="giveUpBtn" style="padding: 8px; background: #dc2626; border: none; border-radius: 4px; cursor: pointer; color: white;" title="Give Up">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div id="gridsContainer" style="display: flex; gap: 16px; justify-content: center; align-items: flex-start; margin-bottom: 20px;">
+        <!-- Left opponents -->
+        <div id="opponentsLeft" style="display: flex; flex-direction: column; gap: 16px; max-width: 200px;"></div>
+
+        <!-- My grid (center, normal size) -->
+        <div style="flex-shrink: 0;">
+          <div style="text-align: center; margin-bottom: 4px; font-size: 12px; font-weight: 500; color: #b0b0b0;">Your Grid</div>
+          <div style="text-align: center; margin-bottom: 8px; font-size: 14px; font-weight: bold; color: #f0f0f0;">Moves: <span id="movesCount">0</span></div>
+          <div id="tilesBoard" class="tiles-board"></div>
+        </div>
+
+        <!-- Right opponents -->
+        <div id="opponentsRight" style="display: flex; flex-direction: column; gap: 16px; max-width: 200px;"></div>
+      </div>
+
+      <div id="waitingMessage" class="waiting-text" style="display: none; margin-top: 20px; text-align: center; color: #808080; font-style: italic;">
+        Waiting for other players to finish...
+      </div>
+    </div>
+
+    <!-- Results Screen -->
+    <div id="resultsScreen" class="screen">
+      <div class="results-header">
+        <div class="trophy-icon">🏆</div>
+        <div class="results-title">Tiles Complete!</div>
+        <div id="winnerAnnouncement"></div>
+      </div>
+
+      <div class="final-standings">
+        <div class="standings-title">Final Standings</div>
+        <div id="finalStandings"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p class="footer-text">
+    </p>
+  </div>
+
+  <!-- Relative to the page (/tiles/<id>, or /central/tiles/<id> behind the console):
+       the assets stay under whatever prefix the page was served from. -->
+  <script src="../socket.io/socket.io.js"></script>
+  <script src="../tiles.js"></script>
+</body>
+</html>

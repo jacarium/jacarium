@@ -1,0 +1,443 @@
+<div id="daemonSetPanel" class="grid grid-cols-1 gap-4">
+ <div class="panel rounded-lg shadow-sm w-full">
+ <div class="mb-2">
+ <label class="inline-flex items-center text-xs font-semibold">
+ <input type="checkbox" id="show-empty-namespaces" class="form-checkbox">
+ <span class="ml-2">Show Empty Namespaces</span>
+ </label>
+ </div>
+ <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
+ <div>
+ <label for="daemonSetNamespaceFilter" class="block text-xs font-semibold mb-1">Namespaces</label>
+ <select id="daemonSetNamespaceFilter" class="w-full px-3 py-2 text-sm border">
+ <option value="">All</option>
+ </select>
+ </div>
+ <div class="md:col-span-7">
+ <label for="daemonSetSearchInput" class="block text-xs font-semibold mb-1">Search All</label>
+ <input id="daemonSetSearchInput" type="text" placeholder="Search daemon sets..." class="w-full px-3 py-2 text-sm border" />
+ </div>
+ </div>
+ <div class="flex justify-between items-center mb-2">
+ <div id="filteredDaemonSetCount" class="text-sm">Showing all daemon sets</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs font-semibold">Per Page:</label>
+ <select id="daemonsetPageSizeSelect" onchange="window.changeDaemonsetPageSize()" class="px-3 py-1 text-sm border">
+ <option value="50">50</option>
+ <option value="100" selected>100</option>
+ <option value="250">250</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ <table class="w-full min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortDaemonSetsBy('namespace')">Namespace <i id="daemonset-indicator-namespace" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortDaemonSetsBy('name')">Name <i id="daemonset-indicator-name" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortDaemonSetsBy('desired')">Desired <i id="daemonset-indicator-desired" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortDaemonSetsBy('current')">Current <i id="daemonset-indicator-current" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortDaemonSetsBy('ready')">Ready <i id="daemonset-indicator-ready" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortDaemonSetsBy('age')">Age <i id="daemonset-indicator-age" class="ml-1 fas text-sm"></i></th>
+ </tr>
+ </thead>
+ <tbody id="daemonSetTableBody"></tbody>
+ </table>
+ <div id="daemonsetPaginationButtons" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+</div>
+
+<div id="daemonSetDetailsPanel" style="display: none;">
+ <div class="space-y-4">
+ <div class="mb-4">
+ <button onclick="window.backFromDaemonModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ Back
+ </button>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-info-circle mr-2"></i> Daemon Set Details
+ </h3>
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm" id="daemonSetDetailsTable"></table>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-file mr-2"></i> Daemon Set YAML
+ </h2>
+ <div class="mb-2">
+ <input
+ id="daemonSetYamlFilter"
+ type="text"
+ placeholder="Filter YAML lines..."
+ class="w-full px-3 py-2 text-sm border"
+ />
+ </div>
+ <div id="daemonSetJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
+ </div>
+ </div>
+</div>
+<script>
+ var daemonSetsData = {{ data | tojson }};
+ var currentSort = { key: null, direction: 1 };
+ var daemonsetCurrentPage = 1;
+ var daemonsetPageSize = 100;
+
+ var daemonSetTableBody = document.getElementById("daemonSetTableBody");
+ var daemonSetDetailsTable = document.getElementById("daemonSetDetailsTable");
+ var viewer = document.getElementById("daemonSetJsonViewer");
+ var namespaceDaemonSetFilter = document.getElementById("daemonSetNamespaceFilter");
+ var searchDaemonSetInput = document.getElementById("daemonSetSearchInput");
+
+ var daemonSetDetailsPanel = document.getElementById("daemonSetDetailsPanel");
+ var daemonSetPanel = document.getElementById("daemonSetPanel");
+
+ var flattenedDaemonSets = [];
+ var currentDaemonSet = null;
+ var lastClickedRow = null;
+
+ function getAge(ageSeconds) {
+ if (ageSeconds === undefined || ageSeconds === null) return '-';
+ const seconds = Math.abs(ageSeconds);
+ const mins = Math.floor(seconds / 60);
+ const hours = Math.floor(mins / 60);
+ const days = Math.floor(hours / 24);
+ return days > 0 ? `${days}d` : hours > 0 ? `${hours}h` : mins > 0 ? `${mins}m` : `${seconds}s`;
+ }
+
+ function flattenDaemonSets(showEmpty = false) {
+ flattenedDaemonSets = [];
+
+ Object.entries(daemonSetsData).forEach(([ns, dsInNamespace]) => {
+ const entries = Object.entries(dsInNamespace || {});
+ if (entries.length === 0 && showEmpty) {
+ flattenedDaemonSets.push({
+ namespace: ns,
+ name: 'No daemonsets',
+ desired: '-',
+ current: '-',
+ ready: '-',
+ available: '-',
+ age: '-',
+ raw: {}
+ });
+ }
+ entries.forEach(([name, ds]) => {
+ const meta = ds.metadata || {};
+ const status = ds.status || {};
+ const age = getAge(ds._age_seconds);
+
+ flattenedDaemonSets.push({
+ namespace: ns,
+ name: name,
+ desired: status.desiredNumberScheduled || 0,
+ current: status.currentNumberScheduled || 0,
+ ready: status.numberReady || 0,
+ available: status.numberAvailable || 0,
+ age: age,
+ age_seconds: ds._age_seconds || 0,
+ raw: ds
+ });
+ });
+ });
+ }
+
+ function updateNamespaceFilterOptions(showEmpty) {
+ while (namespaceDaemonSetFilter.options.length > 1) {
+ namespaceDaemonSetFilter.remove(1);
+ }
+
+ flattenDaemonSets(showEmpty);
+
+ const namespaces = new Set(flattenedDaemonSets.map(d => d.namespace));
+
+ namespaces.forEach(ns => {
+ const option = document.createElement("option");
+ option.value = ns;
+ option.textContent = ns;
+ namespaceDaemonSetFilter.appendChild(option);
+ });
+ }
+
+ function renderDaemonSetTable(data) {
+ const totalCount = data.length;
+ const start = daemonsetPageSize === -1 ? 0 : (daemonsetCurrentPage - 1) * daemonsetPageSize;
+ const end = daemonsetPageSize === -1 ? totalCount : Math.min(start + daemonsetPageSize, totalCount);
+ const paginatedData = daemonsetPageSize === -1 ? data : data.slice(start, end);
+
+ daemonSetTableBody.innerHTML = '';
+ paginatedData.forEach(ds => {
+ const row = document.createElement("tr");
+
+ if(ds.name === 'No daemonsets') {
+ row.className = "border-b";
+ row.innerHTML = `
+ <td class="px-4 py-2">${ds.namespace}</td>
+ <td class="px-4 py-2">No Daemon Sets</td>
+ <td class="px-4 py-2">-</td>
+ <td class="px-4 py-2">-</td>
+ <td class="px-4 py-2">-</td>
+ <td class="px-4 py-2">-</td>`;
+ } else {
+ row.className = "cursor-pointer border-b hover:bg-gray-50 dark:hover:bg-gray-800";
+ row.innerHTML = `
+ <td class="px-4 py-2">${ds.namespace}</td>
+ <td class="px-4 py-2">${ds.name}</td>
+ <td class="px-4 py-2">${ds.desired}</td>
+ <td class="px-4 py-2">${ds.current}</td>
+ <td class="px-4 py-2">${ds.ready}</td>
+ <td class="px-4 py-2">${ds.age}</td>`;
+ row.addEventListener("click", () => {
+ lastClickedRow = row;
+ openDaemonSetDetails(ds);
+ });
+ }
+
+ daemonSetTableBody.appendChild(row);
+ });
+
+ const countText = daemonsetPageSize === -1
+ ? `Showing all ${totalCount} daemonsets`
+ : `Showing ${start + 1}-${end} of ${totalCount} daemonsets`;
+ document.getElementById("filteredDaemonSetCount").textContent = countText;
+ updateDaemonsetPagination(totalCount);
+ }
+
+ function updateDaemonsetPagination(totalCount) {
+ const totalPages = daemonsetPageSize === -1 ? 1 : Math.ceil(totalCount / daemonsetPageSize);
+ const container = document.getElementById("daemonsetPaginationButtons");
+ container.innerHTML ="";
+
+ if (totalPages <= 1) return;
+
+ const prevBtn = document.createElement("button");
+ prevBtn.textContent ="Previous";
+ prevBtn.className = daemonsetCurrentPage === 1
+ ? "px-3 py-1 text-sm bg-gray-300 text-gray-500 cursor-not-allowed"
+ : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
+ prevBtn.disabled = daemonsetCurrentPage === 1;
+ prevBtn.onclick = () => daemonsetCurrentPage > 1 && window.goToDaemonsetPage(daemonsetCurrentPage - 1);
+ container.appendChild(prevBtn);
+
+ const maxButtons = 5;
+ let startPage = Math.max(1, daemonsetCurrentPage - Math.floor(maxButtons / 2));
+ let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+ if (endPage - startPage < maxButtons - 1) {
+ startPage = Math.max(1, endPage - maxButtons + 1);
+ }
+
+ for (let i = startPage; i <= endPage; i++) {
+ const btn = document.createElement("button");
+ btn.textContent = i;
+ btn.className = i === daemonsetCurrentPage
+ ? "px-3 py-1 text-sm bg-blue-700 text-white font-bold current-page"
+ : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
+ btn.onclick = () => window.goToDaemonsetPage(i);
+ container.appendChild(btn);
+ }
+
+ const nextBtn = document.createElement("button");
+ nextBtn.textContent ="Next";
+ nextBtn.className = daemonsetCurrentPage === totalPages
+ ? "px-3 py-1 text-sm bg-gray-300 text-gray-500 cursor-not-allowed"
+ : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
+ nextBtn.disabled = daemonsetCurrentPage === totalPages;
+ nextBtn.onclick = () => daemonsetCurrentPage < totalPages && window.goToDaemonsetPage(daemonsetCurrentPage + 1);
+ container.appendChild(nextBtn);
+ }
+
+ window.goToDaemonsetPage = function(page) {
+ daemonsetCurrentPage = page;
+ applyFiltersAndRender();
+ }
+
+ window.changeDaemonsetPageSize = function() {
+ const select = document.getElementById("daemonsetPageSizeSelect");
+ daemonsetPageSize = parseInt(select.value);
+ daemonsetCurrentPage = 1;
+ applyFiltersAndRender();
+ }
+
+ function openDaemonSetDetails(ds) {
+ currentDaemonSet = ds;
+
+ viewer.innerHTML = renderJSONWithoutHighlight(ds.raw);
+ daemonSetDetailsPanel.style.setProperty('display', 'grid', 'important');
+ daemonSetPanel.style.setProperty('display', 'none', 'important');
+
+ // Scroll to top - find the scrollable parent by walking up the DOM
+ setTimeout(() => {
+ function findScrollableParent(element) {
+ let parent = element.parentElement;
+ while (parent) {
+ const overflow = window.getComputedStyle(parent).overflow;
+ const overflowY = window.getComputedStyle(parent).overflowY;
+ if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
+ parent.scrollHeight > parent.clientHeight) {
+ return parent;
+ }
+ parent = parent.parentElement;
+ }
+ return null;
+ }
+
+ const scrollableParent = findScrollableParent(daemonSetDetailsPanel);
+ if (scrollableParent) {
+ scrollableParent.scrollTo({top: 0, behavior: 'instant'});
+ }
+ }, 0);
+
+ daemonSetDetailsTable.innerHTML = `
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Name:</td><td class="py-2">${ds.name}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Namespace:</td><td class="py-2">${ds.namespace}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Desired:</td><td class="py-2">${ds.desired}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Current:</td><td class="py-2">${ds.current}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Ready:</td><td class="py-2">${ds.ready}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Available:</td><td class="py-2">${ds.available}</td></tr>
+ <tr><td class="py-2 pr-4 font-semibold">Age:</td><td class="py-2">${ds.age}</td></tr>`;
+
+ // Setup YAML filter
+ const yamlFilterInput = document.getElementById('daemonSetYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ yamlFilterInput.removeEventListener('input', filterDaemonSetYaml);
+ yamlFilterInput.addEventListener('input', filterDaemonSetYaml);
+ }
+ }
+
+ function highlightJSON(line) {
+ line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+ return line
+ .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
+ .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
+ .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
+ .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
+ .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
+ }
+
+ function renderJSONWithoutHighlight(data, filter = '') {
+ const formatted = JSON.stringify(data, null, 2);
+ return formatted.split('\n')
+ .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
+ .map(line => {
+ const highlighted = highlightJSON(line);
+ return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
+ }).join('');
+ }
+
+ function filterDaemonSetYaml() {
+ if (!currentDaemonSet) return;
+ const filterInput = document.getElementById('daemonSetYamlFilter');
+ const filterValue = filterInput ? filterInput.value : '';
+ viewer.innerHTML = renderJSONWithoutHighlight(currentDaemonSet.raw, filterValue);
+ }
+
+ function resetPodIndicators() {
+ const indicators = document.querySelectorAll('[id^="daemonset-indicator-"]');
+ indicators.forEach(icon => {
+ icon.classList.remove('fa-caret-up', 'fa-caret-down');
+ });
+ }
+ window.sortDaemonSetsBy = function(key) {
+ if (currentSort.key === key) {
+ currentSort.direction = -currentSort.direction;
+ } else {
+ currentSort.key = key;
+ currentSort.direction = 1;
+ }
+ resetPodIndicators();
+
+ const icon = document.getElementById(`daemonset-indicator-${key}`);
+ if (icon) {
+ icon.classList.add('fa', currentSort.direction === 1 ? 'fa-caret-up' : 'fa-caret-down');
+ }
+ daemonsetCurrentPage = 1;
+ applyFiltersAndRender();
+ }
+
+ var showEmptyNamespacesCheckbox = document.getElementById('show-empty-namespaces');
+
+ function applyFiltersAndRender() {
+ const showEmpty = showEmptyNamespacesCheckbox.checked;
+ flattenDaemonSets(showEmpty);
+
+ let filtered = [...flattenedDaemonSets];
+
+ const selectedNamespace = namespaceDaemonSetFilter.value;
+ if (selectedNamespace) {
+ filtered = filtered.filter(ds => ds.namespace === selectedNamespace);
+ }
+
+ const searchTerm = searchDaemonSetInput.value.trim().toLowerCase();
+ if (searchTerm) {
+ filtered = filtered.filter(ds =>
+ JSON.stringify(ds).toLowerCase().includes(searchTerm)
+ );
+ }
+
+ if (currentSort.key) {
+ filtered.sort((a, b) => {
+ let valA = a[currentSort.key];
+ let valB = b[currentSort.key];
+ if (currentSort.key === 'age') {
+ valA = a.age_seconds || 0;
+ valB = b.age_seconds || 0;
+ return (valA - valB) * currentSort.direction;
+ }
+ if (valA === '-') return 1;
+ if (valB === '-') return -1;
+ return (valA > valB ? 1 : valA < valB ? -1 : 0) * currentSort.direction;
+ });
+ }
+
+ renderDaemonSetTable(filtered);
+ }
+
+ function parseAge(age) {
+ const num = parseInt(age);
+ if (age.endsWith('d')) return num * 86400;
+ if (age.endsWith('h')) return num * 3600;
+ if (age.endsWith('m')) return num * 60;
+ return num;
+ }
+
+ window.backFromDaemonModal = function() {
+ daemonSetDetailsPanel.style.setProperty('display', 'none', 'important');
+ daemonSetPanel.style.setProperty('display', 'grid', 'important');
+ viewer.innerHTML = '';
+
+ const yamlFilterInput = document.getElementById('daemonSetYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ }
+
+ // Scroll back to the last clicked row
+ if (lastClickedRow) {
+ setTimeout(() => {
+ lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
+ }, 0);
+ }
+ }
+
+ namespaceDaemonSetFilter.addEventListener("change", () => {
+ daemonsetCurrentPage = 1;
+ applyFiltersAndRender();
+ });
+
+ searchDaemonSetInput.addEventListener("input", () => {
+ daemonsetCurrentPage = 1;
+ applyFiltersAndRender();
+ });
+ showEmptyNamespacesCheckbox.addEventListener("change", () => {
+ daemonsetCurrentPage = 1;
+ updateNamespaceFilterOptions(showEmptyNamespacesCheckbox.checked);
+ applyFiltersAndRender();
+ });
+
+ updateNamespaceFilterOptions(showEmptyNamespacesCheckbox.checked);
+ applyFiltersAndRender();
+
+</script>

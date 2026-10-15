@@ -1,0 +1,22 @@
+[
+  {
+    "title": "Runbook: Synthetic Service 🚀",
+    "content": "# Runbook: Synthetic Service 🚀\n\nSome *Markdown* with **bold**, a [link](https://example.invalid/docs), and `inline code`.\n\n```bash\n# restart the synthetic service\nsystemctl restart synthetic.service && echo \"done ✓\"\n```\n\n```mermaid\ngraph TD\n  A[Request] -->|validate| B{Valid?}\n  B -- yes --> C[Import]\n  B -- no --> D[Error]\n```\n\n| Column | Value |\n|--------|-------|\n| unicode | ünïcödé – 日本語 – العربية |\n| emoji | 📝 ✅ 🔥 |\n| escapes | tabs\there and \"quotes\" and back\\slash |\n\nTrailing whitespace line   \nFinal line without newline",
+    "category": "Runbooks",
+    "locked": false
+  },
+  {
+    "title": "Notes – ünïcödé 日本語",
+    "content": "Plain notes body\nwith two lines",
+    "category": "Notes",
+    "locked": true
+  },
+  {
+    "title": "Content-only (no category)",
+    "content": "This one has no category and lands in General"
+  },
+  {
+    "title": "Title-only document",
+    "category": "Runbooks"
+  }
+]

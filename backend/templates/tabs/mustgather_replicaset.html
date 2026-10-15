@@ -1,0 +1,475 @@
+<div id="replicaSetPanel" class="grid grid-cols-1 gap-4">
+ <div class="panel rounded-lg shadow-sm w-full">
+ <div class="mb-2">
+ <label class="inline-flex items-center text-xs font-semibold">
+ <input type="checkbox" id="show-empty-namespaces" class="form-checkbox">
+ <span class="ml-2">Show Empty Namespaces</span>
+ </label>
+ </div>
+ <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
+ <div>
+ <label for="replicaSetNamespaceFilter" class="block text-xs font-semibold mb-1">Namespaces</label>
+ <select id="replicaSetNamespaceFilter" class="w-full px-3 py-2 text-sm border">
+ <option value="">All</option>
+ </select>
+ </div>
+ <div class="md:col-span-7">
+ <label for="replicaSetSearchInput" class="block text-xs font-semibold mb-1">Search All</label>
+ <input id="replicaSetSearchInput" type="text" placeholder="Search replica sets..." class="w-full px-3 py-2 text-sm border" />
+ </div>
+ </div>
+ <div class="flex justify-between items-center mb-2">
+ <div id="filteredReplicaSetCount" class="text-sm">Showing all replica sets</div>
+ <div class="flex items-center gap-2">
+ <label class="text-xs font-semibold">Per Page:</label>
+ <select id="replicasetPageSizeSelect" onchange="window.changeReplicasetPageSize()" class="px-3 py-1 text-sm border">
+ <option value="50">50</option>
+ <option value="100" selected>100</option>
+ <option value="250">250</option>
+ <option value="-1">All</option>
+ </select>
+ </div>
+ </div>
+ <table class="w-full min-w-full text-sm rounded-lg shadow-md">
+ <thead class="border-b">
+ <tr>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortReplicaSetsBy('namespace')">Namespace <i id="replicaset-indicator-namespace" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortReplicaSetsBy('name')">Name <i id="replicaset-indicator-name" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortReplicaSetsBy('replicas')">Replicas <i id="replicaset-indicator-replicas" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortReplicaSetsBy('available')">Available <i id="replicaset-indicator-available" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortReplicaSetsBy('ready')">Ready <i id="replicaset-indicator-ready" class="ml-1 fas text-sm"></i></th>
+ <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortReplicaSetsBy('age')">Age <i id="replicaset-indicator-age" class="ml-1 fas text-sm"></i></th>
+ </tr>
+ </thead>
+ <tbody id="replicaSetTableBody"></tbody>
+ </table>
+ <div id="replicasetPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ </div>
+</div>
+
+<div id="replicaSetDetailsPanel" style="display: none;">
+ <div class="space-y-4">
+ <div class="mb-4">
+ <button onclick="window.backFromReplicaModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ Back
+ </button>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-info-circle mr-2"></i> Replica Set Details
+ </h3>
+ <div class="overflow-x-auto">
+ <table class="min-w-full text-sm" id="replicaSetDetailsTable"></table>
+ </div>
+ </div>
+
+ <div class="panel rounded-lg shadow-sm">
+ <h2 class="text-lg font-medium flex items-center mb-2">
+ <i class="fas fa-file mr-2"></i> Replica Set YAML
+ </h2>
+ <div class="mb-2">
+ <input
+ id="replicaSetYamlFilter"
+ type="text"
+ placeholder="Filter YAML lines..."
+ class="w-full px-3 py-2 text-sm border"
+ />
+ </div>
+ <div id="replicaSetJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
+ </div>
+ </div>
+</div>
+
+<script>
+ var replicaSetsData = {{ data | tojson }};
+ var flattenedReplicaSets = [];
+ var currentSort = { key:"name", direction: 1 };
+ var replicasetCurrentPage = 1;
+ var replicasetPageSize = 100;
+
+ var replicaSetPanel = document.getElementById("replicaSetPanel");
+ var replicaSetJsonViewer = document.getElementById("replicaSetJsonViewer");
+ var replicaSetDetailsTable = document.getElementById("replicaSetDetailsTable");
+ var replicaSetNamespaceFilter = document.getElementById("replicaSetNamespaceFilter");
+ var currentReplicaSet = null;
+ var lastClickedRow = null;
+
+ var showEmptyNamespacesCheckbox = document.getElementById("show-empty-namespaces")
+
+
+ function getAge(ageSeconds) {
+ if (ageSeconds === undefined || ageSeconds === null) return '-';
+ const seconds = Math.abs(ageSeconds);
+ const intervals = [
+ [31536000,"y"],
+ [2592000,"mo"],
+ [86400,"d"],
+ [3600,"h"],
+ [60,"m"],
+ [1,"s"],
+ ];
+ for (const [interval, label] of intervals) {
+ const count = Math.floor(seconds / interval);
+ if (count >= 1) return count + label;
+ }
+ return"0s";
+ }
+
+ flattenReplicaSets(showEmptyNamespacesCheckbox.checked);
+
+ var allNamespaces = Object.keys(replicaSetsData);
+
+
+ function renderReplicaSetTable(data) {
+ const body = document.getElementById("replicaSetTableBody");
+ body.innerHTML ="";
+
+ const totalCount = data.length;
+ const start = replicasetPageSize === -1 ? 0 : (replicasetCurrentPage - 1) * replicasetPageSize;
+ const end = replicasetPageSize === -1 ? totalCount : Math.min(start + replicasetPageSize, totalCount);
+ const paginatedData = replicasetPageSize === -1 ? data : data.slice(start, end);
+
+ paginatedData.forEach(rs => {
+ const row = document.createElement("tr");
+ row.className = "cursor-pointer border-b hover:bg-gray-50 dark:hover:bg-gray-800";
+
+ if(rs.name ==="No Replica Sets") {
+ row.className = "border-b";
+ }
+
+ row.innerHTML = `
+ <td class="px-4 py-2">${rs.namespace}</td>
+ <td class="px-4 py-2">${rs.name}</td>
+ <td class="px-4 py-2">${rs.replicas}</td>
+ <td class="px-4 py-2">${rs.available}</td>
+ <td class="px-4 py-2">${rs.ready}</td>
+ <td class="px-4 py-2">${rs.age}</td>
+ `;
+
+ if (!rs.isPlaceholder) {
+ row.onclick = () => {
+ lastClickedRow = row;
+ showReplicaSetDetails(rs);
+ };
+ }
+
+ body.appendChild(row);
+ });
+
+ const countText = replicasetPageSize === -1
+ ? `Showing all ${totalCount} replica sets`
+ : `Showing ${start + 1}-${end} of ${totalCount} replica sets`;
+ document.getElementById("filteredReplicaSetCount").textContent = countText;
+
+ updateReplicasetPagination(totalCount);
+ }
+
+ function updateReplicasetPagination(totalCount) {
+ const container = document.getElementById("replicasetPaginationControls");
+ if (!container) return;
+
+ if (replicasetPageSize === -1 || totalCount <= replicasetPageSize) {
+ container.innerHTML ="";
+ return;
+ }
+
+ const totalPages = Math.ceil(totalCount / replicasetPageSize);
+ let html ="";
+
+ html += `<button onclick="window.goToReplicasetPage(1)" ${replicasetCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${replicasetCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">First</button>`;
+ html += `<button onclick="window.goToReplicasetPage(${replicasetCurrentPage - 1})" ${replicasetCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${replicasetCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Prev</button>`;
+
+ const startPage = Math.max(1, replicasetCurrentPage - 2);
+ const endPage = Math.min(totalPages, replicasetCurrentPage + 2);
+
+ for (let i = startPage; i <= endPage; i++) {
+ if (i === replicasetCurrentPage) {
+ html += `<button class="px-3 py-1 text-sm bg-blue-700 text-white font-bold current-page">${i}</button>`;
+ } else {
+ html += `<button onclick="window.goToReplicasetPage(${i})" class="px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700">${i}</button>`;
+ }
+ }
+
+ html += `<button onclick="window.goToReplicasetPage(${replicasetCurrentPage + 1})" ${replicasetCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${replicasetCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Next</button>`;
+ html += `<button onclick="window.goToReplicasetPage(${totalPages})" ${replicasetCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${replicasetCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Last</button>`;
+
+ container.innerHTML = html;
+ }
+
+ window.goToReplicasetPage = function(page) {
+ replicasetCurrentPage = page;
+ applyReplicaSetFiltersAndRender();
+ }
+
+ window.changeReplicasetPageSize = function() {
+ const select = document.getElementById("replicasetPageSizeSelect");
+ replicasetPageSize = parseInt(select.value);
+ replicasetCurrentPage = 1;
+ applyReplicaSetFiltersAndRender();
+ }
+
+ function showReplicaSetDetails(rs) {
+ currentReplicaSet = rs;
+
+ replicaSetJsonViewer.innerHTML = renderJSONWithoutHighlight(rs.raw);
+ document.getElementById("replicaSetPanel").style.setProperty('display', 'none', 'important');
+ document.getElementById("replicaSetDetailsPanel").style.setProperty('display', 'grid', 'important');
+
+ // Scroll to top - find the scrollable parent by walking up the DOM
+ setTimeout(() => {
+ function findScrollableParent(element) {
+ let parent = element.parentElement;
+ while (parent) {
+ const overflow = window.getComputedStyle(parent).overflow;
+ const overflowY = window.getComputedStyle(parent).overflowY;
+ if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
+ parent.scrollHeight > parent.clientHeight) {
+ return parent;
+ }
+ parent = parent.parentElement;
+ }
+ return null;
+ }
+
+ const detailsPanel = document.getElementById("replicaSetDetailsPanel");
+ const scrollableParent = findScrollableParent(detailsPanel);
+ if (scrollableParent) {
+ scrollableParent.scrollTo({top: 0, behavior: 'instant'});
+ }
+ }, 0);
+
+ replicaSetDetailsTable.innerHTML = `
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Name:</td><td class="py-2">${rs.name}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Namespace:</td><td class="py-2">${rs.namespace}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Replicas:</td><td class="py-2">${rs.replicas}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Available Replicas:</td><td class="py-2">${rs.available || 0}</td></tr>
+ <tr class="border-b"><td class="py-2 pr-4 font-semibold">Ready Replicas:</td><td class="py-2">${rs.ready || 0}</td></tr>
+ <tr><td class="py-2 pr-4 font-semibold">Age:</td><td class="py-2">${rs.age || '-'}</td></tr>
+ `;
+
+ // Setup YAML filter
+ const yamlFilterInput = document.getElementById('replicaSetYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ yamlFilterInput.removeEventListener('input', filterReplicaSetYaml);
+ yamlFilterInput.addEventListener('input', filterReplicaSetYaml);
+ }
+ }
+
+
+ function highlightJSON(line) {
+ line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+ return line
+ .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
+ .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
+ .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
+ .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
+ .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
+ }
+
+ function renderJSONWithoutHighlight(data, filter = '') {
+ const formatted = JSON.stringify(data, null, 2);
+ return formatted.split('\n')
+ .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
+ .map(line => {
+ const highlighted = highlightJSON(line);
+ return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
+ }).join('');
+ }
+
+ function filterReplicaSetYaml() {
+ if (!currentReplicaSet) return;
+ const filterInput = document.getElementById('replicaSetYamlFilter');
+ const filterValue = filterInput ? filterInput.value : '';
+ replicaSetJsonViewer.innerHTML = renderJSONWithoutHighlight(currentReplicaSet.raw, filterValue);
+ }
+
+
+ function resetPodIndicators() {
+ const indicators = document.querySelectorAll('[id^="replicaset-indicator-"]');
+ indicators.forEach(icon => {
+ icon.classList.remove('fa-caret-up', 'fa-caret-down');
+ });
+ }
+ window.sortReplicaSetsBy = function(key) {
+ if (currentSort.key === key) {
+ currentSort.direction *= -1;
+ } else {
+ currentSort.key = key;
+ currentSort.direction = 1;
+ }
+ resetPodIndicators();
+
+ const icon = document.getElementById(`replicaset-indicator-${key}`);
+ if (icon) {
+ icon.classList.add('fa', currentSort.direction === 1 ? 'fa-caret-up' : 'fa-caret-down');
+ }
+ replicasetCurrentPage = 1;
+ applyReplicaSetFiltersAndRender();
+ }
+
+ function applyReplicaSetFiltersAndRender() {
+ const nsFilter = document.getElementById("replicaSetNamespaceFilter").value;
+ const searchTerm = document.getElementById("replicaSetSearchInput").value.toLowerCase();
+ const showEmptyNamespaces = document.getElementById("show-empty-namespaces").checked;
+
+ let filtered = flattenedReplicaSets;
+
+ if (nsFilter) {
+ filtered = filtered.filter(r => r.namespace === nsFilter);
+ }
+
+ if (searchTerm) {
+ filtered = filtered.filter(r => {
+ const fullText = JSON.stringify(r).toLowerCase();
+ return fullText.includes(searchTerm);
+ });
+ }
+
+ const groupedByNamespace = {};
+ filtered.forEach(r => {
+ if (!groupedByNamespace[r.namespace]) groupedByNamespace[r.namespace] = [];
+ groupedByNamespace[r.namespace].push(r);
+ });
+
+ if (showEmptyNamespaces) {
+ const visibleNamespaces = nsFilter ? [nsFilter] : allNamespaces;
+
+ visibleNamespaces.forEach(ns => {
+ if (!groupedByNamespace[ns]) {
+ groupedByNamespace[ns] = [{
+ namespace: ns,
+ name:"No Replica Sets",
+ replicas:"-",
+ available:"-",
+ ready:"-",
+ age:"-"
+ }];
+ }
+ });
+ }
+
+ const finalList = Object.values(groupedByNamespace).flat();
+
+ finalList.sort((a, b) => {
+ const key = currentSort.key;
+ const dir = currentSort.direction;
+
+ if (key ==="replicas" || key ==="ready" || key ==="available") {
+ return ((a[key] || 0) - (b[key] || 0)) * dir;
+ }
+
+ if (key ==="age") {
+ const ageA = a.age_seconds || 0;
+ const ageB = b.age_seconds || 0;
+ return (ageA - ageB) * dir;
+ }
+
+ return (a[key] ||"").localeCompare(b[key] ||"") * dir;
+ });
+
+ renderReplicaSetTable(finalList);
+ }
+
+
+ function flattenReplicaSets(showEmpty) {
+ flattenedReplicaSets = [];
+
+ Object.entries(replicaSetsData).forEach(([ns, sets]) => {
+ const entries = Object.entries(sets);
+
+ if (entries.length === 0 && showEmpty) {
+ flattenedReplicaSets.push({
+ namespace: ns,
+ name:"No Replica Sets",
+ replicas:"-",
+ available:"-",
+ ready:"-",
+ age:"-"
+ });
+ return;
+ }
+
+ entries.forEach(([name, rs]) => {
+ const meta = rs.metadata || {};
+ const spec = rs.spec || {};
+ const status = rs.status || {};
+
+ flattenedReplicaSets.push({
+ namespace: ns,
+ name,
+ replicas: spec.replicas || 0,
+ available: status.availableReplicas || 0,
+ ready: status.readyReplicas || 0,
+ age: getAge(rs._age_seconds),
+ age_seconds: rs._age_seconds || 0,
+ raw: rs
+ });
+ });
+ });
+ }
+
+
+ window.backFromReplicaModal = function() {
+ document.getElementById("replicaSetDetailsPanel").style.setProperty('display', 'none', 'important');
+ document.getElementById("replicaSetPanel").style.setProperty('display', 'grid', 'important');
+
+ const yamlFilterInput = document.getElementById('replicaSetYamlFilter');
+ if (yamlFilterInput) {
+ yamlFilterInput.value = '';
+ }
+
+ // Scroll back to the last clicked row
+ if (lastClickedRow) {
+ setTimeout(() => {
+ lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
+ }, 0);
+ }
+ }
+
+ var nsSet = new Set(flattenedReplicaSets.map(r => r.namespace));
+ var nsSelect = document.getElementById("replicaSetNamespaceFilter");
+ nsSet.forEach(ns => {
+ const opt = document.createElement("option");
+ opt.value = ns;
+ opt.textContent = ns;
+ nsSelect.appendChild(opt);
+ });
+
+ function updateNamespaceFilterOptions(showEmpty) {
+ while (replicaSetNamespaceFilter.options.length > 1) {
+ replicaSetNamespaceFilter.remove(1);
+ }
+
+ flattenReplicaSets(showEmpty);
+
+ const namespaces = new Set(flattenedReplicaSets.map(d => d.namespace));
+
+ namespaces.forEach(ns => {
+ const option = document.createElement("option");
+ option.value = ns;
+ option.textContent = ns;
+ replicaSetNamespaceFilter.appendChild(option);
+ });
+ }
+
+
+ document.getElementById("replicaSetNamespaceFilter").onchange = () => {
+ replicasetCurrentPage = 1;
+ applyReplicaSetFiltersAndRender();
+ };
+ document.getElementById("replicaSetSearchInput").oninput = () => {
+ replicasetCurrentPage = 1;
+ applyReplicaSetFiltersAndRender();
+ };
+
+ showEmptyNamespacesCheckbox.addEventListener('change', () => {
+ replicasetCurrentPage = 1;
+ updateNamespaceFilterOptions(showEmptyNamespacesCheckbox.checked);
+ applyReplicaSetFiltersAndRender();
+ });
+
+ updateNamespaceFilterOptions(showEmptyNamespacesCheckbox.checked);
+ applyReplicaSetFiltersAndRender();
+</script>

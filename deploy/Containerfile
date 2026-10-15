@@ -1,0 +1,153 @@
+# Jacarium in a browser: one UBI 9 image with the built UI, the
+# Flask backend under gunicorn, the central server (jacarium-central/, the
+# team features: Node) behind /central, and Caddy in front (HTTPS, same
+# origin) - one container, one volume.
+#
+#   podman build -f deploy/Containerfile -t jacarium:latest .
+#   deploy/deploy-podman.sh            (build + run; see docs/SELF_HOSTING.md)
+#
+# Everything that must survive a restart lives on the /data volume: the
+# accounts database, every account's own files under users/<id> (settings,
+# Taskwarrior data, SSH known_hosts and identities, the RAG index, reports),
+# the server-default settings (settings.env), the TLS certificate and the shared sosreports / must-gathers that
+# Diagnostics browses (reports/), and the central server's state under
+# central/ (its client registry and encrypted Yjs snapshots in central/data,
+# the Yjs encryption key and the account-ticket key in central/keys - both
+# generated on first start when missing). The app's own documents, tasks,
+# kanban boards etc. stay in the browser's IndexedDB (one database per
+# account), as on the desktop.
+#
+# JACARIUM_AUTH_MODE=accounts (the default): sign-in required; the
+# first start prints a one-time setup code (also /data/setup-code) that
+# creates the administrator. JACARIUM_AUTH_MODE=none: the earlier
+# open deployment - one shared set of files, anyone who can reach the port.
+#
+# Base images are pinned by digest. The versions chosen were published at
+# least a week before this file was written (the same release-age rule
+# .npmrc applies to npm packages).
+
+# ---------------------------------------------------------------------------
+# UI build (Vite) - node 24.20.0 (2026-08-27)
+# ---------------------------------------------------------------------------
+FROM docker.io/library/node:24.20.0-bookworm-slim@sha256:e9b5516b06baeaea9a8e65a7aec6a85fbb960a30b52b66968f2c8092b3e2a3eb AS ui
+WORKDIR /src
+# bash: scripts/build-ui.sh; git: optional for the What's New page
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends bash git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json .npmrc ./
+COPY scripts ./scripts
+# postinstall copies the vendored assets into backend/static/vendor
+RUN mkdir -p backend/static && npm ci --no-audit --no-fund
+COPY . .
+RUN npm run build
+# The central server's production dependencies, exactly the locked versions
+# (its own lock file; .npmrc's release-age rule applies here too).
+RUN cd jacarium-central && npm ci --omit=dev --no-audit --no-fund
+# Project label (last, so it costs no cached layer): the untagged image a
+# stage leaves behind carries only its own labels, and deploy/prune-images.sh
+# removes superseded ones by this label - never anything else on the machine.
+LABEL com.jacarium.image=deploy com.jacarium.stage=ui
+
+# ---------------------------------------------------------------------------
+# Taskwarrior 2.6.2 from source: EPEL 9 does not carry it, and the backend
+# is verified against 2.6 (the version Debian / Ubuntu ship).
+# ---------------------------------------------------------------------------
+FROM registry.access.redhat.com/ubi9/python-314:1-1788315051@sha256:e37299619160cddc01c9bc2178f2cb8fe6abb2b759cdc823466720d660c1f7ff AS taskwarrior
+USER 0
+RUN dnf -y install gcc-c++ cmake make libuuid-devel \
+ && dnf clean all
+WORKDIR /build
+ARG TASKWARRIOR_VERSION=2.6.2
+ARG TASKWARRIOR_SHA256=b1d3a7f000cd0fd60640670064e0e001613c9e1cb2242b9b3a9066c78862cfec
+RUN curl -fsSL -o task.tar.gz "https://github.com/GothenburgBitFactory/taskwarrior/releases/download/v${TASKWARRIOR_VERSION}/task-${TASKWARRIOR_VERSION}.tar.gz" \
+ && echo "${TASKWARRIOR_SHA256}  task.tar.gz" | sha256sum -c - \
+ && tar xzf task.tar.gz \
+ && cd "task-${TASKWARRIOR_VERSION}" \
+ && cmake -DCMAKE_BUILD_TYPE=release -DENABLE_SYNC=OFF -DCMAKE_INSTALL_PREFIX=/opt/taskwarrior . \
+ && make -j"$(nproc)" \
+ && make install
+LABEL com.jacarium.image=deploy com.jacarium.stage=taskwarrior
+
+# ---------------------------------------------------------------------------
+# Caddy 2.11.7 (2026-10-06): a static binary, copied into the UBI image
+# ---------------------------------------------------------------------------
+FROM docker.io/library/caddy:2.11.7@sha256:84058f1a0e5beb97664a9b79dcfd267b594c033d5bb88d8463cdfb59c0779197 AS caddy
+
+# ---------------------------------------------------------------------------
+# Runtime - ubi9/python-314 1-1788315051 (2026-09-02): Python 3.14, the same
+# minor version as the desktop venv, so backend/requirements.lock is one set
+# of wheels for both
+# ---------------------------------------------------------------------------
+FROM registry.access.redhat.com/ubi9/python-314:1-1788315051@sha256:e37299619160cddc01c9bc2178f2cb8fe6abb2b759cdc823466720d660c1f7ff
+LABEL org.opencontainers.image.title="Jacarium" \
+      org.opencontainers.image.description="Jacarium UI + backend behind Caddy (HTTPS)" \
+      org.opencontainers.image.url="https://jacarium.com"
+
+USER 0
+# openssh-clients: the workflow SSH node runs the ssh binary; sshpass (EPEL)
+# for password logins; openssl generates the self-signed certificate.
+RUN dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
+ && dnf -y install openssh-clients sshpass openssl \
+ && dnf clean all \
+ && rm -rf /var/cache/dnf
+
+COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy
+COPY --from=taskwarrior /opt/taskwarrior/bin/task /usr/local/bin/task
+# Node for the central server: the official binary the UI build stage runs
+# (nodejs.org builds depend on glibc >= 2.28 and libstdc++ only, both in
+# UBI 9), the same Node 24 the desktop build uses.
+COPY --from=ui /usr/local/bin/node /usr/local/bin/node
+
+WORKDIR /app
+# requirements.lock pins every package to the versions the desktop venv and
+# the PyInstaller build use (backend/lock-requirements.sh regenerates it).
+COPY backend/requirements.txt backend/requirements.lock /app/backend/
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -r /app/backend/requirements.txt -c /app/backend/requirements.lock
+
+COPY backend /app/backend
+# the version the server reports (package.json) and the protocol it speaks (protocol.json)
+COPY package.json protocol.json /app/
+COPY --from=ui /src/backend/static/vendor /app/backend/static/vendor
+COPY --from=ui /src/dist /app/ui
+# the central server (jacarium-central/: its own Node project, unchanged)
+# and its production node_modules from the build stage
+COPY jacarium-central /app/central
+COPY --from=ui /src/jacarium-central/node_modules /app/central/node_modules
+COPY deploy/Caddyfile /app/Caddyfile
+COPY deploy/entrypoint.sh /app/entrypoint.sh
+RUN chmod 0755 /app/entrypoint.sh \
+ && mkdir -p /data \
+ && chown -R 1001:0 /app /data \
+ && chmod -R g=u /app /data
+
+USER 1001
+ENV HOME=/data \
+    PORT=8080 \
+    JACARIUM_AUTH_MODE=accounts \
+    JACARIUM_ENV_FILE=/data/.jacarium.env \
+    JACARIUM_REPORTS_ROOT=/data/reports \
+    JACARIUM_KNOWN_HOSTS=/data/.ssh/known_hosts \
+    TLS_CERT_FILE=/data/certs/cert.pem \
+    TLS_KEY_FILE=/data/certs/key.pem \
+    HTTPS_PORT=8443
+# The central server runs inside this container on 127.0.0.1:3000 and Caddy
+# forwards /central/* to it (deploy/entrypoint.sh starts and supervises it,
+# generates its keys under /data/central/keys on first start and hands the
+# account-ticket key to the backend). JACARIUM_CENTRAL=off runs the
+# container without it (no /central route, no team features);
+# CENTRAL_UPSTREAM=host:port forwards /central to a central server running
+# elsewhere instead of the embedded one (the 3.1 two-container shape).
+
+VOLUME ["/data"]
+EXPOSE 8443
+# Unhealthy when EITHER the console or the central server behind it is down
+# (the entrypoint keeps the central route only while the central server is
+# expected, so the second check is skipped when it is switched off).
+HEALTHCHECK --interval=30s --timeout=8s --start-period=30s --retries=3 \
+  CMD curl -fsk "https://127.0.0.1:${HTTPS_PORT}/health" >/dev/null \
+   && { [ ! -f /tmp/central.expected ] || curl -fsk "https://127.0.0.1:${HTTPS_PORT}/central/api/health" >/dev/null; } || exit 1
+
+LABEL com.jacarium.image=deploy com.jacarium.stage=app
+ENTRYPOINT ["/app/entrypoint.sh"]

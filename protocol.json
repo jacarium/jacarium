@@ -1,0 +1,4 @@
+{
+  "protocol": 2,
+  "about": "The compatibility version shared by the desktop app and the home server: the synchronisation API (/api/sync), the sign-in and device-token API (/api/auth), the account identity on the central server and, since protocol 2 (Jacarium 3.1), the central server provided behind the home server at /central with account tickets (/api/auth/central-ticket). Bump it only for a change an older desktop or server could not follow; the app version in package.json changes with every release."
+}

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Theme harness (tests only)</title>
+  </head>
+  <body>
+    <!--
+      Served by the Vite dev server at /tests/helpers/theme-harness.html for
+      tests/export-import-theme.test.mjs. Mounts the REAL export/import modals
+      with synthetic data so they can be measured and screenshotted in both
+      themes without booting the whole app (the DB import modal is only
+      reachable through the Electron menu). Not part of the app bundle.
+    -->
+    <div id="root"></div>
+    <script type="module" src="./theme-harness-entry.jsx"></script>
+  </body>
+</html>
