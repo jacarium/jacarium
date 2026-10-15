@@ -58,10 +58,12 @@ Get it from the [latest release](https://github.com/jacarium/jacarium/releases/l
 | System | File |
 |---|---|
 | macOS, Apple silicon (M1 and later) | `Jacarium-<version>-arm64.dmg` |
-| macOS, Intel | `Jacarium-<version>.dmg` |
 | Linux, x64 | `Jacarium-<version>.AppImage` or `jacarium_<version>_amd64.deb` |
 | Linux, ARM64 | `Jacarium-<version>-arm64.AppImage` or `jacarium_<version>_arm64.deb` |
 
+- **Intel Macs**: there is no desktop download (a library the AI document
+  search needs is only built for Apple silicon); use a self-hosted Jacarium
+  in your browser instead.
 - **macOS**: the app isn't signed by Apple yet, so the first time macOS says
   it can't be opened. Open **System Settings > Privacy & Security** and click
   **Open Anyway** next to Jacarium.
