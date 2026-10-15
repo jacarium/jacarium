@@ -29,8 +29,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: linux-x64,   runner: ubuntu-24.04,     platform: linux, format: 'AppImage deb' }
-          - { name: linux-arm64, runner: ubuntu-24.04-arm, platform: linux, format: 'AppImage deb' }
+          - { name: linux-x64,   runner: ubuntu-24.04,     platform: linux, format: 'AppImage deb rpm' }
+          - { name: linux-arm64, runner: ubuntu-24.04-arm, platform: linux, format: 'AppImage deb rpm' }
           - { name: macos-arm64, runner: macos-26,         platform: mac,   format: dmg }
     steps:
       - name: Check out
@@ -47,6 +47,12 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
+
+      - name: Linux packaging tools (rpmbuild, from Ubuntu's own archive)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends rpm
 
       - name: The tag matches package.json
         if: startsWith(github.ref, 'refs/tags/')
@@ -71,6 +77,7 @@ jobs:
             dist-electron/*.dmg
             dist-electron/*.AppImage
             dist-electron/*.deb
+            dist-electron/*.rpm
           if-no-files-found: error
           retention-days: 7
 

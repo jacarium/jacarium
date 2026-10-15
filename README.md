@@ -58,8 +58,8 @@ Get it from the [latest release](https://github.com/jacarium/jacarium/releases/l
 | System | File |
 |---|---|
 | macOS, Apple silicon (M1 and later) | `Jacarium-<version>-arm64.dmg` |
-| Linux, x64 | `Jacarium-<version>.AppImage` or `jacarium_<version>_amd64.deb` |
-| Linux, ARM64 | `Jacarium-<version>-arm64.AppImage` or `jacarium_<version>_arm64.deb` |
+| Linux, x64 | `Jacarium-<version>.AppImage`, `jacarium_<version>_amd64.deb` or `jacarium-<version>.x86_64.rpm` |
+| Linux, ARM64 | `Jacarium-<version>-arm64.AppImage`, `jacarium_<version>_arm64.deb` or `jacarium-<version>.aarch64.rpm` |
 
 - **Intel Macs**: there is no desktop download (a library the AI document
   search needs is only built for Apple silicon); use a self-hosted Jacarium
@@ -68,7 +68,10 @@ Get it from the [latest release](https://github.com/jacarium/jacarium/releases/l
   it can't be opened. Open **System Settings > Privacy & Security** and click
   **Open Anyway** next to Jacarium.
 - **Linux**: make the AppImage executable (`chmod +x Jacarium-*.AppImage`)
-  and run it, or install the package with `sudo apt install ./jacarium_*.deb`.
+  and run it, or install the package: `sudo apt install ./jacarium_*.deb`
+  (Debian, Ubuntu) or `sudo dnf install ./jacarium-*.rpm` (Fedora, RHEL).
+  The Linux builds need a recent distribution: Ubuntu 24.04, Debian 13,
+  Fedora 40, RHEL 10 or newer.
 - **Verify your download**: each release lists the files' SHA-256 checksums
   in `SHA256SUMS.txt`, and GitHub records where each file was built:
   `gh attestation verify <file> --repo jacarium/jacarium`.
