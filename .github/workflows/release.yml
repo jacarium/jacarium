@@ -274,16 +274,46 @@ jobs:
       # user, the OIDC token as the password) for a robot token valid for one
       # hour. Both tokens travel on stdin / in a curl config, never on a
       # command line, and the robot token is masked in the log.
-      - name: Sign in to quay.io (keyless, a one-hour robot token)
+      - name: Sign in to quay.io (keyless; a stored robot token only as a fallback)
+        env:
+          # Fallback only: if the quay environment has these secrets and the
+          # keyless exchange fails, they are used (with a warning). Without
+          # them a failed exchange fails the job.
+          QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
         run: |
+          token=""
           jwt="$(curl -sSf -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
                  "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=quay.io" | jq -r .value)"
-          [ -n "$jwt" ] && [ "$jwt" != null ] || { echo "::error::no OIDC token (is id-token: write set?)"; exit 1; }
-          token="$(printf 'user = "%s:%s"\n' "$QUAY_ROBOT" "$jwt" \
-                   | curl -sSf -K - https://quay.io/oauth2/federation/robot/token | jq -r .token)"
-          [ -n "$token" ] && [ "$token" != null ] || { echo "::error::quay.io did not exchange the OIDC token - check the robot federation (issuer and subject)"; exit 1; }
-          echo "::add-mask::$token"
-          printf '%s' "$token" | podman login quay.io -u "$QUAY_ROBOT" --password-stdin
+          if [ -n "$jwt" ] && [ "$jwt" != null ]; then
+            # what GitHub presents (not secret): Quay's federation must match iss, sub and aud
+            payload="$(printf '%s' "$jwt" | cut -d. -f2 | tr '_-' '/+')"
+            while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="${payload}="; done
+            echo "OIDC token: $(printf '%s' "$payload" | base64 -d 2>/dev/null | jq -c '{iss, sub, aud}' 2>/dev/null || echo '(could not decode)')"
+            # no -f: on an error Quay's response body says why (it holds no secret)
+            response="$(printf 'user = "%s:%s"\n' "$QUAY_ROBOT" "$jwt" \
+                        | curl -sS -w '\n%{http_code}' -K - https://quay.io/oauth2/federation/robot/token)" || true
+            status="${response##*$'\n'}"; body="${response%$'\n'*}"
+            token="$(printf '%s' "$body" | jq -r '.token // empty' 2>/dev/null || true)"
+            if [ "$status" != 200 ] || [ -z "$token" ]; then
+              token=""
+              echo "::warning::quay.io did not exchange the OIDC token (HTTP $status) - its answer follows; compare the robot federation (issuer, subject, audience) with the OIDC token above"
+              printf '%s' "$body" | jq -c 'del(.token)' 2>/dev/null || printf '%s\n' "$body" | head -c 500
+            fi
+          else
+            echo "::warning::no OIDC token (is id-token: write set?)"
+          fi
+          if [ -n "$token" ]; then
+            echo "::add-mask::$token"
+            printf '%s' "$token" | podman login quay.io -u "$QUAY_ROBOT" --password-stdin
+            echo "signed in keylessly"
+          elif [ -n "$QUAY_USERNAME" ] && [ -n "$QUAY_TOKEN" ]; then
+            echo "::warning::falling back to the stored robot token (QUAY_USERNAME / QUAY_TOKEN) - remove those secrets once keyless sign-in works"
+            printf '%s' "$QUAY_TOKEN" | podman login quay.io -u "$QUAY_USERNAME" --password-stdin
+          else
+            echo "::error::keyless sign-in failed and the quay environment has no QUAY_USERNAME / QUAY_TOKEN fallback"
+            exit 1
+          fi
 
       # --format v2s2 everywhere: the docker manifest format carries the
       # HEALTHCHECK; a list pushed as OCI would convert the images and drop it.
