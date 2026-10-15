@@ -43,10 +43,10 @@ function Harness() {
         </NoticeBanner>
         {/* Documents editor: the three notices */}
         <NoticeBanner tone="offline" title="Offline - Read Only" testId="document-offline-banner">
-          <span>Cloud documents require an online connection for editing. Reconnect to make changes.</span>
+          <span>Shared documents require an online connection for editing. Reconnect to make changes.</span>
         </NoticeBanner>
         <NoticeBanner tone="readonly" title="Read-only:" testId="document-readonly-banner">
-          <span>This cloud document is owned by another user. You can view but not edit.</span>
+          <span>This document is shared by another team member. You can view but not edit.</span>
         </NoticeBanner>
         <NoticeBanner tone="warning" title="Server copy unavailable:" testId="document-server-copy-banner">
           <span>This document could not be loaded from the server. You are viewing your local cached copy, read-only.</span>

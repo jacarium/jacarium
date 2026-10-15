@@ -8,7 +8,6 @@ import TabBar from './features/documents/TabBar';
 import { getBoards, getCards, createCard, updateCard, deleteCard, moveCard, reorderCards, createBoard, updateBoard, deleteBoard, getBoard, renameCategory, updateBoardCategory } from '../utils/kanban';
 import { uploadBoardToCentral, removeBoardFromCentral, isBoardOwner } from '../utils/cloudKanban';
 import { getMachineId } from '../utils/cloudCentralSync';
-import { syncNow } from '../utils/cloudSync';
 import { onConnectionStatusChange, getSocket } from '../utils/cloudWebSocket';
 import { getUserColor } from '../utils/userColors';
 import KanbanBoardList from './kanban/KanbanBoardList';
@@ -43,7 +42,6 @@ export default function KanbanPage() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedBoards, setSelectedBoards] = useState([]);
   const [centralServerStatus, setCentralServerStatus] = useState(null);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [sortBy, setSortBy] = useLocalStorage('kanbanSortBy', 'date');
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -144,7 +142,9 @@ export default function KanbanPage() {
         return;
       }
 
-      const hasWritePermission = await isBoardOwner(currentBoard);
+      // The server has the last word: a refused edit means no write access
+      // whatever the local copy's permissions say
+      const hasWritePermission = (await isBoardOwner(currentBoard)) && !yjs.writeRejected;
       setIsReadOnly(!hasWritePermission);
 
       if (!hasWritePermission) {
@@ -153,7 +153,19 @@ export default function KanbanPage() {
     }
 
     checkPermissions();
-  }, [currentBoard, isOnline]);
+  }, [currentBoard, isOnline, yjs.writeRejected]);
+
+  // The server refused this identity's edit to the board: say so once (the
+  // hook has already resynced the board from the server, dropping the edit)
+  useEffect(() => {
+    if (!yjs.writeRejected) return;
+    addNotification({
+      type: 'warning',
+      title: 'Read-only',
+      message: 'You can view this board but not edit it.'
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [yjs.writeRejected]);
 
   // Set user info for Yjs awareness (only when board or machine ID changes)
   useEffect(() => {
@@ -1225,12 +1237,11 @@ export default function KanbanPage() {
 
   async function handleBoardUpload(board) {
     try {
+      const wasShared = !!board.inCloud;
       await uploadBoardToCentral(board);
-      addNotification({
-        type: 'success',
-        title: 'Board Uploaded',
-        message: `"${board.title}" has been uploaded to the cloud`
-      });
+      addNotification(wasShared
+        ? { type: 'success', title: 'Changes Synced', message: `Your changes to "${board.title}" are now with the team` }
+        : { type: 'success', title: 'Shared with the Team', message: `"${board.title}" is now shared with your team` });
 
       // Trigger board reload to update cloud status in UI
       // Use setTimeout to ensure IndexedDB transaction completes
@@ -1254,8 +1265,8 @@ export default function KanbanPage() {
       await removeBoardFromCentral(board);
       addNotification({
         type: 'success',
-        title: 'Board Removed',
-        message: `"${board.title}" has been removed from the cloud`
+        title: 'Stopped Sharing',
+        message: `"${board.title}" is no longer shared`
       });
 
       // Trigger board reload to update cloud status in UI
@@ -1339,17 +1350,6 @@ export default function KanbanPage() {
         ? prev.filter(id => id !== boardId)
         : [...prev, boardId]
     );
-  }
-
-  async function handleCloudSync() {
-    setIsSyncing(true);
-    try {
-      await syncNow();
-    } catch (error) {
-      console.error('Manual cloud sync failed:', error);
-    } finally {
-      setIsSyncing(false);
-    }
   }
 
   async function handleBulkDelete() {
@@ -1536,8 +1536,6 @@ export default function KanbanPage() {
             onBulkDelete={handleBulkDelete}
             onBulkMove={handleBulkMove}
             centralServerStatus={centralServerStatus}
-            onCloudSync={handleCloudSync}
-            isSyncing={isSyncing}
             sortBy={sortBy}
             onSortChange={handleSortChange}
             onImport={handleImport}
@@ -1560,14 +1558,14 @@ export default function KanbanPage() {
           />
         )}
 
-        {/* Read-only banner for cloud boards */}
+        {/* Read-only banner for boards shared by someone else */}
         {isReadOnly && currentBoard?.inCloud && !isOnline && (
           <div className="px-4 py-2 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-200 text-sm flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414" />
             </svg>
             <span className="font-medium">Offline - Read Only</span>
-            <span>Cloud boards require an online connection for editing. Reconnect to make changes.</span>
+            <span>Shared boards require an online connection for editing. Reconnect to make changes.</span>
           </div>
         )}
 
@@ -1577,7 +1575,7 @@ export default function KanbanPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
             <span className="font-medium">Read-only:</span>
-            <span>This cloud board is owned by another user. You can view but not edit.</span>
+            <span>This board is shared by another team member. You can view but not edit.</span>
           </div>
         )}
 

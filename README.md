@@ -92,8 +92,10 @@ podman logs jacarium   # prints the one-time setup code for the first account
 ```
 
 Then open https://localhost:8443 (the certificate is self-signed, so the
-browser warns once). Docker, sharing it on your network, updates and
-backups: [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md).
+browser warns once). This publishes it on this machine only; to reach it
+from other devices on your network, see
+[Sharing it on your network](docs/SELF_HOSTING.md#quick-start-with-the-published-image).
+Docker, updates and backups: [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md).
 
 More about the desktop app (profiles, Google Calendar, the connection
 indicator): [docs/DESKTOP.md](docs/DESKTOP.md).

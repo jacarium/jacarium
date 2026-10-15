@@ -35,8 +35,6 @@ export default function KanbanBoardList({
   onBulkDelete,
   onBulkMove,
   centralServerStatus = null,
-  onCloudSync,
-  isSyncing = false,
   sortBy = 'date',
   onSortChange,
   onImport,
@@ -250,7 +248,7 @@ export default function KanbanBoardList({
     if (ownedOrLocalBoards.length === 0) {
       addNotification({
         type: 'alert',
-        title: 'No Boards to Sync',
+        title: 'Nothing to Share',
         message: 'No boards available to sync.'
       });
       return;
@@ -277,8 +275,8 @@ export default function KanbanBoardList({
     if (successCount > 0) {
       addNotification({
         type: 'success',
-        title: 'Synced to Cloud',
-        message: `${successCount} board${successCount !== 1 ? 's' : ''} synced to cloud${failCount > 0 ? ` (${failCount} failed)` : ''}.`
+        title: 'Changes Synced',
+        message: `${successCount} board${successCount !== 1 ? 's' : ''} synced with the team${failCount > 0 ? ` (${failCount} failed)` : ''}.`
       });
     }
 
@@ -286,7 +284,7 @@ export default function KanbanBoardList({
       addNotification({
         type: 'error',
         title: 'Sync Failed',
-        message: 'Failed to sync boards to cloud.'
+        message: 'Failed to sync the boards\' changes with the team.'
       });
     }
 
@@ -311,8 +309,8 @@ export default function KanbanBoardList({
     if (ownedCloudBoards.length === 0) {
       addNotification({
         type: 'alert',
-        title: 'No Boards to Remove',
-        message: 'No cloud boards that you own selected.'
+        title: 'Nothing to Stop Sharing',
+        message: 'None of the selected boards is shared by you.'
       });
       return;
     }
@@ -334,16 +332,16 @@ export default function KanbanBoardList({
     if (successCount > 0) {
       addNotification({
         type: 'success',
-        title: 'Removed from Cloud',
-        message: `${successCount} board${successCount !== 1 ? 's' : ''} removed from cloud${failCount > 0 ? ` (${failCount} failed)` : ''}.`
+        title: 'Stopped Sharing',
+        message: `${successCount} board${successCount !== 1 ? 's' : ''} no longer shared${failCount > 0 ? ` (${failCount} failed)` : ''}.`
       });
     }
 
     if (failCount > 0 && successCount === 0) {
       addNotification({
         type: 'error',
-        title: 'Remove Failed',
-        message: 'Failed to remove boards from cloud.'
+        title: "Couldn't Stop Sharing",
+        message: 'Failed to stop sharing the boards.'
       });
     }
 
@@ -367,7 +365,7 @@ export default function KanbanBoardList({
       addNotification({
         type: 'alert',
         title: 'Cannot Manage Permissions',
-        message: 'You can only manage permissions for cloud boards that you own.'
+        message: 'You can only manage permissions for boards you shared.'
       });
     } else {
       setPermissionsBoards(ownedCloudBoards);
@@ -392,7 +390,7 @@ export default function KanbanBoardList({
     if (ownedOrLocalBoards.length === 0) {
       addNotification({
         type: 'alert',
-        title: 'No Boards to Sync',
+        title: 'Nothing to Share',
         message: 'No boards available to sync in this category.'
       });
       return;
@@ -419,8 +417,8 @@ export default function KanbanBoardList({
     if (successCount > 0) {
       addNotification({
         type: 'success',
-        title: 'Synced to Cloud',
-        message: `${successCount} board${successCount !== 1 ? 's' : ''} synced to cloud${failCount > 0 ? ` (${failCount} failed)` : ''}.`
+        title: 'Changes Synced',
+        message: `${successCount} board${successCount !== 1 ? 's' : ''} synced with the team${failCount > 0 ? ` (${failCount} failed)` : ''}.`
       });
     }
 
@@ -428,7 +426,7 @@ export default function KanbanBoardList({
       addNotification({
         type: 'error',
         title: 'Sync Failed',
-        message: 'Failed to sync boards to cloud.'
+        message: 'Failed to sync the boards\' changes with the team.'
       });
     }
 
@@ -451,8 +449,8 @@ export default function KanbanBoardList({
     if (ownedCloudBoards.length === 0) {
       addNotification({
         type: 'alert',
-        title: 'No Boards to Remove',
-        message: 'No cloud boards that you own in this category.'
+        title: 'Nothing to Stop Sharing',
+        message: 'No board in this category is shared by you.'
       });
       return;
     }
@@ -474,16 +472,16 @@ export default function KanbanBoardList({
     if (successCount > 0) {
       addNotification({
         type: 'success',
-        title: 'Removed from Cloud',
-        message: `${successCount} board${successCount !== 1 ? 's' : ''} removed from cloud${failCount > 0 ? ` (${failCount} failed)` : ''}.`
+        title: 'Stopped Sharing',
+        message: `${successCount} board${successCount !== 1 ? 's' : ''} no longer shared${failCount > 0 ? ` (${failCount} failed)` : ''}.`
       });
     }
 
     if (failCount > 0 && successCount === 0) {
       addNotification({
         type: 'error',
-        title: 'Remove Failed',
-        message: 'Failed to remove boards from cloud.'
+        title: "Couldn't Stop Sharing",
+        message: 'Failed to stop sharing the boards.'
       });
     }
 
@@ -505,7 +503,7 @@ export default function KanbanBoardList({
       addNotification({
         type: 'alert',
         title: 'Cannot Manage Permissions',
-        message: 'No cloud boards that you own in this category.'
+        message: 'No board in this category is shared by you.'
       });
     } else {
       setPermissionsBoards(ownedCloudBoards);
@@ -525,13 +523,6 @@ export default function KanbanBoardList({
         statusTitle={centralServerStatus === 'online' ? 'Central server connected' : centralServerStatus === 'offline' ? 'Central server disconnected' : 'Checking central server...'}
         actions={
           <>
-            <button
-              onClick={onCloudSync}
-              disabled={isSyncing}
-              className="p-1.5 rounded-sm transition-colors hover:bg-os-card-secondary disabled:opacity-50"
-              title="Check for cloud updates"
-            >
-            </button>
             <button
               onClick={onToggleSelectionMode}
               className={`p-1.5 transition-colors ${
@@ -635,7 +626,7 @@ export default function KanbanBoardList({
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {board.inCloud && (
-                        <div className="flex items-center gap-0.5" title={board.ownerId === currentMachineId ? `Your cloud board\nOwner: ${board.ownerId || 'Unknown'}` : `Cloud board\nOwner: ${board.ownerId || 'Unknown'}`}>
+                        <div className="flex items-center gap-0.5" title={board.ownerId === currentMachineId ? 'Shared with the team by you' : `Shared with the team by ${board.ownerId || 'Unknown'}`}>
                           {board.ownerId === currentMachineId && (
                             <Crown size={10} className="text-purple-600" />
                           )}
@@ -764,7 +755,7 @@ export default function KanbanBoardList({
 
               <div className="border-t border-os-border my-1"></div>
 
-              {/* Cloud upload for local boards */}
+              {/* Share: boards not shared yet */}
               {!contextMenu.target.inCloud && (
                 <button
                   onClick={() => {
@@ -774,11 +765,11 @@ export default function KanbanBoardList({
                   className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                 >
                   <MenuItemIcon action="uploadToCloud" />
-                  Upload to Cloud
+                  Share with the Team
                 </button>
               )}
 
-              {/* Sync to Cloud for owners and users with write permissions */}
+              {/* Sync Changes for owners and users with write permissions */}
               {contextMenu.target.inCloud && (contextMenu.target.ownerId === currentMachineId || contextMenu.target.permissions?.[currentMachineId] === 'write') && (
                 <button
                   onClick={() => {
@@ -788,11 +779,11 @@ export default function KanbanBoardList({
                   className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                 >
                   <MenuItemIcon action="syncToCloud" />
-                  Sync to Cloud
+                  Sync Changes
                 </button>
               )}
 
-              {/* Remove from Cloud and Manage Permissions - only for owners */}
+              {/* Stop Sharing and Manage Permissions - only for owners */}
               {contextMenu.target.inCloud && contextMenu.target.ownerId === currentMachineId && (
                 <>
                   <button
@@ -803,7 +794,7 @@ export default function KanbanBoardList({
                     className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                   >
                     <MenuItemIcon action="removeFromCloud" />
-                    Remove from Cloud
+                    Stop Sharing
                   </button>
                   <button
                     onClick={() => {
@@ -861,7 +852,7 @@ export default function KanbanBoardList({
                 Move to Category
               </button>
 
-              {/* Cloud Operations */}
+              {/* Sharing */}
               {(() => {
                 const selectedBoardsData = boards.filter(board => selectedBoards.includes(board.id));
                 const localBoards = selectedBoardsData.filter(board => !board.inCloud);
@@ -881,7 +872,7 @@ export default function KanbanBoardList({
                         className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                       >
                         <MenuItemIcon action="uploadToCloud" />
-                        Upload to Cloud
+                        Share with the Team
                       </button>
                     )}
                     {hasOwnedCloudBoards && (
@@ -893,7 +884,7 @@ export default function KanbanBoardList({
                         className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                       >
                         <MenuItemIcon action="syncToCloud" />
-                        Sync to Cloud
+                        Sync Changes
                       </button>
                     )}
                     {hasOwnedCloudBoards && (
@@ -905,7 +896,7 @@ export default function KanbanBoardList({
                         className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                       >
                         <MenuItemIcon action="removeFromCloud" />
-                        Remove from Cloud
+                        Stop Sharing
                       </button>
                     )}
                     {hasOwnedCloudBoards && (
@@ -958,7 +949,7 @@ export default function KanbanBoardList({
                         className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                       >
                         <MenuItemIcon action="uploadToCloud" />
-                        Upload to Cloud
+                        Share with the Team
                       </button>
                     )}
                     {hasOwnedCloudBoards && (
@@ -970,7 +961,7 @@ export default function KanbanBoardList({
                         className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                       >
                         <MenuItemIcon action="syncToCloud" />
-                        Sync to Cloud
+                        Sync Changes
                       </button>
                     )}
                     {hasOwnedCloudBoards && (
@@ -982,7 +973,7 @@ export default function KanbanBoardList({
                         className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                       >
                         <MenuItemIcon action="removeFromCloud" />
-                        Remove from Cloud
+                        Stop Sharing
                       </button>
                     )}
                     {hasOwnedCloudBoards && (

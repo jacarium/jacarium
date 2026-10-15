@@ -25,19 +25,19 @@ function BatchSharingItems({ workflows, currentMachineId, onShare, onStopSharing
       {hasUnshared && (
         <button onClick={onShare} className={ITEM_CLASS}>
           <MenuItemIcon action="uploadToCloud" />
-          Upload to Cloud
+          Share with the Team
         </button>
       )}
       {hasOwnShared && (
         <button onClick={onShare} className={ITEM_CLASS}>
           <MenuItemIcon action="syncToCloud" />
-          Sync to Cloud
+          Sync Changes
         </button>
       )}
       {hasOwnShared && (
         <button onClick={onStopSharing} className={ITEM_CLASS}>
           <MenuItemIcon action="removeFromCloud" />
-          Remove from Cloud
+          Stop Sharing
         </button>
       )}
       {hasOwnShared && (
@@ -159,9 +159,9 @@ export default function WorkflowContextMenu({
             workflows={selectedWorkflowsList}
             currentMachineId={currentMachineId}
             dividerClass="border-t border-os-border my-1"
-            onShare={run(() => onShareMany(selectedWorkflowsList, 'No workflows available to sync.'))}
-            onStopSharing={run(() => onStopSharingMany(selectedWorkflowsList, 'No cloud workflows that you own selected.'))}
-            onPermissions={run(() => onManageManyPermissions(selectedWorkflowsList, 'You can only manage permissions for cloud workflows that you own.'))}
+            onShare={run(() => onShareMany(selectedWorkflowsList, 'Nothing to share in the selection.'))}
+            onStopSharing={run(() => onStopSharingMany(selectedWorkflowsList, 'None of the selected workflows is shared by you.'))}
+            onPermissions={run(() => onManageManyPermissions(selectedWorkflowsList, 'You can only manage permissions for workflows you shared.'))}
           />
 
           <Divider />
@@ -186,9 +186,9 @@ export default function WorkflowContextMenu({
             workflows={categoryWorkflowsList}
             currentMachineId={currentMachineId}
             dividerClass="h-px bg-os-border my-1"
-            onShare={run(() => onShareMany(categoryWorkflowsList, 'No workflows available to sync in this category.'))}
-            onStopSharing={run(() => onStopSharingMany(categoryWorkflowsList, 'No cloud workflows that you own in this category.'))}
-            onPermissions={run(() => onManageManyPermissions(categoryWorkflowsList, 'No cloud workflows that you own in this category.'))}
+            onShare={run(() => onShareMany(categoryWorkflowsList, 'Nothing to share in this category.'))}
+            onStopSharing={run(() => onStopSharingMany(categoryWorkflowsList, 'No workflow in this category is shared by you.'))}
+            onPermissions={run(() => onManageManyPermissions(categoryWorkflowsList, 'No workflow in this category is shared by you.'))}
           />
         </>
       )}
@@ -218,21 +218,21 @@ export default function WorkflowContextMenu({
           {!isSharedWorkflow(workflow) && (
             <button onClick={run(() => onShare(workflow))} className={ITEM_CLASS}>
               <MenuItemIcon action="uploadToCloud" />
-              Upload to Cloud
+              Share with the Team
             </button>
           )}
           {canPushChanges && (
             <button onClick={run(() => onShare(workflow))} className={ITEM_CLASS}>
               <MenuItemIcon action="syncToCloud" />
-              Sync to Cloud
+              Sync Changes
             </button>
           )}
-          {/* Remove from cloud and permissions - only for the owner */}
+          {/* Stop sharing and permissions - only for the owner */}
           {isSharedByMe(workflow, currentMachineId) && (
             <>
               <button onClick={run(() => onStopSharing(workflow))} className={ITEM_CLASS}>
                 <MenuItemIcon action="removeFromCloud" />
-                Remove from Cloud
+                Stop Sharing
               </button>
               <button onClick={run(() => onManagePermissions(workflow))} className={ITEM_CLASS}>
                 <MenuItemIcon action="managePermissions" />

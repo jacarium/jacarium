@@ -714,7 +714,7 @@ export default function GeneralSettings({ remoteServer = null, theme, setTheme, 
             <div className="flex items-center justify-between gap-3">
               <span>
                 <span className="font-medium">Profile:</span> {profileName}
-                <span className="text-os-text-secondary"> - its own documents, tasks, settings and cloud identity{profileName === 'default' ? '' : ` (${machineId || ''})`}</span>
+                <span className="text-os-text-secondary"> - its own documents, tasks, settings and sharing identity{profileName === 'default' ? '' : ` (${machineId || ''})`}</span>
               </span>
               <Button className="px-2 py-1" onClick={() => window.electronAPI?.switchProfile?.()}>Switch profile...</Button>
             </div>

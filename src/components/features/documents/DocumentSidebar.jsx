@@ -23,7 +23,6 @@ import CalendarEventModal from '../../common/modals/CalendarEventModal';
 import MediaLibraryModal from '../../common/modals/MediaLibraryModal';
 import { useNotifications } from '../../../contexts/NotificationContext';
 import { FileText, Edit, Upload, Copy, Lock, Unlock, CheckSquare, X, Calendar, Cloud, Crown, AlertCircle } from 'lucide-react';
-import { syncNow } from '../../../utils/cloudSync';
 import { isDocumentInCloud, getMachineId } from '../../../utils/cloudDocuments';
 import { uploadDocumentToCentral, removeDocumentFromCentral, getCentralServerUrl } from '../../../utils/cloudCentralSync';
 import { getUserBorderStyle } from '../../../utils/userColors';
@@ -126,7 +125,6 @@ export default function DocumentSidebar({
   const [draggedDocument, setDraggedDocument] = useState(null);
   const [dragOverCategory, setDragOverCategory] = useState(null);
   const [editingDocumentId, setEditingDocumentId] = useState(null);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [currentMachineId, setCurrentMachineId] = useState(null);
   const [showBase64Modal, setShowBase64Modal] = useState(false);
   const [base64Data, setBase64Data] = useState('');
@@ -412,7 +410,7 @@ export default function DocumentSidebar({
     if (ownedOrLocalDocs.length === 0) {
       addNotification({
         type: 'alert',
-        title: 'No Documents to Sync',
+        title: 'Nothing to Share',
         message: 'No documents available to sync in this category.'
       });
       return;
@@ -446,8 +444,8 @@ export default function DocumentSidebar({
     if (successCount > 0) {
       addNotification({
         type: 'success',
-        title: 'Synced to Cloud',
-        message: `${successCount} document${successCount !== 1 ? 's' : ''} synced to cloud${failCount > 0 ? ` (${failCount} failed)` : ''}.`
+        title: 'Changes Synced',
+        message: `${successCount} document${successCount !== 1 ? 's' : ''} synced with the team${failCount > 0 ? ` (${failCount} failed)` : ''}.`
       });
     }
 
@@ -455,7 +453,7 @@ export default function DocumentSidebar({
       addNotification({
         type: 'error',
         title: 'Sync Failed',
-        message: 'Failed to sync documents to cloud.'
+        message: 'Failed to sync the documents\' changes with the team.'
       });
     }
 
@@ -473,8 +471,8 @@ export default function DocumentSidebar({
     if (ownedCloudDocs.length === 0) {
       addNotification({
         type: 'alert',
-        title: 'No Documents to Remove',
-        message: 'No cloud documents that you own in this category.'
+        title: 'Nothing to Stop Sharing',
+        message: 'No document in this category is shared by you.'
       });
       return;
     }
@@ -495,16 +493,16 @@ export default function DocumentSidebar({
     if (successCount > 0) {
       addNotification({
         type: 'success',
-        title: 'Removed from Cloud',
-        message: `${successCount} document${successCount !== 1 ? 's' : ''} removed from cloud${failCount > 0 ? ` (${failCount} failed)` : ''}.`
+        title: 'Stopped Sharing',
+        message: `${successCount} document${successCount !== 1 ? 's' : ''} no longer shared${failCount > 0 ? ` (${failCount} failed)` : ''}.`
       });
     }
 
     if (failCount > 0 && successCount === 0) {
       addNotification({
         type: 'error',
-        title: 'Remove Failed',
-        message: 'Failed to remove documents from cloud.'
+        title: "Couldn't Stop Sharing",
+        message: 'Failed to stop sharing the documents.'
       });
     }
 
@@ -531,7 +529,7 @@ export default function DocumentSidebar({
     if (ownedOrLocalDocs.length === 0) {
       addNotification({
         type: 'alert',
-        title: 'No Documents to Sync',
+        title: 'Nothing to Share',
         message: 'No documents available to sync.'
       });
       return;
@@ -565,8 +563,8 @@ export default function DocumentSidebar({
     if (successCount > 0) {
       addNotification({
         type: 'success',
-        title: 'Synced to Cloud',
-        message: `${successCount} document${successCount !== 1 ? 's' : ''} synced to cloud${failCount > 0 ? ` (${failCount} failed)` : ''}.`
+        title: 'Changes Synced',
+        message: `${successCount} document${successCount !== 1 ? 's' : ''} synced with the team${failCount > 0 ? ` (${failCount} failed)` : ''}.`
       });
     }
 
@@ -574,7 +572,7 @@ export default function DocumentSidebar({
       addNotification({
         type: 'error',
         title: 'Sync Failed',
-        message: 'Failed to sync documents to cloud.'
+        message: 'Failed to sync the documents\' changes with the team.'
       });
     }
 
@@ -594,8 +592,8 @@ export default function DocumentSidebar({
     if (ownedCloudDocs.length === 0) {
       addNotification({
         type: 'alert',
-        title: 'No Documents to Remove',
-        message: 'No cloud documents that you own selected.'
+        title: 'Nothing to Stop Sharing',
+        message: 'None of the selected documents is shared by you.'
       });
       return;
     }
@@ -616,16 +614,16 @@ export default function DocumentSidebar({
     if (successCount > 0) {
       addNotification({
         type: 'success',
-        title: 'Removed from Cloud',
-        message: `${successCount} document${successCount !== 1 ? 's' : ''} removed from cloud${failCount > 0 ? ` (${failCount} failed)` : ''}.`
+        title: 'Stopped Sharing',
+        message: `${successCount} document${successCount !== 1 ? 's' : ''} no longer shared${failCount > 0 ? ` (${failCount} failed)` : ''}.`
       });
     }
 
     if (failCount > 0 && successCount === 0) {
       addNotification({
         type: 'error',
-        title: 'Remove Failed',
-        message: 'Failed to remove documents from cloud.'
+        title: "Couldn't Stop Sharing",
+        message: 'Failed to stop sharing the documents.'
       });
     }
 
@@ -812,17 +810,6 @@ export default function DocumentSidebar({
     }
   };
 
-  const handleCloudSync = async () => {
-    setIsSyncing(true);
-    try {
-      await syncNow();
-    } catch (error) {
-      console.error('Manual cloud sync failed:', error);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) {
       addNotification({
@@ -951,11 +938,11 @@ export default function DocumentSidebar({
 
       closeContextMenu();
 
-      addNotification({
-        type: 'success',
-        title: 'Upload Successful',
-        message: 'Document uploaded to central server successfully.'
-      });
+      // Sync Changes on an already shared document (the owner's, or one a
+      // Read & Write member edits) versus the first share
+      addNotification(doc.inCloud
+        ? { type: 'success', title: 'Changes Synced', message: 'Your changes to the document are now with the team.' }
+        : { type: 'success', title: 'Shared with the Team', message: 'The document is now shared with your team.' });
 
       // Trigger document reload to update cloud status in UI
       // Use setTimeout to ensure IndexedDB transaction completes
@@ -970,8 +957,8 @@ export default function DocumentSidebar({
       closeContextMenu();
       addNotification({
         type: 'error',
-        title: 'Upload Failed',
-        message: 'Failed to upload to central server: ' + error.message
+        title: 'Sharing Failed',
+        message: 'Failed to share the document: ' + error.message
       });
     }
   };
@@ -984,7 +971,7 @@ export default function DocumentSidebar({
 
       addNotification({
         type: 'success',
-        title: 'Removed from Cloud',
+        title: 'Stopped Sharing',
         message: `"${doc.title}" is now a local document.`
       });
 
@@ -1000,8 +987,8 @@ export default function DocumentSidebar({
       console.error('Remove from cloud failed:', error);
       addNotification({
         type: 'error',
-        title: 'Failed to Remove',
-        message: 'Failed to remove from cloud:\n' + error.message
+        title: "Couldn't Stop Sharing",
+        message: 'Failed to stop sharing:\n' + error.message
       });
     }
   };
@@ -1018,13 +1005,6 @@ export default function DocumentSidebar({
         statusTitle={centralServerStatus === 'online' ? 'Central server connected' : centralServerStatus === 'offline' ? 'Central server disconnected' : 'Checking central server...'}
         actions={
           <>
-            <button
-              onClick={handleCloudSync}
-              disabled={isSyncing}
-              className="p-1.5 rounded-sm transition-colors hover:bg-os-card-secondary disabled:opacity-50"
-              title="Check for cloud updates"
-            >
-            </button>
             <button
               onClick={onToggleSelectionMode}
               className={`p-1.5 transition-colors ${
@@ -1144,7 +1124,7 @@ export default function DocumentSidebar({
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {doc.inCloud && (
-                        <div className="flex items-center gap-0.5" title={doc.ownerId === currentMachineId ? `Your cloud document\nOwner: ${doc.ownerId || 'Unknown'}` : `Cloud document\nOwner: ${doc.ownerId || 'Unknown'}`}>
+                        <div className="flex items-center gap-0.5" title={doc.ownerId === currentMachineId ? 'Shared with the team by you' : `Shared with the team by ${doc.ownerId || 'Unknown'}`}>
                           {doc.ownerId === currentMachineId && (
                             <Crown size={10} className="text-purple-600" />
                           )}
@@ -1329,27 +1309,27 @@ export default function DocumentSidebar({
                     closeContextMenu();
                   }}
                 />
-                {/* Cloud upload for local documents */}
+                {/* Share: documents not shared yet */}
                 {!isDocumentInCloud(freshDoc) && (
                   <button
                     onClick={() => handleUploadToCloud(freshDoc)}
                     className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                   >
                     <MenuItemIcon action="uploadToCloud" />
-                    Upload to Cloud
+                    Share with the Team
                   </button>
                 )}
-                {/* Sync to Cloud for owners and users with write permissions */}
+                {/* Sync Changes for owners and users with write permissions */}
                 {isDocumentInCloud(freshDoc) && (freshDoc.ownerId === currentMachineId || freshDoc.permissions?.[currentMachineId] === 'write') && (
                   <button
                     onClick={() => handleUploadToCloud(freshDoc)}
                     className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                   >
                     <MenuItemIcon action="syncToCloud" />
-                    Sync to Cloud
+                    Sync Changes
                   </button>
                 )}
-                {/* Remove from Cloud and Manage Permissions - only for owners */}
+                {/* Stop Sharing and Manage Permissions - only for owners */}
                 {isDocumentInCloud(freshDoc) && freshDoc.ownerId === currentMachineId && (
                   <>
                     <button
@@ -1357,7 +1337,7 @@ export default function DocumentSidebar({
                       className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                     >
                       <MenuItemIcon action="removeFromCloud" />
-                      Remove from Cloud
+                      Stop Sharing
                     </button>
                     <button
                       onClick={() => {
@@ -1537,7 +1517,7 @@ export default function DocumentSidebar({
                 Move to Category
               </button>
 
-              {/* Cloud Operations - only show if user owns at least one document or has local documents */}
+              {/* Sharing - only when the user owns at least one shared document or has local documents */}
               {(() => {
                 const selectedDocs = documents.filter(doc => selectedDocuments.includes(doc.id));
                 const localDocs = selectedDocs.filter(doc => !doc.inCloud);
@@ -1557,7 +1537,7 @@ export default function DocumentSidebar({
                         className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                       >
                         <MenuItemIcon action="uploadToCloud" />
-                        Upload to Cloud
+                        Share with the Team
                       </button>
                     )}
                     {hasOwnedCloudDocs && (
@@ -1569,7 +1549,7 @@ export default function DocumentSidebar({
                         className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                       >
                         <MenuItemIcon action="syncToCloud" />
-                        Sync to Cloud
+                        Sync Changes
                       </button>
                     )}
                     {hasOwnedCloudDocs && (
@@ -1581,7 +1561,7 @@ export default function DocumentSidebar({
                         className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                       >
                         <MenuItemIcon action="removeFromCloud" />
-                        Remove from Cloud
+                        Stop Sharing
                       </button>
                     )}
                     {hasOwnedCloudDocs && (
@@ -1702,7 +1682,7 @@ export default function DocumentSidebar({
                         className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                       >
                         <MenuItemIcon action="uploadToCloud" />
-                        Upload to Cloud
+                        Share with the Team
                       </button>
                     )}
                     {hasOwnedCloudDocs && (
@@ -1714,7 +1694,7 @@ export default function DocumentSidebar({
                         className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                       >
                         <MenuItemIcon action="syncToCloud" />
-                        Sync to Cloud
+                        Sync Changes
                       </button>
                     )}
                     {hasOwnedCloudDocs && (
@@ -1726,7 +1706,7 @@ export default function DocumentSidebar({
                         className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                       >
                         <MenuItemIcon action="removeFromCloud" />
-                        Remove from Cloud
+                        Stop Sharing
                       </button>
                     )}
                     {hasOwnedCloudDocs && (
@@ -1906,7 +1886,7 @@ export default function DocumentSidebar({
  }`}
             >
               <MenuItemIcon action="sortByCloud" className={sortBy === 'cloud' ? 'text-white' : 'text-os-text-secondary'} />
-              Cloud Documents
+              Shared Documents
             </button>
           </div>
         </div>

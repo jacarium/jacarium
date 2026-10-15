@@ -288,16 +288,16 @@ H.unmount();
 /* ================================================================== */
 report('\n--- 4. the Documents editor banners still render through the shared strip ---');
 /* ================================================================== */
-H.mount('banner', { tone: 'readonly', title: 'Read-only:', text: 'This cloud document is owned by another user. You can view but not edit.' });
+H.mount('banner', { tone: 'readonly', title: 'Read-only:', text: 'This document is shared by another team member. You can view but not edit.' });
 const probe = await waitFor(() => document.querySelector('[data-testid="probe-banner"]'));
 check('NoticeBanner readonly tone = the original read-only banner classes, bold lead-in, message, and the action button',
   !!probe && ['px-4', 'py-2', 'bg-purple-50', 'dark:bg-purple-900/20', 'text-purple-700', 'dark:text-purple-200', 'text-sm', 'flex', 'items-center', 'gap-2'].every((c) => probe.classList.contains(c)) &&
-  probe.querySelector('span.font-medium')?.textContent === 'Read-only:' && probe.textContent.includes('owned by another user') &&
+  probe.querySelector('span.font-medium')?.textContent === 'Read-only:' && probe.textContent.includes('shared by another team member') &&
   probe.querySelector('[data-testid="probe-action"]')?.classList.contains('underline'), probe?.className);
 H.mount('editor', { document: { id: 1, title: 'Synthetic cloud doc', content: 'body', category: 'General', inCloud: true, ownerId: 'someone-else@machine', updatedAt: Date.now() }, isOnline: false });
 const offline = await waitFor(() => document.querySelector('[data-testid="document-offline-banner"]'), 15000);
 check('DocumentEditor: the offline read-only banner renders via NoticeBanner with its original text and orange classes',
-  !!offline && offline.textContent.includes('Offline - Read Only') && offline.textContent.includes('Cloud documents require an online connection for editing') &&
+  !!offline && offline.textContent.includes('Offline - Read Only') && offline.textContent.includes('Shared documents require an online connection for editing') &&
   offline.classList.contains('bg-orange-50') && offline.classList.contains('dark:text-orange-200'), offline?.className);
 H.unmount();
 

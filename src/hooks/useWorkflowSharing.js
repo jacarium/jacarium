@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { uploadWorkflowToCentral, removeWorkflowFromCentral, getCentralServerUrl } from '../utils/cloudCentralSync';
 import { getWorkflow, updateWorkflow } from '../utils/workflows';
-import { isSharedByMe, isMineOrUnshared } from '../utils/workflowSharing';
+import { isSharedWorkflow, isSharedByMe, isMineOrUnshared } from '../utils/workflowSharing';
 import { useNotifications } from '../contexts/NotificationContext';
 import { notifyCentralUnavailable } from '../utils/centralAvailability';
 
@@ -33,7 +33,7 @@ export default function useWorkflowSharing({ currentMachineId, onWorkflowsChange
   /** True when a central server is available; otherwise tells the user why nothing happens. */
   function requireCentralServer() {
     if (getCentralServerUrl()) return true;
-    notifyCentralUnavailable(addNotification, 'upload workflows to the cloud');
+    notifyCentralUnavailable(addNotification, 'share workflows');
     return false;
   }
 
@@ -70,13 +70,12 @@ export default function useWorkflowSharing({ currentMachineId, onWorkflowsChange
 
       console.log('[WorkflowList] Syncing latest version of workflow:', latestWorkflow.title);
 
+      const wasShared = isSharedWorkflow(latestWorkflow);
       await uploadWorkflowToCentral(latestWorkflow);
 
-      addNotification({
-        type: 'success',
-        title: 'Upload Successful',
-        message: 'Workflow uploaded to central server successfully.'
-      });
+      addNotification(wasShared
+        ? { type: 'success', title: 'Changes Synced', message: 'Your changes to the workflow are now with the team.' }
+        : { type: 'success', title: 'Shared with the Team', message: 'The workflow is now shared with your team.' });
 
       announceSharingChange();
       onWorkflowsChanged?.();
@@ -84,8 +83,8 @@ export default function useWorkflowSharing({ currentMachineId, onWorkflowsChange
       console.error('Upload failed:', error);
       addNotification({
         type: 'error',
-        title: 'Upload Failed',
-        message: 'Failed to upload to central server: ' + error.message
+        title: 'Sharing Failed',
+        message: 'Failed to share the workflow: ' + error.message
       });
     }
   }
@@ -96,8 +95,8 @@ export default function useWorkflowSharing({ currentMachineId, onWorkflowsChange
 
       addNotification({
         type: 'success',
-        title: 'Removed from Cloud',
-        message: 'Workflow has been removed from central server.'
+        title: 'Stopped Sharing',
+        message: 'The workflow is no longer shared with your team.'
       });
 
       announceSharingChange();
@@ -106,8 +105,8 @@ export default function useWorkflowSharing({ currentMachineId, onWorkflowsChange
       console.error('Remove from cloud failed:', error);
       addNotification({
         type: 'error',
-        title: 'Remove Failed',
-        message: 'Failed to remove from cloud:\n' + error.message
+        title: "Couldn't Stop Sharing",
+        message: 'Failed to stop sharing:\n' + error.message
       });
     }
   }
@@ -124,7 +123,7 @@ export default function useWorkflowSharing({ currentMachineId, onWorkflowsChange
     if (shareable.length === 0) {
       addNotification({
         type: 'alert',
-        title: 'No Workflows to Sync',
+        title: 'Nothing to Share',
         message: emptyMessage
       });
       return;
@@ -146,7 +145,7 @@ export default function useWorkflowSharing({ currentMachineId, onWorkflowsChange
       }
     }
 
-    reportBatch(successCount, failCount, 'Synced to Cloud', 'synced to cloud', 'Sync Failed', 'Failed to sync workflows to cloud.');
+    reportBatch(successCount, failCount, 'Changes Synced', 'synced with the team', 'Sync Failed', 'Failed to sync the workflows\' changes with the team.');
     onWorkflowsChanged?.();
   }
 
@@ -157,7 +156,7 @@ export default function useWorkflowSharing({ currentMachineId, onWorkflowsChange
     if (mine.length === 0) {
       addNotification({
         type: 'alert',
-        title: 'No Workflows to Remove',
+        title: 'Nothing to Stop Sharing',
         message: emptyMessage
       });
       return;
@@ -176,7 +175,7 @@ export default function useWorkflowSharing({ currentMachineId, onWorkflowsChange
       }
     }
 
-    reportBatch(successCount, failCount, 'Removed from Cloud', 'removed from cloud', 'Remove Failed', 'Failed to remove workflows from cloud.');
+    reportBatch(successCount, failCount, 'Stopped Sharing', 'no longer shared', "Couldn't Stop Sharing", 'Failed to stop sharing the workflows.');
     onWorkflowsChanged?.();
   }
 

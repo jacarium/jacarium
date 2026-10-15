@@ -1,6 +1,13 @@
 /**
  * Central server connection (the team features: shared documents, workflows, boards)
- * Handles real-time sync via WebSocket connection to central server
+ * Handles real-time sync via WebSocket connection to central server.
+ *
+ * Catching up needs no polling: Socket.IO reconnects by itself
+ * (cloudWebSocket.js), and on every successful `authenticate` the server
+ * resends whatever this identity missed while its socket was down
+ * (jacarium-central/sync-handlers.js sendPendingMessages). The connection
+ * indicator's "Sync now" is a different engine - the account's own data
+ * with the home server (src/sync/syncEngine.js) - not this sharing channel.
  */
 
 import {
@@ -421,55 +428,5 @@ async function processBoardQueue() {
       console.log(`[CloudSync] Processing ${boardQueue.length} more queued board(s)`);
       setTimeout(() => processBoardQueue(), 100);
     }
-  }
-}
-
-/**
- * Manually trigger a sync check
- * Polls HTTP endpoint for pending updates (as fallback to WebSocket)
- */
-export async function syncNow() {
-  console.log('[CloudSync] Manual sync check - WebSocket connection:', isWebSocketConnected() ? 'CONNECTED' : 'DISCONNECTED');
-
-  // Try to reconnect WebSocket if disconnected
-  if (!isWebSocketConnected()) {
-    console.log('[CloudSync] Attempting to reconnect WebSocket...');
-    await startCloudSync();
-  }
-
-  // Also poll HTTP endpoint for any missed updates
-  // This works even if WebSocket is down
-  try {
-    console.log('[CloudSync] Polling HTTP endpoint for pending updates...');
-    const { pollCentralForDocuments } = await import('./cloudCentralSync');
-    const result = await pollCentralForDocuments();
-
-    // Process pending documents
-    if (result.documents && result.documents.length > 0) {
-      console.log(`[CloudSync] Found ${result.documents.length} pending document(s) via HTTP poll`);
-      await processDocumentUpdates(result.documents);
-    }
-
-    // Process pending workflows
-    if (result.workflows && result.workflows.length > 0) {
-      console.log(`[CloudSync] Found ${result.workflows.length} pending workflow(s) via HTTP poll`);
-      await processWorkflowUpdates(result.workflows);
-    }
-
-    // Process pending boards
-    if (result.boards && result.boards.length > 0) {
-      console.log(`[CloudSync] Found ${result.boards.length} pending board(s) via HTTP poll`);
-      await processBoardUpdates(result.boards);
-    }
-
-    const totalPending = (result.documents?.length || 0) + (result.workflows?.length || 0) + (result.boards?.length || 0);
-    if (totalPending === 0) {
-      console.log('[CloudSync] No pending updates found via HTTP poll');
-    } else {
-      console.log(`[CloudSync] ✓ Synced ${totalPending} item(s) via HTTP poll`);
-    }
-  } catch (error) {
-    console.error('[CloudSync] HTTP poll failed:', error);
-    throw error; // Re-throw so UI can show error
   }
 }

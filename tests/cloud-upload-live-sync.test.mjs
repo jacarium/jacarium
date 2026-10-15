@@ -1,8 +1,8 @@
 /**
  * Guards against the "Upload to Cloud doesn't engage live sync" bug:
- * after Alice right-clicks a document -> "Upload to Cloud", her continued
+ * after Alice right-clicks a document -> "Share with the Team", her continued
  * typing must reach Bob live (via Yjs through the central server) WITHOUT a
- * second manual "Sync to Cloud". Historical root causes covered:
+ * second manual "Sync Changes". Historical root causes covered:
  *   1. the still-open editor's `document` prop never received
  *      inCloud/cloudDocumentId, so yjsEnabled never flipped (Alice side), and
  *   2. createDocument() dropped cloudDocumentId when the receiving machine
@@ -16,7 +16,7 @@
  *     esbuild and mounts it in two jsdom "machines" (alice@account-test / bob@account-test)
  *     connected over real socket.io,
  *   - drives the actual UI: sidebar click to open, contextmenu ->
- *     "Upload to Cloud", real input events for typing,
+ *     "Share with the Team", real input events for typing,
  *   - asserts on the receiving side's stored record and live editor content.
  *
  * Run:  node tests/cloud-upload-live-sync.test.mjs
@@ -192,9 +192,9 @@ try {
 
   // Alice right-clicks the doc -> Upload to Cloud (real context-menu path)
   const ctx = await alice.cmd('ctx-doc', { title: DOC });
-  check('context menu shows Upload to Cloud', (ctx.buttons || []).includes('Upload to Cloud'), JSON.stringify(ctx.buttons));
-  const up = await alice.cmd('click-menu', { label: 'Upload to Cloud' });
-  check('clicked Upload to Cloud', up.ok, up.error);
+  check('context menu shows Share with the Team', (ctx.buttons || []).includes('Share with the Team'), JSON.stringify(ctx.buttons));
+  const up = await alice.cmd('click-menu', { label: 'Share with the Team' });
+  check('clicked Share with the Team', up.ok, up.error);
   await sleep(2500); // upload + onCloudUploadSuccess + loadDocuments + broadcast
 
   // Alice side: the STILL-OPEN editor must now carry the cloud metadata

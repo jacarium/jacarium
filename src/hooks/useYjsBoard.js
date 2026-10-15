@@ -46,6 +46,12 @@ export function useYjsBoard(cloudBoardId, socket, initialCards = [], initialBoar
   const [userInteractions, setUserInteractions] = useState({}); // { userId: { cardId, action } }
   const [connectedUsers, setConnectedUsers] = useState([]); // Array of connected usernames
   const [isConnected, setIsConnected] = useState(false);
+  // The server refused one of our edits (yjs-update-rejected): this identity
+  // may view the board but not edit it. KanbanPage goes read-only and says
+  // so; the provider is torn down for a fresh sync (providerEpoch) so the
+  // refused local change is dropped and the server's cards are shown.
+  const [writeRejected, setWriteRejected] = useState(false);
+  const [providerEpoch, setProviderEpoch] = useState(0);
 
   const ycardsRef = useRef(null); // Y.Map of cards
   const yboardRef = useRef(null); // Y.Map of board structure
@@ -112,6 +118,7 @@ export function useYjsBoard(cloudBoardId, socket, initialCards = [], initialBoar
       yboardRef.current = null;
       awarenessRef.current = null;
       setUserInteractions({});
+      setWriteRejected(false); // a refused edit is per board
       currentBoardIdRef.current = cloudBoardId;
       boardCardsRef.current = initialCards;
       boardDataRef.current = initialBoard;
@@ -141,6 +148,16 @@ export function useYjsBoard(cloudBoardId, socket, initialCards = [], initialBoar
     ycardsRef.current = ycards;
     yboardRef.current = yboard;
     awarenessRef.current = awareness;
+
+    // No write permission: flag it for KanbanPage and resync from scratch so
+    // the refused local change disappears (the fresh provider takes the
+    // server's cards; with the board read-only nothing is seeded locally).
+    const unsubscribeRejected = provider.onWriteRejected(() => {
+      if (currentBoardIdRef.current !== cloudBoardId) return;
+      console.warn(`[useYjsBoard] The server refused an edit to board ${cloudBoardId} - read-only, resyncing from the server`);
+      setWriteRejected(true);
+      setProviderEpoch((epoch) => epoch + 1);
+    });
 
     console.log(`[useYjsBoard] Registering whenSynced callback for ${cloudBoardId}`);
 
@@ -415,13 +432,15 @@ export function useYjsBoard(cloudBoardId, socket, initialCards = [], initialBoar
       ycards.unobserveDeep(handleCardsChange);
       yboard.unobserve(handleBoardChange);
       awareness.off('change', handleAwarenessChange);
+      unsubscribeRejected();
       cleanupYjsProvider(cloudBoardId);
     };
-    // Intentionally keyed only on the board identity and socket: initial*/on*Change
+    // Intentionally keyed only on the board identity, the socket and the
+    // provider epoch (a refused edit forces a fresh sync): initial*/on*Change
     // props are read as snapshots/latest-callbacks and Yjs handles reconnection,
     // so re-running on their identity changes would tear down the live doc.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cloudBoardId, socket]); // Don't re-run on connection changes - Yjs handles reconnection
+  }, [cloudBoardId, socket, providerEpoch]); // Don't re-run on connection changes - Yjs handles reconnection
 
   /**
    * Convert Y.Map of cards to array. The Dexie `id` and `yjsId` are read from
@@ -620,6 +639,9 @@ export function useYjsBoard(cloudBoardId, socket, initialCards = [], initialBoar
     updateBoardColumns,
     setUserInteraction,
     clearUserInteraction,
-    setUserInfo
+    setUserInfo,
+    // True once the server refused this identity's edit to the board (no
+    // Read & Write grant): KanbanPage renders it read-only and says so once.
+    writeRejected
   };
 }

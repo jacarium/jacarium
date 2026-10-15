@@ -177,8 +177,8 @@ export default function WorkflowPermissionsModal({
           {Object.keys(permissions).length === 0 ? (
             <div className="text-sm text-os-text-muted text-center py-6">
               {isMultiple
-                ? 'No permissions set. Cloud workflows are visible to everyone on your home server; others can view these but not edit them.'
-                : 'No permissions set. Cloud workflows are visible to everyone on your home server; others can view this one but not edit it.'}
+                ? 'No permissions set. Shared workflows are visible to everyone on your home server\'s team; others can view these but not edit them.'
+                : 'No permissions set. Shared workflows are visible to everyone on your home server\'s team; others can view this one but not edit it.'}
             </div>
           ) : (
             <div className="space-y-2">

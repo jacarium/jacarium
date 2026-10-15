@@ -68,6 +68,12 @@ class SocketIOProvider {
     // Fired when the server reseeds a degraded document from an explicit
     // re-upload (yjs-doc-reseeded): consumers must resync from scratch.
     this.reseededCallbacks = [];
+    // Fired when the server refused one of our updates (yjs-update-rejected:
+    // this identity may read the document but not edit it). The local Y.Doc
+    // now holds an edit the server never applied, so consumers go read-only
+    // and resync from scratch, as after a reseed.
+    this.writeRejected = false;
+    this.writeRejectedCallbacks = [];
 
     // Bind event handlers
     this._onUpdate = this.handleUpdate.bind(this);
@@ -76,6 +82,7 @@ class SocketIOProvider {
     this._onYjsUpdate = this.handleYjsUpdate.bind(this);
     this._onYjsAwarenessUpdate = this.handleYjsAwarenessUpdate.bind(this);
     this._onDocReseeded = this.handleDocReseeded.bind(this);
+    this._onUpdateRejected = this.handleUpdateRejected.bind(this);
 
     // Listen to local document changes
     this.ydoc.on('update', this._onUpdate);
@@ -88,6 +95,7 @@ class SocketIOProvider {
     this.socket.on('yjs-update', this._onYjsUpdate);
     this.socket.on('yjs-awareness-update', this._onYjsAwarenessUpdate);
     this.socket.on('yjs-doc-reseeded', this._onDocReseeded);
+    this.socket.on('yjs-update-rejected', this._onUpdateRejected);
 
     // Listen for reconnection to resync
     this._onReconnect = () => {
@@ -186,7 +194,32 @@ class SocketIOProvider {
     this.reseededCallbacks.forEach(callback => callback());
   }
 
+  /**
+   * Subscribe to the server refusing this client's edits (no write
+   * permission). Fires once per provider; the subscriber is expected to go
+   * read-only and tear this provider down for a fresh sync, so the refused
+   * local edit is dropped. Returns an unsubscribe function.
+   */
+  onWriteRejected(callback) {
+    this.writeRejectedCallbacks.push(callback);
+    return () => {
+      this.writeRejectedCallbacks = this.writeRejectedCallbacks.filter(cb => cb !== callback);
+    };
+  }
+
+  handleUpdateRejected({ documentId, message }) {
+    if (this.destroyed) return;
+    if (documentId !== this.documentId) return;
+    if (this.writeRejected) return; // one notice per provider; later echoes change nothing
+    this.writeRejected = true;
+    console.warn(`[yjsProvider] The server refused an update to ${documentId}: ${message || 'no write permission'} - going read-only and resyncing`);
+    this.writeRejectedCallbacks.forEach(callback => callback(message));
+  }
+
   handleUpdate(update) {
+    // Nothing leaves a provider the server has refused: the subscriber is
+    // replacing it, and re-sending would only earn another refusal.
+    if (this.writeRejected) return;
     // Don't send updates that came from the network
     if (!this.isApplyingRemoteUpdate) {
       const updateB64 = this.uint8ArrayToBase64(update);
@@ -264,6 +297,7 @@ class SocketIOProvider {
     this.socket.off('yjs-update', this._onYjsUpdate);
     this.socket.off('yjs-awareness-update', this._onYjsAwarenessUpdate);
     this.socket.off('yjs-doc-reseeded', this._onDocReseeded);
+    this.socket.off('yjs-update-rejected', this._onUpdateRejected);
     this.socket.off('connect', this._onReconnect);
 
     // Mark as destroyed to prevent handler execution

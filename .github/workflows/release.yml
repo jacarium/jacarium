@@ -224,7 +224,7 @@ jobs:
   # environment (one approval for both architectures). This runner never
   # builds anything - it loads the two archives and pushes them - and no
   # secret is stored anywhere: the robot account is federated with this
-  # workflow's OIDC identity (subject repo:jacarium/jacarium:environment:quay),
+  # workflow's OIDC identity (subject repo:jacarium@341715326/jacarium@1419940415:environment:quay - GitHub includes the owner and repository IDs),
   # and Quay hands out a robot token that expires after an hour.
   # ---------------------------------------------------------------------------
   image-publish:
@@ -286,10 +286,6 @@ jobs:
           jwt="$(curl -sSf -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
                  "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=quay.io" | jq -r .value)"
           if [ -n "$jwt" ] && [ "$jwt" != null ]; then
-            # what GitHub presents (not secret): Quay's federation must match iss, sub and aud
-            payload="$(printf '%s' "$jwt" | cut -d. -f2 | tr '_-' '/+')"
-            while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="${payload}="; done
-            echo "OIDC token: $(printf '%s' "$payload" | base64 -d 2>/dev/null | jq -c '{iss, sub, aud}' 2>/dev/null || echo '(could not decode)')"
             # no -f: on an error Quay's response body says why (it holds no secret)
             response="$(printf 'user = "%s:%s"\n' "$QUAY_ROBOT" "$jwt" \
                         | curl -sS -w '\n%{http_code}' -K - https://quay.io/oauth2/federation/robot/token)" || true
@@ -297,6 +293,10 @@ jobs:
             token="$(printf '%s' "$body" | jq -r '.token // empty' 2>/dev/null || true)"
             if [ "$status" != 200 ] || [ -z "$token" ]; then
               token=""
+              # what GitHub presented (public, not a credential): Quay's federation must match iss, sub and aud
+              payload="$(printf '%s' "$jwt" | cut -d. -f2 | tr '_-' '/+')"
+              while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="${payload}="; done
+              echo "OIDC token: $(printf '%s' "$payload" | base64 -d 2>/dev/null | jq -c '{iss, sub, aud}' 2>/dev/null || echo '(could not decode)')"
               echo "::warning::quay.io did not exchange the OIDC token (HTTP $status) - its answer follows; compare the robot federation (issuer, subject, audience) with the OIDC token above"
               printf '%s' "$body" | jq -c 'del(.token)' 2>/dev/null || printf '%s\n' "$body" | head -c 500
             fi

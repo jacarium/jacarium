@@ -720,43 +720,6 @@ export async function uploadTaskInstanceToCentral(instance) {
 }
 
 /**
- * Poll central server for pending documents
- */
-export async function pollCentralForDocuments() {
-  const serverUrl = getCentralServerUrl();
-  console.log('[pollCentralForDocuments] Central server URL:', serverUrl);
-
-  if (!serverUrl) {
-    console.log('[pollCentralForDocuments] No server URL configured');
-    return { documents: [], workflows: [] };
-  }
-
-  const machineId = await getMachineId();
-  console.log('[pollCentralForDocuments] Using machine ID:', machineId);
-
-  const pollUrl = `${serverUrl}/api/pending?machine_id=${encodeURIComponent(machineId)}`;
-  console.log('[pollCentralForDocuments] Polling URL:', pollUrl);
-
-  const response = await fetchWithTimeout(pollUrl, {
-    headers: await getCentralAuthHeaders(serverUrl)
-  });
-
-  if (!response.ok) {
-    console.error('[pollCentralForDocuments] Poll failed with status:', response.status);
-    throw new Error(`Poll failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-  console.log('[pollCentralForDocuments] Server response:', {
-    documents: data.documents?.length || 0,
-    workflows: data.workflows?.length || 0,
-    documentsDetails: data.documents?.map(d => ({ title: d.title, ownerId: d.ownerId }))
-  });
-
-  return data;
-}
-
-/**
  * Process incoming document from central server
  */
 export async function receiveDocumentFromCentral(incomingDoc) {

@@ -10,6 +10,9 @@ const { DEBUG_LOGGING, debugLog, getIoInstance } = require('./state');
 // No-ops (memory-only mode) unless YJS_STORAGE_ENCRYPTION_KEY is set -
 // see yjs-persistence.js for the key format and on-disk layout.
 const persistence = require('./yjs-persistence');
+// Who may write to a room: the owner and the identities granted Read & Write,
+// as recorded from the owner's uploads (share-permissions.js).
+const sharePermissions = require('./share-permissions');
 
 // Cheap guard for socket payload fields that must be present, non-empty
 // strings before we dereference/decode them (documentId, base64 blobs).
@@ -179,6 +182,7 @@ function getYDoc(documentId) {
 function purgeDocument(documentId) {
   cancelEviction(documentId);
   degradedDocs.delete(documentId);
+  sharePermissions.forget(documentId);
   const saveTimer = pendingSaves.get(documentId);
   if (saveTimer) {
     clearTimeout(saveTimer);
@@ -370,7 +374,26 @@ function setupYjsSync(io, socket, machineId) {
     // CRDT would merge two unrelated histories into garbled text. The doc
     // stays frozen until an explicit re-upload reseeds it.
     if (degradedDocs.has(documentId)) {
-      console.warn(`[Yjs] Rejected update from ${machineId} for DEGRADED document ${documentId} - re-upload the document ("Sync to Cloud") to restore it`);
+      console.warn(`[Yjs] Rejected update from ${machineId} for DEGRADED document ${documentId} - re-upload the document ("Sync Changes") to restore it`);
+      return;
+    }
+
+    // Write permission: only the owner and the identities the owner granted
+    // Read & Write (share-permissions.js, learned from the owner's uploads)
+    // may change the document. Everyone else on the team may still read it
+    // (sync-step1/2) and show a cursor (awareness), but their edits are
+    // dropped here - not applied, not persisted, not broadcast - and the
+    // sender is told, so its UI goes read-only and resyncs from the server.
+    // A room without a record (shared before records existed) stays open
+    // until the owner's next upload records it.
+    const verdict = sharePermissions.canWrite(documentId, machineId);
+    if (!verdict.allowed) {
+      console.warn(`[Yjs] Rejected update from ${machineId} for document ${documentId}: no write permission - not applied, not broadcast`);
+      socket.emit('yjs-update-rejected', {
+        documentId,
+        reason: 'read-only',
+        message: 'You can view this document but not edit it.'
+      });
       return;
     }
 

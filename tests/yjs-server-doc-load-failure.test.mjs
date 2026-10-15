@@ -19,7 +19,7 @@
  *   - the degraded state is sticky across eviction and restarts;
  *   - the client shows its local IndexedDB copy READ-ONLY with a banner
  *     instead of an empty doc, and does NOT re-seed the server;
- *   - explicit re-upload ("Sync to Cloud") is the escape hatch: the server
+ *   - explicit re-upload ("Sync Changes") is the escape hatch: the server
  *     rebuilds the doc from that one copy, persists it, and emits
  *     yjs-doc-reseeded so open editors resync from scratch and become
  *     editable again;
@@ -45,7 +45,7 @@
  *     B1. A client with a local IndexedDB copy of a server-side-broken doc
  *         sees ITS OWN content (not empty), read-only, with the
  *         "Server copy unavailable" banner - and the server is NOT reseeded.
- *     B2. "Sync to Cloud" recovers: server content restored from the local
+ *     B2. "Sync Changes" recovers: server content restored from the local
  *         copy, banner gone, editor editable again.
  *     B3. Live editing works after recovery (edits reach the server).
  *     B4. A genuinely new uploaded document: editable, no banner, seeds the
@@ -588,12 +588,12 @@ async function partB() {
     verify1.socket.disconnect();
     check('B1: broken snapshot file untouched on disk', fileHash(fileB) === corruptHash);
 
-    // ---- B2: recovery via the existing "Sync to Cloud" action ----
+    // ---- B2: recovery via the existing "Sync Changes" action ----
     const ctx = await alice.cmd('ctx-doc', { title: 'Broken Cloud Doc' });
-    check('B2: context menu offers Sync to Cloud',
-      (ctx.buttons || []).includes('Sync to Cloud'), JSON.stringify(ctx.buttons));
-    const syncClick = await alice.cmd('click-menu', { label: 'Sync to Cloud' });
-    check('B2: alice clicked Sync to Cloud', syncClick.ok, syncClick.error);
+    check('B2: context menu offers Sync Changes',
+      (ctx.buttons || []).includes('Sync Changes'), JSON.stringify(ctx.buttons));
+    const syncClick = await alice.cmd('click-menu', { label: 'Sync Changes' });
+    check('B2: alice clicked Sync Changes', syncClick.ok, syncClick.error);
 
     const recovered = await poll(async () => {
       const banner = await alice.cmd('page-contains', { text: 'Server copy unavailable' });
@@ -639,7 +639,7 @@ async function partB() {
     const cOpen = await carol.cmd('click-doc', { title: 'Fresh Doc' });
     check('B4: carol opened her local doc', cOpen.ok, cOpen.error);
     await carol.cmd('ctx-doc', { title: 'Fresh Doc' });
-    const up = await carol.cmd('click-menu', { label: 'Upload to Cloud' });
+    const up = await carol.cmd('click-menu', { label: 'Share with the Team' });
     check('B4: carol uploaded it to the cloud', up.ok, up.error);
     await sleep(2500);
     const cDocs = await carol.cmd('docs');

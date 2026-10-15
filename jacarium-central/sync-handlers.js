@@ -22,9 +22,11 @@ const {
 // YJS_STORAGE_ENCRYPTION_KEY is unset (memory-only mode).
 const { recordDocumentId, lookupDocumentId, forgetDocumentId } = require('./yjs-persistence');
 const { purgeDocument, reseedDegradedDocument } = require('./yjs-sync');
-// Uploads must carry the authenticated machine_id as ownerId (and never a
-// `_type` marker) - see checkUploadOwnership for the full rationale.
-const { checkUploadOwnership } = require('./client-registry');
+// Who may upload what: the owner, or a Read & Write member re-sending the
+// owner's item (share-permissions.js wraps client-registry's
+// checkUploadOwnership, the anti-forgery rule, and keeps the server's own
+// record of who may write to each shared item, enforced by yjs-sync.js).
+const sharePermissions = require('./share-permissions');
 
 // ============================================================================
 // WebSocket Handlers
@@ -92,9 +94,12 @@ function handleDocumentUpload(data, socket) {
   }
 
   // machine_id here is the VERIFIED socket identity (socket-handlers.js
-  // overwrites it after requireSocketAuth). Refuse to broadcast anything
-  // claiming another user's ownerId, or a smuggled removal marker.
-  const ownershipError = checkUploadOwnership(document, machine_id);
+  // overwrites it after requireSocketAuth). Accepted from the owner (whose
+  // upload also records who may edit) or from a Read & Write member sending
+  // the owner's item with owner and permissions unchanged; anything claiming
+  // another user's ownerId otherwise, or a smuggled removal marker, is
+  // refused (share-permissions.js checkSharedUpload).
+  const ownershipError = sharePermissions.checkSharedUpload('document', document, machine_id);
   if (ownershipError) {
     socket.emit('upload-error', { error: ownershipError });
     return;
@@ -161,7 +166,7 @@ function handleWorkflowUpload(data, socket) {
     return;
   }
 
-  const ownershipError = checkUploadOwnership(workflow, machine_id);
+  const ownershipError = sharePermissions.checkSharedUpload('workflow', workflow, machine_id);
   if (ownershipError) {
     socket.emit('upload-error', { error: ownershipError });
     return;
@@ -212,7 +217,7 @@ function handleBoardUpload(data, socket) {
     return;
   }
 
-  const ownershipError = checkUploadOwnership(board, machine_id);
+  const ownershipError = sharePermissions.checkSharedUpload('board', board, machine_id);
   if (ownershipError) {
     socket.emit('upload-error', { error: ownershipError });
     return;
@@ -322,6 +327,8 @@ function handleWorkflowRemoval(data, socket) {
     return;
   }
 
+  sharePermissions.forgetWorkflow(ownerId, title);
+
   const removalWorkflow = {
     _type: 'removal',
     ownerId,
@@ -370,6 +377,9 @@ function handleBoardRemoval(data, socket) {
     socket.emit('removal-error', { error: 'Permission denied: Only owner can remove' });
     return;
   }
+
+  // The board is no longer shared: its live room needs no write record
+  sharePermissions.forget(cloudBoardId);
 
   const removalBoard = {
     _type: 'removal',
@@ -581,6 +591,9 @@ function renameIdentity(oldId, newId, titles = []) {
     }
   }
   messageQueue.activeMachines.delete(oldId);
+  // The write records follow the identity too: what it owned, and what it was
+  // granted, are the new identity's now.
+  counts.permissionsRewritten = sharePermissions.renameIdentity(oldId, newId);
   if (displayNames.has(oldId) && !displayNames.has(newId)) displayNames.set(newId, displayNames.get(oldId));
   displayNames.delete(oldId);
   for (const title of titles) {

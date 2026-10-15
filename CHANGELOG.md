@@ -4,6 +4,57 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.1.9
+
+_2026-10-15_
+
+### [DOCUMENTS]
+
+Central server enforces Read & Write on shared documents and boards
+
+Board and document permissions: shared items are visible to the whole team, read-only without Read & Write
+
+### [KANBAN]
+
+Remove the empty "Check for shared updates" buttons (Documents, Kanban, Tasks)
+
+### [TEAM]
+
+Self-hosting: how to share the container on your network (LAN address, certificate, firewall), and a README pointer
+
+Drop the client's dead HTTP polling of the central server
+
+"Sync Changes" works for Read & Write members
+
+Team sharing says "Share with the Team" everywhere (text only)
+
+### [DESKTOP]
+
+README: .rpm downloads for Linux (Fedora, RHEL), and the minimum distributions
+
+README: download the desktop app from GitHub Releases (which file, macOS Open Anyway, Linux, verifying)
+
+package-lock: the root funding entry where npm writes it
+
+### [DEPLOY]
+
+Self-hosting from the published image: quick start in the README and docs
+
+Containerfile: node and caddy pinned to their multi-platform digests
+
+rebuild.sh: a python3.14 on the PATH first (actions/setup-python on CI; Homebrew's here)
+
+rebuild.sh: electron-builder --publish never (it only builds; the release workflow publishes)
+
+### [MISC]
+
+GTFOBins tool: credit to gtfobins.org
+
+export-source.sh: export the dot-files a build needs (.gitignore, .nvmrc, .npmrc, container ignore files)
+
+README: no Intel Mac download (lancedb and pylance ship Apple silicon wheels only)
+
+
 ## What's New in v3.1.8
 
 _2026-10-15_

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Shield, Search, Pencil, Trash2, X, Terminal } from 'lucide-react';
 import { useNotifications } from '../../../../contexts/NotificationContext';
 import ConfirmationModal from '../../../common/ConfirmationModal';
+import { ExternalLink } from '../../../ui/primitives';
 import {
   getGtfobinsFunctions,
   getGtfobinsContexts,
@@ -423,7 +424,9 @@ export default function GtfobinsTool() {
                 {filteredExecutables.length === 0 ? (
                   <tr>
                     <td colSpan={2} className="px-3 py-8 text-center text-os-text-muted">
-                      No executables match.
+                      {executables.length === 0
+                        ? 'No executables yet: add one above, or import a database export that holds them.'
+                        : 'No executables match.'}
                     </td>
                   </tr>
                 ) : (
@@ -490,6 +493,17 @@ export default function GtfobinsTool() {
             </table>
           </div>
         </section>
+
+        {/* Credit: the tool is modelled on GTFOBins and holds entries in its
+            format; the app ships none of its data (users add entries or
+            import them), so this is attribution, not a licence notice. */}
+        <p className="text-xs text-os-text-muted">
+          Reference data in the format of{' '}
+          <ExternalLink href="https://gtfobins.org" className="text-xs">GTFOBins</ExternalLink>,
+          the curated list of Unix binaries that can be used to bypass local
+          security restrictions. Jacarium ships none of its data: add entries
+          by hand, or import a database export that holds them.
+        </p>
       </div>
 
       {/* Modals */}

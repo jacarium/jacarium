@@ -46,21 +46,43 @@ trusted. To use your own certificate, put `cert.pem` and `key.pem` in
 `<data>/certs` before the first start.
 
 **Sharing it on your network.** `-p 127.0.0.1:8443:8443` publishes it on this
-machine only. To reach it from other devices, publish it on the machine's
-LAN address and add that address (and a name, if you use one) to the
-certificate so the browser's warning is about a self-signed certificate
-only, not a wrong name:
+machine only, on purpose: other devices, and even this machine's own LAN
+address, get no answer (`curl https://<LAN-IP>:8443` fails while
+`https://localhost:8443` works). To reach it from other devices:
 
-```bash
-  -p 192.168.1.20:8443:8443 \
-  -e TLS_SAN="IP:192.168.1.20,DNS:jacarium.lan" \
-```
+1. Find the machine's LAN address: `ip -4 addr` (Linux) or
+   `ipconfig getifaddr en0` (macOS), e.g. `192.168.1.20`.
+2. Recreate the container published on that address, with the address in the
+   certificate. The data stays on the volume. The first start generated a
+   certificate for `localhost` only and `TLS_SAN` is read only when one is
+   generated, so remove the old one first:
 
-(`TLS_SAN` is read when the certificate is generated, so set it before the
-first start, or delete `<data>/certs/*.pem` and restart.) For access away
-from home, connect through your own VPN rather than publishing the port on
-the internet; traffic is encrypted, stored data is not, so use disk
-encryption (FileVault, LUKS) on the host. `--hostname jacarium` names the
+   ```bash
+   podman stop jacarium && podman rm jacarium
+   rm -f ~/.config/jacarium/server/data/certs/cert.pem ~/.config/jacarium/server/data/certs/key.pem
+   podman run -d --name jacarium --hostname jacarium --restart unless-stopped \
+     -p 192.168.1.20:8443:8443 -e TLS_SAN="IP:192.168.1.20" \
+     -v ~/.config/jacarium/server/data:/data:Z,U \
+     quay.io/zerodayz/jacarium:latest
+   ```
+
+   Keep the same `--hostname`. Add a name too if your network has one for the
+   machine, e.g. `TLS_SAN="IP:192.168.1.20,DNS:jacarium.lan"`. With Docker
+   and a named volume, delete the old certificate with
+   `docker run --rm -v jacarium-data:/data alpine rm -f /data/certs/cert.pem /data/certs/key.pem`.
+3. Open the port in the machine's firewall if it runs one:
+   `sudo firewall-cmd --add-port=8443/tcp --permanent && sudo firewall-cmd --reload`
+   (Fedora, RHEL) or `sudo ufw allow 8443/tcp` (Ubuntu, Debian). Docker
+   publishes ports with its own firewall rules, which ufw does not see; the
+   address in `-p` is what limits who can reach it.
+4. From another device: `curl -kI https://192.168.1.20:8443`, then open it in
+   a browser (it warns once about the self-signed certificate).
+
+Never publish it on all addresses (`-p 8443:8443` or `0.0.0.0`) on a machine
+that is reachable from the internet, and don't forward the port on your
+router. For access away from home, connect through your own VPN instead;
+traffic is encrypted, stored data is not, so use disk encryption
+(FileVault, LUKS) on the host. `--hostname jacarium` names the
 server in each browser's sync identity; keep it the same across updates.
 
 **Updating.** Pull the new image and recreate the container; the volume

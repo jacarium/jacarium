@@ -177,38 +177,6 @@ export async function isBoardOwner(board) {
 }
 
 /**
- * Poll central server for kanban board updates
- */
-export async function pollCentralForBoards() {
-  const serverUrl = getCentralServerUrl();
-  if (!serverUrl) {
-    return { boards: [] };
-  }
-
-  const machineId = await getMachineId();
-  const pollUrl = `${serverUrl}/api/kanban/pending?machine_id=${encodeURIComponent(machineId)}`;
-
-  console.log('[pollCentralForBoards] Polling URL:', pollUrl);
-
-  const response = await fetchWithTimeout(pollUrl, {
-    headers: await getCentralAuthHeaders(serverUrl)
-  });
-
-  if (!response.ok) {
-    console.error('[pollCentralForBoards] Poll failed with status:', response.status);
-    throw new Error(`Poll failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-  console.log('[pollCentralForBoards] Server response:', {
-    boards: data.boards?.length || 0,
-    boardsDetails: data.boards?.map(b => ({ title: b.board.title, ownerId: b.board.ownerId }))
-  });
-
-  return data;
-}
-
-/**
  * Process incoming board from central server
  */
 export async function receiveBoardFromCentral(incomingBoardData) {

@@ -41,11 +41,9 @@ export default function CloudDocumentActions({
     try {
       await uploadDocumentToCentral(document);
 
-      addNotification({
-        type: 'success',
-        title: 'Upload Successful',
-        message: 'Document uploaded to central server successfully.'
-      });
+      addNotification(inCloud
+        ? { type: 'success', title: 'Changes Synced', message: 'Your changes to the document are now with the team.' }
+        : { type: 'success', title: 'Shared with the Team', message: 'The document is now shared with your team.' });
 
       // Trigger document reload to update cloud status in UI
       // Use setTimeout to ensure IndexedDB transaction completes
@@ -60,7 +58,7 @@ export default function CloudDocumentActions({
       console.error('Upload failed:', error);
       addNotification({
         type: 'error',
-        title: 'Upload Failed',
+        title: 'Sharing Failed',
         message: 'Failed to upload to central server: ' + error.message
       });
     } finally {
@@ -79,23 +77,23 @@ export default function CloudDocumentActions({
           onClick={handleUploadToCloud}
           disabled={uploading}
           className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white text-sm hover:bg-purple-700 rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Sync changes to central server"
+          title="Sync your changes with the team"
         >
-          {uploading ? 'Syncing...' : 'Sync to Cloud'}
+          {uploading ? 'Syncing...' : 'Sync Changes'}
         </button>
       ) : inCloud && !isOwner ? (
         <div className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 text-purple-700 text-sm font-medium rounded-sm">
           <Cloud size={14} />
-          <span>In Cloud (Read-Only)</span>
+          <span>Shared (Read-Only)</span>
         </div>
       ) : (
         <button
           onClick={handleUploadToCloud}
           disabled={uploading}
           className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white text-sm hover:bg-purple-700 rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Upload document to central server"
+          title="Share this document with the team"
         >
-          {uploading ? 'Uploading...' : 'Upload to Cloud'}
+          {uploading ? 'Sharing...' : 'Share with the Team'}
         </button>
       )}
 

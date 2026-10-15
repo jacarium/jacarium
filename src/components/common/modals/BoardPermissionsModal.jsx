@@ -171,8 +171,8 @@ export default function BoardPermissionsModal({
           {Object.keys(permissions).length === 0 ? (
             <div className="text-sm text-os-text-muted text-center py-6">
               {isMultiple
-                ? 'No permissions set. Boards will only be accessible to their owners.'
-                : 'No permissions set. Board is only accessible to owner.'}
+                ? 'No permissions set. Shared boards are visible to everyone on your home server\'s team; others can view these but not edit them.'
+                : 'No permissions set. Shared boards are visible to everyone on your home server\'s team; others can view this one but not edit it.'}
             </div>
           ) : (
             <div className="space-y-2">

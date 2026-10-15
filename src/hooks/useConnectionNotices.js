@@ -19,7 +19,7 @@ export default function useConnectionNotices(addNotification, enabled = true) {
         addNotification({
           type: 'warning',
           title: 'Working Offline',
-          message: 'Connection to central server lost. Cloud documents and boards are now read-only.'
+          message: 'Connection to central server lost. Shared documents and boards are now read-only.'
         });
       } else if (notice === 'online') {
         addNotification({

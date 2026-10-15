@@ -732,15 +732,29 @@ export default function DocumentsPage({
       }
     }
 
+    // The central server refused an edit to a shared document (no Read &
+    // Write grant): the editor is read-only and resynced; tell the user why.
+    function handleSharedWriteRejected(event) {
+      if (event.detail?.kind !== 'document') return;
+      const title = event.detail?.title;
+      addNotification({
+        type: 'warning',
+        title: 'Read-only',
+        message: `You can view ${title ? `"${title}"` : 'this document'} but not edit it.`
+      });
+    }
+
     window.addEventListener('cloudDocumentsReceived', handleCloudDocumentsReceived);
     window.addEventListener('documentUploadedToCloud', handleDocumentUploadedToCloud);
     window.addEventListener('documentUpdated', handleDocumentUpdated);
+    window.addEventListener('sharedWriteRejected', handleSharedWriteRejected);
 
     return () => {
       // Remove event listeners (WebSocket cleanup is handled by first useEffect)
       window.removeEventListener('cloudDocumentsReceived', handleCloudDocumentsReceived);
       window.removeEventListener('documentUploadedToCloud', handleDocumentUploadedToCloud);
       window.removeEventListener('documentUpdated', handleDocumentUpdated);
+      window.removeEventListener('sharedWriteRejected', handleSharedWriteRejected);
     };
     // Cloud-sync handlers re-bind when the open panes change; the loaders
     // they call are recreated per render and intentionally excluded.

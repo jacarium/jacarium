@@ -178,6 +178,19 @@ export default function DocumentEditor({
   // by (document?.inCloud && !isOnline).
   const serverCopyUnavailable = !!(yjsEnabled && isOnline && yjs.serverLoadFailed);
 
+  // The server refused this identity's edit (no Read & Write grant, or one
+  // withdrawn while the document was open): read-only from here on, with the
+  // same banner a known non-owner gets. The hook has already resynced the
+  // document from the server, dropping the refused edit; DocumentsPage turns
+  // this announcement into a notice so that does not happen silently.
+  const writeRejected = !!(yjsEnabled && yjs.writeRejected);
+  useEffect(() => {
+    if (!writeRejected) return;
+    window.dispatchEvent(new CustomEvent('sharedWriteRejected', {
+      detail: { kind: 'document', title: document?.title || '' }
+    }));
+  }, [writeRejected, document?.title]);
+
   // Debug: log when content prop changes
   // useEffect(() => {
   //   console.log('[DocumentEditor] Content prop changed, new length:', content.length);
@@ -375,13 +388,15 @@ export default function DocumentEditor({
       if (document && document.inCloud) {
         const { isDocumentOwner } = await import('../../../utils/cloudDocuments');
         const owner = await isDocumentOwner(document);
-        setIsOwner(owner);
+        // The server has the last word: a refused edit means no write access
+        // whatever the local copy's permissions say
+        setIsOwner(owner && !writeRejected);
       } else {
         setIsOwner(true); // Local documents are always editable
       }
     }
     checkOwnership();
-  }, [document]);
+  }, [document, writeRejected]);
 
   // Set user info for Yjs awareness (username and color)
   useEffect(() => {
@@ -2842,17 +2857,17 @@ export default function DocumentEditor({
 
       </div>
 
-      {/* Offline banner for cloud documents (shared NoticeBanner strip) */}
+      {/* Offline banner for shared documents (shared NoticeBanner strip) */}
       {document?.inCloud && !isOnline && (
         <NoticeBanner tone="offline" title="Offline - Read Only" testId="document-offline-banner">
-          <span>Cloud documents require an online connection for editing. Reconnect to make changes.</span>
+          <span>Shared documents require an online connection for editing. Reconnect to make changes.</span>
         </NoticeBanner>
       )}
 
-      {/* Read-only banner for cloud documents */}
+      {/* Read-only banner for documents shared by someone else */}
       {document?.inCloud && !isOwner && (
         <NoticeBanner tone="readonly" title="Read-only:" testId="document-readonly-banner">
-          <span>This cloud document is owned by another user. You can view but not edit.</span>
+          <span>This document is shared by another team member. You can view but not edit.</span>
         </NoticeBanner>
       )}
 
@@ -2866,7 +2881,7 @@ export default function DocumentEditor({
             This document could not be loaded from the server (its stored copy is
             corrupted or unreadable). You are viewing your local cached copy,
             read-only. To restore it, right-click the document and choose
-            &quot;Sync to Cloud&quot; to re-upload a local copy.
+            &quot;Sync Changes&quot; to re-upload a local copy.
           </span>
         </NoticeBanner>
       )}
@@ -2949,7 +2964,7 @@ export default function DocumentEditor({
                   : !isOwner
                 ? 'This document is read-only (owned by another user)'
                   : (document?.inCloud && !isOnline)
-                ? 'Cloud documents are read-only when offline'
+                ? 'Shared documents are read-only when offline'
                 : serverCopyUnavailable
                 ? 'Read-only: the server could not load this document - viewing your local copy'
                 : isAutoTyping
@@ -3493,7 +3508,7 @@ export default function DocumentEditor({
                   : !isOwner
                   ? 'Read-only (not owner)'
                   : (document?.inCloud && !isOnline)
-                  ? 'Offline - cloud documents are read-only'
+                  ? 'Offline - shared documents are read-only'
                   : 'Read-only - server copy unavailable'}
               </span>
             </div>
@@ -3641,7 +3656,7 @@ export default function DocumentEditor({
                     : !isOwner
                     ? 'Read-only (not owner)'
                     : (document?.inCloud && !isOnline)
-                    ? 'Offline - cloud documents are read-only'
+                    ? 'Offline - shared documents are read-only'
                     : serverCopyUnavailable
                     ? 'Read-only - server copy unavailable'
                     : 'Replace current match'
@@ -3665,7 +3680,7 @@ export default function DocumentEditor({
                     : !isOwner
                     ? 'Read-only (not owner)'
                     : (document?.inCloud && !isOnline)
-                    ? 'Offline - cloud documents are read-only'
+                    ? 'Offline - shared documents are read-only'
                     : serverCopyUnavailable
                     ? 'Read-only - server copy unavailable'
                     : 'Replace all matches'

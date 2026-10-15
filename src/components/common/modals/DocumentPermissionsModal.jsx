@@ -171,8 +171,8 @@ export default function DocumentPermissionsModal({
           {Object.keys(permissions).length === 0 ? (
             <div className="text-sm text-os-text-muted text-center py-6">
               {isMultiple
-                ? 'No permissions set. Documents will only be accessible to their owners.'
-                : 'No permissions set. Document is only accessible to owner.'}
+                ? 'No permissions set. Shared documents are visible to everyone on your home server\'s team; others can view these but not edit them.'
+                : 'No permissions set. Shared documents are visible to everyone on your home server\'s team; others can view this one but not edit it.'}
             </div>
           ) : (
             <div className="space-y-2">

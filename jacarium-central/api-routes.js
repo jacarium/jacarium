@@ -35,6 +35,9 @@ const { renameIdentity } = require('./sync-handlers');
 // the WebSocket is down, and must keep snapshot state consistent too.
 const { recordDocumentId, lookupDocumentId, forgetDocumentId } = require('./yjs-persistence');
 const { purgeDocument, reseedDegradedDocument } = require('./yjs-sync');
+// The server's own record of who may write to each shared item (learned from
+// the owner's uploads, enforced by yjs-sync.js).
+const sharePermissions = require('./share-permissions');
 
 const router = express.Router();
 
@@ -255,9 +258,12 @@ router.post('/api/documents', requireClientAuth, (req, res) => {
       return res.status(400).json({ error: 'Document must have title and ownerId' });
     }
 
-    // Security check: the payload may only claim the verified identity as
-    // owner and may not smuggle a removal marker (same rule as DELETE below).
-    const ownershipError = checkUploadOwnership(document, machine_id);
+    // Security check: the owner (whose upload also records who may edit), or
+    // a Read & Write member sending the owner's item with owner and
+    // permissions unchanged; no other claimed ownerId, no smuggled removal
+    // marker (share-permissions.js checkSharedUpload; DELETE below is owner
+    // only).
+    const ownershipError = sharePermissions.checkSharedUpload('document', document, machine_id);
     if (ownershipError) {
       return res.status(403).json({ error: ownershipError });
     }
@@ -323,7 +329,7 @@ router.post('/api/workflows', requireClientAuth, (req, res) => {
     }
 
     // Security check: only the verified identity may be claimed as owner
-    const ownershipError = checkUploadOwnership(workflow, machine_id);
+    const ownershipError = sharePermissions.checkSharedUpload('workflow', workflow, machine_id);
     if (ownershipError) {
       return res.status(403).json({ error: ownershipError });
     }
@@ -673,6 +679,8 @@ router.delete('/api/workflows/:ownerId/:title', requireClientAuth, (req, res) =>
     // Track active machine
     messageQueue.activeMachines.add(machine_id);
 
+    sharePermissions.forgetWorkflow(ownerId, decodeURIComponent(title));
+
     // Add removal message to queue
     const removalMessage = {
       id: nextMessageId(),
@@ -729,7 +737,7 @@ router.post('/api/kanban/boards', requireClientAuth, (req, res) => {
     }
 
     // Security check: only the verified identity may be claimed as owner
-    const ownershipError = checkUploadOwnership(board, machine_id);
+    const ownershipError = sharePermissions.checkSharedUpload('board', board, machine_id);
     if (ownershipError) {
       return res.status(403).json({ error: ownershipError });
     }

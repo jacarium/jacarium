@@ -222,6 +222,41 @@ async function main() {
         case 'editor-doc':
           res({ id, ...editorDocumentProp() });
           break;
+        // Grant another identity Read & Write on a document this machine
+        // shares, through the real UI: context menu -> Manage Permissions ->
+        // add the identity as Read & Write -> Save. The owner's client then
+        // re-uploads the document with the new map, which the central server
+        // records and enforces (yjs-update from anyone else is refused).
+        case 'grant-write': {
+          const el = findDocRow(args.title);
+          if (!el) { res({ id, error: 'doc row not found: ' + args.title }); break; }
+          fire(el, 'contextmenu');
+          await sleep(150);
+          const manage = Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Manage Permissions');
+          if (!manage) { res({ id, error: 'Manage Permissions not offered (not the owner, or not shared yet)' }); break; }
+          fire(manage, 'click');
+          await sleep(300);
+          const input = Array.from(document.querySelectorAll('input')).find((i) => /Machine ID|identity/i.test(i.placeholder || ''));
+          const select = Array.from(document.querySelectorAll('select')).find((s) => Array.from(s.options).some((o) => o.value === 'write'));
+          if (!input || !select) { res({ id, error: 'permissions modal not found' }); break; }
+          const setInput = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+          setInput.call(input, args.identity);
+          input.dispatchEvent(new window.Event('input', { bubbles: true }));
+          const setSelect = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+          setSelect.call(select, 'write');
+          select.dispatchEvent(new window.Event('change', { bubbles: true }));
+          await sleep(50);
+          const add = Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Add');
+          if (!add) { res({ id, error: 'Add button not found' }); break; }
+          fire(add, 'click');
+          await sleep(100);
+          const save = Array.from(document.querySelectorAll('button')).find((b) => /^Save/.test(b.textContent.trim()));
+          if (!save) { res({ id, error: 'Save button not found' }); break; }
+          fire(save, 'click');
+          await sleep(800);
+          res({ id, ok: true });
+          break;
+        }
         // Rename a document through the real sidebar UI: double-click the row
         // (opens InlineEdit), type the new title, press Enter (commits via
         // onRenameDocument -> DocumentsPage.handleRenameDocument).

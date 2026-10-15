@@ -56,8 +56,8 @@ import {
  *     ZIP (FileArchive), PDF (FileText); an export whose label names no
  *     format is a plain Download, and every import is an Upload.
  *   - The cloud trio is the same on Documents, Kanban, Tasks and Workflows:
- *     Upload to Cloud (CloudUpload), Sync to Cloud (RefreshCw), Remove from
- *     Cloud (CloudOff).
+ *     Share with the Team (CloudUpload), Sync Changes (RefreshCw), Stop
+ *     Sharing (CloudOff); the keys keep their cloud names.
  *   - All "Close ... tab(s)" entries use X, as the tab menus always did.
  */
 export const MENU_ICONS = {

@@ -116,7 +116,7 @@ export default function WorkflowRow({
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {isShared && (
-            <div className="flex items-center gap-0.5" title={isMine ? `Your cloud workflow\nOwner: ${workflow.ownerId || 'Unknown'}` : `Cloud workflow\nOwner: ${workflow.ownerId || 'Unknown'}`}>
+            <div className="flex items-center gap-0.5" title={isMine ? 'Shared with the team by you' : `Shared with the team by ${workflow.ownerId || 'Unknown'}`}>
               {isMine && (
                 <Crown size={10} className="text-purple-600" />
               )}

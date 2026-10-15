@@ -177,8 +177,8 @@ export default function useWorkflowSession({ onBeforeSwitch } = {}) {
       if (processed > 0) {
         addNotification({
           type: 'success',
-          title: 'Cloud workflows',
-          message: `Received ${processed} cloud workflow${processed > 1 ? 's' : ''} from the central server.`
+          title: 'Shared workflows',
+          message: `Received ${processed} shared workflow${processed > 1 ? 's' : ''} from the team.`
         });
       }
 

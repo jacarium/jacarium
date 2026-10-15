@@ -513,7 +513,7 @@ function InstanceCard({ instance, isActive, onEdit, onDelete, onSetActive }) {
             )}
             {instance.inCloud === 1 && (
               <span className="px-2 py-0.5 bg-purple-600 text-os-text-primary text-xs rounded-sm">
-                Cloud
+                Shared
               </span>
             )}
           </div>

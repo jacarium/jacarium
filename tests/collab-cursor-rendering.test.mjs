@@ -115,6 +115,7 @@ function check(name, cond, detail) {
 class Client {
   constructor(name, env) {
     this.name = name;
+    this.machineId = env.MACHINE_ID; // the identity the owner grants Read & Write to
     this.pending = new Map();
     this.nextId = 1;
     this.log = fs.createWriteStream(path.join(WORKDIR, `${name}.log`));
@@ -199,10 +200,10 @@ async function shareAndOpen(owner, receiver, title, expectedLen) {
   check(`${owner.name} opened doc via sidebar click`, open.ok, open.error);
 
   const ctx = await owner.cmd('ctx-doc', { title });
-  check(`${owner.name} context menu shows Upload to Cloud`,
-    (ctx.buttons || []).includes('Upload to Cloud'), JSON.stringify(ctx.buttons));
-  const up = await owner.cmd('click-menu', { label: 'Upload to Cloud' });
-  check(`${owner.name} clicked Upload to Cloud`, up.ok, up.error);
+  check(`${owner.name} context menu shows Share with the Team`,
+    (ctx.buttons || []).includes('Share with the Team'), JSON.stringify(ctx.buttons));
+  const up = await owner.cmd('click-menu', { label: 'Share with the Team' });
+  check(`${owner.name} clicked Share with the Team`, up.ok, up.error);
   await sleep(2500);
 
   let doc = null;
@@ -213,17 +214,26 @@ async function shareAndOpen(owner, receiver, title, expectedLen) {
   }
   check(`${receiver.name} received the cloud document`, !!doc, doc ? undefined : 'not received');
 
+  // Both machines type in these scenarios, so the receiver needs Read &
+  // Write: the central server refuses live edits from anyone else and the
+  // receiver's editor is read-only until the grant arrives.
+  const grant = await owner.cmd('grant-write', { title, identity: receiver.machineId });
+  check(`${owner.name} granted ${receiver.name} Read & Write`, grant.ok, grant.error);
+
   const rOpen = await receiver.cmd('click-doc', { title });
   check(`${receiver.name} opened doc via sidebar click`, rOpen.ok, rOpen.error);
 
   let len = -1;
+  let readOnly = true;
   for (let i = 0; i < 30; i++) {
     const t = await receiver.cmd('textarea');
     len = t.value ? t.value.length : -1;
-    if (len === expectedLen) break;
+    readOnly = t.readOnly !== false;
+    if (len === expectedLen && !readOnly) break;
     await sleep(500);
   }
   check(`${receiver.name} editor fully synced (${expectedLen} chars)`, len === expectedLen, `got ${len}`);
+  check(`${receiver.name} editor is editable (the grant arrived)`, !readOnly);
 }
 
 let exitCode = 1;

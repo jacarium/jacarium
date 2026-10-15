@@ -51,6 +51,13 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
   // an empty degraded placeholder, or a pre-failure history the rebuilt doc
   // no longer shares - must not be merged into the new document).
   const [providerEpoch, setProviderEpoch] = useState(0);
+  // The server refused one of our edits (yjs-update-rejected): this identity
+  // may read the document but not edit it (its Read & Write grant is missing
+  // or was withdrawn). The editor goes read-only, updateContent is blocked,
+  // and the provider is torn down for a fresh sync so the refused edit is
+  // dropped and the true server state is shown. Per document.
+  const [writeRejected, setWriteRejected] = useState(false);
+  const writeRejectedRef = useRef(false);
 
   /**
    * Build the awareness 'cursor' field for a local cursor position.
@@ -160,6 +167,8 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
       awarenessRef.current = null;
       serverLoadFailedRef.current = false; // Failure state is per-document
       setServerLoadFailed(false);
+      writeRejectedRef.current = false; // so is a refused edit
+      setWriteRejected(false);
       setCursors({});
       remoteCursorsRef.current = {}; // Clear remote cursor tracking
       currentDocumentIdRef.current = documentId;
@@ -200,13 +209,24 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
     }
     const unsubscribeLoadFailed = provider.onStateLoadFailedChange(applyLoadFailed);
     const unsubscribeReseeded = provider.onReseeded(() => {
-      // The server rebuilt this document from an explicit re-upload ("Sync to
-      // Cloud"). Resync from scratch via a provider teardown/re-create: our
+      // The server rebuilt this document from an explicit re-upload ("Sync
+      // Changes"). Resync from scratch via a provider teardown/re-create: our
       // current Y.Doc's history (the empty degraded placeholder, or a
       // pre-failure history the rebuilt document no longer shares) must not
       // be merged into the new one.
       console.log(`[useYjsText] Document ${documentId} reseeded on server - tearing down provider for a fresh sync`);
       applyLoadFailed(false);
+      setProviderEpoch((epoch) => epoch + 1);
+    });
+    const unsubscribeRejected = provider.onWriteRejected(() => {
+      // No write permission: go read-only for this document and drop the
+      // refused local edit by resyncing from scratch (same teardown as a
+      // reseed; the fresh provider takes the server's content as truth and,
+      // with the flag set, never seeds it from the local copy).
+      if (currentDocumentIdRef.current !== documentId) return;
+      console.warn(`[useYjsText] The server refused an edit to ${documentId} - read-only, resyncing from the server`);
+      writeRejectedRef.current = true;
+      setWriteRejected(true);
       setProviderEpoch((epoch) => epoch + 1);
     });
 
@@ -247,8 +267,10 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
         return;
       }
 
-      // Check if server had content
-      if (ytext.length > 0) {
+      // Check if server had content. A document we may not write to is never
+      // seeded from the local copy either: the server's state (even empty)
+      // is what this reader is allowed to see.
+      if (ytext.length > 0 || writeRejectedRef.current) {
         // Server has content - use it (it's the source of truth)
         const serverContent = ytext.toString();
         // console.log(`[useYjsText] Using server content (${serverContent.length} chars), local was ${documentContentRef.current.length} chars`);
@@ -568,6 +590,7 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
       remoteCursorsRef.current = {}; // Clear remote cursor tracking
       unsubscribeLoadFailed();
       unsubscribeReseeded();
+      unsubscribeRejected();
       ytext.unobserve(handleYTextChange);
       awareness.off('change', handleAwarenessChange);
       cleanupYjsProvider(documentId);
@@ -589,6 +612,10 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
     // (DocumentEditor), this is the defense-in-depth backstop.
     if (serverLoadFailedRef.current) {
       console.log('[useYjsText] updateContent blocked - server could not load this document\'s persisted state (read-only until reseeded)');
+      return;
+    }
+    if (writeRejectedRef.current) {
+      console.log('[useYjsText] updateContent blocked - the server refused this identity\'s edits (read-only)');
       return;
     }
     // Critical check: Only update if Yjs is fully ready for THIS SPECIFIC document
@@ -770,7 +797,11 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
     // True when the server reported it could not load this document's
     // persisted state: DocumentEditor renders the local copy read-only with
     // an explanatory banner while this is set.
-    serverLoadFailed
+    serverLoadFailed,
+    // True once the server refused this identity's edit to the document (no
+    // Read & Write grant): DocumentEditor renders it read-only with the
+    // "shared by another team member" banner and says so once.
+    writeRejected
   };
 }
 

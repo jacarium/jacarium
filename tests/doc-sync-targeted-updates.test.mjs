@@ -12,7 +12,7 @@
  *        autosave path never fed the freshly-assigned cloudDocumentId back
  *        into the open editor. Fixed: after the first autosave upload the
  *        cloud metadata is merged into the editor state (same
- *        handleCloudUploadSuccess pattern as explicit "Upload to Cloud"), so
+ *        handleCloudUploadSuccess pattern as explicit "Share with the Team"), so
  *        Yjs engages and later body typing stops uploading snapshots (S3).
  *     b) title/category edits on a live-Yjs doc (e.g. sidebar rename): the
  *        autosave wrote the STALE React `content` state (frozen at doc-open
@@ -240,8 +240,8 @@ try {
   const open = await alice.cmd('click-doc', { title: LIVE });
   check('alice opened live doc via sidebar click', open.ok, open.error);
   await alice.cmd('ctx-doc', { title: LIVE });
-  const up = await alice.cmd('click-menu', { label: 'Upload to Cloud' });
-  check('alice clicked Upload to Cloud', up.ok, up.error);
+  const up = await alice.cmd('click-menu', { label: 'Share with the Team' });
+  check('alice clicked Share with the Team', up.ok, up.error);
   await sleep(2500);
   const ed1 = await alice.cmd('editor-doc');
   check('alice live doc engaged Yjs (cloudDocumentId in editor)',
@@ -392,8 +392,8 @@ try {
   const bobBefore = await pollBobDoc(LIVE_RENAMED);
   await alice.cmd('click-doc', { title: LIVE_RENAMED });
   await alice.cmd('ctx-doc', { title: LIVE_RENAMED });
-  const sync1 = await alice.cmd('click-menu', { label: 'Sync to Cloud' });
-  check('S4a: alice clicked Sync to Cloud on renamed doc', sync1.ok, sync1.error);
+  const sync1 = await alice.cmd('click-menu', { label: 'Sync Changes' });
+  check('S4a: alice clicked Sync Changes on renamed doc', sync1.ok, sync1.error);
   const bobAfter = await pollBobDoc(LIVE_RENAMED,
     (d) => d.cloudLastUpdated > (bobBefore ? bobBefore.cloudLastUpdated : 0), 16);
   check('S4a: bob\'s stored copy took the update', !!bobAfter,
@@ -410,8 +410,8 @@ try {
     !!(bEdBefore.document && bEdBefore.document.title === SNAP), JSON.stringify(bEdBefore.document));
   await alice.cmd('click-doc', { title: SNAP });
   await alice.cmd('ctx-doc', { title: SNAP });
-  const sync2 = await alice.cmd('click-menu', { label: 'Sync to Cloud' });
-  check('S4b: alice clicked Sync to Cloud on snapshot doc', sync2.ok, sync2.error);
+  const sync2 = await alice.cmd('click-menu', { label: 'Sync Changes' });
+  check('S4b: alice clicked Sync Changes on snapshot doc', sync2.ok, sync2.error);
   let bEdAfter = null;
   for (let i = 0; i < 16; i++) {
     const e = await bob.cmd('editor-doc');
@@ -436,8 +436,8 @@ try {
   // tab, switching the editor to a remaining tab.
   const s5BobReloads = bob.logCount(FULL_RELOAD);
   await alice.cmd('ctx-doc', { title: SNAP });
-  const rm = await alice.cmd('click-menu', { label: 'Remove from Cloud' });
-  check('S5: alice clicked Remove from Cloud on snapshot doc', rm.ok, rm.error);
+  const rm = await alice.cmd('click-menu', { label: 'Stop Sharing' });
+  check('S5: alice clicked Stop Sharing on snapshot doc', rm.ok, rm.error);
   let bobGone = false;
   for (let i = 0; i < 20; i++) {
     const r = await bob.cmd('docs');

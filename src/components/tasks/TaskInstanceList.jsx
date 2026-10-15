@@ -44,7 +44,6 @@ export default function TaskInstanceList({
   const { confirm, confirmationProps } = useConfirmation();
   const [showModal, setShowModal] = useState(false);
   const [editingInstance, setEditingInstance] = useState(null);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [expandedCategories, setExpandedCategories] = useLocalStorage('expandedTaskInstanceCategories', []);
   const [currentMachineId, setCurrentMachineId] = useState(null);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
@@ -196,20 +195,6 @@ export default function TaskInstanceList({
     }
   };
 
-  const handleCloudSync = async () => {
-    setIsSyncing(true);
-    try {
-      // Refresh instances and tasks
-      if (onRefresh) {
-        await onRefresh();
-      }
-    } catch (error) {
-      console.error('Cloud sync failed:', error);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   const handleRenameCategory = async (oldName, newName) => {
     if (!newName || newName.trim() === '') return;
     if (oldName === newName) return;
@@ -247,7 +232,7 @@ export default function TaskInstanceList({
       closeContextMenu();
 
       if (!currentMachineId) {
-        addNotification({ type: 'error', title: 'Cloud Upload Failed', message: 'Unable to get machine ID' });
+        addNotification({ type: 'error', title: 'Sharing Failed', message: 'Unable to get machine ID' });
         return;
       }
 
@@ -257,11 +242,11 @@ export default function TaskInstanceList({
         ownerId: currentMachineId,
       });
 
-      addNotification({ type: 'success', title: 'Uploaded to Cloud', message: `Instance "${instance.name}" uploaded to cloud` });
+      addNotification({ type: 'success', title: 'Shared with the Team', message: `Instance "${instance.name}" is now shared with your team` });
       onRefresh && onRefresh();
     } catch (error) {
       console.error('Error uploading to cloud:', error);
-      addNotification({ type: 'error', title: 'Cloud Upload Failed', message: `Failed to upload: ${error.message}` });
+      addNotification({ type: 'error', title: 'Sharing Failed', message: `Failed to share: ${error.message}` });
     }
   };
 
@@ -271,18 +256,18 @@ export default function TaskInstanceList({
 
       // Validate instance has required cloud metadata
       if (!instance.ownerId) {
-        addNotification({ type: 'error', title: 'Cannot Remove', message: 'Cannot remove: Instance has no owner ID' });
+        addNotification({ type: 'error', title: 'Cannot Stop Sharing', message: 'This instance has no owner' });
         return;
       }
 
       if (instance.ownerId !== currentMachineId) {
-        addNotification({ type: 'error', title: 'Cannot Remove', message: 'Cannot remove: Only the owner can remove this instance from cloud' });
+        addNotification({ type: 'error', title: 'Cannot Stop Sharing', message: 'Only the owner can stop sharing this instance' });
         return;
       }
 
       if (!(await confirm({
-        title: 'Remove from Cloud',
-        message: `Remove "${instance.name}" from cloud? This will only remove it from the cloud server, not from your local database.`,
+        title: 'Stop Sharing',
+        message: `Stop sharing "${instance.name}" with the team? It stays in your local database; only the team's copy is removed.`,
         type: 'warning',
         confirmLabel: 'Remove',
       }))) {
@@ -305,11 +290,11 @@ export default function TaskInstanceList({
         cloudDocumentId: null,
       });
 
-      addNotification({ type: 'success', title: 'Removed from Cloud', message: `Instance "${instance.name}" removed from cloud` });
+      addNotification({ type: 'success', title: 'Stopped Sharing', message: `Instance "${instance.name}" is no longer shared` });
       onRefresh && onRefresh();
     } catch (error) {
       console.error('Error removing from cloud:', error);
-      addNotification({ type: 'error', title: 'Cloud Removal Failed', message: `Failed to remove from cloud: ${error.message}` });
+      addNotification({ type: 'error', title: "Couldn't Stop Sharing", message: `Failed to stop sharing: ${error.message}` });
     }
   };
 
@@ -396,15 +381,6 @@ export default function TaskInstanceList({
           setEditingInstance(null);
           setShowModal(true);
         }}
-        actions={
-          <button
-            onClick={handleCloudSync}
-            disabled={isSyncing}
-            className="p-1.5 rounded-sm transition-colors hover:bg-os-card-secondary disabled:opacity-50"
-            title="Check for cloud updates"
-          >
-          </button>
-        }
       />
 
       {/* Instance List */}
@@ -457,7 +433,7 @@ export default function TaskInstanceList({
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {isCloudInstance && (
-                        <div className="flex items-center gap-0.5" title={instance.ownerId === currentMachineId ? `Your cloud task instance\nOwner: ${instance.ownerId || 'Unknown'}` : `Cloud task instance\nOwner: ${instance.ownerId || 'Unknown'}`}>
+                        <div className="flex items-center gap-0.5" title={instance.ownerId === currentMachineId ? 'Shared with the team by you' : `Shared with the team by ${instance.ownerId || 'Unknown'}`}>
                           {instance.ownerId === currentMachineId && (
                             <Crown size={10} className="text-purple-600" />
                           )}
@@ -598,7 +574,7 @@ export default function TaskInstanceList({
                   className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                 >
                   <MenuItemIcon action="uploadToCloud" />
-                  Upload to Cloud
+                  Share with the Team
                 </button>
               )}
               {contextMenu.target.inCloud === 1 && contextMenu.target.ownerId === currentMachineId && (
@@ -608,14 +584,14 @@ export default function TaskInstanceList({
                     className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                   >
                     <MenuItemIcon action="syncToCloud" />
-                    Sync to Cloud
+                    Sync Changes
                   </button>
                   <button
                     onClick={() => handleRemoveFromCloud(contextMenu.target)}
                     className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
                   >
                     <MenuItemIcon action="removeFromCloud" />
-                    Remove from Cloud
+                    Stop Sharing
                   </button>
                   <button
                     onClick={() => {
