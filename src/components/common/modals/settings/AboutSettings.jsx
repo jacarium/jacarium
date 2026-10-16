@@ -1,7 +1,8 @@
 /**
  * Settings > About: the mark, the wordmark and the tagline (from
  * package.json through src/brand/brand.js), the versions (this app, the
- * sync protocol, the home server when there is one), What's New, the
+ * sync protocol, the home server when there is one), the release check
+ * (UpdateSettings: off by default, see electron/update-check.cjs), What's New, the
  * desktop downloads page of the home server, the website (a plain link that
  * opens in the browser - nothing is fetched from it), the author, the source
  * code (the repository - the AGPL's offer of the source), where to support
@@ -14,6 +15,7 @@ import { brandTagline, brandHomepage, brandHomepageLabel, brandRepository, brand
 import { latestVersion } from '../../../../whats-new/versions';
 import protocolJson from '../../../../../protocol.json';
 import { Section, InfoRows, Button, ExternalLink } from './ui';
+import UpdateSettings from './UpdateSettings';
 import { isDesktopApp } from '../../../../utils/platform';
 import { apiFetch, getBackendUrl } from '../../../../utils/backendUrl';
 import { getHomeServerStatus, checkHomeServerVersion } from '../../../../utils/homeServer';
@@ -84,6 +86,8 @@ export default function AboutSettings({ onShowWhatsNew }) {
           </Row>
         </InfoRows>
       </Section>
+
+      <UpdateSettings />
 
       <Section title="More" testId="about-more">
         <div className="flex flex-wrap gap-2">

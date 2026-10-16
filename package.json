@@ -1,9 +1,10 @@
 {
   "name": "jacarium",
   "private": true,
-  "version": "3.1.9",
+  "version": "3.2.0",
   "description": "Everything you know and use for technical work, in one place.",
   "homepage": "https://jacarium.com",
+  "desktopName": "com.jacarium.app.desktop",
   "repository": {
     "type": "git",
     "url": "https://github.com/jacarium/jacarium"
@@ -88,7 +89,20 @@
       ],
       "category": "Utility",
       "icon": "build/icons",
-      "executableName": "jacarium"
+      "executableName": "jacarium",
+      "syncDesktopName": true,
+      "desktop": {
+        "entry": {
+          "GenericName": "Notes, cases and tools",
+          "Keywords": "notes;documents;cases;tasks;taskwarrior;jira;kanban;",
+          "StartupNotify": "true"
+        }
+      }
+    },
+    "rpm": {
+      "fpm": [
+        "--rpm-rpmbuild-define=_build_id_links none"
+      ]
     }
   },
   "dependencies": {

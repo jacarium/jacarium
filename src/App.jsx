@@ -16,6 +16,7 @@ import ToastNotifications from './components/common/ToastNotifications';
 import StatusCorner from './components/common/StatusCorner';
 import CloudSyncNotification from './components/common/CloudSyncNotification';
 import WhatsNew from './components/WhatsNew';
+import UpdateAvailable from './components/UpdateAvailable';
 
 const ToolsPage = lazy(() => import('./components/ToolsPage'));
 const DiagnosticsPage = lazy(() => import('./components/DiagnosticsPage'));
@@ -184,6 +185,7 @@ function App() {
           <StatusCorner />
           <CloudSyncNotification />
           <WhatsNew />
+          <UpdateAvailable />
         </ChatProvider>
       </NotificationProvider>
     </ThemeProvider>

@@ -48,7 +48,12 @@ reporting, in case the issue is already fixed.
 
 ## Running Jacarium securely
 
-Jacarium is offline by default. If you self-host it:
+Jacarium is offline by default. The only network request the app can make on
+its own is the optional update check (off by default, Settings > About): a
+plain request to api.github.com for the list of releases, with nothing about
+you or your installation in it.
+
+If you self-host it:
 
 - For access away from home, connect to your home server through your own
   VPN. Never publish its port on the internet.

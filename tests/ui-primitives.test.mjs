@@ -47,6 +47,10 @@ check('base rule: every button takes the control radius and the normal weight', 
 // An unlayered rule beats the utilities layer: a global `[title] { position: ... }`
 // once pulled every absolutely positioned element with a tooltip back into flow
 // (the node library filter's clear button rendered under its input).
+// The Toggle's knob is absolutely positioned inside the track: without a
+// left anchor it starts at the button's centre (text-align) - off then looked
+// on, and on slid past the track (Settings > About > Updates, 3.1.10)
+check('the Toggle knob is anchored to the track (relative track, absolute left-0 knob that moves 2px off / 16px on)', /role="switch"[\s\S]{0,400}className=\{`relative /.test(prim) && /<span className=\{`absolute left-0 top-0\.5 h-3\.5 w-3\.5 rounded-full[^`]*\$\{checked \? 'translate-x-4' : 'translate-x-0\.5'\}/.test(prim));
 check('no global [title] rule positions tooltip-bearing elements', !/^\s*\[title\]\s*\{[^}]*position\s*:/m.test(css));
 check('base rule: text fields, selects and textareas take the control radius and the normal weight', /input:not\(\[type="checkbox"\]\)[^{]*,\s*select,\s*textarea \{\s*border-radius: var\(--radius-control\);\s*font-weight: var\(--weight-control\);/.test(css));
 check('base rule: checkboxes take the check radius and the accent colour, radios are round', /input\[type="checkbox"\] \{ border-radius: var\(--radius-check\); accent-color: var\(--os-blue\); \}/.test(css) && /input\[type="radio"\] \{ border-radius: 9999px; accent-color: var\(--os-blue\); \}/.test(css));

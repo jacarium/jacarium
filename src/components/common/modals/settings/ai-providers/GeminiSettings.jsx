@@ -1,6 +1,6 @@
 import { Key } from 'lucide-react';
 import { SecretInput } from '../SecretInput';
-import { Code, Field, Group, Section, Select, TextArea, TextInput } from '../ui';
+import { Code, Field, Group, Section, TextArea, TextInput, Toggle } from '../ui';
 
 export default function GeminiSettings({ settings, handleChange }) {
   return (
@@ -9,13 +9,8 @@ export default function GeminiSettings({ settings, handleChange }) {
         <SecretInput settingKey="GEMINI_API_KEY" value={settings.GEMINI_API_KEY} onChange={(e) => handleChange('GEMINI_API_KEY', e.target.value)} placeholder="API key..." />
       </Field>
       <Group title="Vertex AI (Option 2)">
-        <Field label="Use Vertex AI">
-          <Select value={settings.GEMINI_USE_VERTEX || ''} onChange={(e) => handleChange('GEMINI_USE_VERTEX', e.target.value)}>
-            <option value="">Not configured</option>
-            <option value="true">True</option>
-            <option value="false">False</option>
-          </Select>
-        </Field>
+        <Toggle label="Use Vertex AI" hint="Gemini through Google Cloud Vertex AI; needs the project and location below." checked={settings.GEMINI_USE_VERTEX === 'true'}
+          onChange={(on) => handleChange('GEMINI_USE_VERTEX', on ? 'true' : '')} testId="toggle-gemini_use_vertex" />
         <Field label="GCP Project ID">
           <TextInput mono value={settings.GEMINI_PROJECT_ID || ''} onChange={(e) => handleChange('GEMINI_PROJECT_ID', e.target.value)} placeholder="e.g., my-gcp-project" />
         </Field>

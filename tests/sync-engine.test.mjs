@@ -137,6 +137,17 @@ async function device(name, dbName, clockOffsetMs = 0) {
 const A = await device('A', 'Jacarium-sync-A');
 const B = await device('B', 'Jacarium-sync-B');
 const start = (d, cookie) => d.engine.startSync({ transport: transportFor(cookie), listen: false, immediate: false });
+
+// ---- the desktop app never synchronises with its local backend -----------------
+// (window.electronAPI.isElectron marks a desktop window; there the engine
+// runs only through the home-server transport - without one it refuses,
+// rather than poll the local backend, which has no accounts and answers 401)
+window.electronAPI = { isElectron: true };
+let refused = null;
+try { await A.engine.startSync({ listen: false, immediate: false }); } catch (error) { refused = error; }
+check('0. in the desktop app, startSync without a transport is refused and nothing starts', /home server link/.test(refused?.message || '') && !A.engine.isSyncStarted(), refused?.message || 'started');
+delete window.electronAPI;
+
 await start(A, cookieA);
 await start(B, cookieB);
 const syncA = () => A.engine.syncNow();

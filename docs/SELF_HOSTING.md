@@ -96,7 +96,56 @@ podman run -d --name jacarium ...     # the same command as the first time
 ```
 
 (`docker` works the same way.) To stay on one version, use its tag instead
-of `:latest`.
+of `:latest`. A server deployed with `deploy/deploy-to-host.sh` is updated
+by running that script again (see below).
+
+*Knowing when there is something to update.* The server does not look for
+new releases unless an administrator turns it on: Settings > About >
+Updates > "Check for server updates automatically" (or
+`JACARIUM_UPDATE_CHECK=on` in the container's environment). The server then
+asks GitHub once a day for the latest release - one plain request per
+server, nothing about you or the server in it; GitHub sees the server's IP
+address - and its administrators see "version X is available" with these
+update steps in Settings > About. Ordinary users' browsers never contact
+GitHub, and neither does the server while the check is off; "Check now"
+makes that one request on the click. The result lives in
+`<data>/update-check.json`. The container does not update itself: replacing
+a running container from inside needs the podman or docker socket, a
+privilege the app should not have.
+
+*Updating automatically.* If you want the container to follow new
+releases on its own, let podman do it, outside the container: run the
+container as a systemd unit with the registry auto-update label and
+enable `podman-auto-update.timer`, which pulls the image daily, restarts
+the unit when the image changed, and rolls back when the restarted unit
+fails its health check:
+
+```ini
+# ~/.config/containers/systemd/jacarium.container  (quadlet; podman 4.4+)
+[Container]
+Image=quay.io/zerodayz/jacarium:latest
+ContainerName=jacarium
+HostName=jacarium
+PublishPort=127.0.0.1:8443:8443
+Volume=%h/.config/jacarium/server/data:/data:Z,U
+AutoUpdate=registry
+Label=io.containers.autoupdate=registry
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
+```
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now jacarium.service
+systemctl --user enable --now podman-auto-update.timer   # daily; `podman auto-update` runs one now
+```
+
+`podman auto-update --dry-run` shows what would change. Pin a version tag
+in `Image=` instead of `:latest` if you would rather decide when.
 
 **Backups.** The `/data` volume is the backup: the accounts database
 (`accounts.sqlite`), every account's files under `users/`, the settings
@@ -680,6 +729,8 @@ Reboot check: `sudo reboot` the target, then `deploy/deploy-to-host.sh
 
 **Upgrading a 3.0.x or 3.1 target (two containers) to the one container.**
 The same `deploy/deploy-to-host.sh <user@host>` does it and says so first.
+When the server's Settings > About says a newer release is available (the
+optional update check above), this is the command to run.
 On the target the helper stops the `jacarium-central` container, **moves**
 its state - `~/.config/jacarium/central/data` (client registry, encrypted
 shared documents) and `~/.config/jacarium/central/keys` (the Yjs encryption

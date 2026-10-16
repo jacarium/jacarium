@@ -4,6 +4,51 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.2.0
+
+_2026-10-16_
+
+### [AI]
+
+Settings: on/off options are toggles (debug status bar; Bedrock and Vertex AI)
+
+### [SYNC]
+
+Tests leave no orphans behind; the desktop engine refuses to sync with its local backend
+
+### [SECURITY]
+
+README and SECURITY.md: the optional, off-by-default update check is the only request the app makes on its own
+
+### [UI]
+
+Toggle: anchor the knob to the track's left edge
+
+### [DESKTOP]
+
+Tell people when a newer Jacarium is out (opt-in release check)
+
+Linux: the app icon for every window, on X11 and Wayland
+
+### [DEPLOY]
+
+rebuild.sh: container builds keep their node_modules and venv in named volumes
+
+### [TESTS]
+
+Linux .rpm without /usr/lib/.build-id links: no file conflict with other Electron apps
+
+### [MISC]
+
+publish-release.sh: resuming is explicit (--resume); re-review fixes
+
+publish-release.sh: fixes from review - resume, branch and remote checks, notes review
+
+scripts/publish-release.sh: release to GitHub in one command
+
+Docs: the optional update check, and updating a self-hosted server
+
+
 ## What's New in v3.1.9
 
 _2026-10-15_

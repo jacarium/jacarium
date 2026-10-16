@@ -60,6 +60,10 @@ check('no tracked file refers to a removed script (What\'s New history excepted)
 
 // ---- 2. package.json scripts --------------------------------------------
 const pkg = JSON.parse(read('package.json'));
+// The Linux .rpm carries no /usr/lib/.build-id links: Electron apps ship
+// identical binaries, so those links clash between packages (an install
+// next to Slack failed with "conflicts with file from package slack")
+check('the .rpm is built without /usr/lib/.build-id links (no clash with other Electron apps)', (pkg.build?.rpm?.fpm || []).includes('--rpm-rpmbuild-define=_build_id_links none'), JSON.stringify(pkg.build?.rpm));
 const removedNpm = ['dev:multi', 'dev:testing', 'build:testing', 'electron:build:testing', 'electron:build:full:testing'];
 check('the removed npm scripts stay removed', removedNpm.every((k) => !(k in pkg.scripts)), removedNpm.filter((k) => k in pkg.scripts).join(', '));
 check('npm run build is scripts/build-ui.sh', pkg.scripts.build === 'bash scripts/build-ui.sh', pkg.scripts.build);

@@ -199,7 +199,16 @@ build_in_container() {
     log_info "running the build in the container"
     local inner=(bash ./rebuild.sh --in-container --platform "$PLATFORM" --format "$FORMAT")
     [ "$TESTING" = true ] && inner+=(--testing)
-    "$CONTAINER_RUNTIME" run --rm -v "$SCRIPT_DIR:/build:Z" -w /build "$IMAGE_NAME" "${inner[@]}"
+    # The container's own node_modules and Python venv live in named volumes
+    # over the checkout's, so a Linux build never replaces this host's
+    # (macOS) node_modules or backend/venv - and they are reused between
+    # container builds. `podman volume rm jacarium-builder-node-modules ...`
+    # starts them afresh.
+    "$CONTAINER_RUNTIME" run --rm -v "$SCRIPT_DIR:/build:Z" \
+        -v jacarium-builder-node-modules:/build/node_modules \
+        -v jacarium-builder-central-node-modules:/build/jacarium-central/node_modules \
+        -v jacarium-builder-venv:/build/backend/venv \
+        -w /build "$IMAGE_NAME" "${inner[@]}"
     log_success "container build completed"
 }
 
@@ -256,18 +265,19 @@ build_backend() {
     log_info "Python: $system_python ($("$system_python" --version))"
     (
         cd backend
-        if [ "$IN_CONTAINER" = true ]; then
-            rm -rf venv      # a venv from a host build holds the host's binaries
-        elif [ -d venv ]; then
+        # Empty the venv rather than deleting it: in the container it is a
+        # named volume (a mount point cannot be removed, only emptied)
+        reset_venv() { [ -d venv ] && find venv -mindepth 1 -maxdepth 1 -exec rm -rf {} + ; return 0; }
+        if [ -d venv ]; then
             local venv_version system_version
             venv_version="$(venv/bin/python3 --version 2>/dev/null || echo unknown)"
             system_version="$("$system_python" --version)"
             if [ "$venv_version" != "$system_version" ]; then
                 log_warning "venv Python ($venv_version) differs from $system_version - recreating the venv"
-                rm -rf venv
+                reset_venv
             fi
         fi
-        if [ ! -d venv ]; then
+        if [ ! -x venv/bin/python3 ]; then     # missing, or emptied above (a volume stays as an empty directory)
             log_info "creating the Python virtual environment"
             "$system_python" -m venv venv
         fi

@@ -41,6 +41,7 @@ import { SYNC_TABLES, SYNC_TABLE_NAMES, toMillis, importedIsNewer, missingFieldF
 import { generateStableId } from '../utils/stableId';
 import { STATE_TABLE, changeSignal, installSyncTracker, stateKey, syncKeyFor } from './tracker';
 import { snapshotLabel } from './snapshotLabel';
+import { isDesktopApp } from '../utils/platform';
 
 const PUSH_DEBOUNCE_MS = 1500;
 const PULL_INTERVAL_MS = 30000;
@@ -726,11 +727,20 @@ function onVisible() {
 
 /**
  * Start synchronising. `options.transport` injects the HTTP layer
- * ({ fetch(path, init) }) - tests use it; the app uses apiFetch against
- * its backend. Returns false when it cannot start.
+ * ({ fetch(path, init) }): the desktop app passes its home-server transport
+ * (src/utils/homeServer.js), tests their own; a signed-in browser uses
+ * apiFetch against its backend. Returns false when it cannot start.
  */
 export async function startSync(options = {}) {
   if (started) return true;
+  if (!options.transport && isDesktopApp()) {
+    // The desktop app's local backend keeps no accounts and answers 401 to
+    // /api/sync/*: a desktop profile synchronises with its linked home
+    // server, through the main process (src/utils/homeServer.js). Without
+    // that transport the engine would only poll the local backend for
+    // nothing, so it refuses to start.
+    throw new Error('The desktop app synchronises through its home server link, never with its local backend');
+  }
   if (options.accountId) {
     // a database synchronises with ONE account: a desktop profile relinked
     // to another account must not pour the first account's data into the

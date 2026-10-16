@@ -98,7 +98,7 @@ export function Toggle({ checked, onChange, label, hint, disabled = false, testI
     <label className={`sc-toggle flex items-start gap-3 ${disabled ? 'opacity-70' : 'cursor-pointer'} ${className}`}>
       <button type="button" role="switch" aria-checked={!!checked} disabled={disabled} data-testid={testId} onClick={() => onChange?.(!checked)}
         className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full border transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 ${checked ? 'bg-blue-600 border-blue-600' : 'bg-os-card-secondary border-os-input-border'}`}>
-        <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        <span className={`absolute left-0 top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
       </button>
       <span className="min-w-0">
         {label && <span className="block text-xs text-os-text-primary">{label}</span>}

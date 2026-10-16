@@ -1,6 +1,6 @@
 import { Key } from 'lucide-react';
 import { SecretInput } from '../SecretInput';
-import { Code, Field, Group, Section, Select, TextArea, TextInput } from '../ui';
+import { Code, Field, Group, Section, TextArea, TextInput, Toggle } from '../ui';
 
 export default function AnthropicSettings({ settings, handleChange }) {
   return (
@@ -9,25 +9,15 @@ export default function AnthropicSettings({ settings, handleChange }) {
         <SecretInput settingKey="ANTHROPIC_API_KEY" value={settings.ANTHROPIC_API_KEY} onChange={(e) => handleChange('ANTHROPIC_API_KEY', e.target.value)} placeholder="sk-ant-..." />
       </Field>
       <Group title="AWS Bedrock (Option 2)">
-        <Field label="Use AWS Bedrock">
-          <Select value={settings.ANTHROPIC_USE_BEDROCK || ''} onChange={(e) => handleChange('ANTHROPIC_USE_BEDROCK', e.target.value)}>
-            <option value="">Not configured</option>
-            <option value="true">True</option>
-            <option value="false">False</option>
-          </Select>
-        </Field>
+        <Toggle label="Use AWS Bedrock" hint="Claude through Amazon Bedrock instead of the API key; needs the AWS region below." checked={settings.ANTHROPIC_USE_BEDROCK === 'true'}
+          onChange={(on) => handleChange('ANTHROPIC_USE_BEDROCK', on ? 'true' : '')} testId="toggle-anthropic_use_bedrock" />
         <Field label="AWS Region" hint={<>Requires: <Code>aws configure</Code></>}>
           <TextInput mono value={settings.AWS_REGION || ''} onChange={(e) => handleChange('AWS_REGION', e.target.value)} placeholder="e.g., us-east-1" />
         </Field>
       </Group>
       <Group title="Google Cloud Vertex AI (Option 3)">
-        <Field label="Use Vertex AI">
-          <Select value={settings.ANTHROPIC_USE_VERTEX || ''} onChange={(e) => handleChange('ANTHROPIC_USE_VERTEX', e.target.value)}>
-            <option value="">Not configured</option>
-            <option value="true">True</option>
-            <option value="false">False</option>
-          </Select>
-        </Field>
+        <Toggle label="Use Vertex AI" hint="Claude through Google Cloud Vertex AI; needs the project and location below." checked={settings.ANTHROPIC_USE_VERTEX === 'true'}
+          onChange={(on) => handleChange('ANTHROPIC_USE_VERTEX', on ? 'true' : '')} testId="toggle-anthropic_use_vertex" />
         <Field label="GCP Project ID">
           <TextInput mono value={settings.ANTHROPIC_GCP_PROJECT_ID || ''} onChange={(e) => handleChange('ANTHROPIC_GCP_PROJECT_ID', e.target.value)} placeholder="e.g., my-gcp-project" />
         </Field>

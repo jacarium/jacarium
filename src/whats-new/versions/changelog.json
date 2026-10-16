@@ -1,5 +1,63 @@
 [
   {
+    "version": "3.2.0",
+    "date": "2026-10-16",
+    "features": [
+      {
+        "category": "AI",
+        "description": [
+          "Settings: on/off options are toggles (debug status bar; Bedrock and Vertex AI)"
+        ]
+      },
+      {
+        "category": "SYNC",
+        "description": [
+          "Tests leave no orphans behind; the desktop engine refuses to sync with its local backend"
+        ]
+      },
+      {
+        "category": "SECURITY",
+        "description": [
+          "README and SECURITY.md: the optional, off-by-default update check is the only request the app makes on its own"
+        ]
+      },
+      {
+        "category": "UI",
+        "description": [
+          "Toggle: anchor the knob to the track's left edge"
+        ]
+      },
+      {
+        "category": "DESKTOP",
+        "description": [
+          "Tell people when a newer Jacarium is out (opt-in release check)",
+          "Linux: the app icon for every window, on X11 and Wayland"
+        ]
+      },
+      {
+        "category": "DEPLOY",
+        "description": [
+          "rebuild.sh: container builds keep their node_modules and venv in named volumes"
+        ]
+      },
+      {
+        "category": "TESTS",
+        "description": [
+          "Linux .rpm without /usr/lib/.build-id links: no file conflict with other Electron apps"
+        ]
+      },
+      {
+        "category": "MISC",
+        "description": [
+          "publish-release.sh: resuming is explicit (--resume); re-review fixes",
+          "publish-release.sh: fixes from review - resume, branch and remote checks, notes review",
+          "scripts/publish-release.sh: release to GitHub in one command",
+          "Docs: the optional update check, and updating a self-hosted server"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.1.9",
     "date": "2026-10-15",
     "features": [

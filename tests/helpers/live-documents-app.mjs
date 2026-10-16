@@ -22,6 +22,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { reapOnExit } from './reap.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -70,7 +71,10 @@ export async function launchDocumentsApp({ port, profilePrefix = 'documents-live
   }
   const url = `http://localhost:${port}/`;
 
-  const vite = spawn(process.execPath, [path.join(REPO, 'node_modules', 'vite', 'bin', 'vite.js'), '--port', String(port), '--strictPort'], { cwd: REPO, stdio: 'ignore' });
+  // (Chrome and Vite die with this process, however it ends: an interrupted
+  // test must not leave a signed-in tab polling the backend port for days -
+  // tests/helpers/reap.mjs)
+  const vite = reapOnExit(spawn(process.execPath, [path.join(REPO, 'node_modules', 'vite', 'bin', 'vite.js'), '--port', String(port), '--strictPort'], { cwd: REPO, stdio: 'ignore' }));
   let ready = false;
   for (let i = 0; i < 240 && !ready; i++) { // up to 60s: Vite may re-optimize deps after a lockfile change
     try { ready = (await fetch(url)).ok; } catch { await sleep(250); }
@@ -81,10 +85,10 @@ export async function launchDocumentsApp({ port, profilePrefix = 'documents-live
   }
 
   const profile = mkdtempSync(path.join(tmpdir(), profilePrefix));
-  const chrome = spawn(chromeBin, [
+  const chrome = reapOnExit(spawn(chromeBin, [
     '--headless=new', '--disable-gpu', '--no-first-run', '--window-size=1400,900',
     `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, ...chromeArgs, 'about:blank',
-  ], { stdio: 'ignore' });
+  ], { stdio: 'ignore' }));
   let ws = null;
   const close = async () => {
     try { ws && ws.close(); } catch { /* already closed */ }

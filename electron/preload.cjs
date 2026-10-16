@@ -101,6 +101,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   homeServerFetch: (path, init) => ipcRenderer.invoke('home-server:fetch', path, init),
   homeServerVersion: (url) => ipcRenderer.invoke('home-server:version', url),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  // Release check (electron/update-check.cjs): the status, one request now,
+  // the automatic-check setting, "Skip this version", and the main process
+  // telling the window that a release is to be shown / that the Help menu
+  // asked for a check.
+  updateCheckStatus: () => ipcRenderer.invoke('update-check:status'),
+  updateCheckRun: () => ipcRenderer.invoke('update-check:run'),
+  updateCheckSetAuto: (enabled) => ipcRenderer.invoke('update-check:set-auto', enabled),
+  updateCheckDismiss: (version) => ipcRenderer.invoke('update-check:dismiss', version),
+  onUpdateAvailable: (callback) => {
+    const listener = (event, status) => callback(status);
+    ipcRenderer.on('update-available', listener);
+    return () => ipcRenderer.removeListener('update-available', listener);
+  },
+  onCheckForUpdates: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on('check-for-updates', listener);
+    return () => ipcRenderer.removeListener('check-for-updates', listener);
+  },
   getHostname: () => ipcRenderer.invoke('get-hostname'),
   getMachineIdOverride: () => ipcRenderer.invoke('get-machine-id-override'),
   jiraFetch: (endpoint, options) => ipcRenderer.invoke('jira-fetch', endpoint, options),

@@ -28,6 +28,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { reapOnExit } from './reap.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -56,7 +57,9 @@ async function ensurePlaywright() {
 }
 
 /**
- * @param {{ profilePrefix?: string }} [options]
+ * @param {{ profilePrefix?: string, userDataDir?: string }} [options]
+ *   userDataDir: a throwaway directory prepared by the test (a link store, a
+ *   pin file) instead of a fresh empty one; removed on close() all the same.
  * @returns {Promise<{ skip: string } | {
  *   app: import('playwright-core').ElectronApplication,
  *   page: import('playwright-core').Page,
@@ -64,7 +67,7 @@ async function ensurePlaywright() {
  *   close: () => Promise<void>,
  * }>}
  */
-export async function launchElectronApp({ profilePrefix = 'electron-test-', args = [], env = {}, expectWindow = null } = {}) {
+export async function launchElectronApp({ profilePrefix = 'electron-test-', args = [], env = {}, expectWindow = null, userDataDir: preparedUserDataDir = null } = {}) {
   if (process.env.SKIP_ELECTRON_TESTS) {
     return { skip: 'SKIP_ELECTRON_TESTS is set - not launching the Electron app.' };
   }
@@ -79,7 +82,9 @@ export async function launchElectronApp({ profilePrefix = 'electron-test-', args
   let ready = false;
   try { ready = (await fetch(url)).ok; } catch { /* not running */ }
   if (!ready) {
-    vite = spawn(process.execPath, [path.join(REPO, 'node_modules', 'vite', 'bin', 'vite.js'), '--port', String(VITE_PORT), '--strictPort'], { cwd: REPO, stdio: 'ignore' });
+    // (dies with this process however it ends - tests/helpers/reap.mjs; the
+    // Electron app itself is Playwright's child, which it kills likewise)
+    vite = reapOnExit(spawn(process.execPath, [path.join(REPO, 'node_modules', 'vite', 'bin', 'vite.js'), '--port', String(VITE_PORT), '--strictPort'], { cwd: REPO, stdio: 'ignore' }));
     for (let i = 0; i < 240 && !ready; i++) {
       try { ready = (await fetch(url)).ok; } catch { await sleep(250); }
     }
@@ -89,7 +94,7 @@ export async function launchElectronApp({ profilePrefix = 'electron-test-', args
     return { skip: `Vite dev server did not come up on :${VITE_PORT} (port in use?) - Electron test skipped.` };
   }
 
-  const userDataDir = mkdtempSync(path.join(tmpdir(), profilePrefix));
+  const userDataDir = preparedUserDataDir || mkdtempSync(path.join(tmpdir(), profilePrefix));
   let app = null;
   const close = async () => {
     try { if (app) await app.close(); } catch { /* already closed */ }

@@ -67,7 +67,7 @@ const manifest = JSON.parse(read('public/manifest.webmanifest'));
 check('the web manifest names the app, carries the tagline and the 192/512 icons', manifest.name === 'Jacarium' && manifest.description === TAGLINE && manifest.icons.some((i) => i.src === 'icon-192.png' && i.sizes === '192x192') && manifest.icons.some((i) => i.src === 'icon-512.png' && i.sizes === '512x512'));
 check('the Electron builds use build/icons (icns, ico, the png directory)', pkg.build.mac.icon === 'build/icons/icon.icns' && pkg.build.win.icon === 'build/icons/icon.ico' && pkg.build.linux.icon === 'build/icons');
 const main = read('electron/main.cjs');
-check('the Electron window and About panel use the rendered app icon (icon.png), not the mark', (main.match(/icon\.png/g) || []).length >= 3 && !/mark(-light)?\.svg/.test(main));
+check('the Electron windows and About panel use the one rendered app icon (WINDOW_ICON, a build/icons PNG), not the mark', /^const WINDOW_ICON = path\.join\(__dirname, '\.\.\/build\/icons\/\d+x\d+\.png'\);$/m.test(main) && (main.match(/WINDOW_ICON/g) || []).length >= 4 && !/mark(-light)?\.svg/.test(main));
 try {
   const sizes = execFileSync('sips', ['-g', 'pixelWidth', path.join(REPO, 'public/apple-touch-icon.png'), path.join(REPO, 'public/icon-192.png')], { encoding: 'utf8' });
   check('apple-touch-icon is 180 px, icon-192 is 192 px', /pixelWidth: 180/.test(sizes) && /pixelWidth: 192/.test(sizes), sizes.replace(/\s+/g, ' '));

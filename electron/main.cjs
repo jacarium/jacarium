@@ -1,11 +1,19 @@
 const { app, BrowserWindow, ipcMain, shell, Menu, dialog } = require('electron');
 const path = require('path');
+
+// The icon of every window (title bar, task switcher and the docks that do
+// not go through a .desktop file - X11; Wayland only shows the icon of the
+// matched .desktop entry). build/icons/ is packaged as it is (package.json
+// build.files), so the same path works in development and inside app.asar;
+// unlike dist/icon.png it does not depend on the Vite build having run.
+const WINDOW_ICON = path.join(__dirname, '../build/icons/512x512.png');
 const { pathToFileURL } = require('url');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const crypto = require('crypto');
 const { loadEnvironmentVariables } = require('./load-env.cjs');
 const { readUiSettings, persistUiSettings } = require('./ui-settings.cjs');
+const { createUpdateChecker } = require('./update-check.cjs');
 const { installNavigationGuards } = require('./navigation-guard.cjs');
 const { installPdfExport } = require('./pdf-export.cjs');
 
@@ -583,13 +591,6 @@ function startBackendServer() {
 }
 
 function createWindow() {
-  // Set icon path - use icon.png from public/dist directory
-  const iconPath = app.isPackaged
-    ? path.join(__dirname, '../dist/icon.png')
-    : path.join(__dirname, '../public/icon.png');
-
-  console.log('Using icon:', iconPath);
-
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -619,7 +620,7 @@ function createWindow() {
       // this file.
       webSecurity: true
     },
-    icon: iconPath
+    icon: WINDOW_ICON
   });
 
   applyZoomOnLoad(mainWindow);
@@ -910,6 +911,15 @@ function createApplicationMenu() {
           }
         },
         {
+          // One request to GitHub on this click (works with the automatic
+          // check off); the renderer runs it and shows the result.
+          label: 'Check for Updates...',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+            if (win && !win.isDestroyed()) win.webContents.send('check-for-updates');
+          }
+        },
+        {
           label: 'Give Feedback',
           click: () => {
             const { dialog } = require('electron');
@@ -972,6 +982,7 @@ function createProfilePickerWindow() {
     height: 520,
     resizable: false,
     title: 'Choose a profile - Jacarium',
+    icon: WINDOW_ICON,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -1083,6 +1094,48 @@ ipcMain.handle('home-server:version', async (event, url) => {
 });
 ipcMain.handle('get-app-version', () => app.getVersion());
 
+// Release check (electron/update-check.cjs): OFF unless the user turns it on
+// in Settings > About, then one request a day; "Check now" (About, Help
+// menu) any time. It runs here, in the main process, through Electron's
+// net.fetch, so the system proxy applies and there is no CORS. The state
+// (setting, last result, the version skipped) is update-check.json of the
+// profile.
+let updateChecker = null;
+function detectLinuxPackage() {
+  // How the Linux app was installed decides the download offered: an
+  // AppImage (the runtime sets APPIMAGE), else the deb on Debian/Ubuntu or
+  // the rpm on Fedora/RHEL, else the AppImage.
+  if (process.platform !== 'linux' || process.env.APPIMAGE) return null;
+  if (fs.existsSync('/etc/debian_version')) return 'deb';
+  if (fs.existsSync('/etc/redhat-release') || fs.existsSync('/etc/fedora-release')) return 'rpm';
+  return null;
+}
+function getUpdateChecker() {
+  if (!updateChecker) {
+    const { net } = require('electron');
+    updateChecker = createUpdateChecker({
+      currentVersion: app.getVersion(),
+      fetch: (url, init) => net.fetch(url, init),
+      storePath: path.join(app.getPath('userData'), 'update-check.json'),
+      platform: process.platform,
+      arch: process.arch,
+      env: process.env,
+      linuxPackage: detectLinuxPackage,
+      log: (message) => console.log(message),
+      onUpdate: (status) => {
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.isDestroyed()) win.webContents.send('update-available', status);
+        }
+      }
+    });
+  }
+  return updateChecker;
+}
+ipcMain.handle('update-check:status', () => getUpdateChecker().status());
+ipcMain.handle('update-check:run', () => getUpdateChecker().check({ manual: true }));
+ipcMain.handle('update-check:set-auto', (event, enabled) => getUpdateChecker().setAutoCheck(enabled === true));
+ipcMain.handle('update-check:dismiss', (event, version) => getUpdateChecker().dismiss(String(version || '')));
+
 ipcMain.handle('home-server:fetch', async (event, pathName, init) => {
   return homeServer.homeServerFetch(String(pathName || ''), init || {}, homeServerContext());
 });
@@ -1100,7 +1153,7 @@ app.whenReady().then(async () => {
       version: `sync protocol ${protocol}`,
       credits: `${pkg.description || ''}\n${pkg.homepage || 'https://jacarium.com'} (opens in your browser)${pkg.repository?.url ? `\nSource code: ${pkg.repository.url}` : ''}${[].concat(pkg.funding || []).map((f) => `\nSupport Jacarium: ${typeof f === 'string' ? f : f.url}`).join('')}`,
       website: pkg.homepage || 'https://jacarium.com',
-      iconPath: app.isPackaged ? path.join(__dirname, '../dist/icon.png') : path.join(__dirname, '../public/icon.png'),
+      iconPath: WINDOW_ICON,
       copyright: 'Copyright © 2026 Robin Cernin - AGPL-3.0 licence',
     });
   } catch (err) {
@@ -1128,6 +1181,15 @@ app.whenReady().then(async () => {
   }
   startBackendServer();
   createWindow();
+
+  // The scheduled release check: a tick shortly after start and then every
+  // hour; each tick does nothing unless the check is turned on and a day
+  // has passed (update-check.cjs).
+  const tickUpdateCheck = () => { getUpdateChecker().tick().catch(() => {}); };
+  const firstTick = setTimeout(tickUpdateCheck, 20 * 1000);
+  const hourlyTick = setInterval(tickUpdateCheck, 60 * 60 * 1000);
+  if (typeof firstTick.unref === 'function') firstTick.unref();
+  if (typeof hourlyTick.unref === 'function') hourlyTick.unref();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -1696,10 +1758,6 @@ ipcMain.handle('whois-lookup', async (event, domain) => {
 // 'open-*-window' IPC handlers below.
 async function openStandaloneWindow({ width, height, title, standaloneMode, errorLabel }) {
   try {
-    const iconPath = app.isPackaged
-      ? path.join(__dirname, '../dist/icon.png')
-      : path.join(__dirname, '../public/icon.png');
-
     const standaloneWindow = new BrowserWindow({
       width,
       height,
@@ -1710,7 +1768,7 @@ async function openStandaloneWindow({ width, height, title, standaloneMode, erro
         // See the webSecurity comment on the main window in createWindow().
         webSecurity: true
       },
-      icon: iconPath,
+      icon: WINDOW_ICON,
       title
     });
 

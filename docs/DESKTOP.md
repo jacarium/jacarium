@@ -118,6 +118,34 @@ callback`, the server redirecting you to Google with a state value bound
 to your session, and the token saved per account under the account's home.
 The desktop app keeps the Desktop-app flow either way.
 
+## Updates
+
+The desktop app does not look for new versions by itself. Jacarium is
+offline by default, so the check is a setting you turn on:
+Settings > About > Updates > "Check for updates automatically". With it on,
+the app asks GitHub once a day for the latest release
+(`https://api.github.com/repos/jacarium/jacarium/releases`, a plain
+unauthenticated request: nothing about you or the app is sent, GitHub sees
+the request's IP address). "Check now" there, and Help > Check for
+Updates..., make that one request when you click, whether the automatic
+check is on or not. The request goes through Electron's networking, so the
+system proxy applies; offline, or when GitHub cannot be reached, nothing
+happens and the next check waits its turn.
+
+When a newer release is out, a window shows what changed in every version
+since yours (the release notes from the changelog) with a Download button
+for your installation - the dmg on macOS; on Linux the AppImage when the
+app runs as one, else the deb or rpm of your distribution - and "Skip this
+version", which keeps that version quiet until the next one. The setting,
+the last result and the skipped version are kept per profile
+(`update-check.json` under the profile's data directory).
+
+The app does not install updates itself: macOS needs a signed and notarized
+app for that, and a deb or rpm belongs to the package manager. Download the
+file, verify it if you like (the release carries `SHA256SUMS.txt` and a
+build provenance: `gh attestation verify <file> --repo jacarium/jacarium`),
+and install it over the old one; your data stays where it is.
+
 ## Connection indicator
 
 The icon in the bottom-right corner of every window shows whether this

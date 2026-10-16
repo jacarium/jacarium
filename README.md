@@ -125,6 +125,9 @@ Jacarium is offline by default.
 - **Where your data lives**: in your browser first; with a home server on
   your Raspberry Pi.
 - **What we collect**: nothing.
+- **Updates**: the app does not phone home. You can turn on a daily update
+  check in Settings; it asks GitHub for the latest release and sends nothing
+  about you (GitHub sees the request's IP address).
 - **Export and backups**: export to Markdown, ZIP, JSON or PDF at any time
   (PDF in the desktop app).
 
