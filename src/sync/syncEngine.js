@@ -371,6 +371,15 @@ async function applyChange(change, { pairUnsynced, deviceId = null, onApplied = 
   }
 
   if (!local) {
+    // a keyed table whose primary key is `id` (openTabs): the body travels
+    // without it (encodeBody strips `id`), the sync key is that id
+    if (spec.idField === 'primary') {
+      const pk = db.table(table).schema.primKey.keyPath;
+      if (typeof pk === 'string' && body[pk] === undefined) {
+        const asNumber = Number(key);
+        body[pk] = Number.isFinite(asNumber) && String(asNumber) === key ? asNumber : key;
+      }
+    }
     let newId = null;
     await untracked([table], async () => { newId = await db.table(table).add(body); });
     await putState(table, key, { rev: change.rev, seq: change.seq, dirty: 0, deleted: 0 });

@@ -1,5 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import useSyncedOpenTabs from '../hooks/useSyncedOpenTabs';
+import { db as database } from '../db/database';
 import ResizableSidebar from './ResizableSidebar';
 import { useMobile } from '../contexts/MobileContext';
 import VerticalResizableDivider from './VerticalResizableDivider';
@@ -146,6 +148,14 @@ export default function DocumentsPage({
 
   // Tabs - persist across app restarts
   const [openTabs, setOpenTabs] = useLocalStorage('documentOpenTabs', []);
+  // the left pane's tabs follow the account's devices (the right pane stays here)
+  useSyncedOpenTabs({
+    page: 'documents', tabs: openTabs, setTabs: setOpenTabs,
+    itemOf: async (tab) => (await database.documents.get(tab.id))?.stableId || null,
+    titleOf: (tab) => tab.title || 'Untitled',
+    resolve: async (item) => { const doc = await database.documents.where('stableId').equals(item).first(); return doc ? { id: doc.id, title: doc.title, category: doc.category || 'General', inCloud: doc.inCloud } : null; },
+    onClose: (tab) => handleTabClose(tab.id),
+  });
 
   // Split view - persist across app restarts
   const [splitViewEnabled, setSplitViewEnabled] = useLocalStorage('documentSplitViewEnabled', false);

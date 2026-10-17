@@ -4,6 +4,32 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.2.2
+
+_2026-10-18_
+
+### [WORKFLOWS]
+
+Phone layout: a running workflow shows each step live (running, done or failed, with the error), follows the step that is running, and has a Clear button next to Stop
+
+Phone layout: workflow steps show their content in full: the method and whole URL of a REST API call, several lines of a Transform's code (tap for the rest), SSH commands and variable names
+
+### [SYNC]
+
+Open tabs follow you: the documents, boards, task lists, calendars and tools you have open appear on your other devices signed in to the same self-hosted server, and closing a tab closes it there too. Only names travel, never content; the tab you're looking at is never switched under you
+
+### [SETTINGS]
+
+Application Settings > General: "Sync open tabs across devices", on by default (greyed out until this device syncs with a server)
+
+### [UI]
+
+Phone layout: the Tools page has the "N open" menu to switch between and close open tools, like Documents
+
+### [DEPLOY]
+
+Deploying to a home server starts the Podman machine on a Mac when it isn't running and builds there, instead of falling back to a slow build on the server
+
 ## What's New in v3.2.1
 
 _2026-10-17_
@@ -25,6 +51,7 @@ Robin: a fresh profile starts with one chat instead of two
 New: a phone layout. Open a self-hosted Jacarium in your phone's browser and it switches to a layout made for phones, with a bottom bar, drawers for the sidebars and a menu button on every list item. In the light theme the top and bottom bars stay dark
 
 Phone layout: workflows are view-only; edit them on the desktop
+
 
 ## What's New in v3.2.0
 

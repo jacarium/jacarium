@@ -1,8 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useRef, Suspense } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import useSyncedOpenTabs from '../hooks/useSyncedOpenTabs';
 import ResizableSidebar from './ResizableSidebar';
 import { useMobile } from '../contexts/MobileContext';
-import MobilePageHeader from './mobile/MobilePageHeader';
+import TabBar from './features/documents/TabBar';
 import { useCloseDrawerOn } from '../hooks/useCloseDrawerOn';
 import ToolsSidebar from './features/tools/ToolsSidebar';
 import ToolsTabBar from './features/tools/ToolsTabBar';
@@ -23,6 +24,14 @@ export default function ToolsPage() {
   const [tools, setTools] = useState([]);
   const [categories, setCategories] = useState([]);
   const [openToolTabs, setOpenToolTabs] = useLocalStorage('toolsOpenTabs', []);
+  // the tool tabs follow the account's devices (once the tool list is loaded)
+  useSyncedOpenTabs({
+    page: 'tools', tabs: openToolTabs, setTabs: setOpenToolTabs, enabled: tools.length > 0,
+    itemOf: (id) => id,
+    titleOf: (id) => tools.find((t) => t.id === id)?.name || id,
+    resolve: async (item) => (tools.some((t) => t.id === item) ? item : null),
+    onClose: (id) => handleCloseTool(id),
+  });
   const [activeToolTab, setActiveToolTab] = useLocalStorage('activeToolTab', null);
   const [expandedCategories, setExpandedCategories] = useLocalStorage('expandedToolCategories', []);
   const [loading, setLoading] = useState(false);
@@ -240,9 +249,18 @@ export default function ToolsPage() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Tab Bar (on a phone: the page header naming the open tool) */}
+        {/* Tab Bar (on a phone: the shared TabBar, which there is the page
+            header naming the open tool with the "N open" menu - the open
+            tools listed, the active one marked, each closable - as on the
+            Documents page; the desktop keeps its own ToolsTabBar) */}
         {isMobile && (
-          <MobilePageHeader title={tools.find((t) => t.id === activeToolTab)?.name || 'Tools'} subtitle="Tools" />
+          <TabBar
+            tabs={openToolTabs.map((id) => { const tool = tools.find((t) => t.id === id); return { id, title: tool?.name || id, category: tool?.category || '' }; })}
+            activeTabId={activeToolTab}
+            onTabClick={(tab) => handleSwitchTab(tab.id)}
+            onTabClose={handleCloseTool}
+            pageTitle="Tools"
+          />
         )}
         {openToolTabs.length > 0 && !isMobile && (
           <ToolsTabBar

@@ -96,7 +96,10 @@
 # (podman: UserNS=keep-id; Docker: --user <uid>:0).
 #
 # Environment: DEPLOY_SSH_OPTS - extra ssh/scp options (tests use it for a port
-# and identity file). macOS bash 3.2 compatible on this side.
+# and identity file); PODMAN_MACHINE_START_TIMEOUT - seconds to wait for a
+# Podman machine this script started (120); DEPLOY_HOST_OS - the host OS
+# for the machine logic (uname -s; the tests force it). macOS bash 3.2
+# compatible on this side.
 
 set -uo pipefail
 
@@ -412,11 +415,89 @@ fi
 # ---------------------------------------------------------------------------
 # build locally (cached builds take seconds), for the target's architecture
 # ---------------------------------------------------------------------------
-LOCAL_ARCH="$(podman info --format '{{.Host.Arch}}' 2>/dev/null)"
+# Podman on macOS and Windows runs in a machine (a VM) that may not be
+# running - the deploy then used to fail its local build ("Cannot connect
+# to Podman") and fall back to the slow build on the target. Now the
+# machine is started first: the one the default connection points at
+# (podman-machine-default-root -> podman-machine-default), else the default
+# machine, else the first; then `podman info` is awaited (up to
+# PODMAN_MACHINE_START_TIMEOUT seconds, 120 by default). A started machine
+# is left running: cheap, and the next deploy is faster. A Mac without a
+# machine is told how to make one and builds on the target, as before.
+# Docker Desktop is not used by this script (it builds, saves and inspects
+# with podman only), so a computer with Docker but no podman builds on
+# the target too, with a message. Linux has no machine: an unreachable
+# podman there is an error of its own.
+# DEPLOY_HOST_OS: the host OS name for these decisions (uname -s; the test
+# suite forces Darwin with a stubbed podman).
+podman_machine_uses_vm() { case "${DEPLOY_HOST_OS:-$(uname -s)}" in Darwin|MINGW*|MSYS*|CYGWIN*|Windows_NT) return 0 ;; *) return 1 ;; esac; }
+podman_machine_name() {
+    local machines conn name
+    machines="$(podman machine list --format '{{.Name}} {{.Default}}' 2>/dev/null)" || machines=""
+    [ -n "$machines" ] || return 1
+    conn="$(podman system connection list --format '{{.Name}} {{.Default}}' 2>/dev/null | awk '$2=="true"{print $1; exit}')"
+    conn="${conn%-root}"
+    if [ -n "$conn" ] && printf '%s\n' "$machines" | awk '{print $1}' | grep -qx -- "$conn"; then echo "$conn"; return 0; fi
+    name="$(printf '%s\n' "$machines" | awk '$2=="true"{print $1; exit}')"
+    [ -n "$name" ] || name="$(printf '%s\n' "$machines" | awk 'NR==1{print $1}')"
+    echo "$name"
+}
+PODMAN_MACHINE_STARTED=""
+ensure_local_podman() {
+    local name running waited=0 timeout="${PODMAN_MACHINE_START_TIMEOUT:-120}"
+    podman info >/dev/null 2>&1 && return 0
+    if ! podman_machine_uses_vm; then log_error "podman is installed here but does not answer (podman info failed)"; return 1; fi
+    if ! name="$(podman_machine_name)"; then
+        log_warning "Podman has no machine on this computer (podman info failed): 'podman machine init' then 'podman machine start' makes one, and the next deploy builds here"
+        return 1
+    fi
+    running="$(podman machine list --format '{{.Name}} {{.Running}}' 2>/dev/null | awk -v n="$name" '$1==n{print $2}')"
+    if [ "$running" = true ]; then
+        log_error "the Podman machine '$name' is running but podman cannot connect to it (podman info failed); 'podman machine stop $name && podman machine start $name' may help"
+        return 1
+    fi
+    log_info "the Podman machine '$name' is not running: starting it (it is left running afterwards)..."
+    if ! podman machine start "$name" >/dev/null 2>&1; then log_error "'podman machine start $name' failed"; return 1; fi
+    until podman info >/dev/null 2>&1; do
+        if [ "$waited" -ge "$timeout" ]; then log_error "the Podman machine '$name' was started but podman did not answer within ${timeout}s"; return 1; fi
+        sleep 2; waited=$((waited + 2))
+    done
+    PODMAN_MACHINE_STARTED="$name"
+    log_success "Podman machine '$name' started (${waited}s); it stays running"
+    return 0
+}
+# "this machine (darwin/arm64, Podman 5.3.1 via applehv)": where the local build runs
+local_build_host() {
+    local os arch ver via name
+    os="$(printf '%s' "${DEPLOY_HOST_OS:-$(uname -s)}" | tr '[:upper:]' '[:lower:]')"; arch="$(uname -m)"
+    ver="$(podman version --format '{{.Client.Version}}' 2>/dev/null | head -1)"
+    via=""
+    if podman_machine_uses_vm && name="$(podman_machine_name 2>/dev/null)"; then via="$(podman machine inspect --format '{{.VMType}}' "$name" 2>/dev/null | head -1)"; fi
+    printf 'this machine (%s/%s, Podman %s%s)' "$os" "$arch" "${ver:-?}" "${via:+ via $via}"
+}
 PLATFORM_ARGS=()
-if [ "$LOCAL_ARCH" != "$T_IMGARCH" ]; then
-    log_warning "this machine builds $LOCAL_ARCH images, the target needs $T_IMGARCH: building with --platform $T_PLATFORM (emulated, slower)"
-    PLATFORM_ARGS=(--platform "$T_PLATFORM")
+if [ "$BUILD_ON_TARGET" = no ]; then
+    if ! command -v podman >/dev/null 2>&1; then
+        if command -v docker >/dev/null 2>&1; then
+            log_warning "podman is not installed here and this script does not build with Docker (Docker Desktop is left alone): install podman ('brew install podman && podman machine init && podman machine start' on a Mac) to build here"
+        else
+            log_warning "podman is not installed here"
+        fi
+        [ "$NO_BUILD" = no ] || { log_error "--no-build needs a local image to send, and podman to read it"; exit 1; }
+        log_warning "building on $TARGET instead (as --build-on-target)"
+        BUILD_ON_TARGET=yes
+    elif ! ensure_local_podman; then
+        [ "$NO_BUILD" = no ] || { log_error "--no-build needs a local image to send, and podman to read it"; exit 1; }
+        log_warning "building on $TARGET instead (as --build-on-target)"
+        BUILD_ON_TARGET=yes
+    else
+        [ -n "$PODMAN_MACHINE_STARTED" ] || log_info "podman is reachable here$(podman_machine_uses_vm && echo " (the machine was already running)")"
+        LOCAL_ARCH="$(podman info --format '{{.Host.Arch}}' 2>/dev/null | head -1)"
+        if [ "$LOCAL_ARCH" != "$T_IMGARCH" ]; then
+            log_warning "$(local_build_host) builds ${LOCAL_ARCH:-?} images; the target needs $T_IMGARCH: building with --platform $T_PLATFORM (emulated, slower)"
+            PLATFORM_ARGS=(--platform "$T_PLATFORM")
+        fi
+    fi
 fi
 # DEPLOY_TO_HOST_BUILD_ARGS: extra `podman build` arguments (the test suite forces a
 # changed image with a label)

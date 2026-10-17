@@ -570,6 +570,12 @@ db.version(27).stores({
   })));
 });
 
+// 28: the open tabs of each page, shared by the account's devices
+// (src/utils/openTabsSync.js): one row per tab, its id "<page>:<item>".
+db.version(28).stores({
+  openTabs: '&id, page, position',
+});
+
 // The synchronisation change tracker (src/sync/tracker.js) must be part of
 // the middleware stack before the database opens.
 installSyncTracker(db);

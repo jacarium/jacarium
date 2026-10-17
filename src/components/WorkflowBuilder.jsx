@@ -473,7 +473,7 @@ export default function WorkflowBuilder() {
           </div>
         ) : currentWorkflow && isMobile ? (
           <div className="flex-1 min-h-0 flex flex-col bg-os-card" data-testid="mobile-workflow-page">
-            <MobileWorkflowToolbar isExecuting={isExecuting} onRun={executeWorkflow} onStop={stopWorkflow} />
+            <MobileWorkflowToolbar isExecuting={isExecuting} onRun={executeWorkflow} onStop={stopWorkflow} onClear={clearOutputs} />
             <MobileWorkflowView nodes={nodes} edges={edges} />
           </div>
         ) : currentWorkflow ? (

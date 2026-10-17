@@ -150,6 +150,9 @@ export const SYNC_TABLES = {
   gtfobinsContexts:       { idField: 'syncId', naturalKey: (c) => joinKey(keyPart(c.contextId)), timestamp: () => null },
   customFields:           { idField: 'primary', naturalKey: null, timestamp: (f) => f.createdAt },
   envVariables:           { idField: 'primary', naturalKey: null, timestamp: () => null },
+  // the open tabs of the pages, one row per tab (src/utils/openTabsSync.js):
+  // the row's id is "<page>:<item>", last writer wins per tab
+  openTabs:               { idField: 'primary', naturalKey: null, timestamp: (t) => t.updatedAt },
 };
 
 export const SYNC_TABLE_NAMES = Object.keys(SYNC_TABLES);

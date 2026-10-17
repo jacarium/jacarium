@@ -128,6 +128,7 @@ try {
           for (const el of body.querySelectorAll('h3')) { if (!el.className.includes('sc-section-title')) problems.push('heading not shared: ' + el.textContent.trim().slice(0, 40)); }
           for (const el of body.querySelectorAll('button')) {
             const c = el.className;
+            if (el.getAttribute('role') === 'switch') continue;   // the shared Toggle primitive (blue when on), not a one-off button
             if (/bg-(purple|green|red|blue|amber)-600/.test(c) && !c.includes('sc-btn')) problems.push('one-off coloured button: ' + el.textContent.trim().slice(0, 30));
           }
           return problems;

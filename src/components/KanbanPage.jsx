@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Trello, Copy, Trash } from 'lucide-react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import useSyncedOpenTabs from '../hooks/useSyncedOpenTabs';
+import { db as database } from '../db/database';
 import { useDisplayName } from '../hooks/useDisplayName';
 import { useYjsBoard } from '../hooks/useYjsBoard';
 import ResizableSidebar from './ResizableSidebar';
@@ -28,6 +30,14 @@ export default function KanbanPage() {
   const [currentBoardId, setCurrentBoardId] = useLocalStorage('currentKanbanBoardId', null);
   const [currentBoard, setCurrentBoard] = useState(null);
   const [openTabs, setOpenTabs] = useLocalStorage('kanbanOpenTabs', []);
+  // the board tabs follow the account's devices
+  useSyncedOpenTabs({
+    page: 'kanban', tabs: openTabs, setTabs: setOpenTabs,
+    itemOf: async (tab) => (await database.kanbanBoards.get(tab.id))?.syncId || null,
+    titleOf: (tab) => tab.title || 'Untitled',
+    resolve: async (item) => { const board = await database.kanbanBoards.where('syncId').equals(item).first(); return board ? { id: board.id, title: board.title, category: board.category || 'General', inCloud: board.inCloud } : null; },
+    onClose: (tab) => handleTabClose(tab.id),
+  });
   const [localCards, setLocalCards] = useState([]); // For local/non-cloud boards
   const [draggedCard, setDraggedCard] = useState(null);
   const [draggedOverColumn, setDraggedOverColumn] = useState(null);

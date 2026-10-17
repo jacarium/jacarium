@@ -228,7 +228,7 @@ while IFS= read -r f; do
     # A path that was a directory and is now a file: the removals above
     # emptied it of everything exported, so only leftovers (dot-files,
     # empty subdirectories) go with it
-    if [ -d "$DEST/$f" ] && [ ! -L "$DEST/$f" ]; then rm -rf "$DEST/$f"; else rm -f "$DEST/$f"; fi
+    if [ -d "$DEST/$f" ] && [ ! -L "$DEST/$f" ]; then rm -rf "${DEST:?}/${f:?}"; else rm -f "$DEST/$f"; fi
     cp -pP "$STAGE/$f" "$DEST/$f"
 done <<< "$(printf '%s\n%s' "$ADDED" "$UPDATED")"
 # Directories left empty, bottom-up until none is left (a parent empties

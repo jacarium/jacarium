@@ -86,12 +86,13 @@ async function open(device, { colorScheme = 'dark', theme = null } = {}) {
       { id: 'n6', type: 'result', position: { x: 900, y: 0 }, data: {} },
       { id: 'n7', type: 'restapi', position: { x: 900, y: 200 }, data: { method: 'POST', url: 'https://alerts.example.test/page' } },
     ], edges: [
-      { id: 'e1', source: 'n1', sourceHandle: 'exec-out', target: 'n2', targetHandle: 'exec-in' },
-      { id: 'e2', source: 'n2', sourceHandle: 'exec-out', target: 'n3', targetHandle: 'exec-in' },
-      { id: 'e2b', source: 'n3', sourceHandle: 'exec-out', target: 'n5', targetHandle: 'exec-in' },
-      { id: 'e2c', source: 'n4', sourceHandle: 'value', target: 'n3', targetHandle: 'b' },
-      { id: 'e3', source: 'n5', sourceHandle: 'true', target: 'n6', targetHandle: 'exec-in' },
-      { id: 'e4', source: 'n5', sourceHandle: 'false', target: 'n7', targetHandle: 'exec-in' },
+      { id: 'e1', source: 'n1', sourceHandle: 'exec-out', target: 'n2', targetHandle: 'exec-in', type: 'execution' },
+      { id: 'e2', source: 'n2', sourceHandle: 'exec-out', target: 'n5', targetHandle: 'exec-in', type: 'execution' },
+      { id: 'e2c', source: 'n2', sourceHandle: 'data-out', target: 'n3', targetHandle: 'left-in', type: 'data' },
+      { id: 'e2d', source: 'n4', sourceHandle: 'data-out', target: 'n3', targetHandle: 'right-in', type: 'data' },
+      { id: 'e2e', source: 'n3', sourceHandle: 'data-out', target: 'n5', targetHandle: 'data-in', type: 'data' },
+      { id: 'e3', source: 'n5', sourceHandle: 'true', target: 'n6', targetHandle: 'exec-in', type: 'execution' },
+      { id: 'e4', source: 'n5', sourceHandle: 'false', target: 'n7', targetHandle: 'exec-in', type: 'execution' },
     ] });
     await db.taskwarriorInstances.clear(); await db.tasks.clear();
     const instanceId = await db.taskwarriorInstances.add({ syncId: 'inst-mui', name: 'Platform work', category: 'General', description: 'Platform team tasks', rcPath: '~/.task/platform/.taskrc', dataPath: '~/.task/platform', isActive: 1, inCloud: false, ownerId: null, createdAt: new Date(), updatedAt: new Date() });
@@ -233,6 +234,22 @@ try {
   await shot(page, 'phone-05-workflow');
 
   // Kanban
+  // a run on the phone: the cards show the live states the canvas nodes carry, Clear wipes the outputs
+  await page.route('https://api.example.test/**', async (route) => { await new Promise((r) => setTimeout(r, 600)); await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify('ok') }); });
+  await page.route('https://alerts.example.test/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"sent":true}' }));
+  await page.route('**/api/workflow/http-request', async (route) => { await new Promise((r) => setTimeout(r, 600)); await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, status: 200, statusText: 'OK', body: 'ok' }) }); });
+  await page.locator('[data-testid="mobile-workflow-run"]').click();
+  const seenRunning = await page.waitForSelector('[data-testid="mobile-workflow-node"][data-status="processing"]', { timeout: 8000 }).then(() => true).catch(() => false);
+  const midRun = await page.evaluate(() => ({ running: Array.from(document.querySelectorAll('[data-status="processing"]')).map((c) => c.getAttribute('data-node-type')), stopEnabled: !document.querySelector('[data-testid="mobile-workflow-stop"]').disabled, clearDisabled: document.querySelector('[data-testid="mobile-workflow-clear"]').disabled, text: Array.from(document.querySelectorAll('[data-testid="mobile-workflow-node-status"]')).map((e) => e.textContent).join(',') }));
+  check('phone: Run marks the node being executed as running (live, from the same node state as the desktop), Stop enabled, Clear disabled meanwhile', seenRunning && midRun.running.length >= 1 && midRun.stopEnabled && midRun.clearDisabled && /running/.test(midRun.text || ''), JSON.stringify(midRun));
+  const done = await page.waitForSelector('[data-testid="mobile-workflow-node"][data-node-type="result"][data-status="complete"], [data-testid="mobile-workflow-node"][data-status="error"]', { timeout: 20000 }).then(() => true).catch(() => false);
+  const afterRun = await page.evaluate(() => ({ states: Array.from(document.querySelectorAll('[data-testid="mobile-workflow-node"]')).map((c) => `${c.getAttribute('data-node-type')}:${c.getAttribute('data-status') || '-'}`), outputs: document.querySelectorAll('[data-testid="mobile-workflow-node-output"]').length, fields: document.querySelectorAll('[data-testid="mobile-workflow-view"] input, [data-testid="mobile-workflow-view"] textarea, [data-testid="mobile-workflow-view"] select').length }));
+  check('phone: the run finishes along the TRUE path: Begin Play, REST, Branch and the Result done (the Comparison is data, evaluated on demand), the POST on FALSE untouched; still no editable fields', done && afterRun.states.filter((s) => /:complete$/.test(s)).length >= 4 && afterRun.states.includes('result:complete') && !afterRun.states.some((s) => /:error$/.test(s)) && afterRun.states.filter((s) => /^restapi:/.test(s)).includes('restapi:-') && afterRun.fields === 0, JSON.stringify(afterRun));
+  await page.waitForFunction(() => !document.querySelector('[data-testid="mobile-workflow-clear"]').disabled, null, { timeout: 10000 }).catch(() => {});
+  await page.locator('[data-testid="mobile-workflow-clear"]').click(); await page.waitForTimeout(300);
+  const wfCleared = await page.evaluate(() => ({ marks: document.querySelectorAll('[data-testid="mobile-workflow-node"][data-status]').length, outputs: document.querySelectorAll('[data-testid="mobile-workflow-node-output"]').length }));
+  check('phone: Clear removes the run\'s marks and outputs', wfCleared.marks === 0 && wfCleared.outputs === 0, JSON.stringify(wfCleared));
+  await page.unroute('https://api.example.test/**'); await page.unroute('https://alerts.example.test/**'); await page.unroute('**/api/workflow/http-request');
   await nav(page, 'kanban');
   await openDrawer(page);
   const board = inDrawer(page, 'Platform Q4 roadmap');
@@ -279,6 +296,16 @@ try {
   const settings = await page.evaluate(() => { const m = document.querySelector('.sc-modal-backdrop > .bg-os-modal'); const r = m?.getBoundingClientRect(); return r ? { w: r.width, h: r.height, innerW: window.innerWidth, innerH: window.innerHeight, text: m.textContent.slice(0, 60) } : null; });
   check('phone: Settings opens full-screen from More', !!settings && settings.w >= settings.innerW && settings.h >= settings.innerH - 1 && /Settings/i.test(settings.text), JSON.stringify(settings));
   await shot(page, 'phone-09-settings');
+  // Application Settings > General: the open-tabs toggle (disabled here: no server to synchronise with), persisted
+  const phoneToggle = await page.evaluate(() => { const t = document.querySelector('[data-testid="sync-open-tabs"]'); const section = t?.closest('[data-testid="open-tabs-section"]'); return { present: !!t, role: t?.getAttribute('role'), disabled: !!t?.disabled, checked: t?.getAttribute('aria-checked'), hint: section?.textContent || '', header: /Application Settings/.test(document.body.innerText) }; });
+  check('phone: Application Settings > General shows "Sync open tabs across devices" as a switch, disabled without a server, saying it needs synchronisation', phoneToggle.present && phoneToggle.header && phoneToggle.role === 'switch' && phoneToggle.disabled && phoneToggle.checked === 'true' && /Needs synchronisation/.test(phoneToggle.hint), JSON.stringify(phoneToggle));
+  await closeOverlays(page);
+  await page.evaluate(() => localStorage.setItem('openTabsSyncEnabled', 'false'));
+  await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(2000);
+  await page.locator('[data-testid="mobile-nav-more"]').click(); await page.waitForTimeout(300);
+  await page.locator('[data-testid="mobile-more-settings"]').click(); await page.waitForTimeout(800);
+  check('phone: the setting persists across a reload (off stays off)', (await page.evaluate(() => document.querySelector('[data-testid="sync-open-tabs"]')?.getAttribute('aria-checked'))) === 'false');
+  await page.evaluate(() => localStorage.removeItem('openTabsSyncEnabled'));
   await closeOverlays(page);
   for (const p of ['calendars', 'search', 'diagnostics', 'tools']) {
     await page.locator('[data-testid="mobile-nav-more"]').click(); await page.waitForTimeout(300);
@@ -286,6 +313,28 @@ try {
     s = await state(page);
     check(`phone: ${p} has the header with the sidebar button and no sideways scroll`, !!s.header && s.scrollW <= s.innerW && (await page.locator('[data-testid="mobile-open-sidebar"]').count()) === 1, JSON.stringify(s));
   }
+  // Tools: the same "N open" menu as the Documents page (the shared TabBar)
+  await openDrawer(page);
+  for (const name of ['Hash Calculator', 'SLA Calculator']) {
+    const row = inDrawer(page, name);
+    if (!(await row.count())) await expand(page, 'Calculate');
+    await inDrawer(page, name).click(); await page.waitForTimeout(600);
+    await openDrawer(page);
+  }
+  await closeOverlays(page);
+  const toolsHeader = await page.evaluate(() => ({ title: document.querySelector('[data-testid="mobile-page-header"] .sc-mobile-header-title')?.textContent, open: document.querySelector('[data-testid="tabs-overflow"]')?.textContent.trim() }));
+  check('phone: Tools names the open tool in the header with a "2 open" menu button', toolsHeader.title === 'SLA Calculator' && toolsHeader.open === '2 open', JSON.stringify(toolsHeader));
+  await page.locator('[data-testid="tabs-overflow"]').click(); await page.waitForTimeout(300);
+  const toolsMenu = await page.evaluate(() => Array.from(document.querySelectorAll('[data-testid="tabs-overflow-item"]')).map((b) => ({ title: b.querySelector('span')?.textContent, active: /text-os-text-primary/.test(b.className), h: Math.round(b.getBoundingClientRect().height), radius: getComputedStyle(b).borderTopLeftRadius })));
+  check('phone: the Tools "N open" menu lists both tools, the active one marked, 44px rows with a straight left edge', toolsMenu.length === 2 && toolsMenu.map((t) => t.title).join(',') === 'Hash Calculator,SLA Calculator' && toolsMenu.filter((t) => t.active).length === 1 && toolsMenu[1].active && toolsMenu.every((t) => t.h >= 44 && t.radius === '0px'), JSON.stringify(toolsMenu));
+  await page.locator('[data-testid="tabs-overflow-item"]').first().click(); await page.waitForTimeout(400);
+  check('phone: picking a tool in the menu switches to it', (await page.evaluate(() => document.querySelector('[data-testid="mobile-page-header"] .sc-mobile-header-title')?.textContent)) === 'Hash Calculator');
+  await page.locator('[data-testid="tabs-overflow"]').click(); await page.waitForTimeout(300);
+  await page.getByRole('button', { name: 'Close SLA Calculator' }).click(); await page.waitForTimeout(400);
+  check('phone: the X in the menu closes that tool ("1 open")', (await page.locator('[data-testid="tabs-overflow"]').textContent()).trim() === '1 open' && (await page.locator('[data-testid="tabs-overflow-item"]').count()) === 1);
+  await page.getByRole('button', { name: 'Close Hash Calculator' }).click(); await page.waitForTimeout(400);
+  const toolsEmpty = await page.evaluate(() => ({ title: document.querySelector('[data-testid="mobile-page-header"] .sc-mobile-header-title')?.textContent, menu: !!document.querySelector('[data-testid="tabs-overflow"]'), empty: /No Tool Selected/.test(document.body.innerText) }));
+  check('phone: closing the last tool leaves the "Tools" header without a menu and the empty state', toolsEmpty.title === 'Tools' && !toolsEmpty.menu && toolsEmpty.empty, JSON.stringify(toolsEmpty));
   check('phone: no page errors', phone.errors.length === 0, phone.errors.slice(0, 3).join(' | '));
   await phone.context.close();
 
@@ -345,7 +394,7 @@ try {
         noteTitle: text(q('[data-testid="mobile-workflow-note"] > div')), noteText: text(q('[data-testid="mobile-workflow-note"] > div + div')), noteBorder: own(q('[data-testid="mobile-workflow-note"]'), 'borderTopColor'),
         get: text(byText('[data-testid="mobile-workflow-node"] span', /^GET$/)), post: text(byText('[data-testid="mobile-workflow-node"] span', /^POST$/)),
         tru: text(byText('[data-testid="mobile-workflow-node"] span', /^TRUE$/)), fals: text(byText('[data-testid="mobile-workflow-node"] span', /^FALSE$/)),
-        url: text(byText('[data-node-type="restapi"] span.font-mono', /health/)), value: text(byText('[data-node-type="comparison"] span.font-mono', /ok/)),
+        url: text(byText('[data-node-type="restapi"] [data-testid="mobile-workflow-node-body"]', /health/)), value: text(byText('[data-node-type="comparison"] span.font-mono', /ok/)),
         connectors,
       }; });
     const wfText = ['readonly', 'noteTitle', 'noteText', 'get', 'post', 'tru', 'fals', 'url', 'value'];
@@ -509,6 +558,11 @@ try {
   const desk = await desktop.page.evaluate(() => ({ strip: !!document.querySelector('[data-testid="document-tabs"]') || !document.querySelector('[data-testid="mobile-page-header"]'), scrim: getComputedStyle(document.body).backgroundColor, drawer: !!document.querySelector('[data-testid="mobile-drawer"]') }));
   check('desktop: the desktop document tabs, no drawer', desk.strip && !desk.drawer, JSON.stringify(desk));
   await shot(desktop.page, 'desktop-01');
+  // Application Settings > General on the desktop: the same toggle
+  await desktop.page.locator('[title="Jacarium - Settings"], [aria-label="Jacarium - Settings"]').first().click(); await desktop.page.waitForTimeout(800);
+  const deskToggle = await desktop.page.evaluate(() => { const t = document.querySelector('[data-testid="sync-open-tabs"]'); return { present: !!t, disabled: !!t?.disabled, checked: t?.getAttribute('aria-checked'), header: !!t?.closest('.sc-modal-backdrop') && /Settings/.test(document.querySelector('.sc-modal-backdrop')?.textContent || ''), general: !!document.querySelector('[data-testid="open-tabs-section"]') }; });
+  check('desktop: Application Settings > General shows the "Sync open tabs across devices" switch (disabled without a server, on by default)', deskToggle.present && deskToggle.header && deskToggle.general && deskToggle.disabled && deskToggle.checked === 'true', JSON.stringify(deskToggle));
+  await desktop.page.keyboard.press('Escape'); await desktop.page.waitForTimeout(300);
   // the desktop's Tasks filters are the inline panel, unchanged
   await desktop.page.locator('[title="Tasks"], [aria-label="Tasks"]').first().click().catch(async () => { await desktop.page.getByRole('button', { name: /^Tasks$/ }).first().click(); }); await desktop.page.waitForTimeout(1500);
   await desktop.page.locator('[data-testid="tasks-filter-button"]').first().click().catch(() => {}); await desktop.page.waitForTimeout(400);

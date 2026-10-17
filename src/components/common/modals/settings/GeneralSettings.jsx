@@ -10,6 +10,7 @@ import { GRADIENT_THEMES, DARK_THEMES } from '../../../../contexts/ThemeContext'
 import { DISPLAY_NAME_EVENT, DISPLAY_NAME_MAX_LENGTH, getStoredDisplayName, isAccountIdentity, isBrowserIdentity, resetIdentityCache, setDisplayName, validateDisplayName } from '../../../../utils/cloudCentralSync';
 import { sendDisplayNameUpdate } from '../../../../utils/cloudWebSocket';
 import { stopCloudSync } from '../../../../utils/cloudSync';
+import { isOpenTabsSyncEnabled, setOpenTabsSyncEnabled } from '../../../../utils/openTabsSync';
 import { Button, Checkbox, Field, InfoRow, InfoRows, Note, PasswordInput, Section, Select, StatusLine, TextInput, Toggle, Code } from './ui';
 import CentralStatus from './CentralStatus';
 
@@ -454,6 +455,27 @@ function SyncSection() {
 }
 
 /**
+ * The open tabs following the account (src/utils/openTabsSync.js): one
+ * toggle, on unless switched off, taking effect at once on this device
+ * (the pages listen for the change). Without synchronisation (local-only,
+ * signed out) it is shown disabled and says what it needs.
+ */
+function OpenTabsSection() {
+  const status = useSyncStatus();
+  const [on, setOn] = useState(() => isOpenTabsSyncEnabled());
+  const ready = !!status.enabled;
+  return (
+    <Section title="Open tabs on your devices" testId="open-tabs-section">
+      <Toggle label="Sync open tabs across devices" checked={on} disabled={!ready} testId="sync-open-tabs"
+        onChange={(next) => { setOpenTabsSyncEnabled(next); setOn(next); }}
+        hint={ready
+          ? 'Tabs you open or close on one device open or close on your other devices signed in to this server.'
+          : 'Needs synchronisation with a server: sign in to your self-hosted Jacarium (or link this desktop to it) first.'} />
+    </Section>
+  );
+}
+
+/**
  * Desktop: link this profile to a home server (a browser deployment with
  * accounts). The password is used once in the main process to mint a
  * device token; afterwards the profile's data synchronises with that
@@ -643,6 +665,7 @@ export default function GeneralSettings({ remoteServer = null, theme, setTheme, 
       {account && <AccountSection account={account} remoteServer={remoteServer} />}
       {typeof window !== 'undefined' && window.electronAPI?.homeServerStatus && <HomeServerSection />}
       <SyncSection />
+      <OpenTabsSection />
 
       <Section title="Appearance & Behavior">
         <Field label="Color Scheme" hint="Auto follows the system and uses Jacaranda as its dark theme; Dark (neutral) is the grey dark theme. Themed sidebars apply a colorful gradient background.">

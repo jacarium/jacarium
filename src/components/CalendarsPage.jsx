@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import useSyncedOpenTabs from '../hooks/useSyncedOpenTabs';
+import { db as database } from '../db/database';
 import { useContextMenu } from '../hooks/useContextMenu';
 import ResizableSidebar from './ResizableSidebar';
 import { useMobile } from '../contexts/MobileContext';
@@ -219,6 +221,14 @@ export default function CalendarsPage() {
       return newEvents;
     });
   }, [openCalendarTabs, activeCalendarTab, setOpenCalendarTabs, setActiveCalendarTab]);
+  // the calendar tabs follow the account's devices (once the calendars are known here)
+  useSyncedOpenTabs({
+    page: 'calendars', tabs: openCalendarTabs, setTabs: setOpenCalendarTabs, enabled: calendars.length > 0,
+    itemOf: (id) => id,
+    titleOf: (id) => calendars.find((c) => c.id === id)?.summary || id,
+    resolve: async (item) => ((await database.syncedCalendars.get(item)) ? item : null),
+    onClose: (id) => closeCalendarTab(id),
+  });
 
   const switchCalendarTab = useCallback((calendarId) => {
     setActiveCalendarTab(calendarId);
