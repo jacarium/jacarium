@@ -3,6 +3,7 @@ import { ListRow } from '../common/sidebar/ListRow';
 import InlineEdit from '../common/inputs/InlineEdit';
 import { getUserBorderStyle } from '../../utils/userColors';
 import { isSharedWorkflow } from '../../utils/workflowSharing';
+import RowMenuButton from '../mobile/RowMenuButton';
 
 /**
  * One workflow in the list. Click opens it (or toggles it in selection
@@ -123,6 +124,8 @@ export default function WorkflowRow({
               <Cloud size={12} className="text-purple-600" />
             </div>
           )}
+          {/* a phone has no right-click: the chevron opens the same menu */}
+          <RowMenuButton onOpen={onContextMenu} label={`Actions for ${workflow.title || 'Untitled'}`} />
         </div>
       </div>
     </ListRow>

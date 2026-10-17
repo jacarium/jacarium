@@ -26,7 +26,10 @@ export default function WorkflowListMenu({
   onImport,
   onImportBase64,
   onExportAll,
-  onExportBase64
+  onExportBase64,
+  // the phone layout: the sort order and the exports only (no variables,
+  // no new workflow, no imports)
+  readOnly = false
 }) {
   const menuRef = useRef(null);
   const [position, setPosition] = useState({ top: anchorRect.bottom + 4, right: window.innerWidth - anchorRect.right });
@@ -82,16 +85,20 @@ export default function WorkflowListMenu({
         </>
       ) : (
         <>
+          {!readOnly && (
+            <>
           <button onClick={run(onOpenVariables)} className={ITEM_CLASS}>
             <MenuItemIcon action="variables" />
             Variables
           </button>
           <Divider />
-          <button onClick={run(onNewWorkflow)} className={ITEM_CLASS}>
+          <button onClick={run(onNewWorkflow)} className={ITEM_CLASS} data-testid="workflow-menu-new">
             <MenuItemIcon action="new" />
             New Workflow
           </button>
           <Divider />
+            </>
+          )}
           <div className="px-4 py-2">
             <div className="text-xs font-semibold text-os-text-secondary uppercase tracking-wide mb-2">Sort by</div>
             <div className="space-y-1">
@@ -106,6 +113,8 @@ export default function WorkflowListMenu({
             </div>
           </div>
           <Divider />
+          {!readOnly && (
+            <>
           <button onClick={run(onImport)} className={ITEM_CLASS}>
             <MenuItemIcon action="import" />
             Import from JSON
@@ -115,6 +124,8 @@ export default function WorkflowListMenu({
             Import from Base64
           </button>
           <Divider />
+            </>
+          )}
           <button onClick={run(onExportAll)} className={ITEM_CLASS}>
             <MenuItemIcon action="exportJson" />
             Export All (JSON)

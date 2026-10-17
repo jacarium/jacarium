@@ -136,15 +136,24 @@ export async function collectTaskwarriorBackup({ instances, tasks, reports, repo
   for (const instance of instances || []) {
     const key = instanceKey(instance);
     instanceNameById.set(instance.id, key);
+    const cached = () => (tasks || [])
+      .filter((t) => t.instanceId === instance.id && uuidOf(t))
+      .map(toTaskWarriorJson);
     let rows;
     let source;
     try {
-      rows = await fetchTasks(instance.rcPath || null, instance.dataPath || null);
-      source = 'cli';
+      const fetched = await fetchTasks(instance.rcPath || null, instance.dataPath || null);
+      if (Array.isArray(fetched)) {
+        rows = fetched;
+        source = 'cli';
+      } else {
+        // a caller that declines the CLI read (the sync engine's safety
+        // snapshot passes a fetchTasks that answers null) gets the cached rows
+        rows = cached();
+        source = 'db';
+      }
     } catch (error) {
-      rows = (tasks || [])
-        .filter((t) => t.instanceId === instance.id && uuidOf(t))
-        .map(toTaskWarriorJson);
+      rows = cached();
       source = 'db';
       log(`TaskWarrior CLI not reachable for "${key}" (${error?.message || error}); exported the app's ${rows.length} cached tasks instead`, 'warning');
     }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronRight, Search } from 'lucide-react';
 import { MenuItemIcon } from './MenuItemIcon';
+import { isMobileLayout } from '../../../utils/mobile';
 
 /**
  * CategorySubmenu - a context-menu row that opens a side submenu listing
@@ -46,6 +47,17 @@ export default function CategorySubmenu({
     const rect = rowElement.getBoundingClientRect();
     const submenuWidth = 200; // min-width 180px + margin for safety
     const submenuHeight = 300; // conservative: search input + scrollable category list
+
+    if (isMobileLayout()) {
+      // a phone: full width (src/mobile.css .sc-submenu) under the item,
+      // above it when there is no room below
+      const half = Math.min(submenuHeight, window.innerHeight * 0.5);
+      let y = rect.bottom + 4;
+      if (y + half > window.innerHeight - 70) y = Math.max(10, rect.top - 4 - half);
+      setPos({ x: 12, y });
+      setOpen(true);
+      return;
+    }
 
     let x = rect.right;
     // If opening to the right would overflow, open to the left of the parent item
@@ -101,7 +113,7 @@ export default function CategorySubmenu({
         <div
           role="menu"
           data-testid={testId ? `${testId}-submenu` : undefined}
-          className="fixed bg-os-card border border-os-border rounded-sm shadow-lg py-1 z-60"
+          className="sc-submenu fixed bg-os-card border border-os-border rounded-sm shadow-lg py-1 z-60"
           style={{ left: `${pos.x}px`, top: `${pos.y}px`, minWidth: '180px' }}
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={close}

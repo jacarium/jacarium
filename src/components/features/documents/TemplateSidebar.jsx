@@ -4,6 +4,7 @@ import { useImportFlow } from '../../../hooks/useImportFlow';
 import ImportFlow from '../../common/ImportFlow';
 import { EmptyState } from '../../ui';
 import { MenuItemIcon } from '../../common/menus/MenuItemIcon';
+import RowMenuButton from '../../mobile/RowMenuButton';
 
 export default function TemplateSidebar({
   templates = [],
@@ -139,7 +140,7 @@ export default function TemplateSidebar({
               {showMenu && (
                 <div
                   ref={dropdownMenuRef}
-                  className="fixed bg-os-card border border-os-border shadow-lg rounded-lg z-50 py-1.5 min-w-[180px]"
+                  className="sc-context-menu fixed bg-os-card border border-os-border shadow-lg rounded-lg z-50 py-1.5 min-w-[180px]"
                   style={{
                     top: `${menuPosition.top}px`,
                     right: `${menuPosition.right}px`
@@ -256,6 +257,7 @@ export default function TemplateSidebar({
                                   {template.description}
                                 </div>
                               )}
+                              <RowMenuButton className="float-right" label={`Actions for ${template.name}`} onOpen={(e) => onTemplateContextMenu?.(e, template)} />
                               {template.tags && template.tags.length > 0 && (
                                 <div className="flex items-center gap-1 mt-1 flex-wrap">
                                   {template.tags.map((tag, idx) => (

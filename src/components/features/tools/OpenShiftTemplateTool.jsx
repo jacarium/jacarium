@@ -687,7 +687,7 @@ export default function OpenShiftTemplateTool() {
       {contextMenu.visible && contextMenu.template && (
         <div
           ref={contextMenuRef}
-          className="fixed bg-os-modal border border-os-border shadow-lg rounded-lg z-50 py-1.5 min-w-[180px]"
+          className="sc-context-menu fixed bg-os-modal border border-os-border shadow-lg rounded-lg z-50 py-1.5 min-w-[180px]"
           style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
         >
           <button

@@ -1,4 +1,6 @@
-import { Menu, Plus, Loader } from 'lucide-react';
+import { useContext } from 'react';
+import { Menu, Plus, Loader, ChevronLeft } from 'lucide-react';
+import { useMobile, DrawerScopeContext } from '../../../contexts/MobileContext';
 
 /**
  * SidebarHeader - Header for sidebar sections
@@ -29,10 +31,21 @@ export default function SidebarHeader({
   statusTitle,
   className = '',
 }) {
+  // On a phone a panel that fills the screen (Team Chat, Notifications,
+  // opened from "More") gets a back button here: the scope that forced it
+  // open says what going back does. Nowhere else.
+  const { isMobile } = useMobile();
+  const drawerScope = useContext(DrawerScopeContext);
+  const onBack = isMobile && drawerScope?.forced ? drawerScope.onBack : null;
   return (
     <div className={`flex items-center justify-between p-4 border-b border-os-border bg-os-card ${className}`}>
       {/* Title */}
       <div className="flex items-center gap-2 flex-1 min-w-0">
+        {onBack && (
+          <button type="button" onClick={onBack} aria-label="Back" data-testid="mobile-panel-back" className="-ml-2 -my-2 min-w-11 min-h-11 flex items-center justify-center text-os-text-secondary shrink-0">
+            <ChevronLeft size={22} />
+          </button>
+        )}
         {Icon && <Icon size={16} className="text-os-text-secondary shrink-0" />}
         <h2 className="text-xs font-text font-semibold text-os-text-primary uppercase tracking-wide truncate">
           {title}

@@ -6,6 +6,9 @@ import { useImportFlow } from '../hooks/useImportFlow';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import ResizableSidebar from './ResizableSidebar';
+import { useMobile } from '../contexts/MobileContext';
+import { isMobileLayout } from '../utils/mobile';
+import MobilePageHeader from './mobile/MobilePageHeader';
 import EngineTemplateModal from './features/search/EngineTemplateModal';
 import EngineInputModal from './features/search/EngineInputModal';
 import JQLTemplateSidebar from './features/search/JQLTemplateSidebar';
@@ -59,6 +62,8 @@ export default function SearchPage({
   const [templateToChangeCategory, setTemplateToChangeCategory] = useState(null);
   const [selectedNewCategory, setSelectedNewCategory] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
+  // The phone layout: the templates are a drawer under a page header
+  const { isMobile } = useMobile();
   const [innerSidebarVisible, setInnerSidebarVisible] = useState(() => {
     const saved = localStorage.getItem('innerSidebarVisible');
     return saved !== null ? JSON.parse(saved) : true;
@@ -219,6 +224,8 @@ export default function SearchPage({
   // Reposition context menu after render using its actual measured size
   useLayoutEffect(() => {
     if (!contextMenu.visible || !contextMenuRef.current) return;
+    // on a phone the menu is a bottom sheet placed by the stylesheet (src/mobile.css), not by x/y
+    if (isMobileLayout()) return;
     const menuRect = contextMenuRef.current.getBoundingClientRect();
     const margin = 10;
     let x = contextMenu.x;
@@ -679,7 +686,7 @@ export default function SearchPage({
   return (
     <div className="flex h-full">
       {/* Templates Sidebar */}
-      {innerSidebarVisible && (
+      {(innerSidebarVisible || isMobile) && (
       <ResizableSidebar
         defaultWidth={288}
         minWidth={200}
@@ -774,7 +781,8 @@ export default function SearchPage({
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 bg-os-card overflow-hidden flex flex-col">
+      <div className={`flex-1 bg-os-card overflow-hidden flex flex-col ${isMobile ? 'min-w-0' : ''}`}>
+        {isMobile && <MobilePageHeader title="JQL Search" subtitle="Jira" />}
         {/* Jira Status Banner */}
         {!statusBannerDismissed && (
           <>
@@ -1000,7 +1008,7 @@ export default function SearchPage({
       {contextMenu.visible && (
         <div
           ref={contextMenuRef}
-          className="fixed bg-os-card border border-os-border rounded-lg shadow-lg z-50 py-1.5"
+          className="sc-context-menu fixed bg-os-card border border-os-border rounded-lg shadow-lg z-50 py-1.5"
           style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
         >
           {contextMenu.type === 'category' && (

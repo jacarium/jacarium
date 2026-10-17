@@ -102,7 +102,7 @@ export default function BaseModal({
 
   const modalContent = (
     <div
-      className={`fixed inset-0 bg-black/50 flex items-center justify-center p-4 ${backdropClassName}`}
+      className={`sc-modal-backdrop fixed inset-0 bg-black/50 flex items-center justify-center p-4 ${backdropClassName}`}
       style={{ zIndex }}
       onMouseDown={handleBackdropClick}
       onClick={(e) => e.stopPropagation()}

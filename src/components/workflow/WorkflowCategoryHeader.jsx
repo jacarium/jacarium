@@ -68,6 +68,7 @@ export default function WorkflowCategoryHeader({
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
+      data-drawer-keep="true"
       className={`sc-row rounded-none w-full flex items-center gap-2 px-2 py-2 text-sm text-os-text-primary transition-colors ${
  isDragOver ?'bg-os-blue/20':'hover:bg-os-card-secondary'
  }`}

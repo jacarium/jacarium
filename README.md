@@ -40,15 +40,21 @@ and works offline by default.
   loops and transformations, wired together on a canvas.
 - **Robin**: an AI chat for debugging, with your own model provider.
 - **And more**: Jira search, calendars, quizzes and tools.
-- **On a phone**: you can open a self-hosted Jacarium in your phone's
-  browser, but it isn't optimised for mobile: it's the web app in a smaller
-  browser window.
+- **On a phone**: open a self-hosted Jacarium in your phone's browser and
+  it switches to a layout made for phones, with a bottom bar, drawers for
+  the sidebars and a menu button on every list item. Workflows are view-only
+  on a phone; edit them on the desktop.
 
 | | |
 |---|---|
 | ![Workflow builder with a health check, a condition and a webhook](docs/screenshots/06-workflow-builder.webp) | ![Taskwarrior tasks with projects, priorities and due dates](docs/screenshots/05-tasks.webp) |
 | ![Kanban board for a Q4 platform roadmap](docs/screenshots/04-kanban.webp) | ![Robin AI chat debugging a stuck Kubernetes rollout](docs/screenshots/07-robin-chat.webp) |
-| <img src="docs/screenshots/phone-documents.webp" alt="Runbook open in a phone's browser" width="240"> | |
+
+On a phone:
+
+| | | | |
+|---|---|---|---|
+| <img src="docs/screenshots/phone-documents.webp" alt="A Kubernetes upgrade runbook open on a phone" width="200"> | <img src="docs/screenshots/phone-tasks.webp" alt="Taskwarrior tasks on a phone, one active with a running timer" width="200"> | <img src="docs/screenshots/phone-kanban.webp" alt="Kanban board on a phone, one column per screen" width="200"> | <img src="docs/screenshots/phone-workflow.webp" alt="A health-check workflow in the phone's view-only reader" width="200"> |
 
 ## Two ways to run it
 

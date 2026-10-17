@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { isMobileLayout } from '../utils/mobile';
 
 /**
  * Custom hook for managing context menu state and behavior
@@ -40,6 +41,8 @@ export function useContextMenu() {
   // from the cursor unnecessarily).
   useLayoutEffect(() => {
     if (!contextMenu.visible || !contextMenuRef.current) return;
+    // on a phone the menu is a bottom sheet placed by the stylesheet (src/mobile.css), not by x/y
+    if (isMobileLayout()) return;
     const menuRect = contextMenuRef.current.getBoundingClientRect();
     const margin = 10;
     let x = contextMenu.x;

@@ -39,9 +39,13 @@ import { openDocumentInEditor, expandDocumentCategoryInSidebar } from '../utils/
 import TabBar from './features/documents/TabBar';
 import ConfirmationModal from './common/ConfirmationModal';
 import NoticeBanner, { NoticeBannerAction } from './common/NoticeBanner';
+import { useMobile } from '../contexts/MobileContext';
+import MobileTaskFilters from './mobile/MobileTaskFilters';
+import { announceRowMenu } from './mobile/rowMenuAnchor';
 
 export default function TasksPage() {
   const { addNotification } = useNotifications();
+  const { isMobile } = useMobile();
 
   // Local tasks state
   const [localTasks, setLocalTasks] = useState([]);
@@ -1112,7 +1116,7 @@ export default function TasksPage() {
   return (
     <div className="flex h-full overflow-hidden font-text">
       {/* Instance List Sidebar with Reports */}
-      {innerSidebarVisible && (
+      {(innerSidebarVisible || isMobile) && (
         <ResizableSidebar
           defaultWidth={250}
           minWidth={200}
@@ -1158,8 +1162,8 @@ export default function TasksPage() {
 
       {/* Main Task Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Tab Bar */}
-        {openTabs.length > 0 && (
+        {/* Tab Bar (on a phone it is the page header, tabs or not) */}
+        {(openTabs.length > 0 || isMobile) && (
           <TabBar
             tabs={openTabs.map(tab => ({
               ...tab,
@@ -1169,6 +1173,7 @@ export default function TasksPage() {
             activeTabId={currentTabId}
             onTabClick={handleTabClick}
             onTabClose={handleTabClose}
+            pageTitle="Tasks"
           />
         )}
 
@@ -1235,7 +1240,7 @@ export default function TasksPage() {
 
         {/* Toolbar */}
         {currentInstanceId && activeInstance && openTabs.find(tab => tab.id === currentTabId)?.type === 'instance' && (
-          <div className="bg-os-card border-b border-os-border px-6 py-3">
+          <div className="sc-task-toolbar bg-os-card border-b border-os-border px-6 py-3">
             {selectedTasks.length > 0 ? (
               /* Bulk Actions Toolbar */
               <div className="flex items-center gap-3">
@@ -1317,14 +1322,31 @@ export default function TasksPage() {
                   </span>
                 )}
 
-                {/* Filter Button */}
+                {/* Filter Button (on a phone it opens the filters as a dropdown
+                    under itself - MobileTaskFilters - and carries the count of
+                    the filters set; the desktop toggles the inline panel below) */}
                 <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className={`p-1.5 rounded-sm transition-colors ${showFilters ?'bg-os-blue text-white':'hover:bg-os-card-secondary text-os-text-secondary'}`}
+                  onClick={(e) => { if (isMobile && !showFilters) announceRowMenu(e.currentTarget.getBoundingClientRect()); setShowFilters(!showFilters); }}
+                  data-testid="tasks-filter-button"
+                  aria-haspopup={isMobile ? 'menu' : undefined}
+                  aria-expanded={isMobile ? showFilters : undefined}
+                  className={`relative p-1.5 rounded-sm transition-colors ${showFilters ?'bg-os-blue text-white':'hover:bg-os-card-secondary text-os-text-secondary'}`}
                   title="Filters"
                 >
                   <Filter size={14} />
+                  {isMobile && (statusFilter.length + (projectFilter ? 1 : 0) + (tagFilter ? 1 : 0)) > 0 && (
+                    <span data-testid="tasks-filter-count" className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-os-blue text-white text-[10px] font-semibold leading-4 text-center">{statusFilter.length + (projectFilter ? 1 : 0) + (tagFilter ? 1 : 0)}</span>
+                  )}
                 </button>
+                {isMobile && showFilters && (
+                  <MobileTaskFilters
+                    statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+                    projectFilter={projectFilter} setProjectFilter={setProjectFilter}
+                    tagFilter={tagFilter} setTagFilter={setTagFilter}
+                    projects={projects} tags={tags}
+                    onClose={() => setShowFilters(false)}
+                  />
+                )}
 
                 {/* Spacer */}
                 <div className="flex-1"></div>
@@ -1352,9 +1374,9 @@ export default function TasksPage() {
           </div>
         )}
 
-        {/* Filter Panel */}
-        {currentInstanceId && activeInstance && showFilters && openTabs.find(tab => tab.id === currentTabId)?.type === 'instance' && (
-          <div className="bg-os-card border-b border-os-border px-6 py-3">
+        {/* Filter Panel (the desktop's; a phone has the dropdown instead) */}
+        {!isMobile && currentInstanceId && activeInstance && showFilters && openTabs.find(tab => tab.id === currentTabId)?.type === 'instance' && (
+          <div data-testid="tasks-filter-panel" className="bg-os-card border-b border-os-border px-6 py-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-os-text-secondary uppercase tracking-wide">Filters:</span>
 
@@ -1517,7 +1539,7 @@ export default function TasksPage() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-0">
+              <div className="sc-task-list space-y-0">
                 {/* Active tasks */}
                 {activeTasks.length > 0 && (
                   <div className="px-6 py-4">

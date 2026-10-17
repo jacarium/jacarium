@@ -55,6 +55,12 @@ import { getCustomFields } from '../utils/customFields';
 import { extractVariablesFromGroup, extractVariablesFromSortFields, replaceVariablesInGroup, replaceVariablesInSortFields } from '../utils/templateVariables';
 import { useNotifications } from '../contexts/NotificationContext';
 import useConnectionNotices from '../hooks/useConnectionNotices';
+import { useMobile } from '../contexts/MobileContext';
+import MobileBottomNav from './mobile/MobileBottomNav';
+import MoreSheet from './mobile/MoreSheet';
+import MobileSettingsHost from './mobile/MobileSettingsHost';
+import MobileMenuChrome from './mobile/MobileMenuChrome';
+import { ForcedDrawerScope } from './mobile/MobileDrawer';
 
 // Page-level components are lazy-loaded so each page ships in its own chunk.
 // In Electron the chunks load from local disk, so the win is deferred JS
@@ -128,6 +134,7 @@ export default function JQLBuilder({ standalone }) {
   const [shareUrlCopied, setShareUrlCopied] = useState(false);
   const [templateRefreshKey, setTemplateRefreshKey] = useState(0);
   const [currentPage, setCurrentPage] = useState(standalone || 'documents');
+  const { isMobile } = useMobile();
   const [activeTemplateId, setActiveTemplateId] = useState(savedSession?.activeTemplateId || null);
   const [sortFields, setSortFields] = useState(savedSession?.sortFields || []);
   const [invalidProject, setInvalidProject] = useState(null);
@@ -1247,12 +1254,17 @@ export default function JQLBuilder({ standalone }) {
     await handleForceRefresh();
   }
 
+  // The phone layout (src/utils/mobile.js, never in the desktop app): no
+  // icon rail, the pages stacked over a bottom navigation bar, the team
+  // panels filling the screen when opened from "More" (ForcedDrawerScope,
+  // which the desktop ignores), and Settings hosted here since the rail
+  // that normally owns it is not rendered.
   return (
     <div className="min-h-screen bg-os-masthead font-text text-os-text-primary">
-      <div className="flex h-screen">
+      <div className={isMobile ? 'sc-mobile-root flex flex-col h-screen overflow-hidden' : 'flex h-screen'}>
 
-        {/* Compact Sidebar - hidden in standalone mode */}
-        {!standalone && (
+        {/* Compact Sidebar - hidden in standalone mode and in the phone layout */}
+        {!standalone && !isMobile && (
           <CompactSidebar
             currentPage={currentPage}
             onPageChange={handlePageChange}
@@ -1261,19 +1273,25 @@ export default function JQLBuilder({ standalone }) {
 
         {/* Chat Sidebar */}
         {isChatSidebarOpen && (
-          <ChatSidebar
-            isOpen={isChatSidebarOpen}
-            onClose={() => setIsChatSidebarOpen(false)}
-          />
+          <ForcedDrawerScope onBack={() => setIsChatSidebarOpen(false)} label="Team Chat">
+            <ChatSidebar
+              isOpen={isChatSidebarOpen}
+              onClose={() => setIsChatSidebarOpen(false)}
+            />
+          </ForcedDrawerScope>
         )}
 
         {/* Notification Sidebar */}
         {isNotificationSidebarOpen && (
-          <NotificationSidebar
-            isOpen={isNotificationSidebarOpen}
-            onClose={() => setIsNotificationSidebarOpen(false)}
-          />
+          <ForcedDrawerScope onBack={() => setIsNotificationSidebarOpen(false)} label="Notifications">
+            <NotificationSidebar
+              isOpen={isNotificationSidebarOpen}
+              onClose={() => setIsNotificationSidebarOpen(false)}
+            />
+          </ForcedDrawerScope>
         )}
+
+        <ForcedDrawerScope>
 
         {/* Draft Sidebar */}
         {isDraftSidebarOpen && (
@@ -1290,6 +1308,7 @@ export default function JQLBuilder({ standalone }) {
             onClose={() => setIsAIChatSidebarOpen(false)}
           />
         )}
+        </ForcedDrawerScope>
 
         {/* Main Canvas */}
         <Suspense fallback={<PageLoadingFallback />}>
@@ -1678,6 +1697,16 @@ export default function JQLBuilder({ standalone }) {
           </div>
         )}
         </Suspense>
+
+        {/* The phone layout's bottom bar, its "More" sheet and Settings host */}
+        {isMobile && !standalone && (
+          <>
+            <MobileBottomNav currentPage={currentPage} onPageChange={handlePageChange} panel={isChatSidebarOpen ? 'Team Chat' : isNotificationSidebarOpen ? 'Notifications' : null} />
+            <MoreSheet currentPage={currentPage} onPageChange={handlePageChange} />
+            <MobileSettingsHost />
+            <MobileMenuChrome />
+          </>
+        )}
       </div>
 
       {/* Save Template Modal */}

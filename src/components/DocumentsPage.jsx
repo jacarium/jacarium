@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import ResizableSidebar from './ResizableSidebar';
+import { useMobile } from '../contexts/MobileContext';
 import VerticalResizableDivider from './VerticalResizableDivider';
 import TemplateSidebar from './features/documents/TemplateSidebar';
 import DocumentSidebar from './features/documents/DocumentSidebar';
@@ -63,6 +64,8 @@ export default function DocumentsPage({
   onDocumentCreated,
 }) {
   const { addNotification } = useNotifications();
+  // The phone layout: the document list is a drawer, the tabs a header
+  const { isMobile } = useMobile();
 
   // State - drastically reduced from 40+ useState
   const [documents, setDocuments] = useState([]);
@@ -2940,7 +2943,7 @@ export default function DocumentsPage({
     <div className="flex h-full overflow-hidden font-text">
       {/* Combined Sidebar (Documents + Templates) */}
 
-      {innerSidebarVisible && (
+      {(innerSidebarVisible || isMobile) && (
         <ResizableSidebar
           defaultWidth={250}
           minWidth={200}
@@ -3022,7 +3025,15 @@ export default function DocumentsPage({
       {/* Main Editor Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Editor Content */}
-        {!currentDocument && openTabs.length === 0 && !splitViewEnabled ? (
+        {!currentDocument && openTabs.length === 0 && !splitViewEnabled && isMobile ? (
+          <div className="flex-1 flex flex-col">
+            {/* a phone still needs the header (its sidebar button) with nothing open */}
+            <TabBar tabs={[]} pageTitle="Documents" />
+            <div className="flex-1 flex items-center justify-center">
+              <EmptyState icon={FileText} title="No Document Selected" description="Create a new document or select one from the list" action={<Button variant="primary" size="lg" onClick={() => handleCreateDocument()}>New Document</Button>} />
+            </div>
+          </div>
+        ) : !currentDocument && openTabs.length === 0 && !splitViewEnabled ? (
           <div className="flex-1 flex items-center justify-center">
             <EmptyState icon={FileText} title="No Document Selected" description="Create a new document or select one from the list" action={<Button variant="primary" size="lg" onClick={() => handleCreateDocument()}>New Document</Button>} />
           </div>
@@ -3048,6 +3059,7 @@ export default function DocumentsPage({
               >
                 {/* Tabs */}
                 <TabBar
+                  pageTitle="Documents"
                   tabs={openTabs}
                   activeTabId={currentDocument?.id}
                   onTabClick={handleTabClick}

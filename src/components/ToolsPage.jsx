@@ -1,6 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useRef, Suspense } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import ResizableSidebar from './ResizableSidebar';
+import { useMobile } from '../contexts/MobileContext';
+import MobilePageHeader from './mobile/MobilePageHeader';
+import { useCloseDrawerOn } from '../hooks/useCloseDrawerOn';
 import ToolsSidebar from './features/tools/ToolsSidebar';
 import ToolsTabBar from './features/tools/ToolsTabBar';
 import { Wrench, Copy, Loader2 } from 'lucide-react';
@@ -24,6 +27,9 @@ export default function ToolsPage() {
   const [expandedCategories, setExpandedCategories] = useLocalStorage('expandedToolCategories', []);
   const [loading, setLoading] = useState(false);
   const [innerSidebarVisible, setInnerSidebarVisible] = useLocalStorage('innerSidebarVisible', true);
+  // The phone layout: the tool list is a drawer that closes once a tool is picked
+  const { isMobile } = useMobile();
+  useCloseDrawerOn(activeToolTab);
 
   // Listen for inner sidebar visibility changes
   useEffect(() => {
@@ -211,7 +217,7 @@ export default function ToolsPage() {
   return (
     <div className="flex h-full bg-os-background">
       {/* Resizable Sidebar */}
-      {innerSidebarVisible && (
+      {(innerSidebarVisible || isMobile) && (
         <ResizableSidebar
           defaultWidth={280}
           minWidth={200}
@@ -234,8 +240,11 @@ export default function ToolsPage() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Tab Bar */}
-        {openToolTabs.length > 0 && (
+        {/* Tab Bar (on a phone: the page header naming the open tool) */}
+        {isMobile && (
+          <MobilePageHeader title={tools.find((t) => t.id === activeToolTab)?.name || 'Tools'} subtitle="Tools" />
+        )}
+        {openToolTabs.length > 0 && !isMobile && (
           <ToolsTabBar
             tools={tools}
             openTabs={openToolTabs}

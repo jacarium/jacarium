@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useContextMenu } from '../hooks/useContextMenu';
 import ResizableSidebar from './ResizableSidebar';
+import { useMobile } from '../contexts/MobileContext';
+import MobilePageHeader from './mobile/MobilePageHeader';
+import { useCloseDrawerOn } from '../hooks/useCloseDrawerOn';
 import VerticalResizableDivider from './VerticalResizableDivider';
 import CalendarSidebar from './features/calendars/CalendarSidebar';
 import EventTemplateSidebar from './features/calendars/EventTemplateSidebar';
@@ -51,12 +54,16 @@ import { MenuItemIcon } from './common/menus/MenuItemIcon';
  */
 export default function CalendarsPage() {
   const { addNotification } = useNotifications();
+  // The phone layout: the calendar list is a drawer, the open calendar the header
+  const { isMobile } = useMobile();
 
   // State
   const [calendars, setCalendars] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [openCalendarTabs, setOpenCalendarTabs] = useLocalStorage('calendarOpenTabs', []);
   const [activeCalendarTab, setActiveCalendarTab] = useLocalStorage('activeCalendarTab', null);
+  // (a phone: picking a calendar in the drawer closes it)
+  useCloseDrawerOn(activeCalendarTab);
   const [calendarEvents, setCalendarEvents] = useState({}); // calendarId → events array
   const [syncStatus, setSyncStatus] = useState({}); // calendarId → { status: 'synced'|'syncing'|'error', lastSynced }
   const [overallSyncStatus, setOverallSyncStatus] = useState({ status: 'synced', lastSynced: null });
@@ -837,7 +844,7 @@ export default function CalendarsPage() {
   return (
     <div className="flex h-full bg-os-background">
       {/* Resizable Sidebar */}
-      {innerSidebarVisible && (
+      {(innerSidebarVisible || isMobile) && (
         <ResizableSidebar
           defaultWidth={280}
           minWidth={200}
@@ -887,7 +894,10 @@ export default function CalendarsPage() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Tab Bar */}
+        {/* Tab Bar (on a phone: the page header naming the open calendar) */}
+        {isMobile ? (
+          <MobilePageHeader title={calendars.find((c) => c.id === activeCalendarTab)?.summary || 'Calendars'} subtitle="Calendars" />
+        ) : (
         <TabBar
           calendars={calendars}
           openTabs={openCalendarTabs}
@@ -899,6 +909,7 @@ export default function CalendarsPage() {
             // TODO: Show context menu (Close, Close Others, Close All)
           }}
         />
+        )}
 
         {/* Not connected: the slim strip above a cached calendar */}
         {activeCalendarTab && (
@@ -1029,7 +1040,7 @@ export default function CalendarsPage() {
       {contextMenu.visible && contextMenu.type === 'calendar' && (
         <div
           ref={contextMenuRef}
-          className="fixed bg-os-card border border-os-border rounded-lg shadow-lg z-50 py-1.5 min-w-[180px]"
+          className="sc-context-menu fixed bg-os-card border border-os-border rounded-lg shadow-lg z-50 py-1.5 min-w-[180px]"
           style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
         >
           <button
@@ -1051,7 +1062,7 @@ export default function CalendarsPage() {
       {contextMenu.visible && contextMenu.type === 'event' && (
         <div
           ref={contextMenuRef}
-          className="fixed bg-os-card border border-os-border rounded-lg shadow-lg z-50 py-1.5 min-w-[180px]"
+          className="sc-context-menu fixed bg-os-card border border-os-border rounded-lg shadow-lg z-50 py-1.5 min-w-[180px]"
           style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
         >
           <button

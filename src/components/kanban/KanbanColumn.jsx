@@ -71,7 +71,7 @@ export default function KanbanColumn({
 
   return (
     <div
-      className={`flex flex-col w-80 bg-os-card-secondary rounded-lg shrink-0 transition-all group ${
+      className={`sc-kanban-column flex flex-col w-80 bg-os-card-secondary rounded-lg shrink-0 transition-all group ${
  isDraggingColumn ?'opacity-40':''
  } ${
  isColumnDraggedOver ?'ring-2 ring-os-blue ring-offset-2':''
@@ -89,7 +89,7 @@ export default function KanbanColumn({
     >
       {/* Column Header */}
       <div
-        className={`flex items-center justify-between p-4 border-b border-os-border ${!isReadOnly ?'cursor-grab active:cursor-grabbing':''}`}
+        className={`sc-kanban-column-header flex items-center justify-between p-4 border-b border-os-border ${!isReadOnly ?'cursor-grab active:cursor-grabbing':''}`}
         draggable={!isReadOnly}
         onDragStart={!isReadOnly ? handleColumnDragStart : undefined}
         onDragEnd={!isReadOnly ? handleColumnDragEnd : undefined}

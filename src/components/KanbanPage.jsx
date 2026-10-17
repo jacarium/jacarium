@@ -17,9 +17,13 @@ import ConfirmationModal from './common/ConfirmationModal';
 import FormModal from './common/modals/FormModal';
 import { useNotifications } from '../contexts/NotificationContext';
 import { MenuItemIcon } from './common/menus/MenuItemIcon';
+import { useMobile } from '../contexts/MobileContext';
 
 export default function KanbanPage() {
   const { addNotification } = useNotifications();
+  // The phone layout: one column per screen, swiped, with the dots above
+  const { isMobile } = useMobile();
+  const columnsScrollRef = useRef(null);
   const [boards, setBoards] = useState([]);
   const [currentBoardId, setCurrentBoardId] = useLocalStorage('currentKanbanBoardId', null);
   const [currentBoard, setCurrentBoard] = useState(null);
@@ -1509,7 +1513,7 @@ export default function KanbanPage() {
   return (
     <div className="flex h-full overflow-hidden font-text">
       {/* Board List Sidebar */}
-      {innerSidebarVisible && (
+      {(innerSidebarVisible || isMobile) && (
         <ResizableSidebar
           defaultWidth={250}
           minWidth={200}
@@ -1547,14 +1551,15 @@ export default function KanbanPage() {
 
       {/* Main Board Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Tab Bar */}
-        {openTabs.length > 0 && (
+        {/* Tab Bar (on a phone it is the page header, tabs or not) */}
+        {(openTabs.length > 0 || isMobile) && (
           <TabBar
             tabs={openTabs}
             activeTabId={currentBoardId}
             onTabClick={handleTabClick}
             onTabClose={handleTabClose}
             onTabContextMenu={handleTabContextMenu}
+            pageTitle="Kanban"
           />
         )}
 
@@ -1701,8 +1706,9 @@ export default function KanbanPage() {
           </div>
         ) : (
           <>
-            {/* Kanban Columns */}
-            <div className="flex-1 overflow-x-auto overflow-y-hidden p-6 bg-os-card-secondary">
+            {/* Kanban Columns (on a phone one per screen, swiped: scroll-snap in
+                src/mobile.css, the next column peeking in at the right edge) */}
+            <div ref={columnsScrollRef} className="sc-kanban-columns flex-1 overflow-x-auto overflow-y-hidden p-6 bg-os-card-secondary">
               <div className="flex gap-4 h-full min-w-max">
                 {displayBoard.columns.map(column => {
                   const columnCards = cards

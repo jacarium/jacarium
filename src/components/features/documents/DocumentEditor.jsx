@@ -2833,7 +2833,8 @@ export default function DocumentEditor({
         {/* Preview Toggle: OFF -> PREVIEW (blue, this document) -> PREVIEW-ALL (orange, global) -> OFF */}
         <button
           onClick={togglePreview}
-          className={`p-1.5 transition-colors ${
+          data-testid="editor-mode-toggle"
+          className={`sc-editor-mode p-1.5 transition-colors ${
  previewAllDocuments
  ?'bg-orange-500 text-white'
  : previewMode
@@ -2971,7 +2972,7 @@ export default function DocumentEditor({
                 ? 'Auto-typing in progress...'
                 : 'Type / to insert templates, /ai for Quick AI, /wf for Quick Workflow, /task for Quick Tasks...'
             }
-            className={`w-full h-full px-6 py-4 font-mono resize-none outline-hidden border-0 text-sm bg-os-card text-os-text-primary ${
+            className={`sc-editor-textarea w-full h-full px-6 py-4 font-mono resize-none outline-hidden border-0 text-sm bg-os-card text-os-text-primary ${
  locked || !isOwner || isAutoTyping ?'cursor-default':''
  }`}
             style={{

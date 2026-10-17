@@ -4,6 +4,28 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.2.1
+
+_2026-10-17_
+
+### [TASKS]
+
+Task cards are easier to read in the light theme: every label and button has stronger contrast, and completed tasks are no longer faded
+
+Taskwarrior: a task that hasn't changed is no longer re-saved and sent round your other devices
+
+Taskwarrior: the safety backup taken before the first sync is saved again
+
+### [AI]
+
+Robin: a fresh profile starts with one chat instead of two
+
+### [UI]
+
+New: a phone layout. Open a self-hosted Jacarium in your phone's browser and it switches to a layout made for phones, with a bottom bar, drawers for the sidebars and a menu button on every list item. In the light theme the top and bottom bars stay dark
+
+Phone layout: workflows are view-only; edit them on the desktop
+
 ## What's New in v3.2.0
 
 _2026-10-16_

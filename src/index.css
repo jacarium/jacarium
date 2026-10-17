@@ -54,6 +54,7 @@
   --radius-xl: 16px;
   --radius-2xl: 20px;
   --radius-3xl: 28px;
+  --radius-none: 0;                     /* square: scrims, a full-screen dialog */
   /* Where the scale is used (src/components/ui/primitives.jsx): */
   --radius-control: var(--radius-sm);   /* buttons, fields */
   --radius-card: var(--radius-lg);      /* cards, dialogs, floating windows */

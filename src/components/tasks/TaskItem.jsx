@@ -231,11 +231,11 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
         if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
         onContextMenu(e, task);
       } : undefined}
-      className={`bg-os-card rounded-md border transition-all group relative hover:border-os-border-hover ${
+      className={`sc-task-card ${isActive ? 'sc-task-card-active' : ''} bg-os-card rounded-md border transition-all group relative hover:border-os-border-hover ${
  isSelected
  ?'border-os-blue/60 bg-blue-50/30 dark:bg-blue-500/5 shadow-xs'
  : isCompleted
- ?'border-os-border opacity-60'
+ ?'border-os-border'
  : isActive
  ?'border-green-500/30 bg-green-50/30 dark:bg-green-500/5'
  :'border-os-border'
@@ -274,9 +274,9 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
           ) : (
             <div className="flex items-center gap-1.5 mb-4">
               <p
-                className={`text-sm ${
+                className={`sc-task-title text-sm ${
  isCompleted
- ?'line-through text-os-text-muted'
+ ?'line-through text-os-text-secondary'
  :`text-os-text-primary ${!isReadOnly ?'cursor-pointer hover:text-os-blue':''}`
  }`}
                 onDoubleClick={() => !isReadOnly && setIsEditingDescription(true)}
@@ -285,7 +285,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                 {task.description}
               </p>
               {taskAge && (
-                <span className="text-[9px] px-1 py-0.5 rounded-sm bg-os-card-secondary text-os-text-muted">
+                <span className="text-[9px] px-1 py-0.5 rounded-sm bg-os-card-secondary text-os-text-secondary">
                   {taskAge}
                 </span>
               )}
@@ -293,7 +293,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
           )}
 
           {/* Metadata */}
-          <div className="flex items-center gap-1 flex-wrap text-[10px]">
+          <div className="sc-task-meta flex items-center gap-1 flex-wrap text-[10px]">
             {/* Project */}
             {isEditingProject ? (
               <div className="relative z-50">
@@ -345,7 +345,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               </span>
             ) : !isReadOnly && (
               <span
-                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-muted hover:text-os-blue cursor-pointer opacity-50 hover:opacity-100"
+                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
                 onClick={handleProjectClick}
                 title="Click to set project"
               >
@@ -359,9 +359,9 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               <div className="relative">
                 <span
                   className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
- task.priority ==='H'?'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20':
- task.priority ==='M'?'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20':
-'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
+ task.priority ==='H'?'bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20':
+ task.priority ==='M'?'bg-yellow-500/10 text-yellow-800 dark:text-yellow-400 border border-yellow-500/20':
+'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20'
  } ${!isReadOnly ?'cursor-pointer hover:opacity-90':''}`}
                   onClick={handlePriorityClick}
                 >
@@ -394,7 +394,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
             ) : !isReadOnly && (
               <div className="relative">
                 <span
-                  className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-muted hover:text-os-blue cursor-pointer opacity-50 hover:opacity-100"
+                  className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
                   onClick={handlePriorityClick}
                   title="Click to set priority"
                 >
@@ -458,7 +458,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               </div>
             ) : !isReadOnly && (
               <span
-                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-muted hover:text-os-blue cursor-pointer opacity-50 hover:opacity-100"
+                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
                 onClick={handleTagsClick}
                 title="Click to add tags"
               >
@@ -483,7 +483,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               />
             ) : task.due ? (
               <span
-                className={`text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-orange-50 text-orange-600 border border-orange-200/50 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800/50 ${!isReadOnly ?'cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30':''}`}
+                className={`text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-orange-50 text-orange-700 border border-orange-200/50 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800/50 ${!isReadOnly ?'cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30':''}`}
                 onClick={handleDueDateClick}
                 title={!isReadOnly ? "Click to edit due date" : ""}
               >
@@ -492,7 +492,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               </span>
             ) : !isReadOnly && (
               <span
-                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-muted hover:text-os-blue cursor-pointer opacity-50 hover:opacity-100"
+                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
                 onClick={handleDueDateClick}
                 title="Click to set due date"
               >
@@ -517,7 +517,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               />
             ) : task.wait ? (
               <span
-                className={`text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-amber-50 text-amber-600 border border-amber-200/50 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50 ${!isReadOnly ?'cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/30':''}`}
+                className={`text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200/50 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50 ${!isReadOnly ?'cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/30':''}`}
                 onClick={handleWaitDateClick}
                 title={!isReadOnly ? "Click to edit wait date" : ""}
               >
@@ -526,7 +526,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               </span>
             ) : !isReadOnly && (
               <span
-                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-muted hover:text-os-blue cursor-pointer opacity-50 hover:opacity-100"
+                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
                 onClick={handleWaitDateClick}
                 title="Click to set wait date"
               >
@@ -546,7 +546,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                 {isActive ? (
                   <button
                     onClick={handleStopTask}
-                    className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-red-50 text-red-600 border border-red-200/50 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/50 hover:bg-red-100 dark:hover:bg-red-900/30"
+                    className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-red-50 text-red-700 border border-red-200/50 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/50 hover:bg-red-100 dark:hover:bg-red-900/30"
                     title="Stop task"
                   >
                     <Square size={11} />
@@ -555,7 +555,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                 ) : (
                   <button
                     onClick={handleStartTask}
-                    className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-green-50 text-green-600 border border-green-200/50 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800/50 hover:bg-green-100 dark:hover:bg-green-900/30"
+                    className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-green-50 text-green-700 border border-green-200/50 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800/50 hover:bg-green-100 dark:hover:bg-green-900/30"
                     title="Start task"
                   >
                     Start
@@ -567,7 +567,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
             {/* Urgency (read-only, calculated by TaskWarrior) */}
             {task.urgency !== null && task.urgency !== undefined && task.urgency > 0 ? (
               <span
-                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-purple-50 text-purple-600 border border-purple-200/50 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800/50"
+                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-purple-50 text-purple-700 border border-purple-200/50 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800/50"
                 title="Urgency (calculated by TaskWarrior)"
               >
                 <TrendingUp size={11} />
@@ -575,7 +575,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               </span>
             ) : (
               <span
-                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-muted opacity-50"
+                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary"
                 title="Urgency (calculated by TaskWarrior)"
               >
                 <TrendingUp size={11} />
@@ -587,7 +587,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
             {task.recur ? (
               <div className="relative">
                 <span
-                  className={`text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-indigo-50 text-indigo-600 border border-indigo-200/50 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-800/50 ${!isReadOnly ?'cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30':''}`}
+                  className={`text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-200/50 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-800/50 ${!isReadOnly ?'cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30':''}`}
                   onClick={handleRecurClick}
                   title={!isReadOnly ? "Click to edit recurrence" : ""}
                 >
@@ -665,7 +665,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
             ) : !isReadOnly && (
               <div className="relative">
                 <span
-                  className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-muted hover:text-os-blue cursor-pointer opacity-50 hover:opacity-100"
+                  className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
                   onClick={handleRecurClick}
                   title="Click to set recurrence"
                 >
@@ -746,7 +746,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
             {!isReadOnly && (
               <div className="relative">
                 <span
-                  className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-muted hover:text-os-blue cursor-pointer opacity-50 hover:opacity-100"
+                  className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
                   onClick={() => setShowNoteInput(!showNoteInput)}
                   title="Click to add note"
                 >
@@ -758,7 +758,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
 
             {/* Cloud indicator */}
             {task.inCloud && (
-              <span className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-blue-50 text-blue-600 border border-blue-200/50 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800/50">
+              <span className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200/50 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800/50">
                 <Cloud size={11} />
                 Shared
               </span>

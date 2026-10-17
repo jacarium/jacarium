@@ -60,6 +60,8 @@ import { getWorkflow } from '../utils/workflows';
 import { addWorkflowAsAIContext } from '../utils/workflowAIContext';
 import { onConnectionStatusChange } from '../utils/cloudWebSocket';
 import { EmptyState, Button } from './ui';
+import { useMobile } from '../contexts/MobileContext';
+import MobileWorkflowView, { MobileWorkflowToolbar } from './mobile/MobileWorkflowView';
 
 // Register custom node types
 const nodeTypes = {
@@ -132,6 +134,9 @@ export default function WorkflowBuilder() {
   const [tabContextMenu, setTabContextMenu] = useState(null); // { x, y, tabId }
   const [showEnvVariables, setShowEnvVariables] = useState(false);
   const [centralServerStatus, setCentralServerStatus] = useState(null);
+  // On a phone workflows are read-only: a list instead of the canvas, no
+  // node library, no create/rename/delete (src/components/mobile/MobileWorkflowView.jsx)
+  const { isMobile } = useMobile();
 
   // Which workflow is open, its canvas state, the tabs, load/save/restore.
   // Switching workflows aborts a running execution; that callback closes
@@ -364,7 +369,7 @@ export default function WorkflowBuilder() {
   return (
     <div className="flex h-full">
       {/* Node Library & Workflow List Sidebar */}
-      {innerSidebarVisible && (
+      {(innerSidebarVisible || isMobile) && (
         <ResizableSidebar
           defaultWidth={288}
           minWidth={200}
@@ -373,14 +378,8 @@ export default function WorkflowBuilder() {
           position="right"
           className="bg-os-card flex flex-col"
         >
-          {(width) => (
-            <VerticalResizableDivider
-              defaultTopHeight={60}
-              minTopHeight={30}
-              maxTopHeight={80}
-              storageKey="workflow-sidebar-vertical-split"
-              bottomCollapsed={nodeLibraryCollapsed}
-              topContent={
+          {(width) => {
+            const list = (
                 <WorkflowList
                   workflows={sortWorkflows(workflows, workflowSortBy)}
                   onWorkflowClick={handleWorkflowClick}
@@ -408,8 +407,19 @@ export default function WorkflowBuilder() {
                   sortBy={workflowSortBy}
                   onSortChange={setWorkflowSortBy}
                   centralServerStatus={centralServerStatus}
+                  readOnly={isMobile}
                 />
-              }
+            );
+            // a phone has no canvas to drag nodes onto: the list alone
+            if (isMobile) return list;
+            return (
+            <VerticalResizableDivider
+              defaultTopHeight={60}
+              minTopHeight={30}
+              maxTopHeight={80}
+              storageKey="workflow-sidebar-vertical-split"
+              bottomCollapsed={nodeLibraryCollapsed}
+              topContent={list}
               bottomContent={
                 <WorkflowNodeLibrary
                   width={width}
@@ -418,7 +428,8 @@ export default function WorkflowBuilder() {
                 />
               }
             />
-          )}
+            );
+          }}
         </ResizableSidebar>
       )}
 
@@ -440,7 +451,9 @@ export default function WorkflowBuilder() {
           className="flex flex-col h-full overflow-hidden min-w-0"
           style={{ width: splitViewEnabled ? `${splitPosition}%` : '100%' }}
         >
-        <div className="flex-1 flex flex-col">
+        {/* (min-h-0 on a phone: a flex item's min-height is auto, so the
+            reader below could grow past the screen instead of scrolling) */}
+        <div className={`flex-1 flex flex-col ${isMobile ? 'min-h-0' : ''}`}>
         {/* Tabs */}
         <TabBar
           tabs={openTabs}
@@ -450,12 +463,18 @@ export default function WorkflowBuilder() {
           onTabReorder={handleTabReorder}
           onTabContextMenu={handleTabContextMenu}
           paneId="workflow"
+          pageTitle="Workflows"
         />
 
         {/* React Flow Canvas */}
         {openTabs.length === 0 ? (
           <div className="flex-1 flex items-center justify-center">
-            <EmptyState icon={Workflow} title="No Workflow Selected" description="Create a new workflow or select one from the list" action={<Button variant="primary" size="lg" onClick={handleNewWorkflow}>New Workflow</Button>} />
+            <EmptyState icon={Workflow} title="No Workflow Selected" description={isMobile ? 'Open a workflow from the list - workflows are made and edited on the desktop' : 'Create a new workflow or select one from the list'} action={isMobile ? null : <Button variant="primary" size="lg" onClick={handleNewWorkflow}>New Workflow</Button>} />
+          </div>
+        ) : currentWorkflow && isMobile ? (
+          <div className="flex-1 min-h-0 flex flex-col bg-os-card" data-testid="mobile-workflow-page">
+            <MobileWorkflowToolbar isExecuting={isExecuting} onRun={executeWorkflow} onStop={stopWorkflow} />
+            <MobileWorkflowView nodes={nodes} edges={edges} />
           </div>
         ) : currentWorkflow ? (
           <div className="flex-1 flex flex-col bg-os-card">

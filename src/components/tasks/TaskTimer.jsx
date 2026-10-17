@@ -54,8 +54,8 @@ export default function TaskTimer({ startTime, className = '' }) {
 
   return (
     <div className={`flex items-center gap-1 ${className}`}>
-      <Clock size={11} className="text-green-600 dark:text-green-400 animate-pulse" />
-      <span className="text-[11px] font-mono text-green-600 dark:text-green-400 font-medium">
+      <Clock size={11} className="text-green-700 dark:text-green-400 animate-pulse" />
+      <span className="text-[11px] font-mono text-green-700 dark:text-green-400 font-medium">
         {elapsed}
       </span>
     </div>

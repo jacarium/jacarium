@@ -42,7 +42,10 @@ export default function WorkflowList({
   onWorkflowsChanged,
   sortBy = 'date',
   onSortChange,
-  centralServerStatus = null
+  centralServerStatus = null,
+  // the phone layout: no new workflow, no selection, no renaming; the
+  // menus keep their non-editing entries (sorting, exports, AI context)
+  readOnly = false
 }) {
   const [expandedCategories, setExpandedCategories] = useState(() => {
     const saved = localStorage.getItem('expandedWorkflowCategories');
@@ -142,6 +145,10 @@ export default function WorkflowList({
   function handleWorkflowRowClick(workflow) {
     if (selectionMode) {
       onToggleWorkflowSelection(workflow.id);
+    } else if (readOnly) {
+      // no double-click to tell apart (renaming is off), and the phone
+      // drawer closes on the tap: open straight away, not after a delay
+      onWorkflowClick(workflow);
     } else {
       // Delay onClick to distinguish from double-click
       clickTimerRef.current = setTimeout(() => {
@@ -234,6 +241,7 @@ export default function WorkflowList({
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            {!readOnly && (
             <button
               onClick={onToggleSelectionMode}
               className={`p-1.5 transition-colors ${
@@ -245,13 +253,17 @@ export default function WorkflowList({
             >
               {selectionMode ? <X size={16} /> : <CheckSquare size={16} className="text-os-text-secondary" />}
             </button>
+            )}
+            {!readOnly && (
             <button
               onClick={onNewWorkflow}
+              data-testid="workflow-new"
               className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
               title="New workflow"
             >
               <Plus size={16} className="text-os-text-secondary" />
             </button>
+            )}
             <div className="relative" ref={menuRef}>
               <button
                 onClick={handleMenuClick}
@@ -278,6 +290,7 @@ export default function WorkflowList({
                   onImportBase64={onImportBase64}
                   onExportAll={onExportAll}
                   onExportBase64={onExportBase64}
+                  readOnly={readOnly}
                 />
               )}
             </div>
@@ -319,11 +332,11 @@ export default function WorkflowList({
                       workflow={workflow}
                       isActive={workflow.id === currentWorkflowId && !selectionMode}
                       isSelected={selectionMode && selectedWorkflows.includes(workflow.id)}
-                      isEditing={editingWorkflowId === workflow.id && isMineOrUnshared(workflow, currentMachineId)} // Only allow editing if ours
+                      isEditing={!readOnly && editingWorkflowId === workflow.id && isMineOrUnshared(workflow, currentMachineId)} // Only allow editing if ours
                       selectionMode={selectionMode}
                       currentMachineId={currentMachineId}
                       onClick={() => handleWorkflowRowClick(workflow)}
-                      onDoubleClick={(e) => handleWorkflowRowDoubleClick(e, workflow)}
+                      onDoubleClick={readOnly ? undefined : (e) => handleWorkflowRowDoubleClick(e, workflow)}
                       onRename={(newTitle) => onWorkflowRename?.(workflow.id, newTitle)}
                       onStopEditing={() => setEditingWorkflowId(null)}
                       onContextMenu={(e) => handleWorkflowContextMenu(e, workflow)}
@@ -363,6 +376,7 @@ export default function WorkflowList({
           onShareMany={sharing.shareWorkflows}
           onStopSharingMany={sharing.stopSharingWorkflows}
           onManageManyPermissions={sharing.managePermissionsFor}
+          readOnly={readOnly}
         />
       )}
 

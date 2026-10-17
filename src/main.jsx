@@ -15,6 +15,8 @@ import '@fontsource/red-hat-text/600.css'
 import '@fontsource/red-hat-mono/400.css'
 import '@fontsource/red-hat-mono/500.css'
 import './index.css'
+// The phone layout's rules, every one scoped to <html data-mobile="true">
+import './mobile.css'
 import { initializeBackendUrl } from './utils/backendUrl'
 import { initializePlatform, isDesktopApp } from './utils/platform'
 import { databaseNameFor } from './utils/auth'

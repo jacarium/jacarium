@@ -383,6 +383,18 @@ export async function getAllTags() {
   }
 }
 
+// Two task rows with the same content (what a re-read of `task export`
+// carries), the stamps aside: null, undefined and '' are one absence, arrays
+// compare by their items, annotations by entry and description.
+function sameTaskContent(existing, updates) {
+  const norm = (v) => {
+    if (v === undefined || v === null || v === '') return null;
+    if (Array.isArray(v)) return v.map((x) => (x && typeof x === 'object' ? { entry: x.entry ?? null, description: x.description ?? null } : norm(x)));
+    return v;
+  };
+  return Object.keys(updates).every((key) => JSON.stringify(norm(existing[key])) === JSON.stringify(norm(updates[key])));
+}
+
 /**
  * Sync tasks from TaskWarrior CLI
  * Fetches all tasks from TaskWarrior and updates local database
@@ -427,8 +439,7 @@ export async function syncFromTaskWarrior(instanceId, rcPath = null, dataPath = 
           ? taskWarriorModified
           : localModified || taskWarriorModified;
 
-        // Update existing task
-        await updateTask(existing.id, {
+        const updates = {
           instanceId, // Ensure instanceId is set for existing tasks
           description: task.description,
           status: task.status,
@@ -445,8 +456,17 @@ export async function syncFromTaskWarrior(instanceId, rcPath = null, dataPath = 
           end: convertTaskWarriorTimestamp(task.end),
           urgency: task.urgency || null,
           recur: task.recur || null,
-          modified: newerModified,
-        });
+        };
+        // A re-read that changes nothing writes nothing. Taskwarrior
+        // re-stamps a task it imports (another device's edit, applied by the
+        // follower) with its own clock, so `modified` alone can differ on an
+        // unchanged task; writing it would make the row look edited here
+        // and send it round the account again (src/sync/).
+        if (sameTaskContent(existing, updates)) {
+          importedCount++;
+          continue;
+        }
+        await updateTask(existing.id, { ...updates, modified: newerModified });
       } else {
         // Create new task with instanceId
         await createTask(fromTaskWarriorJson(task, instanceId));

@@ -1,5 +1,8 @@
 import { ChevronDown, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useMobile } from '../../../contexts/MobileContext';
+import MobilePageHeader from '../../mobile/MobilePageHeader';
+import { useCloseDrawerOn } from '../../../hooks/useCloseDrawerOn';
 
 /**
  * TabBar - Document tabs component
@@ -16,6 +19,10 @@ import { useEffect, useRef, useState } from 'react';
  *   the strip overflows (desktop widths keep their previous look)
  * - On phones (max-md) tabs truncate to a fixed width and the close button
  *   is always visible with a 32px touch target
+ * - In the phone layout (src/utils/mobile.js) there is no strip at all: the
+ *   bar becomes the page header (MobilePageHeader) naming the active tab,
+ *   with the "N open" menu in its right slot and the sidebar button on the
+ *   left; `pageTitle` is what the header says while nothing is open
  */
 export default function TabBar({
   tabs = [],
@@ -27,7 +34,11 @@ export default function TabBar({
   onTabContextMenu,
   paneId = 'left',
   className = '',
+  pageTitle = '',
 }) {
+  const { isMobile } = useMobile();
+  // choosing another item from the drawer changes the active tab: the drawer closes
+  useCloseDrawerOn(activeTabId);
   const [draggedTab, setDraggedTab] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [dragOverEnd, setDragOverEnd] = useState(false);
@@ -86,7 +97,7 @@ export default function TabBar({
   }, [menuOpen]);
 
   if (tabs.length === 0) {
-    return null;
+    return isMobile ? <MobilePageHeader title={pageTitle} /> : null;
   }
 
   const handleDragStart = (tab, index, e) => {
@@ -193,6 +204,75 @@ export default function TabBar({
     ? 'border-l-purple-600'
     : paneId === 'right' ? 'border-l-green-600' : 'border-l-os-blue');
 
+  // The "N open" menu: every tab, the active one marked, each closable.
+  // On the desktop it appears beside the strip once the tabs overflow; on a
+  // phone it is the header's right slot.
+  const openTabsMenu = (
+    <div ref={menuRef} className={`relative shrink-0 flex ${isMobile ? '' : 'bg-os-card border-b border-l border-os-border md:hidden'}`}>
+      <button
+        type="button"
+        data-testid="tabs-overflow"
+        onClick={() => setMenuOpen((open) => !open)}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        className={isMobile
+          ? 'flex items-center gap-1 h-10 px-2 text-[13px] text-os-text-secondary whitespace-nowrap'
+          : 'flex items-center gap-1 px-2 min-w-8 min-h-8 text-xs text-os-text-secondary hover:bg-os-card-secondary transition-colors whitespace-nowrap'}
+        title="All open documents"
+      >
+        <span>{tabs.length} open</span>
+        <ChevronDown size={14} />
+      </button>
+      {menuOpen && (
+        <div
+          role="menu"
+          data-testid="tabs-overflow-menu"
+          className={`absolute right-0 top-full z-50 mt-px min-w-[220px] max-w-[calc(100vw-16px)] max-h-[60vh] overflow-y-auto bg-os-card border border-os-border shadow-lg py-1 ${isMobile ? 'rounded-none' : 'rounded-sm'}`}
+        >
+          {tabs.map((tab) => {
+            const isActive = activeTabId === tab.id;
+            return (
+              <div key={tab.id} role="none" className="flex items-stretch">
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-testid="tabs-overflow-item"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onTabClick(tab);
+                  }}
+                  className={`flex-1 min-w-0 text-left px-3 py-2 hover:bg-os-card-secondary transition-colors border-l-2 ${isMobile ? 'rounded-none' : ''} ${isActive ?`${activeEdge(tab)} text-os-text-primary`:'border-l-transparent text-os-text-secondary'}`}
+                >
+                  <span className="block text-sm font-medium truncate">{tab.title || 'Untitled'}</span>
+                  {tab.category && (
+                    <span className="block text-xs text-os-text-muted truncate">{tab.category}</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTabClose(tab.id);
+                  }}
+                  className={`shrink-0 min-w-8 flex items-center justify-center px-2 text-os-text-muted hover:text-os-text-primary hover:bg-os-card-secondary transition-colors ${isMobile ? 'rounded-none' : ''}`}
+                  title="Close tab"
+                  aria-label={`Close ${tab.title || 'Untitled'}`}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  if (isMobile) {
+    const active = tabs.find((tab) => tab.id === activeTabId) || tabs[0];
+    return <MobilePageHeader title={active.title || 'Untitled'} subtitle={active.category || pageTitle} right={openTabsMenu} />;
+  }
+
   return (
     <div className={`relative flex shrink-0 min-w-0 ${className}`}>
       <div
@@ -296,64 +376,7 @@ export default function TabBar({
       />
       </div>
 
-      {overflowing && tabs.length > 1 && (
-        <div ref={menuRef} className="relative shrink-0 flex bg-os-card border-b border-l border-os-border md:hidden">
-          <button
-            type="button"
-            data-testid="tabs-overflow"
-            onClick={() => setMenuOpen((open) => !open)}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            className="flex items-center gap-1 px-2 min-w-8 min-h-8 text-xs text-os-text-secondary hover:bg-os-card-secondary transition-colors whitespace-nowrap"
-            title="All open documents"
-          >
-            <span>{tabs.length} open</span>
-            <ChevronDown size={14} />
-          </button>
-          {menuOpen && (
-            <div
-              role="menu"
-              data-testid="tabs-overflow-menu"
-              className="absolute right-0 top-full z-50 mt-px min-w-[220px] max-w-[calc(100vw-16px)] max-h-[60vh] overflow-y-auto bg-os-card border border-os-border rounded-sm shadow-lg py-1"
-            >
-              {tabs.map((tab) => {
-                const isActive = activeTabId === tab.id;
-                return (
-                  <div key={tab.id} role="none" className="flex items-stretch">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      data-testid="tabs-overflow-item"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onTabClick(tab);
-                      }}
-                      className={`flex-1 min-w-0 text-left px-3 py-2 hover:bg-os-card-secondary transition-colors border-l-2 ${isActive ?`${activeEdge(tab)} text-os-text-primary`:'border-l-transparent text-os-text-secondary'}`}
-                    >
-                      <span className="block text-sm font-medium truncate">{tab.title || 'Untitled'}</span>
-                      {tab.category && (
-                        <span className="block text-xs text-os-text-muted truncate">{tab.category}</span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onTabClose(tab.id);
-                      }}
-                      className="shrink-0 min-w-8 flex items-center justify-center px-2 text-os-text-muted hover:text-os-text-primary hover:bg-os-card-secondary transition-colors"
-                      title="Close tab"
-                      aria-label={`Close ${tab.title || 'Untitled'}`}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+      {overflowing && tabs.length > 1 && openTabsMenu}
     </div>
   );
 }

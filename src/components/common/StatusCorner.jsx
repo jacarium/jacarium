@@ -19,7 +19,7 @@ export default function StatusCorner() {
   return (
     <div
       data-testid="status-corner"
-      className="fixed bottom-2 right-2 z-40 pointer-events-none flex items-center gap-2"
+      className="sc-status-corner fixed bottom-2 right-2 z-40 pointer-events-none flex items-center gap-2"
     >
       <HomeServerVersionNotice />
       <DebugStatusBar />

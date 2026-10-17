@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { isSharedWorkflow, isSharedByMe } from '../../utils/workflowSharing';
 import { MenuItemIcon } from '../common/menus/MenuItemIcon';
+import { isMobileLayout } from '../../utils/mobile';
 
 const ITEM_CLASS = 'w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2';
 // Destructive items (Delete) are red in every menu of the app
@@ -76,7 +77,9 @@ export default function WorkflowContextMenu({
   onManagePermissions,
   onShareMany,
   onStopSharingMany,
-  onManageManyPermissions
+  onManageManyPermissions,
+  // the phone layout: only what reads the workflow (AI context, exports)
+  readOnly = false
 }) {
   const menuRef = useRef(null);
   const [position, setPosition] = useState({ x: menu.x, y: menu.y });
@@ -103,6 +106,8 @@ export default function WorkflowContextMenu({
   // Correct the position using the real rendered menu size
   useLayoutEffect(() => {
     if (!menuRef.current) return;
+    // on a phone the menu is a bottom sheet placed by the stylesheet (src/mobile.css), not by x/y
+    if (isMobileLayout()) return;
     const menuRect = menuRef.current.getBoundingClientRect();
     const margin = 10;
     let { x, y } = position;
@@ -134,10 +139,11 @@ export default function WorkflowContextMenu({
   return (
     <div
       ref={menuRef}
-      className="fixed bg-os-card border border-os-border rounded-lg shadow-lg z-50 py-1.5 min-w-[180px]"
+      className="sc-context-menu fixed bg-os-card border border-os-border rounded-lg shadow-lg z-50 py-1.5 min-w-[180px]"
       style={{ left: `${position.x}px`, top: `${position.y}px` }}
+      data-testid="workflow-context-menu"
     >
-      {menu.type === 'bulk' && (
+      {menu.type === 'bulk' && !readOnly && (
         <>
           <div className="px-4 py-2 text-xs font-medium text-os-text-secondary border-b border-os-border">
             {selectedWorkflows.length} workflow{selectedWorkflows.length !== 1 ? 's' : ''} selected
@@ -182,6 +188,7 @@ export default function WorkflowContextMenu({
             <MenuItemIcon action="exportBase64" />
             Export Category as Base64
           </button>
+          {!readOnly && (
           <BatchSharingItems
             workflows={categoryWorkflowsList}
             currentMachineId={currentMachineId}
@@ -190,6 +197,7 @@ export default function WorkflowContextMenu({
             onStopSharing={run(() => onStopSharingMany(categoryWorkflowsList, 'No workflow in this category is shared by you.'))}
             onPermissions={run(() => onManageManyPermissions(categoryWorkflowsList, 'No workflow in this category is shared by you.'))}
           />
+          )}
         </>
       )}
 
@@ -202,10 +210,12 @@ export default function WorkflowContextMenu({
 
           <Divider />
 
-          <button onClick={run(() => onDuplicate(workflow))} className={ITEM_CLASS}>
+          {!readOnly && (
+          <button onClick={run(() => onDuplicate(workflow))} className={ITEM_CLASS} data-testid="workflow-menu-duplicate">
             <MenuItemIcon action="duplicate" />
             Duplicate
           </button>
+          )}
           <button onClick={run(() => onExportJson?.([workflow]))} className={ITEM_CLASS}>
             <MenuItemIcon action="exportJson" />
             Export Workflow (JSON)
@@ -214,6 +224,8 @@ export default function WorkflowContextMenu({
             <MenuItemIcon action="exportBase64" />
             Export as Base64
           </button>
+          {!readOnly && (
+          <>
           <Divider />
           {!isSharedWorkflow(workflow) && (
             <button onClick={run(() => onShare(workflow))} className={ITEM_CLASS}>
@@ -241,10 +253,12 @@ export default function WorkflowContextMenu({
             </>
           )}
           <Divider />
-          <button onClick={run(() => onDelete(workflow))} className={DANGER_ITEM_CLASS}>
+          <button onClick={run(() => onDelete(workflow))} className={DANGER_ITEM_CLASS} data-testid="workflow-menu-delete">
             <MenuItemIcon action="delete" danger />
             Delete Workflow
           </button>
+          </>
+          )}
         </>
       )}
     </div>

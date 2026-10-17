@@ -3,24 +3,28 @@
  * (tests/helpers/packaged-app.mjs): the app starts with its data directory
  * under a scratch path (never the user's profile), reports its version,
  * answers the home-server version call without error (the call 3.0.0
- * failed on), and leaves the real data directories alone. Skips when no
- * packaged app is under dist-electron, and when the build is too old to be
- * isolated (the driver refuses to launch it - nothing is run).
+ * failed on), and leaves the real data directories alone. Skips - saying
+ * which build it found and how to make one - when no packaged app for THIS
+ * platform and THIS version is under dist-electron (a Linux AppImage left
+ * by a container build cannot run on a Mac; an older build is not this
+ * tree), and when the build is too old to be isolated (the driver refuses
+ * to launch it - nothing is run).
  * Run: node tests/packaged-app-smoke.test.mjs
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findPackagedApps, buildSupportsUserDataOverride, launchPackagedApp } from './helpers/packaged-app.mjs';
+import { testablePackagedApp, buildSupportsUserDataOverride, launchPackagedApp } from './helpers/packaged-app.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let failed = 0;
 const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}: ${name}${detail ? ' | ' + String(detail).slice(0, 240) : ''}`); if (!ok) failed++; };
 if (process.env.SKIP_BROWSER_TESTS) { console.log('SKIP: SKIP_BROWSER_TESTS is set'); process.exit(0); }
-const apps = findPackagedApps();
-if (!apps.length) { console.log('SKIP: no packaged app under dist-electron (npx electron-builder --mac dir --arm64 builds one)'); process.exit(0); }
-const target = apps[0];
-console.log(`packaged app: ${path.relative(REPO, target.executablePath)}`);
+// a build of this platform and this version, or a clear SKIP (a Linux build
+// on a Mac cannot be launched, an older build is not this tree)
+const { app: target, skip } = testablePackagedApp();
+if (skip) { console.log(`SKIP: ${skip}`); process.exit(0); }
+console.log(`packaged app: ${path.relative(REPO, target.executablePath)} (${target.platform} ${target.version})`);
 if (!buildSupportsUserDataOverride(target.asar)) {
   // an older build (3.0.1 and before) cannot be isolated: the driver refuses to launch it, so there is nothing safe to test
   console.log('SKIP: this packaged build does not honour JACARIUM_USER_DATA_DIR when packaged - the driver refuses to launch it (rebuild from the current tree)');

@@ -1,5 +1,7 @@
 import { CheckSquare, Lock, EyeOff } from 'lucide-react';
 import { ListRow } from './ListRow';
+import RowMenuButton from '../../mobile/RowMenuButton';
+import { useMobile } from '../../../contexts/MobileContext';
 
 /**
  * ItemList - Generic list of items
@@ -42,6 +44,9 @@ export default function ItemList({
   onDragStart,
   onDragEnd,
 }) {
+  // (a phone: the row gets a chevron at its right edge that opens its
+  // context menu; the desktop keeps the row markup it always had)
+  const { isMobile } = useMobile();
   if (items.length === 0) {
     return null;
   }
@@ -115,10 +120,17 @@ export default function ItemList({
               </div>
             )}
 
-            {/* Content */}
-            <div className={selectionMode && showCheckboxes ?'ml-6':''}>
-              {itemContent}
-            </div>
+            {/* Content (on a phone the chevron at the right opens the row's context menu) */}
+            {isMobile && onItemContextMenu ? (
+              <div className={`flex items-center ${selectionMode && showCheckboxes ?'ml-6':''}`}>
+                <div className="flex-1 min-w-0">{itemContent}</div>
+                <RowMenuButton onOpen={(e) => handleItemContextMenu(item, e)} label={`Actions for ${item.name || item.title || 'item'}`} />
+              </div>
+            ) : (
+              <div className={selectionMode && showCheckboxes ?'ml-6':''}>
+                {itemContent}
+              </div>
+            )}
           </ListRow>
         );
       })}

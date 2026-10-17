@@ -1240,7 +1240,7 @@ export default function DocumentSidebar({
       {contextMenu.visible && (
         <div
           ref={contextMenuRef}
-          className="fixed bg-os-card border border-os-border rounded-lg shadow-lg z-50 py-1.5 min-w-[180px] max-h-[90vh] overflow-y-auto"
+          className="sc-context-menu fixed bg-os-card border border-os-border rounded-lg shadow-lg z-50 py-1.5 min-w-[180px] max-h-[90vh] overflow-y-auto"
           style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
         >
           {contextMenu.type === 'document' && contextMenu.target && (() => {

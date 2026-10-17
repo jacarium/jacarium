@@ -6,6 +6,7 @@ import ResizableSidebar from '../ResizableSidebar';
 import { getBackendUrl, apiFetch } from '../../utils/backendUrl';
 import { useNotifications } from '../../contexts/NotificationContext';
 import AIMessageMarkdown from './AIMessageMarkdown';
+import { newConversationId, parseConversationId } from '../../utils/aiConversations';
 
 // Hoisted so the object reference is stable across renders - an inline
 // object literal here would defeat AIMessageMarkdown's React.memo.
@@ -85,7 +86,7 @@ export default function AIChatSidebar({ isOpen }) {
       return migrated;
     }
     const defaultConv = {
-      id: Date.now(),
+      id: newConversationId(),
       name: 'Conversation 1',
       messages: [],
       createdAt: new Date().toISOString(),
@@ -100,9 +101,10 @@ export default function AIChatSidebar({ isOpen }) {
   });
 
   const [currentConversationId, setCurrentConversationId] = useState(() => {
-    const saved = localStorage.getItem(scopedKey('aiChatCurrentConversation'));
-    if (saved) return parseInt(saved);
-    return conversations[0]?.id || Date.now();
+    // (a number for a conversation from before the UUID ids, else the UUID)
+    const saved = parseConversationId(localStorage.getItem(scopedKey('aiChatCurrentConversation')));
+    if (saved != null && conversations.some((c) => c.id === saved)) return saved;
+    return conversations[0]?.id ?? newConversationId();
   });
 
   const [showConversations, setShowConversations] = useState(false);
@@ -666,7 +668,7 @@ export default function AIChatSidebar({ isOpen }) {
   function handleNewConversation() {
     const newCounter = conversationCounter + 1;
     const newConv = {
-      id: Date.now(),
+      id: newConversationId(),
       name: `Conversation ${newCounter}`,
       messages: [],
       createdAt: new Date().toISOString(),
@@ -686,8 +688,7 @@ export default function AIChatSidebar({ isOpen }) {
     const newCounter = conversationCounter + 1;
     const modelLabel = option.label.replace(/^(SSH - |Ollama - |Claude - )/, '');
     const newConv = {
-      // eslint-disable-next-line react-hooks/purity -- selectModel is an onClick handler; impure Date.now() is fine outside render
-      id: Date.now(),
+      id: newConversationId(),
       name: `${modelLabel} - Chat ${newCounter}`,
       messages: [],
       createdAt: new Date().toISOString(),

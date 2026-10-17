@@ -218,7 +218,7 @@ export default function KanbanCard({ card, onDelete, onDragStart, onRenameCard, 
       draggable={!isReadOnly && !isEditingTitle && !isEditingDescription && !isEditingAssignee && !isEditingDueDate && !isEditingPriority && !isEditingTags}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      className={`bg-os-card rounded-lg p-3 shadow-xs border border-os-border hover:shadow-md transition-all group relative ${!isReadOnly ?'cursor-grab active:cursor-grabbing':''}`}
+      className={`sc-kanban-card bg-os-card rounded-lg p-3 shadow-xs border border-os-border hover:shadow-md transition-all group relative ${!isReadOnly ?'cursor-grab active:cursor-grabbing':''}`}
       style={borderStyle}
     >
       {/* User Interaction Indicators */}
@@ -260,7 +260,7 @@ export default function KanbanCard({ card, onDelete, onDragStart, onRenameCard, 
           />
         ) : (
           <h4
-            className={`text-sm font-medium text-os-text-primary flex-1 line-clamp-2 transition-colors ${!isReadOnly ?'cursor-pointer hover:text-os-blue':''}`}
+            className={`sc-kanban-card-title text-sm font-medium text-os-text-primary flex-1 line-clamp-2 transition-colors ${!isReadOnly ?'cursor-pointer hover:text-os-blue':''}`}
             onDoubleClick={handleDoubleClick}
             title={!isReadOnly ? "Double-click to rename" : ""}
           >

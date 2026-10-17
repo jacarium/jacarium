@@ -17,6 +17,7 @@ import StatusCorner from './components/common/StatusCorner';
 import CloudSyncNotification from './components/common/CloudSyncNotification';
 import WhatsNew from './components/WhatsNew';
 import UpdateAvailable from './components/UpdateAvailable';
+import { MobileProvider } from './contexts/MobileContext';
 
 const ToolsPage = lazy(() => import('./components/ToolsPage'));
 const DiagnosticsPage = lazy(() => import('./components/DiagnosticsPage'));
@@ -36,6 +37,8 @@ function StandaloneLoadingFallback() {
   );
 }
 
+// The phone layout's state (src/contexts/MobileContext.jsx) wraps only the
+// main shell: the standalone windows are the desktop app's, never a phone.
 function App() {
   // Check if this is a standalone window
   const urlParams = new URLSearchParams(window.location.search);
@@ -180,12 +183,14 @@ function App() {
     <ThemeProvider>
       <NotificationProvider>
         <ChatProvider>
-          <JQLBuilder />
-          <ToastNotifications />
-          <StatusCorner />
-          <CloudSyncNotification />
-          <WhatsNew />
-          <UpdateAvailable />
+          <MobileProvider>
+            <JQLBuilder />
+            <ToastNotifications />
+            <StatusCorner />
+            <CloudSyncNotification />
+            <WhatsNew />
+            <UpdateAvailable />
+          </MobileProvider>
         </ChatProvider>
       </NotificationProvider>
     </ThemeProvider>

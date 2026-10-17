@@ -1,7 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
+import { useMobile, DrawerScopeContext } from '../contexts/MobileContext';
+import MobileDrawer from './mobile/MobileDrawer';
 
 /**
  * ResizableSidebar - A reusable sidebar component with mouse-draggable resize functionality
+ *
+ * In the phone layout (src/utils/mobile.js) the sidebar is not a column at
+ * all: it is a drawer over the page (MobileDrawer), opened from the page
+ * header, with the same content; a panel mounted inside a ForcedDrawerScope
+ * (Team Chat, Notifications from "More") fills the screen instead.
  *
  * @param {object} props
  * @param {React.ReactNode | function} props.children - Sidebar content or render function that receives width
@@ -36,6 +43,8 @@ export default function ResizableSidebar({
 
   const [isResizing, setIsResizing] = useState(false);
   const resizeStartRef = useRef({ width: 0, x: 0 });
+  const { isMobile, sidebarOpen, closeSidebar } = useMobile();
+  const drawerScope = useContext(DrawerScopeContext);
 
   // Save width to localStorage when it changes
   useEffect(() => {
@@ -87,6 +96,16 @@ export default function ResizableSidebar({
       width: width,
       x: e.clientX
     };
+  }
+
+  if (isMobile) {
+    const forced = !!drawerScope?.forced;
+    const drawerWidth = forced ? (typeof window !== 'undefined' ? window.innerWidth : 390) : 324;
+    return (
+      <MobileDrawer open={forced || sidebarOpen} onClose={forced ? (drawerScope.onBack || (() => {})) : closeSidebar} full={forced}>
+        {typeof children === 'function' ? children(drawerWidth) : children}
+      </MobileDrawer>
+    );
   }
 
   return (

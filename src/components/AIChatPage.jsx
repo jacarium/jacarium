@@ -10,6 +10,11 @@ import ConfirmationModal from './common/ConfirmationModal';
 import DatasetSelectionModal from './AIChatPage/DatasetSelectionModal';
 import AIMessageMarkdown from './common/AIMessageMarkdown';
 import { MenuItemIcon } from './common/menus/MenuItemIcon';
+import { useMobile } from '../contexts/MobileContext';
+import MobilePageHeader from './mobile/MobilePageHeader';
+import RowMenuButton from './mobile/RowMenuButton';
+import { useCloseDrawerOn } from '../hooks/useCloseDrawerOn';
+import { newConversationId, parseConversationId } from '../utils/aiConversations';
 
 export default function AIChatPage() {
   const { addNotification } = useNotifications();
@@ -67,6 +72,19 @@ export default function AIChatPage() {
   const sidebarMenuRef = useRef(null);
 
   const currentConversation = conversations.find(c => c.id === currentConversationId) || conversations[0];
+  // The phone layout: the page fills the shell (not the screen), the
+  // conversation list is a drawer that closes when another chat is picked
+  const { isMobile } = useMobile();
+  const composerRef = useRef(null);
+  // the phone's connection indicator clears the composer by its height
+  useEffect(() => {
+    if (!isMobile || !composerRef.current || typeof ResizeObserver === 'undefined') return undefined;
+    const root = document.documentElement;
+    const ro = new ResizeObserver(([entry]) => root.style.setProperty('--sc-composer-lift', `${Math.ceil(entry.contentRect.height + 20)}px`));
+    ro.observe(composerRef.current);
+    return () => { ro.disconnect(); root.style.removeProperty('--sc-composer-lift'); };
+  }, [isMobile]);
+  useCloseDrawerOn(currentConversationId);
   // Memoized so effects keyed on messages don't re-fire for the fresh []
   // created when a conversation has no messages yet
   const messages = useMemo(() => currentConversation?.messages || [], [currentConversation]);
@@ -135,15 +153,22 @@ export default function AIChatPage() {
   );
 
   useEffect(() => {
+    // In development React runs this effect twice (StrictMode); the first
+    // run is cancelled by its cleanup so only one of them loads the
+    // conversations - two loads racing before the first default chat was
+    // saved used to create "New Chat 1" twice (loadConversations is
+    // idempotent now as well).
+    let cancelled = false;
     async function initializePage() {
       const isOnline = await checkBackendHealth();
       // Only load models if backend is online
       if (isOnline) {
         await loadAvailableModels();
       }
-      loadConversations();
+      if (!cancelled) loadConversations();
     }
     initializePage();
+    return () => { cancelled = true; };
     // Intentional mount-only initialization
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -277,15 +302,33 @@ export default function AIChatPage() {
       }
     }
 
-    if (parsed) {
+    if (parsed && parsed.length > 0) {
       setConversations(parsed);
-      if (savedId) {
-        setCurrentConversationId(parseInt(savedId));
-      } else if (parsed.length > 0) {
-        setCurrentConversationId(parsed[0].id);
-      }
+      // the stored current id: a number for a conversation from before the
+      // UUID ids, else the UUID; one that no longer exists means the first
+      const wanted = parseConversationId(savedId);
+      const current = wanted != null && parsed.some((c) => c.id === wanted) ? wanted : parsed[0].id;
+      setCurrentConversationId(current);
     } else {
-      createNewConversation();
+      // The default chat of a fresh profile. Functional updates keep this
+      // idempotent: a second load racing the first (StrictMode's double
+      // effect, a remount) finds the chat already there and adds nothing.
+      const newConv = {
+        id: newConversationId(),
+        name: 'New Chat 1',
+        messages: [],
+        createdAt: new Date().toISOString(),
+        settings: {
+          ...defaultAISettings,
+          datasets: {
+            documentIds: [],
+            lastUpdated: null
+          }
+        }
+      };
+      setConversations(prev => (prev.length > 0 ? prev : [newConv]));
+      setCurrentConversationId(prev => (prev != null ? prev : newConv.id));
+      setConversationCounter(prev => Math.max(prev, 1));
     }
     setConversationsLoaded(true);
   }
@@ -293,7 +336,7 @@ export default function AIChatPage() {
   function createNewConversation() {
     const newCounter = conversationCounter + 1;
     const newConv = {
-      id: Date.now(),
+      id: newConversationId(),
       name: `New Chat ${newCounter}`,
       messages: [],
       createdAt: new Date().toISOString(),
@@ -339,7 +382,7 @@ export default function AIChatPage() {
       const newCounter = conversationCounter + 1;
       const modelLabel = option.label.replace(/^(SSH - |Ollama - |Anthropic - |OpenAI - |Gemini - )/, '').replace(/ \(Remote\)$/, '');
       const newConv = {
-        id: Date.now(),
+        id: newConversationId(),
         name: `${modelLabel} - Chat ${newCounter}`,
         messages: [],
         createdAt: new Date().toISOString(),
@@ -370,7 +413,7 @@ export default function AIChatPage() {
     // If deleting the last conversation, create a new one
     if (filtered.length === 0) {
       const newConv = {
-        id: Date.now(),
+        id: newConversationId(),
         name: 'New Chat',
         messages: [],
         createdAt: new Date().toISOString(),
@@ -399,7 +442,7 @@ export default function AIChatPage() {
   function clearAllConversations() {
     // Clear all conversations and create a fresh one
     const newConv = {
-      id: Date.now(),
+      id: newConversationId(),
       name: 'New Chat',
       messages: [],
       createdAt: new Date().toISOString(),
@@ -807,9 +850,9 @@ export default function AIChatPage() {
   }
 
   return (
-    <div className="flex h-screen">
+    <div className={isMobile ? 'flex flex-1 min-h-0 h-full' : 'flex h-screen'}>
       {/* Resizable Sidebar - Conversations List */}
-      {innerSidebarVisible && (
+      {(innerSidebarVisible || isMobile) && (
         <ResizableSidebar
           defaultWidth={280}
           minWidth={200}
@@ -883,6 +926,7 @@ export default function AIChatPage() {
               {filteredConversations.map((conv) => (
                 <div
                   key={conv.id}
+                  data-drawer-pick="true"
                   className={`px-4 py-3 cursor-pointer transition-colors border-l-4 font-text ${
  conv.id === currentConversationId
  ?'bg-os-blue/10 border-os-blue'
@@ -932,6 +976,7 @@ export default function AIChatPage() {
                       <span className="text-xs text-os-text-muted shrink-0">
                         {conv.messages.length}
                       </span>
+                      <RowMenuButton label={`Actions for ${conv.name}`} onOpen={(e) => setContextMenu({ conversationId: conv.id, x: e.clientX, y: e.clientY })} />
                     </div>
                   )}
                 </div>
@@ -948,13 +993,20 @@ export default function AIChatPage() {
       )}
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className={`flex-1 flex flex-col ${isMobile ? 'min-w-0 min-h-0' : ''}`}>
+        {/* The phone header: the conversation and its model, the drawer button */}
+        {isMobile && (
+          <MobilePageHeader title={currentConversation?.name || 'Robin'} subtitle={currentModelOption?.label || 'Robin'} />
+        )}
         {/* Chat Header */}
-        <div className="h-16 border-b border-os-border bg-os-card px-6 flex items-center justify-between">
+        <div className={`${isMobile ? 'h-11 px-4' : 'h-16 px-6'} border-b border-os-border bg-os-card flex items-center justify-between`}>
           <div className="flex flex-col">
+            {/* (the phone header above already names the conversation) */}
+            {!isMobile && (
             <h2 className="text-sm font-semibold text-os-text-primary">
               {currentConversation?.name || 'AI Chat'}
             </h2>
+            )}
             <div className="flex items-center gap-2">
               {!noModelsConfigured ? (
                 <div className="relative">
@@ -1234,13 +1286,13 @@ export default function AIChatPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="sc-chat-messages space-y-4">
               {messages.map((msg, idx) => (
                 <React.Fragment key={idx}>
                   {/* Main Message Bubble */}
-                  <div className="flex gap-4">
+                  <div className="sc-chat-message flex gap-4">
                     {/* Avatar */}
-                    <div className="shrink-0">
+                    <div className="sc-chat-avatar shrink-0">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
  msg.role ==='user'
  ?'bg-blue-600'
@@ -1256,7 +1308,7 @@ export default function AIChatPage() {
 
                     {/* Message Card */}
                     <div className="flex-1 min-w-0">
-                      <div className="bg-os-card border border-os-border rounded-lg shadow-xs">
+                      <div className="sc-chat-bubble bg-os-card border border-os-border rounded-lg shadow-xs">
                       {showRawMarkdown ? (
                         <div className="text-xs whitespace-pre-wrap wrap-break-word font-mono text-os-text-primary p-4">{msg.content}</div>
                       ) : msg.role === 'user' ? (
@@ -1374,9 +1426,10 @@ export default function AIChatPage() {
           )}
         </div>
 
-        {/* Input Area */}
-        <div className="border-t border-os-border bg-os-card px-6 py-4">
-          <div className="flex gap-3">
+        {/* Input Area (on a phone at the mockup's 12px margins, and measured
+            so the connection indicator can sit above it: src/mobile.css) */}
+        <div ref={composerRef} className={`border-t border-os-border bg-os-card ${isMobile ? 'px-3 py-2.5' : 'px-6 py-4'}`}>
+          <div className="sc-chat-composer flex gap-3">
             <textarea
               ref={inputRef}
               value={inputMessage}
@@ -1390,7 +1443,7 @@ export default function AIChatPage() {
               placeholder={noModelsConfigured ? 'No AI models configured...' : backendStatus === 'offline' ? 'AI backend offline...' : 'Type your message...'}
               disabled={isLoading || backendStatus === 'offline' || noModelsConfigured}
               className="flex-1 px-4 py-3 border border-os-border resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-input-bg text-os-text-primary disabled:bg-os-card-secondary disabled:text-os-text-muted"
-              rows={3}
+              rows={isMobile ? 1 : 3}
             />
             {isLoading ? (
               <button
@@ -1417,7 +1470,7 @@ export default function AIChatPage() {
       {contextMenu && (
         <div
           ref={contextMenuRef}
-          className="fixed bg-os-card border border-os-border rounded-lg shadow-lg z-50 py-1.5 min-w-[180px]"
+          className="sc-context-menu fixed bg-os-card border border-os-border rounded-lg shadow-lg z-50 py-1.5 min-w-[180px]"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
           <button

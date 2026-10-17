@@ -8,14 +8,18 @@
  *     resolves to a file in the repo AND matches a build.files pattern;
  *     protocol.json is listed explicitly;
  *   - the home-server IPC handlers in main.cjs exist;
- *   - when a packaged app exists (dist-electron/mac-<arch>/Jacarium.app or
- *     a *.asar), `asar list` must contain every one of those files.
+ *   - when a packaged app of THIS platform and THIS version exists
+ *     (dist-electron/mac-<arch>/Jacarium.app or a Linux unpacked dir),
+ *     `asar list` must contain every one of those files; another
+ *     platform's or an older build is reported and skipped (it says nothing
+ *     about this tree).
  * Run: node tests/electron-package-files.test.mjs
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { testablePackagedApp } from './helpers/packaged-app.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let failed = 0;
@@ -57,22 +61,13 @@ const main = fs.readFileSync(path.join(REPO, 'electron', 'main.cjs'), 'utf8');
 const handlers = main.split(/(?=ipcMain\.handle\()/).filter((chunk) => /^ipcMain\.handle\('home-server:/.test(chunk)).map((chunk) => chunk.split(/\napp\.whenReady/)[0]);
 check('the home-server IPC handlers (link/version/fetch/status) exist', handlers.length >= 4, String(handlers.length));
 
-// a packaged app, when one is here
-const asars = [];
-const distDir = path.join(REPO, 'dist-electron');
-if (fs.existsSync(distDir)) {
-  for (const entry of fs.readdirSync(distDir)) {
-    const app = path.join(distDir, entry, 'Jacarium.app', 'Contents', 'Resources', 'app.asar');
-    if (fs.existsSync(app)) asars.push(app);
-    const linux = path.join(distDir, entry, 'resources', 'app.asar');
-    if (fs.existsSync(linux)) asars.push(linux);
-  }
-}
-if (!asars.length) {
-  console.log('SKIP: no packaged app under dist-electron (npx electron-builder --mac dir --arm64 builds one)');
+// a packaged app of this platform and this version, when one is here
+const { app: packaged, skip } = testablePackagedApp();
+if (skip) {
+  console.log(`SKIP (packaged app): ${skip}`);
 } else {
   const { listPackage } = createRequire(path.join(REPO, 'package.json'))('@electron/asar');
-  for (const asar of asars) {
+  for (const asar of [packaged.asar]) {
     let entries;
     try { entries = new Set(listPackage(asar).map((l) => String(l).trim().replace(/^\//, ''))); } catch (error) { check(`asar listing works for ${path.relative(REPO, asar)}`, false, error.message); continue; }
     const missing = [...required].map((f) => [f, `${f}.cjs`, `${f}.js`, `${f}.json`].find((c) => entries.has(c)) ? null : f).filter(Boolean);

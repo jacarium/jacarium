@@ -28,17 +28,53 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const req = createRequire(path.join(REPO, 'package.json'));
 const MARKER = 'PACKAGED_USER_DATA_OVERRIDE';
 
-/** The packaged apps under dist-electron, newest first: [{ executablePath, asar }]. */
+/**
+ * The packaged apps under dist-electron, newest first:
+ * [{ executablePath, asar, platform, version }] - every build found, of any
+ * platform; `platform` is 'mac' or 'linux' and `version` the one in the
+ * build's package.json (null when unreadable).
+ */
 export function findPackagedApps(distDir = path.join(REPO, 'dist-electron')) {
   const found = [];
   if (!fs.existsSync(distDir)) return found;
   for (const entry of fs.readdirSync(distDir)) {
     const mac = path.join(distDir, entry, 'Jacarium.app');
-    if (fs.existsSync(mac)) found.push({ executablePath: path.join(mac, 'Contents', 'MacOS', 'Jacarium'), asar: path.join(mac, 'Contents', 'Resources', 'app.asar') });
+    if (fs.existsSync(mac)) found.push({ platform: 'mac', executablePath: path.join(mac, 'Contents', 'MacOS', 'Jacarium'), asar: path.join(mac, 'Contents', 'Resources', 'app.asar') });
     const linux = path.join(distDir, entry, 'resources', 'app.asar');
-    if (fs.existsSync(linux)) found.push({ executablePath: path.join(distDir, entry, 'jacarium'), asar: linux });
+    if (fs.existsSync(linux)) found.push({ platform: 'linux', executablePath: path.join(distDir, entry, 'jacarium'), asar: linux });
   }
-  return found.filter((a) => fs.existsSync(a.executablePath)).sort((a, b) => fs.statSync(b.asar).mtimeMs - fs.statSync(a.asar).mtimeMs);
+  return found.filter((a) => fs.existsSync(a.executablePath))
+    .map((a) => ({ ...a, version: packagedVersion(a.asar) }))
+    .sort((a, b) => fs.statSync(b.asar).mtimeMs - fs.statSync(a.asar).mtimeMs);
+}
+
+/** The version a packaged build carries (its package.json inside the asar), or null. */
+export function packagedVersion(asar) {
+  try { return JSON.parse(req('@electron/asar').extractFile(asar, 'package.json').toString('utf8')).version || null; } catch { return null; }
+}
+
+/** The platform of the machine running the tests, in dist-electron's terms. */
+export const HOST_PLATFORM = process.platform === 'darwin' ? 'mac' : process.platform === 'linux' ? 'linux' : null;
+
+/** The command that makes a build this machine can test. */
+export const BUILD_COMMAND = HOST_PLATFORM === 'mac' ? './rebuild.sh --no-container --platform mac' : HOST_PLATFORM === 'linux' ? './rebuild.sh --format dir' : 'a build for this platform (see rebuild.sh)';
+
+/**
+ * The build to test on this machine: a packaged app FOR THIS PLATFORM carrying
+ * THIS tree's version. Returns { app } with it, or { skip } with the reason
+ * and the command to build one - a build of another platform cannot be
+ * launched here (a Linux AppImage on a Mac: spawn ENOEXEC) and an older
+ * build says nothing about this tree (its asar lacks files added since).
+ */
+export function testablePackagedApp(distDir) {
+  const version = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8')).version;
+  const apps = findPackagedApps(distDir);
+  if (!apps.length) return { skip: `no packaged app under dist-electron (${BUILD_COMMAND} builds one)` };
+  const native = apps.filter((a) => a.platform === HOST_PLATFORM);
+  if (!native.length) return { skip: `no packaged app for this platform (${HOST_PLATFORM || process.platform}) under dist-electron - only ${apps.map((a) => `${a.platform} ${a.version || '?'}`).join(', ')}; ${BUILD_COMMAND} builds one` };
+  const fresh = native.find((a) => a.version === version);
+  if (!fresh) return { skip: `the packaged ${HOST_PLATFORM} app is version ${native.map((a) => a.version || '?').join(', ')}, this tree is ${version} - stale; ${BUILD_COMMAND} rebuilds it` };
+  return { app: fresh };
 }
 
 /** True when the build honours JACARIUM_USER_DATA_DIR while packaged (checked without launching it). */

@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, FolderOpen, Loader, AlertCircle, X, ChevronRight, Monitor, ListChecks, Cpu, Server, Gauge, Settings, Cloud, HardDrive, Layers, PieChart, Network, TrendingUp, GitFork, BarChart, MemoryStick, AlertTriangle, Hourglass, Skull, Bell, Box, Briefcase, Boxes } from 'lucide-react';
 // import Breadcrumbs from './Breadcrumbs'; // Commented out - can be restored later
 import ResizableSidebar from './ResizableSidebar';
+import { useMobile } from '../contexts/MobileContext';
+import MobilePageHeader from './mobile/MobilePageHeader';
 import DiagnosticsSidebar from './features/diagnostics/DiagnosticsSidebar';
 import BrowseDirectoryModal from './features/diagnostics/BrowseDirectoryModal';
 import { buildDiagnosticsFrameStyles } from './features/diagnostics/diagnosticsFrameStyles';
@@ -403,6 +405,8 @@ export default function DiagnosticsPage() {
   // Latest tabs/loadTab for the iframe message handler (registered once).
   const tabsRef = useRef([]);
   const loadTabRef = useRef(() => {});
+  // The phone layout: the parser tabs are a drawer under a page header
+  const { isMobile } = useMobile();
   const [innerSidebarVisible, setInnerSidebarVisible] = useState(() => {
     const saved = localStorage.getItem('innerSidebarVisible');
     return saved !== null ? JSON.parse(saved) : true;
@@ -895,7 +899,7 @@ export default function DiagnosticsPage() {
   return (
     <div className="flex h-full">
       {/* Parser Tabs Sidebar */}
-      {innerSidebarVisible && (
+      {(innerSidebarVisible || isMobile) && (
       <ResizableSidebar
         defaultWidth={288}
         minWidth={200}
@@ -925,7 +929,8 @@ export default function DiagnosticsPage() {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 bg-os-card overflow-auto flex flex-col">
+      <div className={`flex-1 bg-os-card overflow-auto flex flex-col ${isMobile ? 'min-w-0' : ''}`}>
+        {isMobile && <MobilePageHeader title="Diagnostics" />}
         {/* Report load error (the folder browser is the only way in) */}
         {error && (
           <div className="bg-red-50 px-6 py-3" data-testid="diagnostics-load-error">

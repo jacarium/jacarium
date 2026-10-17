@@ -39,7 +39,7 @@ const ContextMenu = forwardRef(function ContextMenu(
   const menuContent = (
     <div
       ref={ref}
-      className={`fixed bg-os-card border border-os-border shadow-lg rounded-lg py-1.5 min-w-[200px] ${className}`}
+      className={`sc-context-menu fixed bg-os-card border border-os-border shadow-lg rounded-lg py-1.5 min-w-[200px] ${className}`}
       style={{
         left: `${x}px`,
         top: `${y}px`,

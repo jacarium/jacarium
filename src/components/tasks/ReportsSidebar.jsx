@@ -290,7 +290,7 @@ export default function ReportsSidebar({
       {contextMenu.visible && (
         <div
           ref={contextMenuRef}
-          className="fixed bg-os-card border border-os-border rounded-lg shadow-lg z-50 py-1.5 min-w-[180px]"
+          className="sc-context-menu fixed bg-os-card border border-os-border rounded-lg shadow-lg z-50 py-1.5 min-w-[180px]"
           style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
         >
           {contextMenu.type === 'report' && contextMenu.target && (

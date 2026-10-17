@@ -3,6 +3,7 @@ import HamburgerMenu, { HamburgerMenuItem, HamburgerMenuDivider } from '../../co
 import { Calendar } from 'lucide-react';
 import { useDropdownMenu } from '../../../hooks/useContextMenu';
 import { MENU_ICONS } from '../../common/menus/menuIcons';
+import RowMenuButton from '../../mobile/RowMenuButton';
 
 /**
  * CalendarSidebar - Sidebar for calendars page
@@ -81,6 +82,7 @@ export default function CalendarSidebar({
               return (
                 <div
                   key={calendar.id}
+                  data-drawer-pick="true"
                   className={`px-4 py-3 cursor-pointer hover:bg-os-card-hover transition-colors border-l-4 ${
  isActive ?'bg-os-card-secondary':''
  }`}
@@ -105,6 +107,9 @@ export default function CalendarSidebar({
  }`}>
                       {calendar.summary || 'Untitled Calendar'}
                     </span>
+                    {onCalendarRightClick && (
+                      <RowMenuButton label={`Actions for ${calendar.summary || 'Untitled Calendar'}`} onOpen={(e) => onCalendarRightClick(calendar.id, e)} />
+                    )}
                   </div>
                 </div>
               );
