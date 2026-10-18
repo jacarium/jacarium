@@ -4,9 +4,10 @@ import { NodeHeader, DataOutputPin, NodeHint } from './NodeComponents';
 import { NodeField, NodeTextInput, NodeValuePreview } from './NodeFields';
 import { nodeShellClass } from './nodeStyles';
 import { useNodeField } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 function VariableReferenceNode({ data, isConnectable }) {
-  const [variableName, setVariableName] = useNodeField(data, 'variableName', 'data');
+  const [variableName, setVariableName] = useNodeField(data, 'variableName', nodeFieldDefault('variablereference', 'variableName'));
   const isShared = data.isShared || false;
   const status = data.status;
 

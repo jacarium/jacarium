@@ -58,6 +58,7 @@ export default function TasksPage() {
   const [activeInstance, setActiveInstance] = useState(null);
   const [currentInstanceId, setCurrentInstanceId] = useLocalStorage('currentTaskInstanceId', null);
   const [openTabs, setOpenTabs] = useLocalStorage('taskInstanceOpenTabs', []);
+  const [currentTabId, setCurrentTabId] = useState(null);
   // the task list tabs follow the account's devices
   useSyncedOpenTabs({
     page: 'tasks', tabs: openTabs, setTabs: setOpenTabs,
@@ -65,8 +66,10 @@ export default function TasksPage() {
     titleOf: (tab) => tab.name || 'Untitled',
     resolve: async (item) => { const instance = await database.taskwarriorInstances.where('syncId').equals(item).first(); return instance ? { id: instance.id, instanceId: instance.id, name: instance.name, category: instance.category || 'General', description: instance.description, inCloud: instance.inCloud || false, type: 'instance' } : null; },
     onClose: (tab) => handleTabClose(tab.id),
+    onOpen: (tab) => handleTabClick(tab),
+    active: currentTabId ?? null,
+    itemCollection: 'taskwarriorInstances',
   });
-  const [currentTabId, setCurrentTabId] = useState(null);
 
   // Report results state
   const [reportResults, setReportResults] = useState({});

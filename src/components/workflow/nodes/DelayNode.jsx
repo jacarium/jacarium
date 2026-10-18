@@ -4,9 +4,10 @@ import { NodeHeader, DataInputPin } from './NodeComponents';
 import { NodeField, NodeTextInput } from './NodeFields';
 import { nodeShellClass } from './nodeStyles';
 import { useNodeField } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 function DelayNode({ data, isConnectable }) {
-  const [duration, setDuration] = useNodeField(data, 'duration', 1000);
+  const [duration, setDuration] = useNodeField(data, 'duration', nodeFieldDefault('delay', 'duration'));
   const isShared = data.isShared || false;
   const status = data.status;
 

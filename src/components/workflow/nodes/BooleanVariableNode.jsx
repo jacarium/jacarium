@@ -3,9 +3,10 @@ import { ToggleLeft } from 'lucide-react';
 import { NodeHeader, DataInputPin, DataOutputPin } from './NodeComponents';
 import { nodeShellClass } from './nodeStyles';
 import { useNodeField } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 function BooleanVariableNode({ data, isConnectable }) {
-  const [value, setValue] = useNodeField(data, 'value', false);
+  const [value, setValue] = useNodeField(data, 'value', nodeFieldDefault('boolean', 'value'));
   const isShared = data.isShared || false;
   const status = data.status;
 

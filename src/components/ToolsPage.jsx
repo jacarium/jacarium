@@ -24,6 +24,7 @@ export default function ToolsPage() {
   const [tools, setTools] = useState([]);
   const [categories, setCategories] = useState([]);
   const [openToolTabs, setOpenToolTabs] = useLocalStorage('toolsOpenTabs', []);
+  const [activeToolTab, setActiveToolTab] = useLocalStorage('activeToolTab', null);
   // the tool tabs follow the account's devices (once the tool list is loaded)
   useSyncedOpenTabs({
     page: 'tools', tabs: openToolTabs, setTabs: setOpenToolTabs, enabled: tools.length > 0,
@@ -31,8 +32,9 @@ export default function ToolsPage() {
     titleOf: (id) => tools.find((t) => t.id === id)?.name || id,
     resolve: async (item) => (tools.some((t) => t.id === item) ? item : null),
     onClose: (id) => handleCloseTool(id),
+    onOpen: (id) => handleSwitchTab(id),
+    active: activeToolTab ?? null,
   });
-  const [activeToolTab, setActiveToolTab] = useLocalStorage('activeToolTab', null);
   const [expandedCategories, setExpandedCategories] = useLocalStorage('expandedToolCategories', []);
   const [loading, setLoading] = useState(false);
   const [innerSidebarVisible, setInnerSidebarVisible] = useLocalStorage('innerSidebarVisible', true);

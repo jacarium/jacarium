@@ -228,6 +228,9 @@ export default function CalendarsPage() {
     titleOf: (id) => calendars.find((c) => c.id === id)?.summary || id,
     resolve: async (item) => ((await database.syncedCalendars.get(item)) ? item : null),
     onClose: (id) => closeCalendarTab(id),
+    onOpen: (id) => switchCalendarTab(id),
+    active: activeCalendarTab ?? null,
+    itemCollection: 'syncedCalendars',
   });
 
   const switchCalendarTab = useCallback((calendarId) => {

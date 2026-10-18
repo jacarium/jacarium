@@ -1,8 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useEffect, useRef, useState } from 'react';
-import { Play, Globe, Terminal, Scale, GitBranch, Timer, Database, Variable, Code2, Eye, Flag, List, Repeat, Shuffle, ListOrdered, StickyNote, Lightbulb, Lock, Square, Eraser, Loader2, Check, X } from 'lucide-react';
+import { Play, Globe, Terminal, Scale, GitBranch, Timer, Database, Variable, Code2, Eye, Flag, List, Repeat, Shuffle, ListOrdered, StickyNote, Lightbulb, Lock, Square, Eraser, Loader2, Check, X, Link } from 'lucide-react';
 import { pinKind } from '../workflow/workflowConnections';
 import { NODE_CATEGORIES } from '../workflow/workflowNodeCategories';
+import { nodeFields } from '../workflow/nodes/nodeDefaults';
 
 /**
  * A workflow on a phone: read-only, as a list instead of a canvas. The
@@ -20,8 +21,17 @@ import { NODE_CATEGORIES } from '../workflow/workflowNodeCategories';
  * `linearize` and `summarize` are exported for the tests: the ordered list
  * the view renders, and a node's one-line summary (used where a node is
  * named inside another's outlet). `describe` gives the card body: the
- * method and the whole URL of a REST call, several lines of a Transform's
- * code, a command, a value - never a bare first line or an ellipsis.
+ * method and the whole URL of a REST call, the whole code of a Transform,
+ * a command, a value - never a bare first line, an ellipsis or a cut after
+ * some lines: the card grows to fit, long lines wrap. A field the user has
+ * not typed into reads as the desktop editor shows it (nodeFields: the
+ * editor's fallbacks; the saved node carries nothing for it).
+ *
+ * A card's "Inputs" are its data connections: one chip per wire into a
+ * data pin - the pin's name as the desktop labels it (left, right,
+ * condition, input...), an arrow, the source node's own icon and name, and
+ * its value. A tap on a chip scrolls the reader to the source's card and
+ * lights it up for a moment.
  */
 
 const LABELS = Object.fromEntries(NODE_CATEGORIES.flatMap((c) => c.nodes.map((n) => [n.type, n.label])));
@@ -33,9 +43,20 @@ const ICONS = {
   text: Variable, boolean: Variable, object: Variable, array: Variable,
 };
 const DATA_NODE_TYPES = ['string', 'integer', 'text', 'boolean', 'object', 'array'];
+// the data pins a node has, named as the desktop's node components label them (DataInputPin)
+const PIN_NAMES = {
+  comparison: { 'left-in': 'left', 'right-in': 'right' },
+  branch: { 'data-in': 'condition' }, boolean: { 'data-in': 'condition' },
+  delay: { 'data-in': 'duration' }, forloop: { 'data-in': 'array' }, makearray: { 'data-in': 'string' },
+  restapi: { 'data-in': 'override' }, ssh: { 'data-in': 'override' }, switch: { 'data-in': 'value' },
+  transformation: { 'data-in': 'input' }, storage: { 'data-in': 'data' }, result: { 'data-in': 'data' }, visualizer: { 'data-in': 'data' },
+};
+/** The name of the data pin `handle` of a node of `type` ("left", "input"...), as the desktop labels it. */
+export function pinName(type, handle) {
+  const h = handle || 'data-in';
+  return PIN_NAMES[type]?.[h] || h.replace(/-in$/, '') || 'data';
+}
 const ANNOTATION_TYPES = ['note', 'idea'];
-const PREVIEW_LINES = 6;
-
 export function labelFor(type) {
   return LABELS[type] || type || 'Node';
 }
@@ -96,16 +117,16 @@ const pretty = (v) => { if (v == null) return ''; if (typeof v === 'string') ret
 
 /** One line that says what a node does, from its fields (where a node is named inside an outlet). */
 export function summarize(node) {
-  const d = node.data || {};
+  const d = nodeFields(node);
   switch (node.type) {
-    case 'restapi': return { chip: text(d.method || 'GET'), body: text(d.url) || 'no URL yet' };
+    case 'restapi': return { chip: text(d.method), body: text(d.url) || 'no URL yet' };
     case 'ssh': return { chip: 'SSH', body: [d.username && d.host ? `${d.username}@${d.host}` : text(d.host), text(d.command)].filter(Boolean).join('  ') || 'no command yet' };
-    case 'comparison': return { chip: text(d.operator || '=='), body: '' };
+    case 'comparison': return { chip: text(d.operator), body: '' };
     case 'delay': return { chip: 'WAIT', body: `${Number(d.duration) || 0} ms` };
-    case 'storage': return { chip: 'SET', body: text(d.variableName || 'data') };
-    case 'variablereference': return { chip: 'GET', body: text(d.variableName || d.name || 'data') };
-    case 'transformation': return { chip: 'JS', body: asLines(d.code).find((l) => l.trim() && !l.trim().startsWith('//')) || 'return input;' };
-    case 'makearray': return { chip: 'SPLIT', body: text(d.separator || ',') };
+    case 'storage': return { chip: 'SET', body: text(d.variableName) };
+    case 'variablereference': return { chip: 'GET', body: text(d.variableName) };
+    case 'transformation': return { chip: 'JS', body: asLines(d.code).find((l) => l.trim() && !l.trim().startsWith('//')) || asLines(d.code)[0] };
+    case 'makearray': return { chip: 'SPLIT', body: text(d.delimiter) };
     case 'string': case 'integer': case 'text': case 'boolean': case 'object': case 'array':
       return { chip: labelFor(node.type), body: text(d.value) };
     case 'note': case 'idea': return { chip: '', body: text(d.text) };
@@ -115,27 +136,28 @@ export function summarize(node) {
 
 /**
  * The card body: what the node holds, readable - the method and the whole
- * URL, the code (several lines, monospace), the command, the value - and,
- * after a run, what the engine wrote into it (a Result's output, a
- * Visualizer's data, a Comparison's verdict, an error).
- *   { chip, lines, mono, wrap, output }: `lines` is the content, `mono`
- *   in a monospace block (code, values), `wrap` lets long lines wrap (URLs,
- *   commands) rather than scroll sideways; `output` the run's result lines.
+ * URL, the whole code (monospace), the command, the value - and, after a
+ * run, what the engine wrote into it (a Result's output, a Visualizer's
+ * data, a Comparison's verdict, an error).
+ *   { chip, lines, mono, wrap, output }: `lines` is the content, all of it,
+ *   `mono` in a monospace block (code, values), `wrap` lets long lines wrap
+ *   (URLs, commands, code) rather than scroll sideways; `output` the run's
+ *   result lines.
  */
 export function describe(node) {
-  const d = node.data || {};
-  const code = (v) => ({ lines: asLines(v).filter((l, i, a) => !(i === a.length - 1 && l === '')), mono: true, wrap: false });
+  const d = nodeFields(node);
+  const code = (v) => ({ lines: asLines(v).filter((l, i, a) => !(i === a.length - 1 && l === '')), mono: true, wrap: true });
   const value = (v) => ({ lines: asLines(pretty(v)), mono: true, wrap: true });
   let base;
   switch (node.type) {
-    case 'restapi': base = { chip: text(d.method || 'GET'), lines: [text(d.url) || 'no URL yet'], mono: true, wrap: true }; break;
+    case 'restapi': base = { chip: text(d.method), lines: [text(d.url) || 'no URL yet'], mono: true, wrap: true }; break;
     case 'ssh': base = { chip: 'SSH', lines: [d.username && d.host ? `${d.username}@${d.host}${d.port && String(d.port) !== '22' ? `:${d.port}` : ''}` : text(d.host) || 'no host yet', ...asLines(d.command).filter(Boolean)], mono: true, wrap: true }; break;
-    case 'comparison': base = { chip: text(d.operator || '=='), lines: [], mono: false, wrap: true }; break;
+    case 'comparison': base = { chip: text(d.operator), lines: [], mono: false, wrap: true }; break;
     case 'delay': base = { chip: 'WAIT', lines: [`${Number(d.duration) || 0} ms`], mono: false, wrap: true }; break;
-    case 'storage': base = { chip: 'SET', lines: [text(d.variableName || 'data')], mono: true, wrap: true }; break;
-    case 'variablereference': base = { chip: 'GET', lines: [text(d.variableName || d.name || 'data')], mono: true, wrap: true }; break;
-    case 'transformation': base = { chip: 'JS', ...code(text(d.code) || 'return input;') }; break;
-    case 'makearray': base = { chip: 'SPLIT', lines: [`separator ${JSON.stringify(text(d.separator || ','))}`], mono: true, wrap: true }; break;
+    case 'storage': base = { chip: 'SET', lines: [text(d.variableName)], mono: true, wrap: true }; break;
+    case 'variablereference': base = { chip: 'GET', lines: [text(d.variableName)], mono: true, wrap: true }; break;
+    case 'transformation': base = { chip: 'JS', ...code(d.code) }; break;
+    case 'makearray': base = { chip: 'SPLIT', lines: [`delimiter ${JSON.stringify(text(d.delimiter))}`], mono: true, wrap: true }; break;
     case 'string': case 'integer': case 'boolean': base = { chip: labelFor(node.type), lines: [text(d.value)], mono: true, wrap: true }; break;
     case 'text': base = { chip: labelFor(node.type), ...value(d.value), mono: false }; break;
     case 'object': case 'array': base = { chip: labelFor(node.type), ...value(typeof d.value === 'string' ? d.value : pretty(d.value)) }; break;
@@ -169,29 +191,20 @@ function Chip({ text: t }) {
   return <span className={`px-[7px] py-[2px] rounded-xs font-mono text-[12px] font-medium ${CHIP[t] || 'bg-os-card-secondary text-os-text-secondary'}`}>{t}</span>;
 }
 
-/** The content lines of a card: a preview of PREVIEW_LINES, the rest on a tap. */
-function Lines({ lines, mono, wrap, expanded, onToggle, testId }) {
+/** The content lines of a card: all of them, the card grows to fit; a long line wraps (wrap) or scrolls sideways. */
+function Lines({ lines, mono, wrap, testId }) {
   if (!lines.length) return null;
-  const shown = expanded ? lines : lines.slice(0, PREVIEW_LINES);
-  const more = lines.length - shown.length;
-  const mode = wrap ? 'whitespace-pre-wrap break-all' : 'whitespace-pre overflow-x-auto';
+  const mode = wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'whitespace-pre overflow-x-auto';
   return (
     <div data-testid={testId} className={`min-w-0 text-[12px] leading-[1.45] ${mono ? `font-mono text-os-terminal-text ${mode}` : 'font-text whitespace-pre-wrap break-words'}`}>
-      {shown.join('\n')}
-      {more > 0 && (
-        <button type="button" onClick={onToggle} className="block mt-1 text-[12px] font-text text-os-text-secondary underline-offset-2">… {more} more line{more === 1 ? '' : 's'}</button>
-      )}
-      {expanded && lines.length > PREVIEW_LINES && (
-        <button type="button" onClick={onToggle} className="block mt-1 text-[12px] font-text text-os-text-secondary">show less</button>
-      )}
+      {lines.join('\n')}
     </div>
   );
 }
 
-function NodeCard({ entry }) {
+function NodeCard({ entry, jump, lit }) {
   const { node, inputs, outlets } = entry;
   const Icon = ICONS[node.type] || Square;
-  const [expanded, setExpanded] = useState(false);
   const title = node.data?.label || labelFor(node.type);
   if (ANNOTATION_TYPES.includes(node.type)) {
     return (
@@ -205,7 +218,7 @@ function NodeCard({ entry }) {
   const status = STATUS[node.data?.status] || null;
   const hasBody = chip || lines.length > 0 || output.length > 0 || inputs.length > 0 || outlets.length > 0;
   return (
-    <div data-testid="mobile-workflow-node" data-node-type={node.type} data-status={node.data?.status || undefined} className={`rounded-sm border bg-os-card overflow-hidden ${status ? status.border : 'border-os-input-border'}`}>
+    <div data-testid="mobile-workflow-node" data-node-id={node.id} data-node-type={node.type} data-status={node.data?.status || undefined} data-lit={lit || undefined} className={`rounded-sm border bg-os-card overflow-hidden ${lit ? 'sc-workflow-card-lit' : ''} ${status ? status.border : 'border-os-input-border'}`}>
       <div className={`flex items-center gap-2 px-3 py-[9px] font-semibold ${hasBody ? 'border-b border-os-border' : ''}`}>
         <Icon size={14} />
         <span className="truncate">{title}</span>
@@ -221,21 +234,31 @@ function NodeCard({ entry }) {
       {(chip || lines.length > 0) && (
         <div className="px-3 pt-2 pb-[10px] flex items-start gap-2 text-[12px]">
           <Chip text={chip} />
-          <Lines lines={lines} mono={mono} wrap={wrap} expanded={expanded} onToggle={() => setExpanded((v) => !v)} testId="mobile-workflow-node-body" />
+          <Lines lines={lines} mono={mono} wrap={wrap} testId="mobile-workflow-node-body" />
         </div>
       )}
       {output.length > 0 && (
         <div data-testid="mobile-workflow-node-output" className={`mx-3 mb-[10px] px-2 py-1.5 rounded-xs text-[12px] font-mono whitespace-pre-wrap break-all ${node.data?.status === 'error' ? 'bg-[var(--mob-delete-bg)] text-[var(--mob-delete-text)]' : 'bg-os-card-secondary text-os-terminal-text'}`}>
-          {(expanded ? output : output.slice(0, PREVIEW_LINES)).join('\n')}{output.length > PREVIEW_LINES && !expanded ? `\n… ${output.length - PREVIEW_LINES} more lines` : ''}
+          {output.join('\n')}
         </div>
       )}
       {inputs.length > 0 && (
-        <div className="px-3 pb-[10px] flex items-center gap-2 flex-wrap text-[12px] text-os-text-secondary">
-          {inputs.map(({ node: source, handle }, i) => (
-            <span key={`${source.id}-${handle}-${i}`} className="px-[7px] py-[2px] rounded-xs border border-os-border inline-flex items-center gap-1 min-w-0">
-              <Variable size={11} className="shrink-0" />{source.data?.label || labelFor(source.type)}{summarize(source).body ? <span className="font-mono text-[var(--os-code-string)] break-all">{JSON.stringify(summarize(source).body)}</span> : null}
-            </span>
-          ))}
+        <div data-testid="mobile-workflow-node-inputs" className="px-3 pb-[8px] flex flex-col gap-1 text-[12px]">
+          <div className="text-[11px] font-semibold tracking-[0.06em] text-os-text-muted">INPUTS</div>
+          {inputs.map(({ node: source, handle }, i) => {
+            const SourceIcon = ICONS[source.type] || Square;
+            const value = summarize(source).body;
+            return (
+              <button type="button" key={`${source.id}-${handle}-${i}`} data-testid="mobile-workflow-input" data-source-id={source.id} onClick={() => jump?.(source.id)} aria-label={`${pinName(node.type, handle)} from ${source.data?.label || labelFor(source.type)}`}
+                className="min-h-[44px] w-full px-[10px] py-[6px] rounded-sm border border-os-border bg-os-card-secondary inline-flex items-center gap-[6px] min-w-0 text-left text-os-text-primary">
+                <Link size={12} className="shrink-0 text-os-text-secondary" />
+                <span className="font-mono text-[11px] text-os-text-secondary shrink-0">{pinName(node.type, handle)} ←</span>
+                <SourceIcon size={13} className="shrink-0 text-os-text-secondary" />
+                <span className="font-semibold shrink-0">{source.data?.label || labelFor(source.type)}</span>
+                {value ? <span className="font-mono text-[var(--os-code-string)] [overflow-wrap:anywhere] min-w-0">{JSON.stringify(value)}</span> : null}
+              </button>
+            );
+          })}
         </div>
       )}
       {outlets.length > 0 && (
@@ -282,16 +305,31 @@ export default function MobileWorkflowView({ nodes = [], edges = [] }) {
     if (card && typeof card.scrollIntoView === 'function') card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [running]);
   const byHand = () => { if (anyRun) handScrolled.current = true; };
+  // a tap on an input chip: the source node's card scrolls into view and lights up for a moment
+  const [lit, setLit] = useState(null);
+  const litTimer = useRef(null);
+  useEffect(() => () => clearTimeout(litTimer.current), []);
+  const jump = (id) => {
+    const card = scroller.current?.querySelector(`[data-testid="mobile-workflow-node"][data-node-id="${id}"]`);
+    if (!card) return;
+    if (typeof card.scrollIntoView === 'function') card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setLit(id);
+    clearTimeout(litTimer.current);
+    litTimer.current = setTimeout(() => setLit(null), 1400);
+  };
   return (
     <div ref={scroller} data-testid="mobile-workflow-view" onTouchMove={byHand} onWheel={byHand} className="sc-workflow-reader flex-1 min-h-0 overflow-y-auto flex flex-col text-[13px] text-os-text-primary">
       {items.map((entry, i) => {
         const annotation = ANNOTATION_TYPES.includes(entry.node.type);
         const next = items[i + 1];
-        const connector = !annotation && next && !ANNOTATION_TYPES.includes(next.node.type) && entry.outlets.length === 0;
+        // the gap to the next card is the same whether a connector line is drawn in it (the execution
+        // path goes on) or not (a branch's targets follow in its outlets; an unconnected chain starts)
+        const gap = !annotation && next && !ANNOTATION_TYPES.includes(next.node.type);
+        const connector = gap && entry.outlets.length === 0;
         return (
           <div key={entry.node.id}>
-            <NodeCard entry={entry} />
-            {connector && <div className={`w-[2px] h-4 ml-[22px] ${DATA_NODE_TYPES.includes(next.node.type) ? 'bg-[var(--mob-connector-data)]' : 'bg-os-text-primary'}`} />}
+            <NodeCard entry={entry} jump={jump} lit={lit === entry.node.id} />
+            {gap && <div data-testid="mobile-workflow-gap" data-link={connector ? 'true' : 'false'} className={`w-[2px] h-4 ml-[22px] ${!connector ? '' : DATA_NODE_TYPES.includes(next.node.type) ? 'bg-[var(--mob-connector-data)]' : 'bg-os-text-primary'}`} />}
           </div>
         );
       })}

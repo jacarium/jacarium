@@ -4,6 +4,7 @@ import { NodeHeader, DataOutputPin } from './NodeComponents';
 import { NodeTextArea } from './NodeFields';
 import { nodeShellClass } from './nodeStyles';
 import { useFollowExternalValue } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 /** The parsed array when `text` is valid JSON array text, otherwise null. */
 function parseArrayText(text) {
@@ -16,12 +17,12 @@ function parseArrayText(text) {
 }
 
 function ArrayVariableNode({ data, isConnectable }) {
-  const [value, setValue] = useState(data.value || '[]');
+  const [value, setValue] = useState(data.value || nodeFieldDefault('array', 'value'));
   const isReadOnly = data.isReadOnly || false;
   const isShared = data.isShared || false;
   const status = data.status;
 
-  useFollowExternalValue(data.value, value, (external) => setValue(external ?? '[]'));
+  useFollowExternalValue(data.value, value, (external) => setValue(external ?? nodeFieldDefault('array', 'value')));
 
   // The text is always stored; a valid array is stored alongside it as
   // `arrayValue` (invalid JSON leaves the previous arrayValue untouched).

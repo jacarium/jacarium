@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { setupDocumentsEnv, makeChecker } from './helpers/jsdom-documents-env.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const REPO = path.resolve(here, '..');
 const entry = path.join(here, 'helpers', 'mobile-workflow-entry.mjs');
 fs.writeFileSync(entry, `
 import React, { act } from 'react';
@@ -35,16 +36,17 @@ import WorkflowListMenu from '@worktree/src/components/workflow/WorkflowListMenu
 import WorkflowRow from '@worktree/src/components/workflow/WorkflowRow.jsx';
 import ItemList from '@worktree/src/components/common/sidebar/ItemList.jsx';
 import RowMenuButton from '@worktree/src/components/mobile/RowMenuButton.jsx';
-import MobileWorkflowView, { MobileWorkflowToolbar, linearize, summarize, describe } from '@worktree/src/components/mobile/MobileWorkflowView.jsx';
+import MobileWorkflowView, { MobileWorkflowToolbar, linearize, summarize, describe, pinName } from '@worktree/src/components/mobile/MobileWorkflowView.jsx';
+import { nodeFieldDefault } from '@worktree/src/components/workflow/nodes/nodeDefaults.js';
 import { MobileProvider } from '@worktree/src/contexts/MobileContext.jsx';
 import { NotificationProvider } from '@worktree/src/contexts/NotificationContext.jsx';
-export { React, act, createRoot, WorkflowList, WorkflowContextMenu, WorkflowListMenu, WorkflowRow, ItemList, RowMenuButton, MobileWorkflowView, MobileWorkflowToolbar, linearize, summarize, describe, MobileProvider, NotificationProvider };
+export { React, act, createRoot, WorkflowList, WorkflowContextMenu, WorkflowListMenu, WorkflowRow, ItemList, RowMenuButton, MobileWorkflowView, MobileWorkflowToolbar, linearize, summarize, describe, pinName, nodeFieldDefault, MobileProvider, NotificationProvider };
 `);
 
 const { check, summary } = makeChecker();
 const env = await setupDocumentsEnv('mobile-workflow', { entry });
 const { mod, window, sleep } = env;
-const { React, act, createRoot, WorkflowList, WorkflowContextMenu, WorkflowListMenu, WorkflowRow, ItemList, RowMenuButton, MobileWorkflowView, MobileWorkflowToolbar, linearize, summarize, describe, MobileProvider, NotificationProvider } = mod;
+const { React, act, createRoot, WorkflowList, WorkflowContextMenu, WorkflowListMenu, WorkflowRow, ItemList, RowMenuButton, MobileWorkflowView, MobileWorkflowToolbar, linearize, summarize, describe, pinName, nodeFieldDefault, MobileProvider, NotificationProvider } = mod;
 void WorkflowListMenu;
 const { document } = window;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -146,6 +148,22 @@ try {
   check('   the reader renders the note, Begin Play, GET + URL, the operator, TRUE/FALSE and the POST target', /Runs every five minutes/.test(reader) && /Begin Play/.test(reader) && /GET/.test(reader) && /api\.example\.test\/health/.test(reader) && /==/.test(reader) && /TRUE/.test(reader) && /FALSE/.test(reader) && /POST/.test(reader) && /hooks\.example\.test/.test(reader), reader.slice(0, 200));
   check('   the toolbar says "View only · edit on desktop" and has Run and Stop', /View only · edit on desktop/.test(reader) && !!m.host.querySelector('[data-testid="mobile-workflow-run"]') && !!m.host.querySelector('[data-testid="mobile-workflow-stop"]'));
   check('   the reader has no inputs or editable fields', m.host.querySelectorAll('input, textarea, select, [contenteditable]').length === 0);
+  // the Comparison's data connections: one chip per wire, the pin named as the desktop labels it, the source's icon, name and value
+  const cmpCard = m.host.querySelector('[data-testid="mobile-workflow-node"][data-node-type="comparison"]');
+  const chips = Array.from(cmpCard.querySelectorAll('[data-testid="mobile-workflow-input"]'));
+  check('   a card with two data inputs shows an "Inputs" section with a chip per wire: the pin name ("left", "right"), an arrow, the source node and its value', /INPUTS/.test(cmpCard.textContent) && chips.length === 2 && chips.some((c) => /^left ←/.test(c.textContent.replace(/\s+/g, ' ').trim()) && /REST API/.test(c.textContent) && /api\.example\.test\/health/.test(c.textContent)) && chips.some((c) => /^right ←/.test(c.textContent.replace(/\s+/g, ' ').trim()) && /String/.test(c.textContent) && /"ok"/.test(c.textContent)), chips.map((c) => c.textContent).join(' | '));
+  check('   each chip carries the source node\'s own icon and a link icon (no variable icon), is a 44px-tall tappable button with an aria-label naming the connection', chips.every((c) => c.tagName === 'BUTTON' && c.querySelectorAll('svg').length === 2 && /min-h-\[44px\]/.test(c.className) && /from/.test(c.getAttribute('aria-label'))), chips.map((c) => c.getAttribute('aria-label')).join(' | '));
+  check('   pinName: the desktop\'s pin labels', pinName('comparison', 'left-in') === 'left' && pinName('comparison', 'right-in') === 'right' && pinName('branch', 'data-in') === 'condition' && pinName('transformation', '') === 'input' && pinName('restapi', 'data-in') === 'override' && pinName('unknown', 'body-in') === 'body');
+  const restChip = chips.find((c) => /REST API/.test(c.textContent));
+  await tap(restChip);
+  const litCard = m.host.querySelector('[data-testid="mobile-workflow-node"][data-lit="true"]');
+  check('   a tap on a chip lights the source node\'s card (and scrolls to it)', litCard && litCard.getAttribute('data-node-id') === restChip.getAttribute('data-source-id') && /sc-workflow-card-lit/.test(litCard.className), litCard?.getAttribute('data-node-id'));
+  await sleep(1600);
+  check('   ...for a moment only', !m.host.querySelector('[data-lit="true"]'));
+  // the gap between consecutive cards: one spacer of the same height each time; the line only where the execution path goes on
+  const gaps = Array.from(m.host.querySelectorAll('[data-testid="mobile-workflow-gap"]'));
+  const cards = Array.from(m.host.querySelectorAll('[data-testid="mobile-workflow-node"]'));
+  check('   every pair of consecutive cards has the same spacer (h-4) - with a line after a node whose path goes on, without one after a Branch (its targets are in its outlets)', gaps.length === cards.length - 1 && gaps.every((g) => /\bh-4\b/.test(g.className)) && gaps.some((g) => g.getAttribute('data-link') === 'true' && /bg-/.test(g.className)) && gaps.some((g) => g.getAttribute('data-link') === 'false' && !/bg-/.test(g.className)), `${gaps.length} gaps for ${cards.length} cards: ${gaps.map((g) => g.getAttribute('data-link')).join(',')}`);
   await m.unmount();
 
   // ---- 3b. the card bodies: the whole content, not a first line or an ellipsis ----
@@ -170,12 +188,19 @@ try {
   const dS = describe(rich[3]);
   check('   an SSH node gives user@host and every command line', dS.lines[0] === 'ops@bastion.example.test' && dS.lines.length === 3, JSON.stringify(dS));
   check('   every node type the reader knows gives a chip or lines, never undefined', ['delay', 'storage', 'variablereference', 'makearray', 'string', 'integer', 'text', 'boolean', 'object', 'array', 'comparison', 'visualizer', 'result', 'branch', 'switch', 'sequence', 'forloop'].every((type) => { const d = describe({ id: type, type, data: { value: 'v', duration: 5, variableName: 'x', separator: ';', operator: '!=' } }); return Array.isArray(d.lines) && Array.isArray(d.output) && typeof d.chip === 'string' && d.lines.every((l) => typeof l === 'string'); }));
+  // a Transform, a Make Array and a REST call exactly as the editor makes them and the user leaves them:
+  // empty data (useWorkflowCanvas), the fields' values only in the editor's fallbacks
+  const untouched = (type) => describe({ id: `u-${type}`, type, data: {} });
+  check('   an untouched Transform (empty data, as the editor creates it) reads as the desktop shows it: the two-line default, not "return input;" alone', untouched('transformation').lines.join('|') === '// Transform input data|return input;', JSON.stringify(untouched('transformation')));
+  check('   an untouched Make Array reads the editor\'s delimiter field (the engine\'s too), an untouched REST call its GET', /delimiter ","/.test(untouched('makearray').lines[0]) && untouched('restapi').chip === 'GET' && untouched('comparison').chip === '>', JSON.stringify([untouched('makearray'), untouched('restapi').chip, untouched('comparison').chip]));
+  check('   summarize of an untouched Transform is its first code line, of an edited one the first non-comment line', summarize({ type: 'transformation', data: {} }).body === 'return input;' && summarize(rich[2]).body === 'const body = JSON.parse(input);');
+  const editorFallbacks = fs.readdirSync(path.join(REPO, 'src', 'components', 'workflow', 'nodes')).filter((f) => /Node\.jsx$/.test(f)).flatMap((f) => Array.from(fs.readFileSync(path.join(REPO, 'src', 'components', 'workflow', 'nodes', f), 'utf8').matchAll(/useNodeField\(data, '([a-zA-Z]+)', ([^;]*)\);/g)).map((mm) => `${f}:${mm[1]}:${mm[2]}`));
+  check('   every editor field takes its fallback from the shared table (nodeDefaults.js), so the phone cannot drift from the desktop', editorFallbacks.length >= 20 && editorFallbacks.every((e) => /:nodeFieldDefault\('[a-z]+', '[a-zA-Z]+'\)$/.test(e)), editorFallbacks.filter((e) => !/nodeFieldDefault/.test(e)).join(' | '));
+  check('   ...and the table has an entry for each of them', editorFallbacks.every((e) => { const [, key, call] = e.split(':'); const type = call.match(/'([a-z]+)'/)[1]; return nodeFieldDefault(type, key) !== undefined; }), editorFallbacks.filter((e) => { const [, key, call] = e.split(':'); return nodeFieldDefault(call.match(/'([a-z]+)'/)[1], key) === undefined; }).join(' | '));
   m = await mount(React.createElement(MobileWorkflowView, { nodes: rich, edges: richEdges }), { mobile: true });
   const bodies = Array.from(m.host.querySelectorAll('[data-testid="mobile-workflow-node-body"]')).map((b) => b.textContent);
-  check('   the Transform card shows six lines of the code and a "more" tap for the rest', bodies.some((b) => /const body = JSON\.parse\(input\);/.test(b) && /names: items\.map/.test(b) === false && /… 2 more lines/.test(b)), bodies.join(' || ').slice(0, 300));
-  const moreBtn = Array.from(m.host.querySelectorAll('button')).find((b) => /more line/.test(b.textContent));
-  await tap(moreBtn);
-  check('   ...and the tap shows the whole code', Array.from(m.host.querySelectorAll('[data-testid="mobile-workflow-node-body"]')).some((b) => /names: items\.map/.test(b.textContent)));
+  check('   the Transform card shows the WHOLE code - every line, no cut, no "more lines" tap', bodies.some((b) => b === code), bodies.join(' || ').slice(0, 300));
+  check('   no "more"/"show less" buttons anywhere in the reader; the code block wraps long lines instead of clipping them', !Array.from(m.host.querySelectorAll('button')).some((b) => /more line|show less/.test(b.textContent)) && /whitespace-pre-wrap/.test(Array.from(m.host.querySelectorAll('[data-testid="mobile-workflow-node-body"]')).find((b) => b.textContent === code).className));
   check('   the REST card shows POST and the full URL, not "..."', bodies.some((b) => b === rich[1].data.url) && m.host.textContent.includes('POST') && !/\.\.\.$/.test(bodies.find((b) => /clusters/.test(b)) || ''), bodies.join(' || ').slice(0, 300));
   check('   the SSH card shows user@host and both commands', bodies.some((b) => /ops@bastion\.example\.test/.test(b) && /rollout status/.test(b)));
   check('   still no inputs or editable fields', m.host.querySelectorAll('input, textarea, select, [contenteditable]').length === 0);

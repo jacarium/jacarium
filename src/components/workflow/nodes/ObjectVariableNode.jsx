@@ -4,9 +4,10 @@ import { NodeHeader, DataOutputPin } from './NodeComponents';
 import { NodeTextArea } from './NodeFields';
 import { nodeShellClass } from './nodeStyles';
 import { useNodeField } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 function ObjectVariableNode({ data, isConnectable }) {
-  const [value, setValue] = useNodeField(data, 'value', '{}');
+  const [value, setValue] = useNodeField(data, 'value', nodeFieldDefault('object', 'value'));
   const isShared = data.isShared || false;
   const status = data.status;
 

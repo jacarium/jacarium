@@ -34,6 +34,8 @@ import { reapOnExit } from './helpers/reap.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const req = createRequire(path.join(REPO, 'package.json'));
+// what a user types into a Transform on the desktop (node.data.code): seven lines, the first one long enough to wrap on a phone
+const TRANSFORM_CODE = 'const body = typeof input === "string" ? input : JSON.stringify(input);\nconst checks = body.split("\\n").filter(Boolean);\nreturn {\n  healthy: checks.every((c) => /ok/i.test(c)),\n  checked: checks.length,\n  at: new Date().toISOString(),\n};';
 const PORT = Number(process.env.MOBILE_TEST_PORT || 5195);
 let failed = 0;
 const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}: ${name}${detail ? ' | ' + String(detail).slice(0, 240) : ''}`); if (!ok) failed++; };
@@ -66,7 +68,7 @@ async function open(device, { colorScheme = 'dark', theme = null } = {}) {
   for (let i = 0; i < 6; i++) { const b = page.getByRole('button', { name: /^Got it!$/ }); if (await b.count()) { await b.first().click().catch(() => {}); break; } await sleep(300); }
   if (theme) await page.evaluate((t) => localStorage.setItem('app-theme', t), theme);
   // synthetic documents, a workflow and tasks through the app's own modules (served by Vite)
-  await page.evaluate(async () => {
+  await page.evaluate(async ({ TRANSFORM_CODE }) => {
     const { db } = await import('/src/db/database.js');
     const now = Date.now();
     await db.documents.clear();
@@ -85,9 +87,13 @@ async function open(device, { colorScheme = 'dark', theme = null } = {}) {
       { id: 'n5', type: 'branch', position: { x: 600, y: 0 }, data: {} },
       { id: 'n6', type: 'result', position: { x: 900, y: 0 }, data: {} },
       { id: 'n7', type: 'restapi', position: { x: 900, y: 200 }, data: { method: 'POST', url: 'https://alerts.example.test/page' } },
+      // a Transform with code typed in the desktop editor (node.data.code, several lines, one long enough to wrap)
+      { id: 'n9', type: 'transformation', position: { x: 450, y: -200 }, data: { code: TRANSFORM_CODE } },
     ], edges: [
       { id: 'e1', source: 'n1', sourceHandle: 'exec-out', target: 'n2', targetHandle: 'exec-in', type: 'execution' },
-      { id: 'e2', source: 'n2', sourceHandle: 'exec-out', target: 'n5', targetHandle: 'exec-in', type: 'execution' },
+      { id: 'e2', source: 'n2', sourceHandle: 'exec-out', target: 'n9', targetHandle: 'exec-in', type: 'execution' },
+      { id: 'e2b', source: 'n9', sourceHandle: 'exec-out', target: 'n5', targetHandle: 'exec-in', type: 'execution' },
+      { id: 'e2t', source: 'n2', sourceHandle: 'data-out', target: 'n9', targetHandle: 'data-in', type: 'data' },
       { id: 'e2c', source: 'n2', sourceHandle: 'data-out', target: 'n3', targetHandle: 'left-in', type: 'data' },
       { id: 'e2d', source: 'n4', sourceHandle: 'data-out', target: 'n3', targetHandle: 'right-in', type: 'data' },
       { id: 'e2e', source: 'n3', sourceHandle: 'data-out', target: 'n5', targetHandle: 'data-in', type: 'data' },
@@ -108,7 +114,7 @@ async function open(device, { colorScheme = 'dark', theme = null } = {}) {
     const board = await createBoard({ title: 'Platform Q4 roadmap', category: 'Platform', columns: [{ id: 'progress', title: 'In progress', color: '#4a9eff' }, { id: 'done', title: 'Done', color: '#5FCF9A' }] });
     await createCard({ boardId: board.id, title: 'Upgrade production to Kubernetes 1.34', status: 'progress', position: 0 });
     localStorage.removeItem('documentOpenTabs');
-  });
+  }, { TRANSFORM_CODE });
   await page.reload({ waitUntil: 'load' });
   await page.waitForTimeout(2500);
   for (let i = 0; i < 6; i++) { const b = page.getByRole('button', { name: /^Got it!$/ }); if (await b.count()) { await b.first().click().catch(() => {}); break; } await sleep(300); }
@@ -230,7 +236,30 @@ try {
   await page.waitForTimeout(800);
   if (process.env.MOBILE_DEBUG) { console.log('after workflow click', JSON.stringify(await state(page)), 'drawer', await page.locator('[data-testid="mobile-drawer"]').count(), 'menu', await page.locator('.sc-context-menu').count()); await shot(page, 'phone-05a-after-click'); }
   const wfPage = await page.evaluate(() => ({ readonly: document.querySelector('[data-testid="mobile-workflow-readonly"]')?.textContent, reader: !!document.querySelector('[data-testid="mobile-workflow-view"]'), canvas: !!document.querySelector('.react-flow'), nodes: document.querySelectorAll('[data-testid="mobile-workflow-node"]').length, run: !!document.querySelector('[data-testid="mobile-workflow-run"]') }));
-  check('phone: the open workflow is the read-only reader (no canvas), with the "View only" toolbar and Run', wfPage.readonly === 'View only · edit on desktop' && wfPage.reader && !wfPage.canvas && wfPage.nodes === 7 && wfPage.run, JSON.stringify(wfPage));
+  check('phone: the open workflow is the read-only reader (no canvas), with the "View only" toolbar and Run', wfPage.readonly === 'View only · edit on desktop' && wfPage.reader && !wfPage.canvas && wfPage.nodes === 8 && wfPage.run, JSON.stringify(wfPage));
+  // the Transform's card: the whole code as the desktop editor holds it, nothing cut, no "more lines" tap, the card tall enough for it
+  const transformCard = await page.evaluate(() => {
+    const card = document.querySelector('[data-testid="mobile-workflow-node"][data-node-type="transformation"]');
+    const body = card?.querySelector('[data-testid="mobile-workflow-node-body"]');
+    if (!body) return { missing: true };
+    const s = getComputedStyle(body);
+    return { text: body.textContent, lines: Math.round(body.getBoundingClientRect().height / parseFloat(s.lineHeight)), clipped: body.scrollHeight > body.clientHeight + 1 || card.scrollHeight > card.clientHeight + 1, more: /more line|show less/.test(card.textContent), overflowX: body.scrollWidth > body.clientWidth + 1 };
+  });
+  // the data-input chips: tall enough to tap, readable in this theme, and a tap scrolls to the source's card and lights it
+  const inputChip = await page.evaluate(() => {
+    const chip = document.querySelector('[data-testid="mobile-workflow-node"][data-node-type="comparison"] [data-testid="mobile-workflow-input"]');
+    if (!chip) return { missing: true };
+    const r = chip.getBoundingClientRect();
+    return { height: r.height, text: chip.textContent.replace(/\s+/g, ' ').trim(), source: chip.getAttribute('data-source-id') };
+  });
+  await page.locator('[data-testid="mobile-workflow-node"][data-node-type="comparison"] [data-testid="mobile-workflow-input"]').first().click();
+  await page.waitForTimeout(500);
+  const afterTap = await page.evaluate(() => { const lit = document.querySelector('[data-testid="mobile-workflow-node"][data-lit="true"]'); const r = lit?.getBoundingClientRect(); const view = document.querySelector('[data-testid="mobile-workflow-view"]').getBoundingClientRect(); return { lit: lit?.getAttribute('data-node-id') || null, inView: !!r && r.top >= view.top - 1 && r.bottom <= view.bottom + 1, ring: lit ? getComputedStyle(lit).boxShadow : null }; });
+  check('phone: a card\'s input chip names the pin, the source node and its value, is at least 44px tall, and a tap scrolls to the source card and lights it', !inputChip.missing && inputChip.height >= 44 && /^left ←\s*REST API\s*"https:\/\/api\.example\.test\/health"$/.test(inputChip.text) && afterTap.lit === inputChip.source && afterTap.inView && afterTap.ring !== 'none', JSON.stringify({ inputChip, afterTap }));
+  // the vertical gap between consecutive cards is the same with or without a connector line
+  const cardGaps = await page.evaluate(() => { const cards = Array.from(document.querySelectorAll('[data-testid="mobile-workflow-node"]')); const out = []; for (let i = 1; i < cards.length; i++) out.push(Math.round(cards[i].getBoundingClientRect().top - cards[i - 1].getBoundingClientRect().bottom)); return out; });
+  check('phone: every pair of consecutive cards is the same distance apart, connector line or not (a Result after a Branch no longer sits against it)', cardGaps.length >= 4 && cardGaps.every((g) => g === cardGaps[0]) && cardGaps[0] >= 14, JSON.stringify(cardGaps));
+  check('phone: the Transform card shows the ENTIRE code typed on the desktop - every line, long lines wrapped, nothing clipped, no "more lines" tap', transformCard.text === TRANSFORM_CODE && !transformCard.clipped && !transformCard.more && !transformCard.overflowX && transformCard.lines > TRANSFORM_CODE.split('\n').length, JSON.stringify(transformCard).slice(0, 400));
   await shot(page, 'phone-05-workflow');
 
   // Kanban
@@ -388,7 +417,8 @@ try {
     await closeOverlays(tp);
     const wf = await tp.evaluate(() => { const { text, own, q, byText } = window.__measure;
       const reader = q('[data-testid="mobile-workflow-view"]');
-      const connectors = Array.from(reader?.querySelectorAll('div.w-\\[2px\\]') || []).map((c) => own(c, 'backgroundColor'));
+      // the connector lines (not the empty spacer that keeps the gap even where no line is drawn)
+      const connectors = Array.from(reader?.querySelectorAll('div.w-\\[2px\\]:not([data-link="false"])') || []).map((c) => own(c, 'backgroundColor'));
       return {
         run: text(q('[data-testid="mobile-workflow-run"]')), stop: text(q('[data-testid="mobile-workflow-stop"]')), readonly: text(q('[data-testid="mobile-workflow-readonly"]')),
         noteTitle: text(q('[data-testid="mobile-workflow-note"] > div')), noteText: text(q('[data-testid="mobile-workflow-note"] > div + div')), noteBorder: own(q('[data-testid="mobile-workflow-note"]'), 'borderTopColor'),

@@ -4,9 +4,10 @@ import { NodeHeader, DataInputPin, DataOutputPin, NodeError } from './NodeCompon
 import { NodeField, NodeTextInput } from './NodeFields';
 import { nodeShellClass } from './nodeStyles';
 import { useNodeField } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 function MakeArrayNode({ data, isConnectable }) {
-  const [delimiter, setDelimiter] = useNodeField(data, 'delimiter', ',');
+  const [delimiter, setDelimiter] = useNodeField(data, 'delimiter', nodeFieldDefault('makearray', 'delimiter'));
   const isShared = data.isShared || false;
   const status = data.status;
 

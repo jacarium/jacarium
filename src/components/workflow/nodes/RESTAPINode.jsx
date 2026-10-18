@@ -4,12 +4,13 @@ import { NodeHeader, DataInputPin, DataOutputPin } from './NodeComponents';
 import { NodeField, NodeTextInput, NodeTextArea, NodeSelect } from './NodeFields';
 import { nodeShellClass } from './nodeStyles';
 import { useNodeField } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 function RESTAPINode({ data, isConnectable }) {
-  const [url, setUrl] = useNodeField(data, 'url', '');
-  const [method, setMethod] = useNodeField(data, 'method', 'GET');
-  const [headers, setHeaders] = useNodeField(data, 'headers', '');
-  const [body, setBody] = useNodeField(data, 'body', '');
+  const [url, setUrl] = useNodeField(data, 'url', nodeFieldDefault('restapi', 'url'));
+  const [method, setMethod] = useNodeField(data, 'method', nodeFieldDefault('restapi', 'method'));
+  const [headers, setHeaders] = useNodeField(data, 'headers', nodeFieldDefault('restapi', 'headers'));
+  const [body, setBody] = useNodeField(data, 'body', nodeFieldDefault('restapi', 'body'));
   const isReadOnly = data.isReadOnly || false;
   const isShared = data.isShared || false;
   const status = data.status;

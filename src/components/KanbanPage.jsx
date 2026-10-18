@@ -35,8 +35,19 @@ export default function KanbanPage() {
     page: 'kanban', tabs: openTabs, setTabs: setOpenTabs,
     itemOf: async (tab) => (await database.kanbanBoards.get(tab.id))?.syncId || null,
     titleOf: (tab) => tab.title || 'Untitled',
-    resolve: async (item) => { const board = await database.kanbanBoards.where('syncId').equals(item).first(); return board ? { id: board.id, title: board.title, category: board.category || 'General', inCloud: board.inCloud } : null; },
+    resolve: async (item) => {
+      const board = await database.kanbanBoards.where('syncId').equals(item).first();
+      if (!board) return null;
+      // the page's list must know it before the tab appears: the restore
+      // effect below drops tabs of boards the list does not have (the list
+      // alone - loadBoards would open the first board itself when no tab is open)
+      if (!boardsRef.current.some((b) => b.id === board.id)) setBoards(await getBoards());
+      return { id: board.id, title: board.title, category: board.category || 'General', inCloud: board.inCloud || false, type: 'board' };
+    },
     onClose: (tab) => handleTabClose(tab.id),
+    onOpen: (tab) => handleTabClick(tab),
+    active: currentBoardId ?? null,
+    itemCollection: 'kanbanBoards',
   });
   const [localCards, setLocalCards] = useState([]); // For local/non-cloud boards
   const [draggedCard, setDraggedCard] = useState(null);

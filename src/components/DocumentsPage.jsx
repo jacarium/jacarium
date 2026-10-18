@@ -153,9 +153,21 @@ export default function DocumentsPage({
     page: 'documents', tabs: openTabs, setTabs: setOpenTabs,
     itemOf: async (tab) => (await database.documents.get(tab.id))?.stableId || null,
     titleOf: (tab) => tab.title || 'Untitled',
-    resolve: async (item) => { const doc = await database.documents.where('stableId').equals(item).first(); return doc ? { id: doc.id, title: doc.title, category: doc.category || 'General', inCloud: doc.inCloud } : null; },
+    resolve: async (item) => {
+      const doc = await database.documents.where('stableId').equals(item).first();
+      if (!doc) return null;
+      // the page's list must know it before the tab appears: the restore
+      // effect below drops tabs of documents the list does not have
+      if (!documentsRef.current.some((d) => d.id === doc.id)) await loadDocuments();
+      return { id: doc.id, title: doc.title, category: doc.category || 'General', inCloud: doc.inCloud };
+    },
     onClose: (tab) => handleTabClose(tab.id),
+    onOpen: (tab) => handleSelectDocument({ id: tab.id }),
+    active: currentDocument?.id ?? null,
+    itemCollection: 'documents',
   });
+  const documentsRef = useRef([]);
+  useEffect(() => { documentsRef.current = documents; }, [documents]);
 
   // Split view - persist across app restarts
   const [splitViewEnabled, setSplitViewEnabled] = useLocalStorage('documentSplitViewEnabled', false);

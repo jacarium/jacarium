@@ -4,6 +4,7 @@ import { StickyNote } from 'lucide-react';
 import { LinkHandles } from './NodeComponents';
 import { NOTE_COLORS, NOTE_COLOR_KEYS, DEFAULT_NOTE_COLOR, getNoteColor } from './noteColors';
 import { useNodeField } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 /**
  * Freeform sticky note. Has no execution semantics: it is skipped by the
@@ -11,7 +12,7 @@ import { useNodeField } from './nodeHooks';
  * wired together as a lightweight mind map on the same canvas.
  */
 function NoteNode({ data, isConnectable, selected }) {
-  const [text, setText] = useNodeField(data, 'text', '');
+  const [text, setText] = useNodeField(data, 'text', nodeFieldDefault('note', 'text'));
   const colorKey = data.color || DEFAULT_NOTE_COLOR;
   const color = getNoteColor(colorKey);
   const isReadOnly = data.isReadOnly || false;

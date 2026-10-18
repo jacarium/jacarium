@@ -4,6 +4,22 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.2.3
+
+_2026-10-18_
+
+### [WORKFLOWS]
+
+Phone layout: a Transform shows its whole code, wrapped to fit, and an untouched one shows its default code
+
+Phone layout: a step's inputs are listed under Inputs, naming the input and the step it comes from (for example left ← REST API); tap one to jump to that step
+
+Phone layout: the steps of a workflow are evenly spaced
+
+### [SYNC]
+
+A tab opened on another device now shows its content straight away, even when it arrives before the document itself
+
 ## What's New in v3.2.2
 
 _2026-10-18_
@@ -29,6 +45,7 @@ Phone layout: the Tools page has the "N open" menu to switch between and close o
 ### [DEPLOY]
 
 Deploying to a home server starts the Podman machine on a Mac when it isn't running and builds there, instead of falling back to a slow build on the server
+
 
 ## What's New in v3.2.1
 

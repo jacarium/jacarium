@@ -3,13 +3,14 @@ import { Lightbulb } from 'lucide-react';
 import { LinkHandles } from './NodeComponents';
 import { NOTE_COLOR_KEYS, DEFAULT_NOTE_COLOR, getNoteColor } from './noteColors';
 import { useNodeField } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 /**
  * Compact "bubble" node for mind-map topics. Single-line label, coloured pill,
  * link handles on all four sides. No execution semantics (see NoteNode).
  */
 function IdeaNode({ data, isConnectable, selected }) {
-  const [label, setLabel] = useNodeField(data, 'label', '');
+  const [label, setLabel] = useNodeField(data, 'label', nodeFieldDefault('idea', 'label'));
   const colorKey = data.color || DEFAULT_NOTE_COLOR;
   const color = getNoteColor(colorKey);
   const isReadOnly = data.isReadOnly || false;

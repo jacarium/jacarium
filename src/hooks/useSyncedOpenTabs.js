@@ -17,7 +17,13 @@ import { subscribeSyncStatus } from '../sync/syncEngine';
  *    closes them here the way the page closes a tab (the page's own close
  *    handler, so an active tab closed elsewhere gives way to its
  *    neighbour); the order of the tabs that have rows follows the rows'
- *    positions;
+ *    positions; when the page shows nothing (`active` null - a fresh
+ *    device, or the shown item gone), the first tab that arrived is opened
+ *    through the page's own open path, `onOpen(tab)` (the one a tap on the
+ *    tab takes: it loads the content; appending a tab alone shows nothing);
+ *    a row that arrived before its item did (the document, the board) is
+ *    applied once the item arrives (`itemCollection`: the item table's
+ *    'syncApplied' re-applies);
  *  - local -> synced, then: the page's tabs are written to the table -
  *    `itemOf(tab)` gives a tab's cross-device id (a stableId, a syncId, a
  *    calendar or tool id; may be async; null for a tab that cannot be
@@ -31,12 +37,12 @@ import { subscribeSyncStatus } from '../sync/syncEngine';
  * never touched. Nothing happens without a server, signed out, or with the
  * setting off.
  */
-export default function useSyncedOpenTabs({ page, tabs, setTabs, itemOf, titleOf, resolve, onClose, enabled = true }) {
+export default function useSyncedOpenTabs({ page, tabs, setTabs, itemOf, titleOf, resolve, onClose, onOpen = null, active = null, itemCollection = null, enabled = true }) {
   const tabsRef = useRef(tabs);
-  const handlers = useRef({ itemOf, titleOf, resolve, onClose, setTabs });
+  const handlers = useRef({ itemOf, titleOf, resolve, onClose, onOpen, setTabs, active });
   const chain = useRef(Promise.resolve());
-  // the latest callbacks, for the listeners below (they outlive a render)
-  useEffect(() => { handlers.current = { itemOf, titleOf, resolve, onClose, setTabs }; });
+  // the latest callbacks and the shown item, for the listeners below (they outlive a render)
+  useEffect(() => { handlers.current = { itemOf, titleOf, resolve, onClose, onOpen, setTabs, active }; });
 
   const run = (fn) => {
     const next = chain.current.then(fn, fn);
@@ -84,13 +90,26 @@ export default function useSyncedOpenTabs({ page, tabs, setTabs, itemOf, titleOf
     // what this device now holds as reconciled: its tabs minus the closed ones, plus the opened ones
     const held = current.filter(({ item }) => item != null && !plan.close.includes(String(item))).map(({ item }) => String(item));
     saveMirrored(page, [...held, ...opened.map(({ item }) => item)]);
+    // nothing shown on this page: the first tab that arrived is to be shown,
+    // the way a tap on it would - once it has rendered (the tabs effect
+    // below), so the page's open path finds it among the tabs and switches
+    // to it instead of adding it again
+    if (opened.length && handlers.current.onOpen && handlers.current.active == null) pendingOpen.current = opened[0].tab;
   });
 
   // the page's tabs changed: mirror them (the first run, at mount, comes after the apply below)
   const mounted = useRef(false);
+  const pendingOpen = useRef(null);
   useEffect(() => {
     tabsRef.current = tabs;
     if (mounted.current) mirror();
+    // the synced-in tab to show has rendered: open it through the page's path
+    // (the handlers effect above ran first: it holds this render's callbacks)
+    const pending = pendingOpen.current;
+    if (pending && tabs.includes(pending)) {
+      pendingOpen.current = null;
+      if (handlers.current.active == null) handlers.current.onOpen(pending);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, tabs, enabled]);
 
@@ -100,7 +119,7 @@ export default function useSyncedOpenTabs({ page, tabs, setTabs, itemOf, titleOf
     if (!enabled) return undefined;
     mounted.current = true;
     const refresh = () => { apply().catch((error) => console.warn('[Open tabs] could not apply the synchronised tabs:', error?.message || error)); mirror(); };
-    const onApplied = (e) => { if (!e.detail || e.detail.reset || (e.detail.collections || []).includes('openTabs')) apply().catch((error) => console.warn('[Open tabs] could not apply the synchronised tabs:', error?.message || error)); };
+    const onApplied = (e) => { const c = e.detail?.collections || []; if (!e.detail || e.detail.reset || c.includes('openTabs') || (itemCollection && c.includes(itemCollection))) apply().catch((error) => console.warn('[Open tabs] could not apply the synchronised tabs:', error?.message || error)); };
     window.addEventListener('syncApplied', onApplied);
     window.addEventListener(OPEN_TABS_CHANGED_EVENT, refresh);
     let wasActive = isOpenTabsSyncActive();

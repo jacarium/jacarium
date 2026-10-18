@@ -4,6 +4,7 @@ import { NodeHeader, DataInputPin, DataOutputPin, NodeError } from './NodeCompon
 import { NodeField, NodeSelect } from './NodeFields';
 import { nodeShellClass } from './nodeStyles';
 import { useNodeField } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 const OPERATORS = [
   { value: '>', label: '> (Greater Than)' },
@@ -15,7 +16,7 @@ const OPERATORS = [
 ];
 
 function ComparisonNode({ data, isConnectable }) {
-  const [operator, setOperator] = useNodeField(data, 'operator', '>');
+  const [operator, setOperator] = useNodeField(data, 'operator', nodeFieldDefault('comparison', 'operator'));
   const isShared = data.isShared || false;
   const status = data.status;
   const result = data.result; // The comparison result

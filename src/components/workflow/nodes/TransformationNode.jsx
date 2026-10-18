@@ -4,9 +4,10 @@ import { NodeHeader, DataInputPin, DataOutputPin, NodeError } from './NodeCompon
 import { NodeTextArea } from './NodeFields';
 import { nodeShellClass } from './nodeStyles';
 import { useNodeField } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 function TransformationNode({ data, isConnectable }) {
-  const [code, setCode] = useNodeField(data, 'code', '// Transform input data\nreturn input;');
+  const [code, setCode] = useNodeField(data, 'code', nodeFieldDefault('transformation', 'code'));
   const isShared = data.isShared || false;
   const status = data.status;
 

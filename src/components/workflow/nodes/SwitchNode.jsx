@@ -4,9 +4,10 @@ import { GitMerge, Trash2 } from 'lucide-react';
 import { NodeHeader, DataInputPin, ExecPinHandle, NodeError } from './NodeComponents';
 import { nodeShellClass } from './nodeStyles';
 import { useNodeField } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 function SwitchNode({ data, isConnectable }) {
-  const [cases, setCases] = useNodeField(data, 'cases', [{ value: 'case1' }, { value: 'case2' }]);
+  const [cases, setCases] = useNodeField(data, 'cases', nodeFieldDefault('switch', 'cases'));
   const isReadOnly = data.isReadOnly || false;
   const isShared = data.isShared || false;
   const status = data.status;

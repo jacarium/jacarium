@@ -4,16 +4,17 @@ import { NodeHeader, DataInputPin, DataOutputPin } from './NodeComponents';
 import { NodeField, NodeTextInput, NodeTextArea, NodeSelect } from './NodeFields';
 import { nodeShellClass } from './nodeStyles';
 import { useNodeField } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 function SSHNode({ data, isConnectable }) {
-  const [host, setHost] = useNodeField(data, 'host', '');
-  const [port, setPort] = useNodeField(data, 'port', '22');
-  const [username, setUsername] = useNodeField(data, 'username', '');
-  const [authMethod, setAuthMethod] = useNodeField(data, 'authMethod', 'agent'); // 'agent' or 'password'
-  const [password, setPassword] = useNodeField(data, 'password', '');
-  const [command, setCommand] = useNodeField(data, 'command', '');
-  const [sshOptions, setSshOptions] = useNodeField(data, 'sshOptions', '');
-  const [interactive, setInteractive] = useNodeField(data, 'interactive', false);
+  const [host, setHost] = useNodeField(data, 'host', nodeFieldDefault('ssh', 'host'));
+  const [port, setPort] = useNodeField(data, 'port', nodeFieldDefault('ssh', 'port'));
+  const [username, setUsername] = useNodeField(data, 'username', nodeFieldDefault('ssh', 'username'));
+  const [authMethod, setAuthMethod] = useNodeField(data, 'authMethod', nodeFieldDefault('ssh', 'authMethod')); // 'agent' or 'password'
+  const [password, setPassword] = useNodeField(data, 'password', nodeFieldDefault('ssh', 'password'));
+  const [command, setCommand] = useNodeField(data, 'command', nodeFieldDefault('ssh', 'command'));
+  const [sshOptions, setSshOptions] = useNodeField(data, 'sshOptions', nodeFieldDefault('ssh', 'sshOptions'));
+  const [interactive, setInteractive] = useNodeField(data, 'interactive', nodeFieldDefault('ssh', 'interactive'));
   const isReadOnly = data.isReadOnly || false;
   const isShared = data.isShared || false;
   const status = data.status;

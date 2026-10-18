@@ -3,12 +3,13 @@ import { List, Plus, Trash2 } from 'lucide-react';
 import { NodeHeader, ExecOutputPinWithLabel, NodeError } from './NodeComponents';
 import { nodeShellClass } from './nodeStyles';
 import { useNodeField } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 const MIN_OUTPUTS = 1;
 const MAX_OUTPUTS = 10;
 
 function SequenceNode({ data, isConnectable }) {
-  const [outputCount, setOutputCount] = useNodeField(data, 'outputCount', 3);
+  const [outputCount, setOutputCount] = useNodeField(data, 'outputCount', nodeFieldDefault('sequence', 'outputCount'));
   const isReadOnly = data.isReadOnly || false;
   const isShared = data.isShared || false;
   const status = data.status;

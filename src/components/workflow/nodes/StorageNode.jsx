@@ -4,9 +4,10 @@ import { NodeHeader, DataInputPin, NodeError, NodeHint } from './NodeComponents'
 import { NodeField, NodeTextInput, NodeValuePreview } from './NodeFields';
 import { nodeShellClass } from './nodeStyles';
 import { useNodeField } from './nodeHooks';
+import { nodeFieldDefault } from './nodeDefaults';
 
 function StorageNode({ data, isConnectable }) {
-  const [variableName, setVariableName] = useNodeField(data, 'variableName', 'data');
+  const [variableName, setVariableName] = useNodeField(data, 'variableName', nodeFieldDefault('storage', 'variableName'));
   const isShared = data.isShared || false;
   const status = data.status;
   const savedCount = data.savedCount || 0;

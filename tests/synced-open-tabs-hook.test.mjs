@@ -212,6 +212,45 @@ try {
   rows4 = await readSyncedTabs('documents');
   check('   two devices freshly enabling the mirroring with different tabs end with the union, nobody wiped', api4.tabs.map((t) => t.title).sort().join() === 'Alpha,Beta,Gamma' && rows4.map((r) => r.item).sort().join() === 'sid-alpha,sid-beta,sid-gamma', JSON.stringify({ tabs: api4.tabs.map((t) => t.title), rows: rows4.map((r) => r.item) }));
   await act(async () => { root7.unmount(); });
+
+  // ---- a synced-in tab is shown through the page's open path (3.2.2: it arrived empty) ----
+  // Page8 shows nothing: the first tab that arrives is opened (onOpen), the next is only appended;
+  // a row whose document has not arrived yet is applied when the document's table syncs
+  let api8; const opened8 = [];
+  function Page8({ initial }) {
+    const [tabs, setTabs] = useState(initial);
+    const [active, setActive] = useState(null);
+    api8 = { tabs, setTabs, active, setActive };
+    useSyncedOpenTabs({
+      page: 'documents', tabs, setTabs,
+      itemOf: async (tab) => (await db.documents.get(tab.id))?.stableId || null,
+      titleOf: (tab) => tab.title,
+      resolve: async (item) => { const doc = await db.documents.where('stableId').equals(item).first(); return doc ? { id: doc.id, title: doc.title, category: doc.category } : null; },
+      onClose: (tab) => setTabs((prev) => prev.filter((t) => t.id !== tab.id)),
+      onOpen: (tab) => { opened8.push(tab.title); if (!tabs.includes(tab)) opened8.push('NOT-IN-TABS'); setActive(tab.id); },
+      active,
+      itemCollection: 'documents',
+    });
+    return React.createElement('div');
+  }
+  await db.table('openTabs').clear(); saveMirrored('documents', []);
+  const host8 = document.createElement('div'); document.body.appendChild(host8); const root8 = createRoot(host8);
+  await act(async () => { root8.render(React.createElement(Page8, { initial: [] })); });
+  await sleep(150);
+  // the row of a document this device does not have yet
+  await db.table('openTabs').put({ id: 'documents:sid-late', page: 'documents', item: 'sid-late', title: 'Late', position: 0, openedAt: 1, updatedAt: 1 });
+  await act(async () => { window.dispatchEvent(new window.CustomEvent('syncApplied', { detail: { collections: ['openTabs'], changes: [] } })); });
+  await sleep(150);
+  check('8. a row whose document has not arrived opens nothing (no empty tab)', api8.tabs.length === 0 && opened8.length === 0, JSON.stringify({ tabs: api8.tabs, opened8 }));
+  const lateId = await db.documents.add({ stableId: 'sid-late', title: 'Late', category: 'General', content: 'late body', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  await act(async () => { window.dispatchEvent(new window.CustomEvent('syncApplied', { detail: { collections: ['documents'], changes: [] } })); });
+  await sleep(150);
+  check('   the document arriving (its table synced, no openTabs change) applies the waiting row: the tab opens through onOpen, after it rendered, and is shown', api8.tabs.length === 1 && api8.tabs[0].id === lateId && opened8.join() === 'Late' && api8.active === lateId, JSON.stringify({ tabs: api8.tabs, opened8, active: api8.active }));
+  await db.table('openTabs').put({ id: 'documents:sid-beta', page: 'documents', item: 'sid-beta', title: 'Beta', position: 1, openedAt: 2, updatedAt: 2 });
+  await act(async () => { window.dispatchEvent(new window.CustomEvent('syncApplied', { detail: { collections: ['openTabs'], changes: [] } })); });
+  await sleep(150);
+  check('   a tab arriving while one is shown is appended only (onOpen not called, the shown one stays)', api8.tabs.map((t) => t.title).join() === 'Late,Beta' && opened8.join() === 'Late' && api8.active === lateId, JSON.stringify({ tabs: api8.tabs.map((t) => t.title), opened8, active: api8.active }));
+  await act(async () => { root8.unmount(); });
 } catch (error) {
   check('the run completed', false, `${error.message}\n${error.stack}`);
 }
