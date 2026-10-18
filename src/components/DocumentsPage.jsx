@@ -1650,10 +1650,9 @@ export default function DocumentsPage({
             category: fullDoc.category || 'General',
           };
 
-          // Add to left pane tabs if not already there
-          if (!openTabs.find(t => t.id === fullDoc.id)) {
-            setOpenTabs(prev => [...prev, { id: fullDoc.id, title: fullDoc.title, category: fullDoc.category || 'General', inCloud: fullDoc.inCloud }]);
-          }
+          // Add to left pane tabs if not already there (checked on the list as it is now, not
+          // on this render's copy: a tab synced in meanwhile must not be added a second time)
+          setOpenTabs(prev => (prev.some(t => t.id === fullDoc.id) ? prev : [...prev, { id: fullDoc.id, title: fullDoc.title, category: fullDoc.category || 'General', inCloud: fullDoc.inCloud }]));
 
           // Remove from right pane
           const wasActiveInRight = rightPane.currentDocument?.id === fullDoc.id;
@@ -1707,10 +1706,9 @@ export default function DocumentsPage({
             category: fullDoc.category || 'General',
           };
 
-          // Add to tabs if not already there
-          if (!openTabs.find(t => t.id === fullDoc.id)) {
-            setOpenTabs(prev => [...prev, { id: fullDoc.id, title: fullDoc.title, category: fullDoc.category || 'General', inCloud: fullDoc.inCloud }]);
-          }
+          // Add to tabs if not already there (checked on the list as it is now, not on this
+          // render's copy: a tab synced in meanwhile must not be added a second time)
+          setOpenTabs(prev => (prev.some(t => t.id === fullDoc.id) ? prev : [...prev, { id: fullDoc.id, title: fullDoc.title, category: fullDoc.category || 'General', inCloud: fullDoc.inCloud }]));
 
           // If right pane has content, enable split view
           if (rightPane.openTabs.length > 0 && !splitViewEnabled) {
@@ -1809,8 +1807,12 @@ export default function DocumentsPage({
   function handleTabClose(tabId) {
     setOpenTabs(prev => {
       const newTabs = prev.filter(t => t.id !== tabId);
-      // If closing active tab, switch to last tab
-      if (currentDocument?.id === tabId && newTabs.length > 0) {
+      // If closing active tab, switch to last tab. The shown document is the
+      // stored currentDocumentId as much as the loaded currentDocument: a tab
+      // closed (from another device) while this page was still loading left
+      // currentDocumentId on a document with no tab, and the next load then
+      // reopened it from that id while the synced row opened it too.
+      if ((currentDocument?.id === tabId || currentDocumentId === tabId) && newTabs.length > 0) {
         handleSelectDocument({ id: newTabs[newTabs.length - 1].id });
       } else if (newTabs.length === 0) {
         // Left pane is now empty - just clear it
@@ -2673,10 +2675,8 @@ export default function DocumentsPage({
       setContent(doc.content || '');
       setCategory(doc.category || 'General');
 
-      // Add to left pane tabs if not already there
-      if (!openTabs.find(tab => tab.id === doc.id)) {
-        setOpenTabs(prev => [...prev, { id: doc.id, title: doc.title, category: doc.category || 'General', inCloud: doc.inCloud }]);
-      }
+      // Add to left pane tabs if not already there (checked on the list as it is now)
+      setOpenTabs(prev => (prev.some(tab => tab.id === doc.id) ? prev : [...prev, { id: doc.id, title: doc.title, category: doc.category || 'General', inCloud: doc.inCloud }]));
 
       lastSavedRef.current = {
         title: doc.title,

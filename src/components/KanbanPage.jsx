@@ -1040,7 +1040,7 @@ export default function KanbanPage() {
         inCloud: newBoard.inCloud || false,
         type: 'board'
       };
-      setOpenTabs([...openTabsRef.current, newTab]);
+      setOpenTabs(prev => (prev.some(t => t.id === newTab.id) ? prev : [...prev, newTab]));
       setCurrentBoardId(newBoard.id);
 
       addNotification({
@@ -1124,7 +1124,7 @@ export default function KanbanPage() {
         inCloud: false,
         type: 'board'
       };
-      setOpenTabs([...openTabsRef.current, newTab]);
+      setOpenTabs(prev => (prev.some(t => t.id === newTab.id) ? prev : [...prev, newTab]));
       setCurrentBoardId(newBoard.id);
     } catch (error) {
       console.error('Error duplicating board:', error);
@@ -1152,7 +1152,7 @@ export default function KanbanPage() {
         inCloud: board.inCloud || false,
         type: 'board'
       };
-      setOpenTabs([...openTabsRef.current, newTab]);
+      setOpenTabs(prev => (prev.some(t => t.id === newTab.id) ? prev : [...prev, newTab]));
       setCurrentBoardId(board.id);
     }
   }

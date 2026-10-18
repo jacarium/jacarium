@@ -93,8 +93,8 @@ export default function ToolsPage() {
       return;
     }
 
-    // Add to open tabs and make it active
-    setOpenToolTabs(prev => [...prev, toolId]);
+    // Add to open tabs (once) and make it active
+    setOpenToolTabs(prev => (prev.includes(toolId) ? prev : [...prev, toolId]));
     setActiveToolTab(toolId);
   };
 

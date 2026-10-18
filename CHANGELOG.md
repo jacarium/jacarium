@@ -4,6 +4,20 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.2.5
+
+_2026-10-19_
+
+### [SYNC]
+
+A document opened on another device no longer shows up as two tabs, and closing it closes just that tab
+
+Tabs that were already doubled are merged into one when the app opens
+
+### [DIAGNOSTICS]
+
+Log Viewer: the (?) button is gone; the Search logs and Filter out tooltips explain the search syntax
+
 ## What's New in v3.2.4
 
 _2026-10-19_

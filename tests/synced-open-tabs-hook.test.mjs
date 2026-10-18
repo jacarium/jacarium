@@ -251,6 +251,70 @@ try {
   await sleep(150);
   check('   a tab arriving while one is shown is appended only (onOpen not called, the shown one stays)', api8.tabs.map((t) => t.title).join() === 'Late,Beta' && opened8.join() === 'Late' && api8.active === lateId, JSON.stringify({ tabs: api8.tabs.map((t) => t.title), opened8, active: api8.active }));
   await act(async () => { root8.unmount(); });
+
+  // ---- 9. never two tabs for one document (3.2.4: the same document twice, side by side, both active) ----
+  // The page opens a document itself (its own open path, e.g. restoring the last document at start)
+  // while apply is resolving the same document from a row: the hook must not add a second tab.
+  let api9; let resolveGate = null;
+  function Page9({ initial }) {
+    const [tabs, setTabs] = useState(initial);
+    api9 = { tabs, setTabs };
+    useSyncedOpenTabs({
+      page: 'documents', tabs, setTabs,
+      itemOf: async (tab) => (await db.documents.get(tab.id))?.stableId || null,
+      titleOf: (tab) => tab.title,
+      resolve: async (item) => { if (resolveGate) await resolveGate; const doc = await db.documents.where('stableId').equals(item).first(); return doc ? { id: doc.id, title: doc.title, category: doc.category } : null; },
+      onClose: (tab) => setTabs((prev) => prev.filter((t) => t.id !== tab.id)),
+      onOpen: () => {},
+      active: null,
+    });
+    return React.createElement('div');
+  }
+  await db.table('openTabs').clear(); saveMirrored('documents', []);
+  const host9 = document.createElement('div'); document.body.appendChild(host9); const root9 = createRoot(host9);
+  await act(async () => { root9.render(React.createElement(Page9, { initial: [] })); });
+  await sleep(150);
+  await db.table('openTabs').put({ id: 'documents:sid-beta', page: 'documents', item: 'sid-beta', title: 'Beta', position: 0, openedAt: 1, updatedAt: 1 });
+  let openGate; resolveGate = new Promise((r) => { openGate = r; });
+  await act(async () => { window.dispatchEvent(new window.CustomEvent('syncApplied', { detail: { collections: ['openTabs'], changes: [] } })); });
+  await sleep(50);
+  // meanwhile the page opens Beta itself (a new tab object of its own, as handleSelectDocument makes)
+  await act(async () => { api9.setTabs((prev) => [...prev, { id: betaId, title: 'Beta', category: 'General' }]); });
+  openGate(); await sleep(200);
+  check('9. a document the page opened itself while a row for it was being applied is open ONCE (was: twice, the same id side by side)', api9.tabs.length === 1 && api9.tabs[0].id === betaId, JSON.stringify(api9.tabs));
+  // the page replaces its tab objects (a title refresh from a sync) while a row for an OPEN document is re-applied
+  resolveGate = null;
+  await act(async () => { api9.setTabs((prev) => prev.map((t) => ({ ...t }))); });
+  await act(async () => { window.dispatchEvent(new window.CustomEvent('syncApplied', { detail: { collections: ['openTabs'], changes: [] } })); });
+  await sleep(200);
+  check('   re-applying the rows after the page replaced its tab objects adds nothing', api9.tabs.length === 1, JSON.stringify(api9.tabs));
+  await act(async () => { root9.unmount(); });
+
+  // ---- 10. a stored tab list that already holds duplicates is collapsed on load ----
+  let api10;
+  function Page10({ initial }) {
+    const [tabs, setTabs] = useState(initial);
+    api10 = { tabs, setTabs };
+    useSyncedOpenTabs({
+      page: 'documents', tabs, setTabs,
+      itemOf: async (tab) => (await db.documents.get(tab.id))?.stableId || null,
+      titleOf: (tab) => tab.title,
+      resolve: async (item) => { const doc = await db.documents.where('stableId').equals(item).first(); return doc ? { id: doc.id, title: doc.title, category: doc.category } : null; },
+      onClose: (tab) => setTabs((prev) => prev.filter((t) => t.id !== tab.id)),
+    });
+    return React.createElement('div');
+  }
+  await db.table('openTabs').clear(); saveMirrored('documents', []);
+  const host10 = document.createElement('div'); document.body.appendChild(host10); const root10 = createRoot(host10);
+  await act(async () => { root10.render(React.createElement(Page10, { initial: [{ id: alphaId, title: 'Alpha', category: 'General' }, { id: betaId, title: 'Beta', category: 'General' }, { id: alphaId, title: 'Alpha', category: 'General' }] })); });
+  await sleep(200);
+  check('10. a stored list with the same document twice is collapsed on load (first occurrence kept, order kept)', api10.tabs.map((t) => t.id).join() === `${alphaId},${betaId}`, JSON.stringify(api10.tabs));
+  await act(async () => { api10.setTabs((prev) => [...prev, { id: betaId, title: 'Beta', category: 'General' }]); });
+  await sleep(100);
+  check('   ...and a duplicate added later is collapsed too', api10.tabs.map((t) => t.id).join() === `${alphaId},${betaId}`, JSON.stringify(api10.tabs));
+  const rows10 = await readSyncedTabs('documents');
+  check('   the mirrored rows hold each document once', rows10.map((r) => r.item).sort().join() === 'sid-alpha,sid-beta', rows10.map((r) => r.item).join());
+  await act(async () => { root10.unmount(); });
 } catch (error) {
   check('the run completed', false, `${error.message}\n${error.stack}`);
 }

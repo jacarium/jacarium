@@ -898,7 +898,8 @@ export default function TasksPage() {
         inCloud: instance.inCloud || false,
         type: 'instance'
       };
-      setOpenTabs([...openTabs, newTab]);
+      // on the list as it is now, once (a tab synced in meanwhile is not added again)
+      setOpenTabs(prev => (prev.some(t => t.id === newTab.id) ? prev : [...prev, newTab]));
       setCurrentTabId(newTab.id);
       setCurrentInstanceId(instance.id);
     }

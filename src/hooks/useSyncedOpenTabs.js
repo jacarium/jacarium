@@ -16,7 +16,12 @@ import { subscribeSyncStatus } from '../sync/syncEngine';
  *    mirrored whose row is gone were closed elsewhere: `onClose(tab)`
  *    closes them here the way the page closes a tab (the page's own close
  *    handler, so an active tab closed elsewhere gives way to its
- *    neighbour); the order of the tabs that have rows follows the rows'
+ *    neighbour); a page never holds two tabs for one item: an arriving tab
+ *    whose key (`keyOf`: the tab's id, or the tab itself when it is an id)
+ *    is already in the list is not added, and a list that holds a key twice
+ *    (a stored list from an older version, a page's own open path racing
+ *    with an arrival) is collapsed to the first occurrence; the order of
+ *    the tabs that have rows follows the rows'
  *    positions; when the page shows nothing (`active` null - a fresh
  *    device, or the shown item gone), the first tab that arrived is opened
  *    through the page's own open path, `onOpen(tab)` (the one a tap on the
@@ -37,12 +42,28 @@ import { subscribeSyncStatus } from '../sync/syncEngine';
  * never touched. Nothing happens without a server, signed out, or with the
  * setting off.
  */
-export default function useSyncedOpenTabs({ page, tabs, setTabs, itemOf, titleOf, resolve, onClose, onOpen = null, active = null, itemCollection = null, enabled = true }) {
+/** The identity of a tab in its page's list: its id, or the tab itself when the page keeps ids. */
+export const defaultKeyOf = (tab) => (tab != null && typeof tab === 'object' ? tab.id : tab);
+
+/** The list with every key once, the first occurrence kept, the order kept. */
+export function dedupeTabs(list, keyOf = defaultKeyOf) {
+  const seen = new Set();
+  const out = [];
+  for (const tab of list) {
+    const key = keyOf(tab);
+    if (key != null && seen.has(key)) continue;
+    if (key != null) seen.add(key);
+    out.push(tab);
+  }
+  return out;
+}
+
+export default function useSyncedOpenTabs({ page, tabs, setTabs, itemOf, titleOf, resolve, onClose, onOpen = null, active = null, itemCollection = null, keyOf = defaultKeyOf, enabled = true }) {
   const tabsRef = useRef(tabs);
-  const handlers = useRef({ itemOf, titleOf, resolve, onClose, onOpen, setTabs, active });
+  const handlers = useRef({ itemOf, titleOf, resolve, onClose, onOpen, setTabs, active, keyOf });
   const chain = useRef(Promise.resolve());
   // the latest callbacks and the shown item, for the listeners below (they outlive a render)
-  useEffect(() => { handlers.current = { itemOf, titleOf, resolve, onClose, onOpen, setTabs, active }; });
+  useEffect(() => { handlers.current = { itemOf, titleOf, resolve, onClose, onOpen, setTabs, active, keyOf }; });
 
   const run = (fn) => {
     const next = chain.current.then(fn, fn);
@@ -76,14 +97,20 @@ export default function useSyncedOpenTabs({ page, tabs, setTabs, itemOf, titleOf
       if (tab != null) opened.push({ item, tab });
     }
     if (opened.length) {
-      const keyed = new Map(current.map(({ tab, item }) => [tab, item == null ? null : String(item)]));
-      for (const { item, tab } of opened) keyed.set(tab, item);
+      // tabs are told apart by their key, not by object identity: the page may
+      // have replaced its tab objects (a title refresh) or opened the same item
+      // itself (its own open path) since `current` was read - a tab whose key is
+      // already in the list is not added again
+      const key = handlers.current.keyOf;
+      const itemByKey = new Map(current.map(({ tab, item }) => [key(tab), item == null ? null : String(item)]));
+      for (const { item, tab } of opened) itemByKey.set(key(tab), item);
       const rank = new Map(plan.order.map((item, i) => [item, i]));
       handlers.current.setTabs((prev) => {
-        const have = new Set(prev.map((tab) => keyed.get(tab)).filter(Boolean));
-        const next = [...prev, ...opened.filter(({ item }) => !have.has(item)).map(({ tab }) => tab)];
+        const have = new Set(prev.map(key));
+        const next = dedupeTabs([...prev, ...opened.filter(({ tab }) => !have.has(key(tab))).map(({ tab }) => tab)], key);
         // the order the rows give: tabs with a row by position, the rest after, as they were
-        return next.map((tab, i) => ({ tab, i, r: rank.has(keyed.get(tab)) ? rank.get(keyed.get(tab)) : Number.MAX_SAFE_INTEGER })).sort((a, b) => (a.r - b.r) || (a.i - b.i)).map(({ tab }) => tab);
+        const rankOf = (tab) => { const item = itemByKey.get(key(tab)); return item != null && rank.has(item) ? rank.get(item) : Number.MAX_SAFE_INTEGER; };
+        return next.map((tab, i) => ({ tab, i, r: rankOf(tab) })).sort((a, b) => (a.r - b.r) || (a.i - b.i)).map(({ tab }) => tab);
       });
     }
     for (const { tab, item } of current) if (item != null && plan.close.includes(String(item))) handlers.current.onClose(tab);
@@ -101,6 +128,10 @@ export default function useSyncedOpenTabs({ page, tabs, setTabs, itemOf, titleOf
   const mounted = useRef(false);
   const pendingOpen = useRef(null);
   useEffect(() => {
+    // a list holding one item twice (a stored list from an older version, the
+    // page's own open path racing with an arrival) is collapsed first
+    const collapsed = dedupeTabs(tabs, keyOf);
+    if (collapsed.length !== tabs.length) { setTabs(collapsed); return; }
     tabsRef.current = tabs;
     if (mounted.current) mirror();
     // the synced-in tab to show has rendered: open it through the page's path

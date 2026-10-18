@@ -25,7 +25,7 @@
  * Static: the template's slider and controls use the lv-* rules (no
  * utility class the frame lacks), the ids the script and the driver
  * scripts rely on are present, the placeholders are short and the syntax
- * is in the hint; the field parser (extracted from the template and run
+ * is in the fields' tooltips; the field parser (extracted from the template and run
  * here) handles commas, quotes, apostrophes, escapes and backslashes.
  *
  * Live (Vite + the Flask backend + the synthetic fixture, like
@@ -66,7 +66,7 @@ const template = fs.readFileSync(path.join(REPO, 'backend', 'templates', 'tabs',
   const missing = ids.filter((id) => (template.match(new RegExp(`id="${id}"`, 'g')) || []).length !== 1);
   check('every element id the script, the driver scripts and the tests rely on is present exactly once', missing.length === 0, missing.join(','));
   const placeholders = [...header.matchAll(/placeholder="([^"]*)"/g)].map((m) => m[1]).filter((p) => !/log files/i.test(p));
-  check('the two filter fields have short placeholders ("Search logs", "Filter out"); the syntax lives in the hint and the tooltips', placeholders.join('|') === 'Search logs|Filter out' && /id="filter-syntax-hint"[^>]*title="[^"]*commas[^"]*quotes[^"]*backslash/.test(header), placeholders.join('|'));
+  check('the two filter fields have short placeholders ("Search logs", "Filter out"); each one\'s tooltip explains the comma, quotes and escape syntax; there is no hint button', placeholders.join('|') === 'Search logs|Filter out' && ['log-search', 'log-exclude'].every((id) => new RegExp(`id="${id}"[^>]*title="[^"]*commas[^"]*quotes[^"]*backslash`).test(header.replace(/\s+/g, ' '))) && !/filter-syntax-hint|lv-hint/.test(template), placeholders.join('|'));
   check('the driver script still finds the search field by its placeholder', fs.readFileSync(path.join(REPO, 'tests', 'helpers', 'diagnostics-driver', 'logviewer_filter.js'), 'utf8').includes("startsWith('Search logs')"));
   check('Load Logs is the accent button, the actions are grouped, the status sits in the toolbar', /id="load-logs-btn"[^>]*lv-primary/.test(header) && /class="lv-actions">[\s\S]*id="get-range-btn"[\s\S]*id="load-logs-btn"[\s\S]*id="export-csv-btn"[\s\S]*<\/div>\s*<!-- Status Indicators -->\s*<div class="lv-status">/.test(header) && !/&nbsp;/.test(header));
   check('the export says what it exports (the rows the filters show) and exports filteredEntries', /id="export-csv-btn"[^>]*title="[^"]*rows the filters currently show/.test(header) && /exportCsvBtn\?\.addEventListener\('click'[\s\S]{0,600}filteredEntries\.forEach/.test(template));
@@ -163,14 +163,16 @@ try {
       labels: { l1left: r(l1).left, l2right: r(l2).right },
       toolbar: [...document.querySelectorAll('.lv-toolbar .lv-control')].map(box),
       status: box(q('.lv-status')),
-      filters: [...document.querySelectorAll('.lv-filters .lv-control, .lv-filters .lv-hint')].map(box),
+      filters: [...document.querySelectorAll('.lv-filters .lv-control')].map(box),
+      hint: !!document.querySelector('#filter-syntax-hint, .lv-hint'),
+      titles: ['#log-search', '#log-exclude'].map((sel) => q(sel).title),
       filtersRight: Math.round(r(q('.lv-filters')).right),
       placeholders: [q('#log-search').placeholder, q('#log-exclude').placeholder],
       icons: [...document.querySelectorAll('.lv-filters .lv-field:not(.lv-select-wrap) > svg')].map((s) => Math.round(r(s).width)),
       iconClear: [...document.querySelectorAll('.lv-filters .lv-field:not(.lv-select-wrap)')].map((f) => { const i = f.querySelector('input'); const s = f.querySelector('svg'); return Math.round(r(i).left + parseFloat(cs(i).paddingLeft) - r(s).right); }),
       loadBg: cs(q('#load-logs-btn')).backgroundColor,
       // the three rows' edges: the Date Range row, the toolbar, the filter row
-      edges: { left: [r(q('.lv-header label')).left, r(q('#log-file-dropdown-btn')).left, r(q('.lv-filters .lv-field')).left].map(Math.round), right: [r(q('#single-date-button')).right, r(q('.lv-status')).right, r(q('#filter-syntax-hint')).right].map(Math.round) },
+      edges: { left: [r(q('.lv-header label')).left, r(q('#log-file-dropdown-btn')).left, r(q('.lv-filters .lv-field')).left].map(Math.round), right: [r(q('#single-date-button')).right, r(q('.lv-status')).right, r(q('#process-filter')).right].map(Math.round) },
       // where each control's text sits: the centre of its content box (a single line centred in it), and its line-height
       textCentre: ['#log-search', '#log-exclude', '#severity-filter', '#process-filter'].map((sel) => { const el = q(sel); const b = r(el); const c = cs(el); return { sel, centre: Math.round((b.top + parseFloat(c.borderTopWidth) + parseFloat(c.paddingTop) + (b.bottom - parseFloat(c.borderBottomWidth) - parseFloat(c.paddingBottom))) / 2 * 2) / 2, lineHeight: c.lineHeight, appearance: c.appearance }; }),
       blue: rgb('--os-blue'), border: rgb('--os-border'),
@@ -192,10 +194,11 @@ try {
     const tops = new Set(g.toolbar.map((b) => b.top)); const heights = new Set(g.toolbar.map((b) => b.height));
     check(`${name}: the toolbar's controls share one height (32px) and one baseline, the status too`, g.toolbar.length === 4 && heights.size === 1 && [...heights][0] === 32 && tops.size === 1 && Math.abs(g.status.top + g.status.height / 2 - ([...tops][0] + 16)) <= 2, JSON.stringify({ toolbar: g.toolbar, status: g.status }));
     const ftops = new Set(g.filters.map((b) => b.top)); const fheights = new Set(g.filters.map((b) => b.height));
-    check(`${name}: the filter row's fields, selects and hint share one height and one baseline, with leading icons the text clears`, g.filters.length === 5 && fheights.size === 1 && [...fheights][0] === 32 && ftops.size === 1 && g.icons.length === 2 && g.icons.every((w) => w >= 12) && g.iconClear.every((gap) => gap >= 4), JSON.stringify({ filters: g.filters, icons: g.icons, iconClear: g.iconClear }));
+    check(`${name}: no hint button; both fields' tooltips carry the syntax`, !g.hint && g.titles.every((t) => /commas/.test(t) && /quotes/.test(t) && /backslash/.test(t)), JSON.stringify({ hint: g.hint, titles: g.titles }));
+    check(`${name}: the filter row's fields and selects share one height and one baseline, with leading icons the text clears`, g.filters.length === 4 && fheights.size === 1 && [...fheights][0] === 32 && ftops.size === 1 && g.icons.length === 2 && g.icons.every((w) => w >= 12) && g.iconClear.every((gap) => gap >= 4), JSON.stringify({ filters: g.filters, icons: g.icons, iconClear: g.iconClear }));
     check(`${name}: the placeholders are short and the fields are not cut off`, g.placeholders.join('|') === 'Search logs|Filter out' && g.filters.every((b) => b.right <= g.filtersRight + 1));
     check(`${name}: Load Logs is the accent button`, g.loadBg === g.blue, `${g.loadBg} vs ${g.blue}`);
-    check(`${name}: the Date Range row, the toolbar and the filter row share one left edge and one right edge (the date picker, the status, the hint)`, new Set(g.edges.left).size === 1 && new Set(g.edges.right).size === 1, JSON.stringify(g.edges));
+    check(`${name}: the Date Range row, the toolbar and the filter row share one left edge and one right edge (the date picker, the status, the All Processes select)`, new Set(g.edges.left).size === 1 && new Set(g.edges.right).size === 1, JSON.stringify(g.edges));
     const centres = g.textCentre.map((t) => t.centre);
     check(`${name}: the text of the two fields and the two selects sits on one line (content-box centres equal with no vertical padding, the selects without native chrome)`, Math.max(...centres) - Math.min(...centres) <= 1 && g.textCentre.slice(2).every((t) => t.appearance === 'none'), JSON.stringify(g.textCentre));
   }
@@ -203,7 +206,7 @@ try {
   // narrow: the rows wrap instead of overflowing
   await ev(`(() => { const f = document.querySelector('iframe'); f.dataset.lvWidth = f.style.width; f.style.width = '560px'; })()`);
   await sleep(600);
-  const narrow = await fev(`(() => { const r = (el) => el.getBoundingClientRect(); const tb = document.querySelector('.lv-toolbar'); const ctl = [...tb.querySelectorAll('.lv-control')].map(r); const fl = document.querySelector('.lv-filters'); const fc = [...fl.querySelectorAll('.lv-control, .lv-hint')].map(r); return { toolbarRows: new Set(ctl.map((b) => Math.round(b.top))).size, toolbarOverflow: ctl.some((b) => b.right > r(tb).right + 1), filterRows: new Set(fc.map((b) => Math.round(b.top))).size, filterOverflow: fc.some((b) => b.right > r(fl).right + 1), width: Math.round(r(tb).width) }; })()`);
+  const narrow = await fev(`(() => { const r = (el) => el.getBoundingClientRect(); const tb = document.querySelector('.lv-toolbar'); const ctl = [...tb.querySelectorAll('.lv-control')].map(r); const fl = document.querySelector('.lv-filters'); const fc = [...fl.querySelectorAll('.lv-control')].map(r); return { toolbarRows: new Set(ctl.map((b) => Math.round(b.top))).size, toolbarOverflow: ctl.some((b) => b.right > r(tb).right + 1), filterRows: new Set(fc.map((b) => Math.round(b.top))).size, filterOverflow: fc.some((b) => b.right > r(fl).right + 1), width: Math.round(r(tb).width) }; })()`);
   check('at 560px the toolbar and the filter row wrap onto more lines and nothing overflows', narrow.toolbarRows >= 2 && !narrow.toolbarOverflow && narrow.filterRows >= 2 && !narrow.filterOverflow, JSON.stringify(narrow));
   await ev(`(() => { const f = document.querySelector('iframe'); f.style.width = f.dataset.lvWidth || ''; })()`);
   await sleep(400);

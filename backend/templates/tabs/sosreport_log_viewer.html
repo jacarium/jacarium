@@ -212,7 +212,7 @@
     </div>
   </div>
 
-  <!-- Filter Controls: the two text filters (a leading icon each, the syntax in the hint), the two selects -->
+  <!-- Filter Controls: the two text filters (a leading icon each, the syntax in their tooltips), the two selects -->
   <div id="filter-panel" class="lv-filters mb-3">
     <label class="lv-field lv-grow">
       <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
@@ -253,9 +253,6 @@
         <option value="">All Processes</option>
       </select>
       <svg class="lv-icon lv-icon-sm lv-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
-    </span>
-    <span class="lv-hint" id="filter-syntax-hint" tabindex="0" role="note" aria-label="Filter syntax" title="Several terms: separate them with commas - a row matches any of them. An exact phrase: put it in quotes, e.g. &quot;connection refused&quot;. A literal quote or comma: escape it with a backslash (\&quot;). Matching ignores case and covers every column.">
-      <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
     </span>
   </div>
 
@@ -1935,8 +1932,6 @@ button.lv-primary:hover { background: var(--os-blue-hover, #2563eb) !important; 
 .lv-filters select.lv-select { -webkit-appearance: none; appearance: none; padding: 0 28px 0 10px !important; line-height: 30px; min-width: 140px; width: 100%; background-image: none !important; }
 .lv-select-wrap { flex: 0 0 auto; }
 .lv-field > .lv-select-chevron { left: auto; right: 10px; }
-.lv-hint { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; opacity: 0.6; cursor: help; border-radius: var(--radius-sm, 4px); }
-.lv-hint:hover, .lv-hint:focus { opacity: 1; outline: none; background: var(--os-card-secondary, #f3f4f6); }
 .lv-icon { width: 14px; height: 14px; flex: 0 0 auto; }
 .lv-icon-sm { width: 12px; height: 12px; }
 
