@@ -13,6 +13,66 @@ CACHE_TTL = 300  # 5 minutes
 
 
 # Base parser class for different log formats
+
+# ---- severity -------------------------------------------------------------
+#
+# One classifier for every parser. Each parser used to carry its own copy of
+# the rules and they disagreed: the journal parser matched whole words and
+# answered 'other' when nothing said a level, the container parser matched
+# SUBSTRINGS ('ERR' in "preferred", 'FAILED' in "unfailed") and answered
+# 'info'. So the same text was a different level in a different file, and
+# "preferred route" was an error. The rules, in order:
+#   1. a syslog priority prefix  <N>  (0-2 critical, 3 error, 4 warning,
+#      5-6 info, 7 debug - the syslog(3) levels);
+#   2. a Kubernetes/glog code at the start: E0528 / W0528 / I0528 / D / F;
+#   3. an explicit field: level=warn, severity=error, lvl=info;
+#   4. an explicit upper-case token as structured logs print it:
+#      "| ERROR |", "[WARN]", "INFO:", "CRITICAL -";
+#   5. a level word anywhere (whole words, any case): error/err/failed/...,
+#      warning/warn/deprecated, info/notice, debug/trace, critical/panic/fatal;
+#   6. otherwise 'other' - the line said nothing about its level.
+_SEVERITY_BY_PRIORITY = {0: 'critical', 1: 'critical', 2: 'critical', 3: 'error', 4: 'warning', 5: 'info', 6: 'info', 7: 'debug'}
+_SEVERITY_BY_K8S_CODE = {'E': 'error', 'W': 'warning', 'I': 'info', 'D': 'debug', 'F': 'critical'}
+_SEVERITY_BY_WORD = {
+    'critical': 'critical', 'crit': 'critical', 'fatal': 'critical', 'panic': 'critical', 'emerg': 'critical', 'emergency': 'critical', 'alert': 'critical',
+    'error': 'error', 'err': 'error', 'failed': 'error', 'failure': 'error', 'segfault': 'error', 'oops': 'error', 'bug': 'error',
+    'warning': 'warning', 'warn': 'warning', 'deprecated': 'warning',
+    'info': 'info', 'informational': 'info', 'notice': 'info',
+    'debug': 'debug', 'trace': 'debug',
+}
+_SEVERITY_PRIORITY_RE = re.compile(r'^\s*<(\d{1,3})>')
+_SEVERITY_K8S_RE = re.compile(r'^([EWIDF])\d{4}\s')
+_SEVERITY_FIELD_RE = re.compile(r'\b(?:level|severity|lvl)=["\']?([A-Za-z]+)', re.IGNORECASE)
+_SEVERITY_TOKEN_RE = re.compile(r'(?:^|[\s|\[(])(CRITICAL|CRIT|FATAL|PANIC|EMERG|ALERT|ERROR|ERR|WARNING|WARN|NOTICE|INFO|DEBUG|TRACE)(?=$|[\s|\]):,-])')
+_SEVERITY_WORD_RE = re.compile(r'\b(critical|crit|fatal|panic|emergency|error|err|failed|failure|segfault|oops|bug|warning|warn|deprecated|info|notice|debug|trace)\b', re.IGNORECASE)
+_SEVERITY_LEVELS = ('critical', 'error', 'warning', 'info', 'debug', 'other')
+
+
+def classify_severity(message):
+    """The level a log message states, or 'other' when it states none."""
+    if not message:
+        return 'other'
+    m = _SEVERITY_PRIORITY_RE.match(message)
+    if m:
+        # <N> carries facility*8 + level; the level is the low three bits
+        return _SEVERITY_BY_PRIORITY.get(int(m.group(1)) & 7, 'other')
+    m = _SEVERITY_K8S_RE.match(message)
+    if m:
+        return _SEVERITY_BY_K8S_CODE.get(m.group(1), 'other')
+    m = _SEVERITY_FIELD_RE.search(message)
+    if m and m.group(1).lower() in _SEVERITY_BY_WORD:
+        return _SEVERITY_BY_WORD[m.group(1).lower()]
+    m = _SEVERITY_TOKEN_RE.search(message)
+    if m:
+        return _SEVERITY_BY_WORD[m.group(1).lower()]
+    # whole words, any case; the strongest level wins when several appear
+    found = {_SEVERITY_BY_WORD[w.lower()] for w in _SEVERITY_WORD_RE.findall(message)}
+    for level in _SEVERITY_LEVELS:
+        if level in found:
+            return level
+    return 'other'
+
+
 class LogParser(ABC):
     """Base class for log file parsers"""
 
@@ -162,10 +222,16 @@ class JournalctlParser(LogParser):
             return None
 
     def _find_timestamp_at_position(self, f, position, current_year, timestamp_pattern, debug=False):
-        """Seek to position, find next valid timestamp"""
+        """Seek to position, find next valid timestamp (and the position of its line)"""
         f.seek(position)
         if position > 0:
-            f.readline()  # Skip partial line
+            # A probe may land in the middle of a line: skip the rest of it.
+            # But when it lands exactly on a line START, that line is whole -
+            # skipping it used to make the search settle one line too far and
+            # lose the first entry of the range.
+            f.seek(position - 1)
+            if f.read(1) != '\n':
+                f.readline()  # Skip partial line
 
         # Read up to 100 lines looking for a timestamp
         for _ in range(100):
@@ -309,14 +375,6 @@ class JournalctlParser(LogParser):
             start_pos = 0
             end_pos = file_size
 
-        severity_patterns = {
-            'critical': re.compile(r'\b(critical|crit|panic|fatal)\b', re.IGNORECASE),
-            'error': re.compile(r'\b(error|err|failed|failure|segfault|oops|bug)\b', re.IGNORECASE),
-            'warning': re.compile(r'\b(warning|warn|deprecated)\b', re.IGNORECASE),
-            'info': re.compile(r'\b(info|notice)\b', re.IGNORECASE),
-            'debug': re.compile(r'\b(debug|trace)\b', re.IGNORECASE)
-        }
-
         issue_patterns = {
             'kernel_panic': re.compile(r'kernel panic', re.IGNORECASE),
             'oom_killer': re.compile(r'out of memory|oom[-_]killer|killed process', re.IGNORECASE),
@@ -346,10 +404,12 @@ class JournalctlParser(LogParser):
         # Parse file line-by-line without loading everything into memory
         try:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-                # Seek to start position
+                # Seek to the start position: the START of the first line in
+                # range (_binary_search_start returns line starts), so nothing
+                # is skipped there. Skipping a "partial line" here dropped the
+                # first entry of every date-ranged load ("Loaded N entries"
+                # was one short, and a range of a single moment found nothing).
                 f.seek(start_pos)
-                if start_pos > 0:
-                    f.readline()  # Skip partial line
 
                 line_num = 0
                 bytes_read = f.tell()
@@ -401,42 +461,8 @@ class JournalctlParser(LogParser):
                             pid = ''
                             message = line.strip()
 
-                        # Determine severity
-                        severity = 'other'
-
-                        # Check for Kubernetes log severity codes in message (E0528, W0528, I0528, etc.)
-                        k8s_severity_match = re.match(r'^([EWIDF])\d{4}\s', message)
-                        if k8s_severity_match:
-                            k8s_code = k8s_severity_match.group(1)
-                            k8s_severity_map = {
-                                'E': 'error',
-                                'W': 'warning',
-                                'I': 'info',
-                                'D': 'debug',
-                                'F': 'critical'  # Fatal
-                            }
-                            severity = k8s_severity_map.get(k8s_code, 'other')
-                        else:
-                            # Check for explicit level= patterns
-                            level_match = re.search(r'level=(critical|error|warning|info|debug|warn|crit)', line, re.IGNORECASE)
-                            if level_match:
-                                level_str = level_match.group(1).lower()
-                                level_mapping = {
-                                    'critical': 'critical',
-                                    'crit': 'critical',
-                                    'error': 'error',
-                                    'warning': 'warning',
-                                    'warn': 'warning',
-                                    'info': 'info',
-                                    'debug': 'debug'
-                                }
-                                severity = level_mapping.get(level_str, 'other')
-                            else:
-                                # Fall back to keyword matching
-                                for sev, pattern in severity_patterns.items():
-                                    if pattern.search(line):
-                                        severity = sev
-                                        break
+                        # the level the message states (classify_severity: the same rules for every parser)
+                        severity = classify_severity(message)
 
                         issues_found = []
                         for issue_name, pattern in issue_patterns.items():
@@ -511,14 +537,6 @@ class JournalctlParser(LogParser):
             traceback.print_exc()
             start_pos = 0
             end_pos = file_size
-
-        severity_patterns = {
-            'critical': re.compile(r'\b(critical|crit|panic|fatal)\b', re.IGNORECASE),
-            'error': re.compile(r'\b(error|err|failed|failure|segfault|oops|bug)\b', re.IGNORECASE),
-            'warning': re.compile(r'\b(warning|warn|deprecated)\b', re.IGNORECASE),
-            'info': re.compile(r'\b(info|notice)\b', re.IGNORECASE),
-            'debug': re.compile(r'\b(debug|trace)\b', re.IGNORECASE)
-        }
 
         issue_patterns = {
             'kernel_panic': re.compile(r'kernel panic', re.IGNORECASE),
@@ -602,42 +620,8 @@ class JournalctlParser(LogParser):
                             pid = ''
                             message = line.strip()
 
-                        # Determine severity
-                        severity = 'other'
-
-                        # Check for Kubernetes log severity codes in message (E0528, W0528, I0528, etc.)
-                        k8s_severity_match = re.match(r'^([EWIDF])\d{4}\s', message)
-                        if k8s_severity_match:
-                            k8s_code = k8s_severity_match.group(1)
-                            k8s_severity_map = {
-                                'E': 'error',
-                                'W': 'warning',
-                                'I': 'info',
-                                'D': 'debug',
-                                'F': 'critical'  # Fatal
-                            }
-                            severity = k8s_severity_map.get(k8s_code, 'other')
-                        else:
-                            # Check explicit level first
-                            level_match = re.search(r'level=(critical|error|warning|info|debug|warn|crit)', line, re.IGNORECASE)
-                            if level_match:
-                                level_str = level_match.group(1).lower()
-                                level_mapping = {
-                                    'critical': 'critical',
-                                    'crit': 'critical',
-                                    'error': 'error',
-                                    'warning': 'warning',
-                                    'warn': 'warning',
-                                    'info': 'info',
-                                    'debug': 'debug'
-                                }
-                                severity = level_mapping.get(level_str, 'other')
-                            else:
-                                # Fall back to keyword matching
-                                for sev, pattern in severity_patterns.items():
-                                    if pattern.search(line):
-                                        severity = sev
-                                        break
+                        # the level the message states (classify_severity: the same rules for every parser)
+                        severity = classify_severity(message)
 
                         issues_found = []
                         for issue_name, pattern in issue_patterns.items():
@@ -846,53 +830,8 @@ class ContainerLogParser(LogParser):
             if end_date and timestamp_obj > end_date:
                 continue
 
-            # Try to detect severity from the message itself
-            severity = 'info'
-
-            # First check for Kubernetes log severity codes (E0528, W0528, I0528, etc.)
-            k8s_severity_match = re.match(r'^([EWIDF])\d{4}\s', message)
-            if k8s_severity_match:
-                k8s_code = k8s_severity_match.group(1)
-                k8s_severity_map = {
-                    'E': 'error',
-                    'W': 'warning',
-                    'I': 'info',
-                    'D': 'debug',
-                    'F': 'critical'  # Fatal
-                }
-                severity = k8s_severity_map.get(k8s_code, 'info')
-            else:
-                # Check for explicit log level indicators (structured logs)
-                # Pattern: "2026-05-29 06:49:30,125 | INFO  |..." or similar structured formats
-                # Look for log level at the start or after timestamp/separator
-                level_match = re.search(r'\|\s*(CRITICAL|FATAL|PANIC|ERROR|ERR|WARN|WARNING|INFO|DEBUG|TRACE)\s*\|', message, re.IGNORECASE)
-                if not level_match:
-                    # Also check for formats like: "INFO: message" or "ERROR - message"
-                    level_match = re.search(r'^\s*\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[^\|]*\|\s*(CRITICAL|FATAL|PANIC|ERROR|ERR|WARN|WARNING|INFO|DEBUG|TRACE)\s', message, re.IGNORECASE)
-
-                if level_match:
-                    level_str = level_match.group(1).upper()
-                    if level_str in ['CRITICAL', 'FATAL', 'PANIC']:
-                        severity = 'critical'
-                    elif level_str in ['ERROR', 'ERR']:
-                        severity = 'error'
-                    elif level_str in ['WARN', 'WARNING']:
-                        severity = 'warning'
-                    elif level_str == 'INFO':
-                        severity = 'info'
-                    elif level_str in ['DEBUG', 'TRACE']:
-                        severity = 'debug'
-                else:
-                    # Fall back to keyword matching (only if no explicit level found)
-                    message_upper = message.upper()
-                    if any(x in message_upper for x in ['CRITICAL', 'FATAL', 'PANIC']):
-                        severity = 'critical'
-                    elif any(x in message_upper for x in ['ERROR', 'ERR', 'FAILED']):
-                        severity = 'error'
-                    elif any(x in message_upper for x in ['WARN', 'WARNING']):
-                        severity = 'warning'
-                    elif any(x in message_upper for x in ['DEBUG', 'TRACE']):
-                        severity = 'debug'
+            # the level the message states (classify_severity: the same rules for every parser)
+            severity = classify_severity(message)
 
             # Format timestamp to match other parsers
             timestamp_str = timestamp_obj.strftime("%b %d %H:%M:%S")

@@ -4,6 +4,26 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.2.4
+
+_2026-10-19_
+
+### [DIAGNOSTICS]
+
+Log Viewer: the date range slider shows its line again, with the chosen range highlighted
+
+Log Viewer: the file picker, Get Date Range, Load Logs and Export CSV sit on one tidy toolbar, with Search logs and Filter out on the row below
+
+Log Viewer: filters keep applying after Load Logs or a new date range, and the counts and Export CSV follow them
+
+Log Viewer: searches with an apostrophe (can't) or a backslash (C:\temp) now match, and typing stays quick on long logs
+
+Log Viewer: you can switch between levels directly, and the process list follows the chosen level
+
+Log Viewer: a date range no longer drops its first entry
+
+Log Viewer: levels are read the same way for every log file; a word like "preferred" no longer counts as an error, and a line that states no level shows as Other
+
 ## What's New in v3.2.3
 
 _2026-10-18_

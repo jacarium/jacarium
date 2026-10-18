@@ -22,7 +22,16 @@
   </div>
 
   <!-- Date Range Filter -->
-  <div class="mb-4 p-3 rounded-sm">
+  <!-- The header: the date-range slider, then one toolbar (the files, the
+       actions, the status) and one filter row. Styled by the lv-* rules in
+       the style block below, not by utility classes: inside the app's
+       diagnostics frame only the app's own compiled Tailwind is available,
+       and classes used by this template alone (h-1.5, top-1/2, bg-blue-500,
+       ...) are not in it - which is how the slider lost its track. The
+       rules read the app's tokens, so both themes and the standalone Flask
+       page look the same. Every element id is part of the contract with
+       the script below and the tests. -->
+  <div class="lv-header mb-4 p-3 rounded-sm">
     <!-- Date Range Slider -->
     <div class="mb-4">
       <div class="flex items-center justify-between mb-2">
@@ -72,35 +81,37 @@
           </div>
         </div>
       </div>
-      <div class="relative px-2">
-        <div class="flex justify-between text-xs opacity-70 mb-1">
+      <div class="lv-slider">
+        <div class="lv-slider-labels">
           {# start/end are None when no readable log had a parseable timestamp #}
           <span id="date-start-label">{{ data.date_range.start[:10] if data.date_range.start else 'unknown' }}</span>
           <span id="date-end-label">{{ data.date_range.end[:10] if data.date_range.end else 'unknown' }}</span>
         </div>
-        <div class="relative h-8" id="date-slider-container">
+        <div class="lv-slider-area" id="date-slider-container">
           <!-- Background track -->
-          <div class="absolute w-full top-1/2 -translate-y-1/2 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-sm"></div>
+          <div class="lv-slider-track"></div>
           <!-- Selected range highlight -->
-          <div id="date-range-highlight" class="absolute top-1/2 -translate-y-1/2 h-1.5 bg-blue-500 rounded-sm" style="left: 0%; width: 100%;"></div>
+          <div id="date-range-highlight" class="lv-slider-highlight" style="left: 0%; width: 100%;"></div>
           <!-- Sliders -->
-          <input type="range" id="date-slider-start" class="absolute w-full range-slider top-1/2 -translate-y-1/2" style="pointer-events: none;">
-          <input type="range" id="date-slider-end" class="absolute w-full range-slider top-1/2 -translate-y-1/2" style="pointer-events: none;">
+          <input type="range" id="date-slider-start" class="range-slider" style="pointer-events: none;">
+          <input type="range" id="date-slider-end" class="range-slider" style="pointer-events: none;">
         </div>
       </div>
     </div>
 
-    <div class="flex gap-3 items-center flex-wrap">
+    <!-- The toolbar: the files to read, the actions (Load Logs is the main one), the status -->
+    <div class="lv-toolbar">
       <!-- Log Files Dropdown -->
-      <div class="relative">
-        <label class="block text-xs font-medium mb-1">Log Files</label>
+      <div class="relative lv-files">
         <button
           type="button"
           id="log-file-dropdown-btn"
-          class="px-3 py-1.5 text-sm border rounded-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 flex items-center gap-2 min-w-[200px]"
+          class="lv-control lv-button lv-files-btn"
+          title="The log files to read"
         >
+          <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
           <span id="log-file-selection-display" class="flex-1 text-left truncate">1 file selected</span>
-          <i class="fas fa-chevron-down text-xs"></i>
+          <svg class="lv-icon lv-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
         </button>
 
         <!-- Dropdown panel -->
@@ -175,65 +186,58 @@
         </div>
       </div>
 
-      <!-- Get Date Range Button -->
-      <div>
-        <label class="block text-xs font-medium mb-1">&nbsp;</label>
-        <button id="get-range-btn" class="px-4 py-1.5 text-sm rounded-sm border">
+      <div class="lv-actions">
+        <button id="get-range-btn" type="button" class="lv-control lv-button" title="Read the earliest and latest timestamps of the selected files into the slider">
           Get Date Range
         </button>
-      </div>
-
-      <!-- Load Logs Button -->
-      <div>
-        <label class="block text-xs font-medium mb-1">&nbsp;</label>
-        <button id="load-logs-btn" class="px-4 py-1.5 text-sm rounded-sm border">
+        <button id="load-logs-btn" type="button" class="lv-control lv-button lv-primary" title="Read the selected files for the selected dates">
           Load Logs
         </button>
-      </div>
-
-      <!-- Export CSV Button -->
-      <div>
-        <label class="block text-xs font-medium mb-1">&nbsp;</label>
-        <button id="export-csv-btn" class="px-4 py-1.5 text-sm rounded-sm border" disabled>
-          <i class="fas fa-download mr-1"></i>
+        <button id="export-csv-btn" type="button" class="lv-control lv-button" disabled title="Download the rows the filters currently show, as CSV">
+          <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           Export CSV
         </button>
       </div>
 
       <!-- Status Indicators -->
-      <div class="flex items-center gap-2">
-        <label class="block text-xs font-medium mb-1">&nbsp;</label>
-        <div class="flex gap-2 items-center">
-          <span id="loading-indicator" class="hidden text-xs opacity-70">
-            <i class="fas fa-spinner fa-spin mr-1"></i>
-            Loading...
-          </span>
-          <span id="logs-loaded-info" class="hidden text-xs">
-            <span id="loaded-count"></span>
-          </span>
-        </div>
+      <div class="lv-status">
+        <span id="loading-indicator" class="hidden text-xs opacity-70">
+          <i class="fas fa-spinner fa-spin mr-1"></i>
+          Loading...
+        </span>
+        <span id="logs-loaded-info" class="hidden text-xs">
+          <span id="loaded-count"></span>
+        </span>
       </div>
     </div>
   </div>
 
-  <!-- Filter Controls -->
-  <div id="filter-panel" class="mb-3 space-y-2">
-    <div class="flex gap-2 items-center">
+  <!-- Filter Controls: the two text filters (a leading icon each, the syntax in the hint), the two selects -->
+  <div id="filter-panel" class="lv-filters mb-3">
+    <label class="lv-field lv-grow">
+      <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
       <input
         type="text"
         id="log-search"
-        placeholder="Search logs... (comma-separated, quotes for phrase: &quot;error, fail&quot;, escape: \&quot;)"
-        class="flex-1 px-3 py-1.5 text-sm border rounded-sm"
+        placeholder="Search logs"
+        title="Show rows matching any of these terms. Several terms: separate them with commas - a row matches any of them. An exact phrase: put it in quotes, e.g. &quot;connection refused&quot;. A literal quote or comma: escape it with a backslash (\&quot;). Matching ignores case and covers every column."
+        class="lv-control lv-input"
         autocomplete="off"
       />
+    </label>
+    <label class="lv-field lv-grow">
+      <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"></path></svg>
       <input
         type="text"
         id="log-exclude"
-        placeholder="Filter out... (comma-separated, quotes for phrase: &quot;ok, success&quot;, escape: \&quot;)"
-        class="flex-1 px-3 py-1.5 text-sm border rounded-sm"
+        placeholder="Filter out"
+        title="Hide rows matching any of these terms. Several terms: separate them with commas - a row matches any of them. An exact phrase: put it in quotes, e.g. &quot;connection refused&quot;. A literal quote or comma: escape it with a backslash (\&quot;). Matching ignores case and covers every column."
+        class="lv-control lv-input"
         autocomplete="off"
       />
-      <select id="severity-filter" class="px-3 py-1.5 text-sm border rounded-sm">
+    </label>
+    <span class="lv-field lv-select-wrap">
+      <select id="severity-filter" class="lv-control lv-select" title="Only rows of this level">
         <option value="">All Levels</option>
         <option value="critical">Critical</option>
         <option value="error">Error</option>
@@ -242,10 +246,17 @@
         <option value="debug">Debug</option>
         <option value="other">Other</option>
       </select>
-      <select id="process-filter" class="px-3 py-1.5 text-sm border rounded-sm">
+      <svg class="lv-icon lv-icon-sm lv-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+    </span>
+    <span class="lv-field lv-select-wrap">
+      <select id="process-filter" class="lv-control lv-select" title="Only rows of this process (the processes in the loaded logs)">
         <option value="">All Processes</option>
       </select>
-    </div>
+      <svg class="lv-icon lv-icon-sm lv-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+    </span>
+    <span class="lv-hint" id="filter-syntax-hint" tabindex="0" role="note" aria-label="Filter syntax" title="Several terms: separate them with commas - a row matches any of them. An exact phrase: put it in quotes, e.g. &quot;connection refused&quot;. A literal quote or comma: escape it with a backslash (\&quot;). Matching ignores case and covers every column.">
+      <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+    </span>
   </div>
 
   <!-- Log Table -->
@@ -1327,11 +1338,8 @@
               if (chunk.done) {
                 console.log('[Log Viewer] Streaming complete');
 
-                // Final render to ensure table/pagination are up to date
-                const excludeInputFinal = document.getElementById('log-exclude');
-                if (!searchInput.value && !severityFilter.value && !processFilter.value && !excludeInputFinal?.value) {
-                  applyFilters();
-                }
+                // Final render: the filters as set apply to the new rows (table, counts, export)
+                applyFilters();
 
                 if (loadedCount) {
                   loadedCount.textContent = `Loaded ${allEntries.length.toLocaleString()} entries`;
@@ -1342,23 +1350,10 @@
               // Add entries from this chunk
               if (chunk.entries && chunk.entries.length > 0) {
                 allEntries.push(...chunk.entries);
-                filteredEntries = [...allEntries];
 
-                // Update UI progressively
-                const currentProcessSelection = processFilter.value;
-                const uniqueProcs = [...new Set(allEntries.map(e => e.process).filter(p => p))].sort();
-                processFilter.innerHTML = '<option value="">All Processes</option>' +
-                  uniqueProcs.map(proc => `<option value="${proc}">${proc}</option>`).join('');
-                processFilter.value = currentProcessSelection;
-
-                updateProcessChart(allEntries);
-                updateSeverityChart(allEntries);
-
-                // Update table if no active filters (pagination won't update due to isStreaming flag)
-                const excludeInput = document.getElementById('log-exclude');
-                if (!searchInput.value && !severityFilter.value && !processFilter.value && !excludeInput?.value) {
-                  applyFilters();
-                }
+                // Update UI progressively: the filters as set apply to what has arrived
+                // (applyFilters refreshes the process list, the charts and the table)
+                applyFilters();
 
                 // Update progress
                 if (loadedCount) {
@@ -1408,11 +1403,8 @@
       loadingIndicator?.classList.add('hidden');
 
       if (allEntries.length > 0) {
-        // Make sure table/pagination are updated with loaded data
-        const excludeInputAbort = document.getElementById('log-exclude');
-        if (!searchInput.value && !severityFilter.value && !processFilter.value && !excludeInputAbort?.value) {
-          applyFilters();
-        }
+        // the filters as set apply to what was loaded before the abort
+        applyFilters();
 
         if (loadedCount) {
           loadedCount.textContent = `Loaded ${allEntries.length.toLocaleString()} entries (aborted)`;
@@ -1423,51 +1415,81 @@
   }
 
   // Helper function to parse comma-separated values with quote support
+  // The terms of a filter field: comma-separated, a row matches ANY of them.
+  // A phrase with commas or spaces goes in quotes - the quote counts only at
+  // the START of a term, so an apostrophe inside a word ("can't reach") is
+  // text, not a quote. A backslash escapes a quote, a comma or a backslash;
+  // before anything else it is text (C:\temp stays C:\temp). Terms are
+  // trimmed, empty ones (a trailing comma) dropped, and lower-cased: the
+  // matching is case-insensitive.
   function parseCommaSeparated(input) {
     if (!input || !input.trim()) return [];
 
     const terms = [];
     let current = '';
-    let inQuotes = false;
+    let atTermStart = true;
     let quoteChar = null;
-    let escaped = false;
 
     for (let i = 0; i < input.length; i++) {
       const char = input[i];
+      const next = input[i + 1];
 
-      if (escaped) {
-        // Previous char was backslash - add this char literally
-        current += char;
-        escaped = false;
-      } else if (char === '\\') {
-        // Start escape sequence
-        escaped = true;
-      } else if ((char === '"' || char === "'") && !inQuotes) {
-        // Start of quoted string
-        inQuotes = true;
+      if (char === '\\' && (next === '"' || next === "'" || next === ',' || next === '\\')) {
+        current += next;
+        i++;
+        atTermStart = false;
+      } else if (quoteChar) {
+        if (char === quoteChar) quoteChar = null;
+        else current += char;
+      } else if ((char === '"' || char === "'") && atTermStart) {
         quoteChar = char;
-      } else if (char === quoteChar && inQuotes) {
-        // End of quoted string
-        inQuotes = false;
-        quoteChar = null;
-      } else if (char === ',' && !inQuotes) {
-        // Comma outside quotes - split here
+        atTermStart = false;
+      } else if (char === ',') {
         const term = current.trim();
         if (term) terms.push(term);
         current = '';
+        atTermStart = true;
       } else {
-        // Regular character
         current += char;
+        if (!/\s/.test(char)) atTermStart = false;
       }
     }
 
-    // Add the last term
     const term = current.trim();
     if (term) terms.push(term);
 
-    // Convert to lowercase for case-insensitive matching
     return terms.map(t => t.toLowerCase());
   }
+
+  function escapeHtml(value) {
+    return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+
+  // The text a row is matched against: every column, lower-cased, computed
+  // once per entry (not once per term per keystroke).
+  function searchableText(entry) {
+    if (entry._text === undefined) {
+      entry._text = [
+        entry.timestamp || '',
+        entry.severity || '',
+        entry.hostname || '',
+        entry.process || '',
+        entry.pid || '',
+        entry.message || ''
+      ].join(' ').toLowerCase();
+    }
+    return entry._text;
+  }
+
+  // Typing is debounced: the filter runs once the keys pause, not per key.
+  function debounce(fn, ms) {
+    let timer = null;
+    const run = () => { clearTimeout(timer); timer = setTimeout(fn, ms); };
+    run.now = () => { clearTimeout(timer); fn(); };
+    return run;
+  }
+
+  const SEVERITY_LEVELS = ['critical', 'error', 'warning', 'info', 'debug', 'other'];
 
   function applyFilters() {
     const searchQuery = searchInput?.value?.trim() || '';
@@ -1477,89 +1499,47 @@
 
     // Parse search filters (comma-separated list with quote support - OR matching)
     const searchTerms = parseCommaSeparated(searchQuery);
-
     // Parse exclusion filters (comma-separated list with quote support)
     const excludeTerms = parseCommaSeparated(excludeQuery);
 
-    // Stage 1: Apply severity/process filters first (if any selected)
-    let filtered = allEntries;
+    // Stage 1: the level (the process list below follows it)
+    const byLevel = severity ? allEntries.filter(entry => entry.severity === severity) : allEntries;
 
-    if (severity || process) {
-      filtered = filtered.filter(entry => {
-        const severityMatch = !severity || entry.severity === severity;
-        const processMatch = !process || entry.process === process;
-        return severityMatch && processMatch;
-      });
-    }
-
-    // Stage 2: Apply search/exclude filters within the dropdown selection
-    filteredEntries = filtered.filter(entry => {
+    // Stage 2: the process, then the text filters
+    filteredEntries = byLevel.filter(entry => {
+      if (process && entry.process !== process) return false;
+      if (searchTerms.length === 0 && excludeTerms.length === 0) return true;
+      const text = searchableText(entry);
       // Search across all columns (inclusion) - match ANY search term (OR logic)
-      const searchMatch = searchTerms.length === 0 || searchTerms.some(term => {
-        const searchableText = [
-          entry.timestamp || '',
-          entry.severity || '',
-          entry.hostname || '',
-          entry.process || '',
-          entry.pid || '',
-          entry.message || ''
-        ].join(' ').toLowerCase();
-
-        return searchableText.includes(term);
-      });
-
+      if (searchTerms.length > 0 && !searchTerms.some(term => text.includes(term))) return false;
       // Exclusion filter - if any exclude term matches, exclude this entry
-      const excludeMatch = excludeTerms.length === 0 || !excludeTerms.some(term => {
-        const searchableText = [
-          entry.timestamp || '',
-          entry.severity || '',
-          entry.hostname || '',
-          entry.process || '',
-          entry.pid || '',
-          entry.message || ''
-        ].join(' ').toLowerCase();
-
-        return searchableText.includes(term);
-      });
-
-      return searchMatch && excludeMatch;
+      if (excludeTerms.length > 0 && excludeTerms.some(term => text.includes(term))) return false;
+      return true;
     });
 
-    // Only update dropdowns if search/exclude inputs are completely empty
-    // This preserves dropdown selections while typing
-    if (!searchQuery && !excludeQuery) {
-      // Update dropdowns with available options from dropdown-filtered results
-      const availableSeverities = new Set();
-      const availableProcesses = new Set();
-
-      filtered.forEach(entry => {
-        if (entry.severity) availableSeverities.add(entry.severity);
-        if (entry.process) availableProcesses.add(entry.process);
-      });
-
-      // Update Severity dropdown
-      const currentSeverity = severityFilter?.value || '';
-      const severityOptions = ['critical', 'error', 'warning', 'info', 'debug', 'other'];
+    // The selects: every level is always offered (a level with no rows shows
+    // "No entries", and can be left again directly); the processes are those
+    // of the rows of the chosen level, so changing the level keeps the list
+    // honest. Typing in the text filters does not touch the lists.
+    if (severityFilter && severityFilter.options.length !== SEVERITY_LEVELS.length + 1) {
       severityFilter.innerHTML = '<option value="">All Levels</option>' +
-        severityOptions
-          .filter(sev => availableSeverities.has(sev))
-          .map(sev => `<option value="${sev}">${sev.charAt(0).toUpperCase() + sev.slice(1)}</option>`)
-          .join('');
-      severityFilter.value = currentSeverity; // Restore selection if still valid
-
-      // Update Process dropdown
-      const currentProcess = processFilter?.value || '';
-      const sortedProcesses = Array.from(availableProcesses).sort();
-      processFilter.innerHTML = '<option value="">All Processes</option>' +
-        sortedProcesses.map(proc => `<option value="${proc}">${proc}</option>`).join('');
-      processFilter.value = currentProcess; // Restore selection if still valid
+        SEVERITY_LEVELS.map(sev => `<option value="${sev}">${sev === 'info' ? 'Information' : sev.charAt(0).toUpperCase() + sev.slice(1)}</option>`).join('');
+      severityFilter.value = severity;
+    }
+    if (processFilter) {
+      const sortedProcesses = [...new Set(byLevel.map(entry => entry.process).filter(Boolean))].sort();
+      const listed = [...processFilter.options].slice(1).map(option => option.value);
+      if (listed.length !== sortedProcesses.length || listed.some((proc, i) => proc !== sortedProcesses[i])) {
+        processFilter.innerHTML = '<option value="">All Processes</option>' +
+          sortedProcesses.map(proc => `<option value="${escapeHtml(proc)}">${escapeHtml(proc)}</option>`).join('');
+        processFilter.value = sortedProcesses.includes(process) ? process : '';
+      }
     }
 
     // Update charts based on filtered data
-    if (severityChart && allEntries.length > 0) {
+    // (the update functions create the charts on their first call)
+    if (allEntries.length > 0) {
       updateSeverityChart(filteredEntries);
-    }
-    if (processChart && allEntries.length > 0) {
       updateProcessChart(filteredEntries);
     }
 
@@ -1583,8 +1563,9 @@
     if (filteredEntries.length === 0) {
       logTableBody.innerHTML = '';
       noResults?.classList.remove('hidden');
-      entryCount.textContent = 'No entries';
-      document.getElementById('entry-count-top').textContent = 'No entries';
+      const none = allEntries.length ? `No entries (filtered from ${allEntries.length.toLocaleString()})` : 'No entries';
+      entryCount.textContent = none;
+      document.getElementById('entry-count-top').textContent = none;
       pageInfo.textContent = '';
       return;
     }
@@ -1616,7 +1597,8 @@
     }).join('');
 
     // Update pagination info
-    const showingText = `Showing ${start + 1}-${Math.min(end, filteredEntries.length)} of ${filteredEntries.length}`;
+    const showingText = `Showing ${(start + 1).toLocaleString()}-${Math.min(end, filteredEntries.length).toLocaleString()} of ${filteredEntries.length.toLocaleString()}`
+      + (filteredEntries.length < allEntries.length ? ` (filtered from ${allEntries.length.toLocaleString()})` : '');
     entryCount.textContent = showingText;
     document.getElementById('entry-count-top').textContent = showingText;
     updatePagination();
@@ -1788,8 +1770,9 @@
     showAlert('Export Complete', `Exported ${filteredEntries.length} log entries to ${filename}`, 'success');
   });
 
-  searchInput?.addEventListener('input', applyFilters);
-  document.getElementById('log-exclude')?.addEventListener('input', applyFilters);
+  const applyFiltersSoon = debounce(applyFilters, 150);
+  searchInput?.addEventListener('input', applyFiltersSoon);
+  document.getElementById('log-exclude')?.addEventListener('input', applyFiltersSoon);
   severityFilter?.addEventListener('change', applyFilters);
   processFilter?.addEventListener('change', applyFilters);
 })();
@@ -1836,11 +1819,31 @@
   border: 1px solid rgba(107, 114, 128, 0.3);
 }
 
-/* Range slider styling */
+/* --- The header: slider, toolbar, filter row (lv-*) -------------------
+   Plain rules on the app's tokens (with fallbacks for the standalone page):
+   the diagnostics frame has only the app's compiled Tailwind, so utility
+   classes this template alone would use are not available there. */
+.lv-slider { padding: 0 8px; }
+.lv-slider-labels { display: flex; justify-content: space-between; font-size: 12px; opacity: 0.7; margin-bottom: 2px; }
+#date-slider-container,
+#time-slider-container { cursor: pointer; }
+.lv-slider-area { position: relative; height: 32px; }
+.lv-slider-track,
+.lv-slider-highlight { position: absolute; top: 50%; height: 6px; margin-top: -3px; border-radius: 3px; }
+.lv-slider-track { left: 0; right: 0; background: var(--os-border, #d1d5db); }
+.lv-slider-highlight { background: var(--os-blue, #3b82f6); }
+
+/* Range slider styling: two transparent inputs over the track, centred on it */
 .range-slider {
   -webkit-appearance: none;
   appearance: none;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
   height: 6px;
+  margin: -3px 0 0;
+  padding: 0;
   background: transparent;
   outline: none;
   cursor: pointer;
@@ -1863,34 +1866,78 @@
   appearance: none;
   width: 16px;
   height: 16px;
-  background: #3b82f6;
+  margin-top: -5px; /* a 16px thumb centred on the 6px track */
+  background: var(--os-blue, #3b82f6);
   cursor: pointer;
   border-radius: 50%;
-  border: 2px solid white;
+  border: 2px solid var(--os-card, #ffffff);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .range-slider::-moz-range-thumb {
   width: 16px;
   height: 16px;
-  background: #3b82f6;
+  background: var(--os-blue, #3b82f6);
   cursor: pointer;
   border-radius: 50%;
-  border: 2px solid white;
+  border: 2px solid var(--os-card, #ffffff);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .range-slider:hover::-webkit-slider-thumb {
-  background: #2563eb;
+  background: var(--os-blue-hover, #2563eb);
 }
 
 .range-slider:hover::-moz-range-thumb {
-  background: #2563eb;
+  background: var(--os-blue-hover, #2563eb);
 }
 
-#date-slider-container,
-#time-slider-container {
-  cursor: pointer;
+/* The toolbar and the filter row: every control 32px tall on one baseline, wrapping when narrow.
+   The filter row sits outside the header's card padding (p-3 = 12px): it carries the same
+   padding, so the three rows share one left edge and one right edge. */
+.lv-toolbar,
+.lv-actions,
+.lv-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lv-filters { padding: 0 12px; }
+.lv-status { margin-left: auto; display: flex; align-items: center; min-height: 32px; font-size: 12px; white-space: nowrap; }
+.lv-control {
+  height: 32px;
+  box-sizing: border-box;
+  font-size: 13px;
+  line-height: 1;
+  border: 1px solid var(--os-border, #d1d5db);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--os-card-secondary, #f3f4f6);
+  color: var(--os-text-primary, #111827);
 }
+.lv-button { display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; white-space: nowrap; cursor: pointer; }
+.lv-button:disabled { opacity: 0.5; cursor: default; }
+.lv-files-btn { min-width: 220px; max-width: 320px; }
+#diagnostics-content button.lv-primary,
+button.lv-primary { background: var(--os-blue, #3b82f6) !important; color: #ffffff !important; border-color: var(--os-blue, #3b82f6) !important; }
+#diagnostics-content button.lv-primary:hover,
+button.lv-primary:hover { background: var(--os-blue-hover, #2563eb) !important; border-color: var(--os-blue-hover, #2563eb) !important; }
+/* the loading state the script sets on Load Logs ("Abort Loading") */
+#diagnostics-content .lv-button.bg-red-500,
+.lv-button.bg-red-500 { background: var(--os-red, #dc2626) !important; color: #ffffff !important; border-color: var(--os-red, #dc2626) !important; }
+.lv-field { position: relative; display: flex; align-items: center; }
+.lv-grow { flex: 1 1 220px; min-width: 180px; }
+.lv-field > .lv-icon { position: absolute; left: 10px; opacity: 0.6; pointer-events: none; }
+/* the padding clears the leading icon; backend/static/styles.css pads the frame's text
+   inputs with "#diagnostics-content input[type=text] { padding: ... !important }", so this
+   rule carries the id too (and the plain form for the standalone page) */
+#diagnostics-content .lv-filters input.lv-input,
+.lv-filters input.lv-input { width: 100%; padding: 0 10px 0 32px !important; line-height: 30px; }
+.lv-input::placeholder { opacity: 0.7; }
+/* the selects: no native chrome (its text sat low in the 32px box), the text on the inputs'
+   line (line-height 30px inside the 1px borders), the chevron drawn like the field icons */
+#diagnostics-content .lv-filters select.lv-select,
+.lv-filters select.lv-select { -webkit-appearance: none; appearance: none; padding: 0 28px 0 10px !important; line-height: 30px; min-width: 140px; width: 100%; background-image: none !important; }
+.lv-select-wrap { flex: 0 0 auto; }
+.lv-field > .lv-select-chevron { left: auto; right: 10px; }
+.lv-hint { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; opacity: 0.6; cursor: help; border-radius: var(--radius-sm, 4px); }
+.lv-hint:hover, .lv-hint:focus { opacity: 1; outline: none; background: var(--os-card-secondary, #f3f4f6); }
+.lv-icon { width: 14px; height: 14px; flex: 0 0 auto; }
+.lv-icon-sm { width: 12px; height: 12px; }
 
 </style>

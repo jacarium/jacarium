@@ -84,12 +84,40 @@ SEVERITY_MSGS = [
 ]
 jlines = ["-- Logs begin at Thu 2026-01-01 00:00:00 UTC. --"]
 for i in range(200):
-    hh, mm, ss = (i // 3600) % 24, (i // 60) % 60, i % 60
+    # chronological, as a journal is: 40 entries a day over Jan 1-5
+    day, t = 1 + i // 40, i % 40
+    hh, mm, ss = (t // 3600) % 24, (t // 60) % 60, t % 60
     jlines.append(
-        f"Jan {1 + (i % 5):2d} {hh:02d}:{mm:02d}:{ss:02d} synthetic-host "
+        f"Jan {day:2d} {hh:02d}:{mm:02d}:{ss:02d} synthetic-host "
         f"example-daemon-{i % 20:03d}[{1000 + i}]: {SEVERITY_MSGS[i % len(SEVERITY_MSGS)]}"
     )
 w("sos_commands/logs/journalctl_--no-pager", "\n".join(jlines) + "\n")
+
+# A second journal capture (listed as a 'journal' log, NOT selected by default,
+# so the default view and its snapshots are unchanged): 3,200 synthetic lines
+# for the Log Viewer's filter checks - an apostrophe, regex characters, a
+# backslash, "preferred" (which is not an error), a k8s code, a syslog
+# priority prefix, an explicit level= field, upper-case level tokens.
+EDGE_MSGS = [
+    "preferred route refresh ok (no change)",
+    "can't reach 192.0.2.5 (retrying in 5s)",
+    "ERROR: edge-sync failed [code=E42] for item a.b*c",
+    "level=warn msg=\"disk 90 percent full\" path=C:\\temp\\edge",
+    "E0101 12:00:00.000001 1 edge.go:1] watch closed, reconnecting",
+    "<3>edge driver reset after timeout",
+    "debug: edge trace tick",
+    "Started Session 7 of user example.",
+]
+elines = ["-- Logs begin at Thu 2026-01-01 00:00:00 UTC. --"]
+for i in range(3200):
+    # chronological: 640 entries a day over Jan 1-5
+    day, t = 1 + i // 640, i % 640
+    hh, mm, ss = (t // 3600) % 24, (t // 60) % 60, t % 60
+    elines.append(
+        f"Jan {day:2d} {hh:02d}:{mm:02d}:{ss:02d} synthetic-host "
+        f"edge-{'abc'[i % 3]}[{5000 + i}]: {EDGE_MSGS[i % len(EDGE_MSGS)]}"
+    )
+w("sos_commands/logs/journalctl_--no-pager_--unit_example-edge", "\n".join(elines) + "\n")
 
 # systemctl status --all (for the already-paginated Services tab)
 units = []
