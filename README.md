@@ -29,8 +29,8 @@ Jacarium keeps your notes, cases and tools for technical work in one place,
 and works offline by default.
 
 - **Documents**: Markdown notes and runbooks with real-time collaboration,
-  templates, diagrams and export to Markdown, ZIP, JSON or PDF (PDF in the
-  desktop app).
+  templates, diagrams, GitHub-style callouts (`> [!NOTE]`, `> [!WARNING]`)
+  and export to Markdown, ZIP, JSON or PDF (PDF in the desktop app).
 - **Diagnostics**: open an sosreport and read processes, CPU and memory as
   charts, plus Kubernetes diagnostics.
 - **Tasks**: Taskwarrior tasks with projects, priorities, due dates and
@@ -38,7 +38,8 @@ and works offline by default.
 - **Kanban**: boards for roadmaps and day-to-day work.
 - **Workflows**: a visual workflow builder: REST calls, SSH, conditions,
   loops and transformations, wired together on a canvas.
-- **Robin**: an AI chat for debugging, with your own model provider.
+- **Robin**: an AI chat for debugging, with your own model provider; with
+  a local model (Ollama) it can also answer from your own notes.
 - **And more**: Jira search, calendars, quizzes and tools.
 - **On a phone**: open a self-hosted Jacarium in your phone's browser and
   it switches to a layout made for phones, with a bottom bar, drawers for

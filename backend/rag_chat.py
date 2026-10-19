@@ -9,7 +9,7 @@ from flask import Blueprint, request, jsonify
 import extensions
 from extensions import debug_print, get_vector_db
 from doc_ids import validate_doc_id, validate_doc_ids
-from ai_chat import handle_custom_chat, handle_custom_chat_stream
+from ai_chat import handle_custom_chat, handle_custom_chat_stream, plain_messages
 
 rag_chat = Blueprint('rag_chat', __name__)
 
@@ -532,7 +532,9 @@ def ai_chat_rag():
         if provider not in ['ollama', 'custom']:
             return jsonify({"error": "RAG is only available for Ollama (local) providers due to privacy concerns"}), 400
 
-        messages = data.get('messages', [])
+        # role + content only: the UI's message objects carry the previous
+            # turn's `thinking`, which must never go back to the model
+            messages = plain_messages(data.get('messages', []))
         try:
             dataset_ids = validate_doc_ids(data.get('dataset_ids', []))
         except ValueError as e:
@@ -619,7 +621,9 @@ def ai_chat_rag_stream():
                 yield f"data: {json.dumps({'error': 'RAG is only available for Ollama (local) providers due to privacy concerns'})}\n\n"
                 return
 
-            messages = data.get('messages', [])
+            # role + content only: the UI's message objects carry the previous
+            # turn's `thinking`, which must never go back to the model
+            messages = plain_messages(data.get('messages', []))
             try:
                 dataset_ids = validate_doc_ids(data.get('dataset_ids', []))
             except ValueError as e:

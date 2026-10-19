@@ -4,6 +4,7 @@
  * Uses detailed prompts from original FloatingQuiz.jsx implementation
  */
 
+import { DEFAULT_CLAUDE_MODEL, defaultAiModel } from './aiDefaults';
 import { getBackendUrl, apiFetch } from './backendUrl';
 
 /**
@@ -21,7 +22,7 @@ export async function generateCategoryFromTopic({ categoryName, topicName, diffi
     const estimatedTokens = Math.max(3000, 5 * 300 + 1000);
     let aiSettings = {
       provider: 'anthropic',
-      model: 'claude-sonnet-4-5@20250929',
+      model: DEFAULT_CLAUDE_MODEL,
       temperature: 0.3,
       maxTokens: estimatedTokens
     };
@@ -32,7 +33,7 @@ export async function generateCategoryFromTopic({ categoryName, topicName, diffi
         const envMaxTokens = parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString());
         aiSettings = {
           provider: envVars.DEFAULT_AI_PROVIDER || 'anthropic',
-          model: envVars.DEFAULT_AI_MODEL || 'claude-sonnet-4-5@20250929',
+          model: defaultAiModel(envVars),
           temperature: 0.3,
           maxTokens: Math.max(envMaxTokens, estimatedTokens)
         };
@@ -233,7 +234,7 @@ export async function generateCategoryFromURL({ categoryName, url, urlTopic = ''
     const estimatedTokens = Math.max(4000, 5 * 300 + 1500);
     let aiSettings = {
       provider: 'anthropic',
-      model: 'claude-sonnet-4-5@20250929',
+      model: DEFAULT_CLAUDE_MODEL,
       temperature: 0.3,
       maxTokens: estimatedTokens
     };
@@ -244,7 +245,7 @@ export async function generateCategoryFromURL({ categoryName, url, urlTopic = ''
         const envMaxTokens = parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString());
         aiSettings = {
           provider: envVars.DEFAULT_AI_PROVIDER || 'anthropic',
-          model: envVars.DEFAULT_AI_MODEL || 'claude-sonnet-4-5@20250929',
+          model: defaultAiModel(envVars),
           temperature: 0.3,
           maxTokens: Math.max(envMaxTokens, estimatedTokens)
         };
@@ -434,7 +435,7 @@ export async function generateCategoryFromFile({ categoryName, file, fileTopic =
     const estimatedTokens = Math.max(4000, 5 * 300 + 1500);
     let aiSettings = {
       provider: 'anthropic',
-      model: 'claude-sonnet-4-5@20250929',
+      model: DEFAULT_CLAUDE_MODEL,
       temperature: 0.3,
       maxTokens: estimatedTokens
     };
@@ -445,7 +446,7 @@ export async function generateCategoryFromFile({ categoryName, file, fileTopic =
         const envMaxTokens = parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString());
         aiSettings = {
           provider: envVars.DEFAULT_AI_PROVIDER || 'anthropic',
-          model: envVars.DEFAULT_AI_MODEL || 'claude-sonnet-4-5@20250929',
+          model: defaultAiModel(envVars),
           temperature: 0.3,
           maxTokens: Math.max(envMaxTokens, estimatedTokens)
         };

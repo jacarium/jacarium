@@ -11,7 +11,8 @@ import RowMenuButton from '../../mobile/RowMenuButton';
  * Features:
  * - Google sync status indicator (same as Central Server in Documents)
  * - Calendars list with color indicators, event counts, click/right-click handlers
- * - Hamburger menu
+ * - Hamburger menu, which also holds "Sync active calendar" (disabled and
+ *   reading "Syncing..." while a sync runs)
  */
 export default function CalendarSidebar({
   calendars = [],
@@ -56,15 +57,6 @@ export default function CalendarSidebar({
         }}
         status={syncStatus}
         statusTitle={getStatusTitle()}
-        actions={
-          <button
-            onClick={onSyncCalendar}
-            disabled={isSyncing}
-            className="p-1.5 rounded-sm transition-colors hover:bg-os-card-secondary disabled:opacity-50"
-            title="Sync active calendar"
-          >
-          </button>
-        }
       />
 
       {/* Calendars List */}
@@ -138,6 +130,19 @@ export default function CalendarSidebar({
           label="Add Calendar"
           onClick={() => {
             onAddCalendar && onAddCalendar();
+            closeMenu();
+          }}
+        />
+        <HamburgerMenuDivider />
+        {/* Sync lives in the menu, not the header: no sidebar header carries
+            a sync/refresh button any more (the Documents sidebar set the
+            pattern); the header keeps only the Google sync status dot. */}
+        <HamburgerMenuItem
+          icon={MENU_ICONS.syncToCloud}
+          label={isSyncing ? 'Syncing…' : 'Sync active calendar'}
+          disabled={isSyncing}
+          onClick={() => {
+            onSyncCalendar && onSyncCalendar();
             closeMenu();
           }}
         />

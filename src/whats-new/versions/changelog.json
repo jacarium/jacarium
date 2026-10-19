@@ -1,5 +1,45 @@
 [
   {
+    "version": "3.2.7",
+    "date": "2026-10-19",
+    "features": [
+      {
+        "category": "DOCUMENTS",
+        "description": [
+          "A tidier editor toolbar: Bold, Italic, Strikethrough and Code; one Heading menu that shows the current level; one List menu (bullets, numbers, task list) with indent and outdent; Link; and one Insert menu",
+          "Insert menu: table, image, table of contents, the five callouts, quote, horizontal rule, code block, and a PDF section with page break, blank page, centered page, page header and page footer",
+          "Type / for the same blocks: /hr, /quote, /toc, /code, /pagebreak, /blankpage, /centerpage, /header and /footer",
+          "Shortcut hints match your system (⌘B, ⌘I, ⌘K on a Mac, Ctrl elsewhere); Tab and Shift+Tab indent and outdent inside lists",
+          "On a phone the toolbar fits on one row, with the rest under ⋯, and its menus open above the editor"
+        ]
+      },
+      {
+        "category": "TASKS",
+        "description": [
+          "The done checkbox is back on every task card: click the circle to mark a task done, click again to undo"
+        ]
+      },
+      {
+        "category": "CALENDAR",
+        "description": [
+          "Sync active calendar moved from the sidebar header into the ☰ menu"
+        ]
+      },
+      {
+        "category": "AI",
+        "description": [
+          "Claude chats work again, with an API key and with Vertex AI (the newer Anthropic library no longer accepts a temperature)",
+          "OpenAI chats work again",
+          "Robin with a thinking model (qwen3, deepseek-r1) has room to answer, and a follow-up question is answered instead of the first one again",
+          "Robin searches the current text of your notes, and rebuilds its index when the search model changes",
+          "Robin no longer says a local model is external, and a new chat starts from your Default AI Provider and Model",
+          "Settings: the temperature hint says what it applies to; Claude uses its own default",
+          "The re-check button on the \"backend offline\" banners shows again"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.2.6",
     "date": "2026-10-19",
     "features": [

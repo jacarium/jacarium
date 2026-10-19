@@ -326,7 +326,9 @@ try {
   check('phone: Settings opens full-screen from More', !!settings && settings.w >= settings.innerW && settings.h >= settings.innerH - 1 && /Settings/i.test(settings.text), JSON.stringify(settings));
   await shot(page, 'phone-09-settings');
   // Application Settings > General: the open-tabs toggle (disabled here: no server to synchronise with), persisted
-  const phoneToggle = await page.evaluate(() => { const t = document.querySelector('[data-testid="sync-open-tabs"]'); const section = t?.closest('[data-testid="open-tabs-section"]'); return { present: !!t, role: t?.getAttribute('role'), disabled: !!t?.disabled, checked: t?.getAttribute('aria-checked'), hint: section?.textContent || '', header: /Application Settings/.test(document.body.innerText) }; });
+  const phoneToggle = await page.evaluate(() => { const t = document.querySelector('[data-testid="sync-open-tabs"]'); const section = t?.closest('[data-testid="open-tabs-section"]'); return { present: !!t, role: t?.getAttribute('role'), disabled: !!t?.disabled, checked: t?.getAttribute('aria-checked'), hint: section?.textContent || '', // the Settings modal itself (an earlier revision matched "Application Settings" in the page text, which only
+  // Robin's "no models configured" state - behind the modal, and timing-dependent now - happened to contain)
+  header: !!t?.closest('.sc-modal-backdrop') && /Settings/.test(document.querySelector('.sc-modal-backdrop')?.textContent || '') }; });
   check('phone: Application Settings > General shows "Sync open tabs across devices" as a switch, disabled without a server, saying it needs synchronisation', phoneToggle.present && phoneToggle.header && phoneToggle.role === 'switch' && phoneToggle.disabled && phoneToggle.checked === 'true' && /Needs synchronisation/.test(phoneToggle.hint), JSON.stringify(phoneToggle));
   await closeOverlays(page);
   await page.evaluate(() => localStorage.setItem('openTabsSyncEnabled', 'false'));

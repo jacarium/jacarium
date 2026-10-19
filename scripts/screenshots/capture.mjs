@@ -99,7 +99,12 @@ if (app.skip) { console.error(app.skip); stopBackend(); process.exit(1); }
 const ev = (s) => app.evaluate(s);
 const DESKTOP = { width: 1440, height: 900, deviceScaleFactor: 2, mobile: false };
 const PHONE = { width: 393, height: 852, deviceScaleFactor: 3, mobile: true };
-const metrics = async (m) => { await app.send('Emulation.setDeviceMetricsOverride', m); await sleep(400); };
+// The phone layout needs a touch screen too (pointer: coarse, src/utils/mobile.js), not only the width.
+const metrics = async (m) => {
+  await app.send('Emulation.setDeviceMetricsOverride', m);
+  await app.send('Emulation.setTouchEmulationEnabled', m.mobile ? { enabled: true, maxTouchPoints: 5 } : { enabled: false });
+  await sleep(400);
+};
 // No motion, no caret, no scrollbars; the sidebar headers' central-server
 // indicator (a red dot while no central server is linked) is hidden.
 const stabilize = () => ev(`(() => { if (document.getElementById('__shots')) return; const s = document.createElement('style'); s.id = '__shots'; s.textContent = '*, *::before, *::after { transition: none !important; animation: none !important; caret-color: transparent !important; scroll-behavior: auto !important; } ::-webkit-scrollbar { display: none; } .w-2.h-2.rounded-full.bg-red-500 { display: none; }'; document.head.appendChild(s); })()`);
@@ -179,6 +184,8 @@ const CAPTIONS = {
   'phone-sign-in': ['Sign-in page at phone width', 'The same server, from your phone.'],
   'phone-documents': ['Documents at phone width', 'Read a runbook on the go.'],
   'phone-kanban': ['Kanban at phone width', 'The board, one column at a time.'],
+  'phone-tasks': ['Tasks at phone width', 'Your tasks and timers in your pocket.'],
+  'phone-workflow': ['Workflow at phone width', 'Follow a workflow step by step in the view-only reader.'],
 };
 function writeIndex() {
   const rows = fs.readdirSync(OUT).filter((f) => f.endsWith('.png')).sort().map((f) => {
@@ -395,16 +402,20 @@ try {
     }
 
     // ---- phone (the inner sidebar hidden, as a phone user would) ----
-    if (wanted('phone-documents', true) || wanted('phone-kanban', true)) {
-      await metrics(PHONE);
+    if (wanted('phone-documents', true) || wanted('phone-kanban', true) || wanted('phone-tasks', true) || wanted('phone-workflow', true)) {
+      // open the runbook at desktop width (on a phone the document list is in a drawer), then switch
+      await metrics(DESKTOP);
       await clickNav('Documents');
       await openDocRow(C.OPEN_DOCUMENTS[0]);
       await preview();
+      await metrics(PHONE);
       await ev(`localStorage.setItem('innerSidebarVisible', 'false')`);
       await reload();
       await sleep(1500);
       if (wanted('phone-documents', true)) { await clickNav('Documents'); await preview(); await sleep(800); await shot(`phone-documents${sfx}`); }
       if (wanted('phone-kanban', true)) { await clickNav('Kanban'); await sleep(1200); await shot(`phone-kanban${sfx}`); }
+      if (wanted('phone-tasks', true)) { await clickNav('Tasks'); await sleep(4000); await shot(`phone-tasks${sfx}`); }
+      if (wanted('phone-workflow', true)) { await clickNav('Workflows'); await sleep(2500); await shot(`phone-workflow${sfx}`); }
       await ev(`localStorage.setItem('innerSidebarVisible', 'true')`);
       await metrics(DESKTOP);
     }

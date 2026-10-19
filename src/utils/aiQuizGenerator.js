@@ -4,6 +4,7 @@
  * Uses detailed prompts from original FloatingQuiz.jsx implementation
  */
 
+import { DEFAULT_CLAUDE_MODEL, defaultAiModel } from './aiDefaults';
 import { getBackendUrl, apiFetch } from './backendUrl';
 
 /**
@@ -22,7 +23,7 @@ export async function generateAIQuizQuestions({ topic, numQuestions = 10, diffic
     const estimatedTokens = Math.max(4000, numQuestions * 500 + 1000);
     let aiSettings = {
       provider: 'anthropic',
-      model: 'claude-sonnet-4-5@20250929',
+      model: DEFAULT_CLAUDE_MODEL,
       temperature: 0.3,
       maxTokens: estimatedTokens
     };
@@ -33,7 +34,7 @@ export async function generateAIQuizQuestions({ topic, numQuestions = 10, diffic
         const envMaxTokens = parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString());
         aiSettings = {
           provider: envVars.DEFAULT_AI_PROVIDER || 'anthropic',
-          model: envVars.DEFAULT_AI_MODEL || 'claude-sonnet-4-5@20250929',
+          model: defaultAiModel(envVars),
           temperature: 0.3,
           maxTokens: Math.max(envMaxTokens, estimatedTokens)
         };
@@ -284,7 +285,7 @@ export async function generateQuizFromURL({ url, focusTopic = '', numQuestions =
     const estimatedTokens = Math.max(6000, numQuestions * 500 + 2000);
     let aiSettings = {
       provider: 'anthropic',
-      model: 'claude-sonnet-4-5@20250929',
+      model: DEFAULT_CLAUDE_MODEL,
       temperature: 0.3,
       maxTokens: estimatedTokens
     };
@@ -295,7 +296,7 @@ export async function generateQuizFromURL({ url, focusTopic = '', numQuestions =
         const envMaxTokens = parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString());
         aiSettings = {
           provider: envVars.DEFAULT_AI_PROVIDER || 'anthropic',
-          model: envVars.DEFAULT_AI_MODEL || 'claude-sonnet-4-5@20250929',
+          model: defaultAiModel(envVars),
           temperature: 0.3,
           maxTokens: Math.max(envMaxTokens, estimatedTokens)
         };
@@ -510,7 +511,7 @@ export async function generateQuizFromFile({ file, focusTopic = '', numQuestions
     const estimatedTokens = Math.max(6000, numQuestions * 500 + 2000);
     let aiSettings = {
       provider: 'anthropic',
-      model: 'claude-sonnet-4-5@20250929',
+      model: DEFAULT_CLAUDE_MODEL,
       temperature: 0.3,
       maxTokens: estimatedTokens
     };
@@ -521,7 +522,7 @@ export async function generateQuizFromFile({ file, focusTopic = '', numQuestions
         const envMaxTokens = parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString());
         aiSettings = {
           provider: envVars.DEFAULT_AI_PROVIDER || 'anthropic',
-          model: envVars.DEFAULT_AI_MODEL || 'claude-sonnet-4-5@20250929',
+          model: defaultAiModel(envVars),
           temperature: 0.3,
           maxTokens: Math.max(envMaxTokens, estimatedTokens)
         };

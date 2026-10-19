@@ -120,17 +120,22 @@ try {
       const textarea = page.locator('.sc-editor-textarea');
       check('the editor is back (textarea present)', await textarea.count() === 1);
       await textarea.evaluate((el) => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); });
-      await page.locator('[data-testid="insert-callout"]').click(); await page.waitForTimeout(200);
-      const items = await page.locator('[data-testid="callout-menu"] [role="menuitem"]').allTextContents();
-      check('the toolbar "Insert callout" menu lists Note, Tip, Important, Warning, Caution', items.map((t) => t.trim()).join() === 'Note,Tip,Important,Warning,Caution', items.join());
-      await page.locator('[data-testid="callout-menu"] [data-callout-type="tip"]').click(); await page.waitForTimeout(300);
+      await page.locator('[data-testid="insert-menu-button"]').click(); await page.waitForTimeout(200);
+      const items = await page.locator('[data-testid="insert-menu"] [data-menu-item^="callout-"]').allTextContents();
+      check('the toolbar\'s Insert menu lists the callouts Note, Tip, Important, Warning, Caution', items.map((t) => t.trim()).join() === 'Note,Tip,Important,Warning,Caution', items.join());
+      const dmenu = await page.evaluate(() => { const menu = document.querySelector('[data-testid="insert-menu"]'); const b = document.querySelector('[data-testid="insert-menu-button"]').getBoundingClientRect(); const r = menu.getBoundingClientRect(); const rows = Array.from(menu.querySelectorAll('[role="menuitem"]')); return { inBody: menu.parentElement === document.body, underButton: Math.abs(r.top - b.bottom) <= 6 && Math.abs(r.left - b.left) <= 1, reachable: rows.every((row) => { const rr = row.getBoundingClientRect(); const hit = document.elementFromPoint(rr.left + 10, rr.top + rr.height / 2); return hit && menu.contains(hit); }) }; });
+      check('desktop: the menu is portalled under its button (left-aligned) and every row is reachable', dmenu.inBody && dmenu.underButton && dmenu.reachable, JSON.stringify(dmenu));
+      await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+      check('desktop: Escape closes the menu', await page.locator('[data-testid="insert-menu"]').count() === 0);
+      await page.locator('[data-testid="insert-menu-button"]').click(); await page.waitForTimeout(200);
+      await page.locator('[data-testid="insert-menu"] [data-menu-item="callout-tip"]').click(); await page.waitForTimeout(300);
       const afterInsert = await textarea.inputValue();
       check('choosing Tip inserts "> [!TIP]" with a quoted placeholder line on its own paragraph', /\n\n> \[!TIP\]\n> Tip text$/.test(afterInsert), JSON.stringify(afterInsert.slice(-60)));
       // a selection of two lines becomes a quoted body under the marker
       await textarea.fill('first line\nsecond line'); await page.waitForTimeout(200);
       await textarea.evaluate((el) => { el.focus(); el.setSelectionRange(0, el.value.length); });
-      await page.locator('[data-testid="insert-callout"]').click(); await page.waitForTimeout(200);
-      await page.locator('[data-testid="callout-menu"] [data-callout-type="warning"]').click(); await page.waitForTimeout(300);
+      await page.locator('[data-testid="insert-menu-button"]').click(); await page.waitForTimeout(200);
+      await page.locator('[data-testid="insert-menu"] [data-menu-item="callout-warning"]').click(); await page.waitForTimeout(300);
       check('a two-line selection is wrapped: the marker, then each line quoted', (await textarea.inputValue()) === '> [!WARNING]\n> first line\n> second line', JSON.stringify(await textarea.inputValue()));
       // the slash menu
       await textarea.fill('Intro\n\n'); await page.waitForTimeout(200);
@@ -151,6 +156,32 @@ try {
   const pIcon = await phone.page.evaluate(() => { const i = document.querySelector('.md-callout-icon'); return i ? getComputedStyle(i).width : null; });
   check('phone: the five callouts render in the preview with the phone\'s 18px icons', TYPES.every((t) => pm[t] && sameRgb(pm[t].bar, pm[t].token)) && pIcon === '18px', JSON.stringify({ pIcon, pm: TYPES.map((t) => pm[t]?.bar) }));
   await phone.page.screenshot({ path: path.join(OUT, 'phone-callouts.png') });
+  // the toolbar's "Insert callout" menu on the phone: the toolbar is a horizontal scroll strip
+  // (overflow-x: auto) that clipped an in-place dropdown - the menu is portalled, fixed, under
+  // its button, every row reachable; a choice inserts the callout
+  await phone.page.waitForTimeout(1200);
+  await phone.page.locator('[data-testid="editor-mode-toggle"]').click(); await phone.page.waitForTimeout(500);
+  if (await phone.page.locator('.markdown-preview').count()) { await phone.page.locator('[data-testid="editor-mode-toggle"]').click(); await phone.page.waitForTimeout(500); }
+  const pta = phone.page.locator('.sc-editor-textarea');
+  check('phone: the editor is back', await pta.count() === 1);
+  await pta.evaluate((el) => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); });
+  // on the phone the callouts live in the toolbar's "More" menu (the strip fits without scrolling;
+  // the menu is capped at the space under its button and scrolls, so a row is reachable once scrolled into view)
+  await phone.page.locator('[data-testid="more-menu-button"]').tap(); await phone.page.waitForTimeout(300);
+  const pmenu = await phone.page.evaluate(() => {
+    const menu = document.querySelector('[data-testid="more-menu"]');
+    const button = document.querySelector('[data-testid="more-menu-button"]');
+    if (!menu) return { menu: false };
+    const r = menu.getBoundingClientRect(); const b = button.getBoundingClientRect();
+    const rows = Array.from(menu.querySelectorAll('[data-menu-item^="callout-"]')).map((row) => { row.scrollIntoView({ block: 'nearest' }); const rr = row.getBoundingClientRect(); const hit = document.elementFromPoint(rr.left + rr.width / 2, rr.top + rr.height / 2); return { type: row.getAttribute('data-menu-item'), reachable: !!hit && menu.contains(hit) }; });
+    return { menu: true, inBody: menu.parentElement === document.body, position: getComputedStyle(menu).position, z: getComputedStyle(menu).zIndex, underButton: Math.abs(r.top - b.bottom) <= 6, onScreen: r.left >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight, rows };
+  });
+  check('phone: the Insert callout menu is portalled (fixed, z-40), hangs under its button, fully on screen, every row reachable (elementFromPoint is the menu, not the editor)', pmenu.menu && pmenu.inBody && pmenu.position === 'fixed' && pmenu.z === '40' && pmenu.underButton && pmenu.onScreen && pmenu.rows.length === 5 && pmenu.rows.every((r) => r.reachable), JSON.stringify(pmenu));
+  await phone.page.locator('[data-testid="more-menu"] [data-menu-item="callout-tip"]').tap(); await phone.page.waitForTimeout(300);
+  check('phone: tapping Tip inserts the callout and closes the menu', /> \[!TIP\]\n> Tip text$/.test(await pta.inputValue()) && await phone.page.locator('[data-testid="more-menu"]').count() === 0, JSON.stringify((await pta.inputValue()).slice(-40)));
+  await phone.page.locator('[data-testid="more-menu-button"]').tap(); await phone.page.waitForTimeout(200);
+  await phone.page.touchscreen.tap(200, 500); await phone.page.waitForTimeout(200);
+  check('phone: a tap outside closes the menu', await phone.page.locator('[data-testid="more-menu"]').count() === 0);
   check('phone: no page errors', phone.errors.length === 0, phone.errors.slice(0, 3).join(' | '));
   await phone.context.close();
 } catch (error) {

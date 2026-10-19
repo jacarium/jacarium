@@ -10,7 +10,9 @@
  * An entry with `content` is inserted where the command was typed (like a
  * template); an entry with `action` opens its panel ('workflow', 'ai',
  * 'task' - the editor's own handlers), the typed command staying in the
- * text until the panel's result replaces it, as before.
+ * text until the panel's result replaces it, as before - or, for the block
+ * entries ('hr', 'quote', 'toc', 'codeblock'), runs the toolbar's helper
+ * where the command was typed, the command itself removed.
  */
 import { CALLOUT_COMMANDS } from './callouts.js';
 
@@ -20,9 +22,33 @@ export const QUICK_COMMANDS = Object.freeze([
   Object.freeze({ id: 'quick-task', name: '/task', label: 'Quick Task', description: 'Create a task from here', aliases: ['task', 'tasks', 'todo'], action: 'task', builtin: true }),
 ]);
 
+/** The block entries: the toolbar's Insert items that have a short name (an `action` the editor maps to its own helper). */
+export const BLOCK_COMMANDS = Object.freeze([
+  Object.freeze({ id: 'block-hr', name: '/hr', label: 'Horizontal rule', description: 'Insert a horizontal rule', aliases: ['hr', 'rule', 'line'], action: 'hr', builtin: true }),
+  Object.freeze({ id: 'block-quote', name: '/quote', label: 'Quote', description: 'Start a block quote', aliases: ['quote', 'blockquote'], action: 'quote', builtin: true }),
+  Object.freeze({ id: 'block-toc', name: '/toc', label: 'Table of contents', description: 'Insert a table of contents from the headings', aliases: ['toc', 'contents'], action: 'toc', builtin: true }),
+  Object.freeze({ id: 'block-code', name: '/code', label: 'Code block', description: 'Insert a fenced code block', aliases: ['code', 'codeblock', 'fence'], action: 'codeblock', builtin: true }),
+]);
+
+/**
+ * The PDF layout directives (src/utils/interactiveMarkdown.js): the preview
+ * shows a marker, only the PDF export acts on them. Each runs the toolbar's
+ * own helper where the command was typed (an `action`, like /hr): a
+ * wrapping one gets its placeholder selected, so typing replaces it.
+ */
+export const PDF_COMMANDS = Object.freeze([
+  Object.freeze({ id: 'pdf-pagebreak', name: '/pagebreak', label: 'Page break', description: 'PDF: the following content starts on a new page', aliases: ['pagebreak', 'page', 'break', 'pdf'], action: 'pagebreak', builtin: true }),
+  Object.freeze({ id: 'pdf-blankpage', name: '/blankpage', label: 'Blank page', description: 'PDF: an intentionally blank page', aliases: ['blankpage', 'blank', 'pdf'], action: 'blankpage', builtin: true }),
+  Object.freeze({ id: 'pdf-centerpage', name: '/centerpage', label: 'Centered page', description: 'PDF: a page of its own with the content centred (a cover)', aliases: ['centerpage', 'cover', 'title', 'pdf'], action: 'centerpage', builtin: true }),
+  Object.freeze({ id: 'pdf-header', name: '/header', label: 'Page header', description: 'PDF: repeated in the top margin of every page', aliases: ['header', 'pdf'], action: 'pdf-header', builtin: true }),
+  Object.freeze({ id: 'pdf-footer', name: '/footer', label: 'Page footer', description: 'PDF: repeated in the bottom margin of every page', aliases: ['footer', 'pdf'], action: 'pdf-footer', builtin: true }),
+]);
+
 /** Every built-in entry, in the order the popup lists them. */
 export const BUILTIN_COMMANDS = Object.freeze([
   ...CALLOUT_COMMANDS.map((c) => Object.freeze({ ...c, label: `${c.description.replace(/ callout$/, '')} callout`, aliases: [c.type] })),
+  ...BLOCK_COMMANDS,
+  ...PDF_COMMANDS,
   ...QUICK_COMMANDS,
 ]);
 

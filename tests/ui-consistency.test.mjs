@@ -71,7 +71,7 @@ const classStrings = (attr, src) => {
 };
 const attrText = (el, src) => src.slice(el.openingElement.range[0], el.openingElement.range[1]);
 
-const weightOnControls = [], radiusOnControls = [], weightOnLabels = [], iconsInTextButtons = [], hexColours = [], greys = [];
+const weightOnControls = [], radiusOnControls = [], weightOnLabels = [], iconsInTextButtons = [], emptyButtons = [], hexColours = [], greys = [];
 for (const f of files) {
   const src = fs.readFileSync(path.join(REPO, f), 'utf8');
   let ast; try { ast = espree.parse(src, { ecmaVersion: 'latest', sourceType: 'module', ecmaFeatures: { jsx: true }, range: true, loc: true }); } catch (e) { check(`${f} parses`, false, e.message); continue; }
@@ -95,16 +95,30 @@ for (const f of files) {
       const attrsEnd = node.openingElement.range[1];
       const skipSet = new Set(); walk(node, (n) => { if (n !== node && n.type === 'JSXElement' && TOOLTIPISH(attrText(n, src))) skipSet.add(n); });
       const inSkipped = (n) => { let q = parents.get(n); while (q && q !== node) { if (skipSet.has(q)) return true; q = parents.get(q); } return false; };
+      // A string inside ANY attribute of a child (`className={busy ? 'animate-spin' : ''}`,
+      // a template className, `title={done ? 'Mark as not done' : 'Mark as done'}`) is
+      // not visible text. An earlier revision only excluded strings whose DIRECT parent
+      // was the attribute, so an icon whose className was a conditional counted as
+      // "icon next to text" - and the clean-ups that followed this check emptied
+      // three icon-only buttons (the task's done checkbox among them).
+      const inAttribute = (n) => { let q = parents.get(n); while (q && q !== node) { if (q.type === 'JSXAttribute') return true; q = parents.get(q); } return false; };
       let text = false; const icons = [];
       walk(node, (n) => {
         if (n === node || n.range[1] <= attrsEnd || inSkipped(n)) return;
         if (n.type === 'JSXText' && /[A-Za-z]{2,}/.test(n.value)) text = true;
-        else if (n.type === 'Literal' && typeof n.value === 'string' && /[A-Za-z]{2,}/.test(n.value) && parents.get(n).type !== 'JSXAttribute') text = true;
-        else if (n.type === 'TemplateElement' && /[A-Za-z]{2,}/.test(n.value.cooked || '')) text = true;
-        else if (n.type === 'JSXExpressionContainer' && n.expression.type === 'Identifier' && /^(label|title|children|text|name|caption|buttonText|actionLabel|confirmLabel|cancelLabel)$/.test(n.expression.name)) text = true;
+        else if (n.type === 'Literal' && typeof n.value === 'string' && /[A-Za-z]{2,}/.test(n.value) && !inAttribute(n)) text = true;
+        else if (n.type === 'TemplateElement' && /[A-Za-z]{2,}/.test(n.value.cooked || '') && !inAttribute(n)) text = true;
+        else if (n.type === 'JSXExpressionContainer' && !inAttribute(n) && n.expression.type === 'Identifier' && /^(label|title|children|text|name|caption|buttonText|actionLabel|confirmLabel|cancelLabel)$/.test(n.expression.name)) text = true;
         else if (n.type === 'JSXElement' && lucide.has(tagName(n.openingElement.name)) && !KEEP_ICON.test(tagName(n.openingElement.name)) ) icons.push(tagName(n.openingElement.name));
       });
       if (text && icons.length) iconsInTextButtons.push(`${f}:${line} <${name}> ${icons.join(',')}`);
+    }
+    // A button with nothing inside it renders as an invisible click target
+    // (what the emptied icon-only buttons looked like): whitespace and
+    // comments only, no element, expression or text.
+    if ((name === 'button' || name === 'Button') && node.closingElement) {
+      const real = node.children.filter((c) => !(c.type === 'JSXText' && !c.value.trim()) && !(c.type === 'JSXExpressionContainer' && c.expression.type === 'JSXEmptyExpression'));
+      if (!real.length) emptyButtons.push(`${f}:${line} <${name}>`);
     }
   });
 }
@@ -112,6 +126,7 @@ check(`no weight class on buttons and fields (${files.length} components)`, weig
 check('no one-off radius class on buttons and fields', radiusOnControls.length === 0, radiusOnControls.slice(0, 8).join(' ; '));
 check('no weight class on labels', weightOnLabels.length === 0, weightOnLabels.slice(0, 8).join(' ; '));
 check('no icon in a text button', iconsInTextButtons.length === 0, iconsInTextButtons.slice(0, 8).join(' ; '));
+check('no empty button (an icon-only button shows its icon)', emptyButtons.length === 0, emptyButtons.slice(0, 8).join(' ; '));
 check('no raw hex colour in a component className outside the allow-list', hexColours.length === 0, hexColours.slice(0, 8).join(' ; '));
 check('no Tailwind grey class in a component className outside the allow-list (the --os-* tokens carry the neutrals)', greys.length === 0, greys.slice(0, 10).join(' ; '));
 

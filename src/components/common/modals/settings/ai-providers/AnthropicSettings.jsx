@@ -25,7 +25,7 @@ export default function AnthropicSettings({ settings, handleChange }) {
           <TextInput mono value={settings.ANTHROPIC_GCP_LOCATION || ''} onChange={(e) => handleChange('ANTHROPIC_GCP_LOCATION', e.target.value)} placeholder="e.g., us-east5" />
         </Field>
         <Field label="Available Models" hint={<>Comma-separated list. Format: <Code>model-id:Display Name</Code> or just <Code>model-id</Code>. Requires: <Code>gcloud auth application-default login</Code></>}>
-          <TextArea value={settings.ANTHROPIC_VERTEX_MODELS || ''} onChange={(e) => handleChange('ANTHROPIC_VERTEX_MODELS', e.target.value)} placeholder="claude-3-5-sonnet-v2@20241022:Claude 3.5 Sonnet v2,claude-3-opus@20240229:Claude 3 Opus" />
+          <TextArea value={settings.ANTHROPIC_VERTEX_MODELS || ''} onChange={(e) => handleChange('ANTHROPIC_VERTEX_MODELS', e.target.value)} placeholder="claude-sonnet-4-5@20250929:Claude Sonnet 4.5" />
         </Field>
       </Group>
     </Section>

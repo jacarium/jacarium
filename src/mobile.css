@@ -125,8 +125,9 @@ html[data-mobile="true"] .sc-modal-backdrop > .bg-os-modal { width: 100vw; max-w
 /* --- Documents: the reader and the editor --------------------------------- */
 /* the formatting toolbar: 36x40 buttons in one swipeable row, the edit/preview button at the end */
 html[data-mobile="true"] .sc-editor-toolbar { height: 52px; padding: 0 8px 0 4px; }
-html[data-mobile="true"] .sc-editor-toolbar > button { width: 36px; height: 40px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-html[data-mobile="true"] .sc-editor-toolbar > .sc-editor-mode { width: 36px; height: 36px; border-radius: var(--radius-sm); margin-left: auto; }
+html[data-mobile="true"] .sc-editor-toolbar > button { min-width: 36px; width: auto; height: 40px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+/* the edit/preview toggle follows the last group like any other control (no margin-left: auto) */
+html[data-mobile="true"] .sc-editor-toolbar > .sc-editor-mode { width: 36px; height: 36px; border-radius: var(--radius-sm); }
 /* the reader: Red Hat Text 16px/1.7 with 18px 20px around it; headings 28/22px with a rule under them */
 html[data-mobile="true"] .markdown-preview { padding: 18px 20px 24px; font-size: 16px; line-height: 1.7; }
 html[data-mobile="true"] .markdown-preview h1 { font-size: 28px; line-height: 1.25; margin: 0 0 14px; padding-bottom: 8px; }

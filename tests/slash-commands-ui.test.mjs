@@ -40,7 +40,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ---- static ----
 {
   const { BUILTIN_COMMANDS, QUICK_COMMANDS, matchesSlashQuery, slashQueryAt, isInsideCode } = await import(path.join(REPO, 'src', 'utils', 'slashCommands.js'));
-  check('the built-in list: the five callouts then Quick Workflow, Quick AI, Quick Task', BUILTIN_COMMANDS.map((c) => c.name).join() === '/note,/tip,/important,/warning,/caution,/wf,/ai,/task' && QUICK_COMMANDS.every((c) => c.action && c.builtin));
+  check('the built-in list: the five callouts, the blocks, the PDF directives, then Quick Workflow, Quick AI, Quick Task', BUILTIN_COMMANDS.map((c) => c.name).join() === '/note,/tip,/important,/warning,/caution,/hr,/quote,/toc,/code,/pagebreak,/blankpage,/centerpage,/header,/footer,/wf,/ai,/task' && QUICK_COMMANDS.every((c) => c.action && c.builtin), BUILTIN_COMMANDS.map((c) => c.name).join());
   check('the matcher: "wf" and "workflow" find Quick Workflow, "ai" Quick AI, "warn" the Warning callout, case-insensitive; "zzz" nothing', matchesSlashQuery(QUICK_COMMANDS[0], 'wf') && matchesSlashQuery(QUICK_COMMANDS[0], 'WorkFlow') && matchesSlashQuery(QUICK_COMMANDS[1], 'ai') && matchesSlashQuery(BUILTIN_COMMANDS[3], 'warn') && !BUILTIN_COMMANDS.some((c) => matchesSlashQuery(c, 'zzz')));
   check('a template matches on its name, description and tags as before', matchesSlashQuery({ name: 'Runbook', description: 'incident steps', tags: ['ops'] }, 'run') && matchesSlashQuery({ name: 'Runbook', description: 'incident steps', tags: ['ops'] }, 'ops') && !matchesSlashQuery({ name: 'Runbook' }, 'xyz'));
   check('a slash opens the popup at a line start or after whitespace, with the typed query', slashQueryAt('/') === '' && slashQueryAt('/no') === 'no' && slashQueryAt('text /wf') === 'wf' && slashQueryAt('line\n/ai') === 'ai');
@@ -106,7 +106,7 @@ try {
   // "/" alone: everything, grouped
   await setText(page, ''); await ta.focus(); await page.keyboard.type('/'); await page.waitForTimeout(400);
   p = await popup(page);
-  check('"/" alone lists the eight built-ins first and the Runbook template under TEMPLATES', !!p && p.groups.join() === 'builtin,templates' && p.entries.length === 9 && p.entries[8].id !== 'callout-note' && p.entries.slice(0, 8).every((e) => /^callout-|^quick-/.test(e.id)), JSON.stringify(p));
+  check('"/" alone lists the 17 built-ins first and the Runbook template under TEMPLATES', !!p && p.groups.join() === 'builtin,templates' && p.entries.length === 18 && p.entries.slice(0, 17).every((e) => /^(callout|block|pdf|quick)-/.test(e.id)) && !/^(callout|block|pdf|quick)-/.test(p.entries[17].id), JSON.stringify(p));
   await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.waitForTimeout(200);
   p = await popup(page);
   check('arrow keys move the highlight (two down: Important)', p.entries.findIndex((e) => e.selected) === 2 && p.entries[2].id === 'callout-important', JSON.stringify(p.entries.map((e) => e.selected)));

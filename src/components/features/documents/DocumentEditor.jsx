@@ -1,12 +1,77 @@
-import { useRef, useEffect, useState, useMemo } from 'react';
-import { Bold, Italic, Info, Lightbulb, MessageSquareWarning, TriangleAlert, OctagonAlert, Code, List, ListOrdered, Link, Quote, Heading1, Heading2, Heading3, Table, TableOfContents, Image as ImageIcon, Strikethrough, IndentDecrease, IndentIncrease, Minus, Eye, Edit3, BookTemplate, Bot, X, RefreshCw, Check, Trash2, FileCode, Search, Replace, ChevronDown, ChevronUp, Square, Type, Download } from 'lucide-react';
+import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
+import { Bold, Italic, Info, Lightbulb, MessageSquareWarning, TriangleAlert, OctagonAlert, Code, List, ListOrdered, ListTodo, Link, Quote, Pilcrow, Heading1, Heading2, Heading3, Table, TableOfContents, Image as ImageIcon, Strikethrough, IndentDecrease, IndentIncrease, Minus, SeparatorHorizontal, File, AlignCenter, PanelTop, PanelBottom, Ellipsis, Plus, Eye, Edit3, BookTemplate, Bot, X, RefreshCw, Check, Trash2, FileCode, Search, Replace, ChevronDown, ChevronUp, Square, Type, Download } from 'lucide-react';
 import { CALLOUT_TYPES } from '../../../utils/callouts';
+import ToolbarMenu from './ToolbarMenu';
+import { useToolbarMenu, useRovingToolbar } from '../../../hooks/toolbarMenu';
+import { useMobile } from '../../../contexts/MobileContext';
+import { formatShortcut } from '../../../utils/shortcuts';
+import { DEFAULT_CLAUDE_MODEL } from '../../../utils/aiDefaults';
 import { BUILTIN_COMMANDS, matchesSlashQuery, slashQueryAt } from '../../../utils/slashCommands';
 
 // The GitHub-style callouts the preview renders (src/utils/interactiveMarkdown.js),
 // each with its lucide icon (the same drawings the preview paints), for the
 // toolbar's Insert callout menu (the slash entries come in with the page's templates)
 const CALLOUT_ICONS = { note: Info, tip: Lightbulb, important: MessageSquareWarning, warning: TriangleAlert, caution: OctagonAlert };
+
+/**
+ * The toolbar's buttons. ToolbarButton is an icon-only control (the icon
+ * is the whole button; the title is the tooltip and aria-label names it).
+ * ToolbarMenuButton opens one of the ToolbarMenu dropdowns: it carries the
+ * menu's open state (aria-haspopup / aria-expanded) and is the anchor the
+ * menu is placed from (`menu` comes from useToolbarMenu); `label`, when
+ * given, is shown in place of (or next to) the icon - the Heading button
+ * reads the caret line's level: "H2", or the pilcrow for a paragraph
+ * (a labelled control shows no icon besides its chevron, the app's
+ * text-button rule). Both are module-level so React keeps them mounted
+ * across the editor's renders.
+ */
+const TOOLBAR_BUTTON = 'sc-toolbar-button p-1.5 rounded-sm transition-colors hover:bg-os-card-secondary disabled:opacity-50 inline-flex items-center justify-center gap-1 text-os-text-primary';
+
+function ToolbarButton({ Icon, title, onClick, testId, disabled = false }) {
+  return (
+    <button type="button" onClick={onClick} className={TOOLBAR_BUTTON} title={title} aria-label={title} data-testid={testId} disabled={disabled}>
+      <Icon size={16} aria-hidden="true" />
+    </button>
+  );
+}
+
+function ToolbarMenuButton({ Icon, title, label, menu, testId }) {
+  // (destructured: a value handed to a `ref` attribute is a ref to the React
+  // Compiler, and it would then flag every other read of `menu`)
+  const { anchor, toggle, open } = menu;
+  return (
+    <button
+      type="button"
+      ref={anchor}
+      onClick={toggle}
+      className={`${TOOLBAR_BUTTON} ${open ? 'bg-os-card-secondary' : ''}`}
+      title={title}
+      aria-label={title}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      data-testid={testId}
+    >
+      {Icon ? <Icon size={16} aria-hidden="true" /> : null}
+      {label ? <span className="text-sm leading-none min-w-[1.25rem] text-center" data-testid={`${testId}-label`}>{label}</span> : null}
+      <ChevronDown size={12} aria-hidden="true" className="text-os-text-muted" />
+    </button>
+  );
+}
+
+/** The caret line's block: its heading level (0 = none) and list kind (bullet | numbered | task | null). */
+function describeLine(line) {
+  const heading = (/^(#{1,6})\s/.exec(line) || ['', ''])[1].length;
+  const list = /^\s*[-*+]\s+\[[ xX]\]\s/.test(line) ? 'task' : /^\s*[-*+]\s/.test(line) ? 'bullet' : /^\s*\d+[.)]\s/.test(line) ? 'numbered' : null;
+  return { heading, list };
+}
+
+/** [start, end) of the whole lines a selection touches. */
+function lineBounds(text, start, end) {
+  const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+  let lineEnd = text.indexOf('\n', Math.max(end, start));
+  if (lineEnd < 0) lineEnd = text.length;
+  return [lineStart, lineEnd];
+}
 import { processInteractiveMarkdown, extractDocumentHeadings } from '../../../utils/interactiveMarkdown';
 import {
   findMermaidTargets, renderMermaidDiagrams, mermaidThemeForApp, MERMAID_PENDING_SELECTOR,
@@ -117,8 +182,25 @@ export default function DocumentEditor({
 
   // Media library state
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
-  // the toolbar's "Insert callout" menu (the five GitHub-style callout types)
-  const [showCalloutMenu, setShowCalloutMenu] = useState(false);
+  // The toolbar (see the "Toolbar" markup below): four dropdowns rendered
+  // by ToolbarMenu (Heading, List, Insert, and the phone's "More"), each
+  // with its open state and anchor ref; the strip itself is a WAI-ARIA
+  // toolbar with a roving tabindex. caretBlock is what the caret's line is
+  // (heading level, list kind): the Heading button reads the level, the
+  // menus check the current item.
+  const headingMenu = useToolbarMenu();
+  const listMenu = useToolbarMenu();
+  const insertMenu = useToolbarMenu();
+  const moreMenu = useToolbarMenu();
+  const { isMobile } = useMobile();
+  const [caretBlock, setCaretBlock] = useState({ heading: 0, list: null });
+  const syncCaretBlock = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const [lineStart, lineEnd] = lineBounds(textarea.value, textarea.selectionStart, textarea.selectionStart);
+    const next = describeLine(textarea.value.slice(lineStart, lineEnd));
+    setCaretBlock((prev) => (prev.heading === next.heading && prev.list === next.list ? prev : next));
+  }, []);
 
   // Text selection context menu state
   const [selectionMenu, setSelectionMenu] = useState({
@@ -422,6 +504,7 @@ export default function DocumentEditor({
 
   // Send cursor position and selection updates (for Yjs awareness)
   const handleCursorMove = () => {
+    syncCaretBlock();
     if (!yjsEnabled || !yjs.updateCursor || !textareaRef.current) {
       return;
     }
@@ -432,6 +515,13 @@ export default function DocumentEditor({
     // Update Yjs awareness with cursor position
     yjs.updateCursor(start, end);
   };
+
+  // The caret line's block after any content change (toolbar actions move
+  // the caret in a timeout, after the new content is in the textarea)
+  useEffect(() => {
+    const timer = setTimeout(syncCaretBlock, 0);
+    return () => clearTimeout(timer);
+  }, [content, yjs.content, syncCaretBlock]);
 
   // Detect document size and enable performance mode for large documents
   useEffect(() => {
@@ -995,31 +1085,15 @@ export default function DocumentEditor({
     insertMarkdown(tableMarkdown, '');
   };
 
-  const insertList = (ordered = false) => {
-    if (locked || isPreviewActive) return;
-
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const text = textarea.value;
-    const lines = text.substring(0, start).split('\n');
-    const currentLine = lines[lines.length - 1];
-
-    // If at beginning of line or line is empty, insert list marker
-    if (currentLine.trim() === '') {
-      insertMarkdown(ordered ? '1. ' : '- ', '');
-    } else {
-      insertMarkdown('\n' + (ordered ? '1. ' : '- '), '');
-    }
-  };
-
   const insertImage = (filename) => {
     if (locked || isPreviewActive) return;
     const markdown = `![${filename}](attachment:${filename})`;
     insertMarkdown(markdown, '', '');
   };
 
+  // Indent / outdent every line the selection touches (a collapsed caret:
+  // its line) by two spaces, keeping the selection on those lines. Also
+  // what Tab / Shift+Tab do inside a list (handleKeyDown).
   const indentText = (increase = true) => {
     if (locked || isPreviewActive) return;
 
@@ -1029,33 +1103,134 @@ export default function DocumentEditor({
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const text = textarea.value;
+    const [lineStart, lineEnd] = lineBounds(text, start, end);
+    const lines = text.substring(lineStart, lineEnd).split('\n');
+    const modifiedLines = lines.map((line) => (increase ? '  ' + line : line.replace(/^ {1,2}/, '')));
+    const replaced = modifiedLines.join('\n');
+    const newText = text.substring(0, lineStart) + replaced + text.substring(lineEnd);
+    const delta = replaced.length - (lineEnd - lineStart);
+    const firstDelta = modifiedLines[0].length - lines[0].length;
+    const newStart = Math.max(lineStart, start + firstDelta);
+    const newEnd = Math.max(newStart, end + delta);
 
-    // Get the selected lines
-    const beforeSelection = text.substring(0, start);
-    const selectedText = text.substring(start, end);
-    const afterSelection = text.substring(end);
-
-    const lines = selectedText.split('\n');
-    const modifiedLines = lines.map(line => {
-      if (increase) {
-        return '  ' + line; // Add 2 spaces
-      } else {
-        return line.replace(/^ {2}/, ''); // Remove 2 spaces
-      }
-    });
-
-    const newText = beforeSelection + modifiedLines.join('\n') + afterSelection;
-
-    // Update content based on document type
     if (yjsEnabled && yjs.updateContent) {
-      // For Yjs documents, use Yjs update
-      yjs.updateContent(newText, start);
-    } else {
-      // For local documents, update React state
-      if (onContentChange) {
-        onContentChange({ target: { value: newText } });
-      }
+      yjs.updateContent(newText, newEnd);
+    } else if (onContentChange) {
+      onContentChange({ target: { value: newText } });
     }
+    setTimeout(() => {
+      textarea.focus({ preventScroll: true });
+      textarea.setSelectionRange(newStart, newEnd);
+    }, 0);
+  };
+
+  // Replace [from, to) of the text and put the caret (or a selection) after it
+  const replaceRange = (from, to, replacement, selectStart, selectEnd = selectStart) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const text = textarea.value;
+    const newText = text.substring(0, from) + replacement + text.substring(to);
+    if (yjsEnabled && yjs.updateContent) {
+      yjs.updateContent(newText, selectEnd);
+    } else if (onContentChange) {
+      onContentChange({ target: { value: newText } });
+    }
+    setTimeout(() => {
+      textarea.focus({ preventScroll: true });
+      textarea.setSelectionRange(selectStart, selectEnd);
+    }, 0);
+  };
+
+  // The caret line's heading level (0 = a paragraph): an existing "#" prefix
+  // is replaced, not stacked. The Heading menu (no keyboard chord: typing
+  // "#", "##" or "###" is the shortcut).
+  const setHeadingLevel = (level) => {
+    if (locked || isPreviewActive) return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const text = textarea.value;
+    const [lineStart, lineEnd] = lineBounds(text, textarea.selectionStart, textarea.selectionStart);
+    const line = text.substring(lineStart, lineEnd);
+    const stripped = line.replace(/^#{1,6}\s+/, '');
+    const body = stripped || (level ? `Heading ${level}` : '');
+    const newLine = level ? `${'#'.repeat(level)} ${body}` : body;
+    const caret = lineStart + newLine.length;
+    // an empty line gets a placeholder title, selected so typing replaces it
+    replaceRange(lineStart, lineEnd, newLine, stripped ? caret : lineStart + newLine.length - body.length, caret);
+  };
+
+  // The list kind of every line the selection touches: an existing marker
+  // (bullet, numbered, task) is replaced; choosing the line's current kind
+  // removes the marker. List menu.
+  const setListKind = (kind) => {
+    if (locked || isPreviewActive) return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const text = textarea.value;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const [lineStart, lineEnd] = lineBounds(text, start, end);
+    const lines = text.substring(lineStart, lineEnd).split('\n');
+    const marker = (n) => (kind === 'bullet' ? '- ' : kind === 'numbered' ? `${n}. ` : '- [ ] ');
+    const allAlready = lines.every((line) => describeLine(line).list === kind);
+    const newLines = lines.map((line, i) => {
+      const indent = (/^\s*/.exec(line) || [''])[0];
+      const rest = line.slice(indent.length).replace(/^(?:[-*+]\s+\[[ xX]\]\s+|[-*+]\s+|\d+[.)]\s+)/, '');
+      if (allAlready) return indent + rest;
+      return indent + marker(i + 1) + (rest || (lines.length === 1 && !rest ? '' : rest));
+    });
+    const replaced = newLines.join('\n');
+    const caret = lineStart + replaced.length;
+    replaceRange(lineStart, lineEnd, replaced, lines.length === 1 ? caret : lineStart, caret);
+  };
+
+  // Inline code for a selection on one line, a fenced block for one that
+  // spans lines (or an empty selection at a line's start): the toolbar's one
+  // "Code" button; the Insert menu still offers the block explicitly.
+  const insertCode = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const selected = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
+    if (selected.includes('\n')) insertCodeBlock();
+    else insertMarkdown('`', '`', 'code');
+  };
+
+  // The PDF layout directives (src/utils/interactiveMarkdown.js: the
+  // preview shows an inert marker, the PDF export acts on them).
+  // A standalone one ([[pagebreak]], [[blankpage]]) goes on a paragraph of
+  // its own; a wrapping one ([[centerpage]], [[header]], [[footer]]) wraps
+  // the selection, or a placeholder to type over, each tag on its own line.
+  const insertPdfDirective = (directive) => {
+    if (locked || isPreviewActive) return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const text = textarea.value;
+    const start = textarea.selectionStart;
+    const before = text.substring(0, start);
+    const after = text.substring(textarea.selectionEnd);
+    const prefix = before.length === 0 || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n';
+    const suffix = after.length === 0 || after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n';
+    const block = `${prefix}${directive}${suffix}`;
+    replaceRange(start, textarea.selectionEnd, block, start + block.length);
+  };
+  const wrapPdfDirective = (kind, placeholder) => {
+    if (locked || isPreviewActive) return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const text = textarea.value;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = text.substring(start, end);
+    const body = selected || placeholder;
+    const before = text.substring(0, start);
+    const after = text.substring(end);
+    const prefix = before.length === 0 || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n';
+    const suffix = after.length === 0 || after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n';
+    const open = `${prefix}[[${kind}]]\n`;
+    const block = `${open}${body}\n[[/${kind}]]${suffix}`;
+    // no selection: the placeholder is selected, so typing replaces it
+    const bodyStart = start + open.length;
+    replaceRange(start, end, block, selected ? start + block.length : bodyStart, selected ? start + block.length : bodyStart + body.length);
   };
 
   const insertLink = () => {
@@ -1070,7 +1245,6 @@ export default function DocumentEditor({
   // or an empty one to type into; on its own paragraph. The preview renders
   // it (src/utils/interactiveMarkdown.js); the text stays plain GitHub syntax.
   const insertCallout = (type) => {
-    setShowCalloutMenu(false);
     if (locked || isPreviewActive) return;
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -1293,9 +1467,27 @@ export default function DocumentEditor({
       return;
     }
 
-    // Global shortcuts for Search/Replace (Ctrl+F, Ctrl+R) and Formatting (Ctrl+B, Ctrl+I).
+    // Tab / Shift+Tab inside a list indent / outdent the lines (outside a
+    // list Tab keeps moving the focus, as a textarea does)
+    if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey && !slashMenu.visible && textareaRef.current) {
+      const textarea = textareaRef.current;
+      const [lineStart, lineEnd] = lineBounds(textarea.value, textarea.selectionStart, textarea.selectionEnd);
+      const lines = textarea.value.substring(lineStart, lineEnd).split('\n');
+      if (lines.every((line) => describeLine(line).list)) {
+        e.preventDefault();
+        indentText(!e.shiftKey);
+        return;
+      }
+    }
+
+    // Global shortcuts for Search/Replace (Ctrl/Cmd+F, +R) and formatting (Ctrl/Cmd+B, +I, +K link).
     // Ctrl/Cmd+Shift+F is the Documents page's "Find in Files" - leave it alone.
     if (e.ctrlKey || e.metaKey) {
+      if ((e.key === 'k' || e.key === 'K') && !e.altKey) {
+        e.preventDefault();
+        insertLink();
+        return;
+      }
       if ((e.key === 'f' || e.key === 'F') && !e.shiftKey) {
         e.preventDefault();
 
@@ -1379,6 +1571,19 @@ export default function DocumentEditor({
   // (Quick Workflow / AI / Task), open its panel at the cursor: the typed
   // command stays in the text until the panel's result replaces it, and a
   // cancelled panel leaves it, as before.
+  const BLOCK_ACTIONS = {
+    hr: insertHorizontalRule,
+    quote: () => insertMarkdown('> ', '', 'quote'),
+    toc: insertTableOfContents,
+    codeblock: insertCodeBlock,
+    // the PDF directives (/pagebreak, /blankpage, /centerpage, /header, /footer)
+    pagebreak: () => insertPdfDirective('[[pagebreak]]'),
+    blankpage: () => insertPdfDirective('[[blankpage]]'),
+    centerpage: () => wrapPdfDirective('centerpage', 'Example Title'),
+    'pdf-header': () => wrapPdfDirective('header', 'Example Header'),
+    'pdf-footer': () => wrapPdfDirective('footer', 'Example Footer'),
+  };
+
   const insertTemplate = (template) => {
     if (!template || locked || isPreviewActive) return;
 
@@ -1387,16 +1592,30 @@ export default function DocumentEditor({
 
     const cursorPos = textarea.selectionStart;
 
+    // Get current content (from Yjs or local state)
+    const currentContent = yjsEnabled && yjs.ytext ? yjs.ytext.toString() : content;
+
     if (template.action) {
       setSlashMenu({ visible: false, position: { x: 0, y: 0 }, query: '', slashPosition: 0, selectedIndex: 0 });
       if (template.action === 'workflow') handleTriggerQuickWorkflow(cursorPos);
       else if (template.action === 'ai') handleTriggerQuickAI(cursorPos);
       else if (template.action === 'task') handleTriggerQuickTasks(cursorPos);
+      else if (BLOCK_ACTIONS[template.action]) {
+        // /hr, /quote, /toc, /code and the PDF directives: the typed command goes, then the
+        // toolbar's own helper runs at that spot (after the content update
+        // has reached the textarea, which the helpers read)
+        const typed = /(?:^|\s)(\/\w*)$/.exec(currentContent.substring(0, cursorPos));
+        const slashStart = typed ? cursorPos - typed[1].length : cursorPos;
+        const run = BLOCK_ACTIONS[template.action];
+        if (typed) {
+          replaceRange(slashStart, cursorPos, '', slashStart);
+          setTimeout(() => run(), 1);
+        } else {
+          run();
+        }
+      }
       return;
     }
-
-    // Get current content (from Yjs or local state)
-    const currentContent = yjsEnabled && yjs.ytext ? yjs.ytext.toString() : content;
 
     // Find the slash command to replace
     const textBeforeCursor = currentContent.substring(0, cursorPos);
@@ -1507,7 +1726,7 @@ export default function DocumentEditor({
     const savedSettings = localStorage.getItem('aiChatSettings');
     const aiSettings = savedSettings ? JSON.parse(savedSettings) : {
       provider: 'anthropic',
-      model: 'claude-sonnet-4-5@20250929',
+      model: DEFAULT_CLAUDE_MODEL, // nothing configured: the API alias (the backend falls back per path too)
       temperature: 0,
       maxTokens: 2000
     };
@@ -2685,194 +2904,138 @@ export default function DocumentEditor({
     };
   }, [isPreviewActive, previewHtml, mermaidTheme]);
 
+  // ---- the toolbar's derived bits (see the Toolbar markup) ----
+  const canEdit = !locked && isOwner;
+  const { attach: attachToolbar, onKeyDown: onToolbarKeyDown, onFocus: onToolbarFocus } = useRovingToolbar([canEdit, isMobile]);
+  const headingLabel = caretBlock.heading ? `H${caretBlock.heading}` : '\u00b6';
+  // Shortcut labels for this platform (⌘B / ⌘I / ⌘K / ⇧⇥ on a Mac, Ctrl+B /
+  // Ctrl+I / Ctrl+K / Shift+Tab elsewhere - src/utils/shortcuts.js). The
+  // desktop app's own menu takes Cmd/Ctrl+B for "Toggle Sidebar" before
+  // the page sees it, so Bold shows no shortcut there rather than one that
+  // does not work.
+  const inDesktopApp = typeof window !== 'undefined' && !!window.electronAPI;
+  const shortcuts = {
+    bold: inDesktopApp ? '' : ` (${formatShortcut('Mod+B')})`,
+    italic: ` (${formatShortcut('Mod+I')})`,
+    link: ` (${formatShortcut('Mod+K')})`,
+    indent: formatShortcut('Tab'),
+    outdent: formatShortcut('Shift+Tab'),
+  };
+  const ListIcon = caretBlock.list === 'numbered' ? ListOrdered : caretBlock.list === 'task' ? ListTodo : List;
+  const headingItems = [
+    { id: 'paragraph', kind: 'radio', checked: caretBlock.heading === 0, Icon: Pilcrow, label: 'Paragraph', onSelect: () => setHeadingLevel(0) },
+    { id: 'heading-1', kind: 'radio', checked: caretBlock.heading === 1, Icon: Heading1, label: 'Heading 1', onSelect: () => setHeadingLevel(1) },
+    { id: 'heading-2', kind: 'radio', checked: caretBlock.heading === 2, Icon: Heading2, label: 'Heading 2', onSelect: () => setHeadingLevel(2) },
+    { id: 'heading-3', kind: 'radio', checked: caretBlock.heading === 3, Icon: Heading3, label: 'Heading 3', onSelect: () => setHeadingLevel(3) },
+  ];
+  const listItems = [
+    { id: 'list-bullet', kind: 'radio', checked: caretBlock.list === 'bullet', Icon: List, label: 'Bullet list', onSelect: () => setListKind('bullet') },
+    { id: 'list-numbered', kind: 'radio', checked: caretBlock.list === 'numbered', Icon: ListOrdered, label: 'Numbered list', onSelect: () => setListKind('numbered') },
+    { id: 'list-task', kind: 'radio', checked: caretBlock.list === 'task', Icon: ListTodo, label: 'Task list', onSelect: () => setListKind('task') },
+  ];
+  // (the item objects are built once and listed in both menus: calling an
+  // array method on a list of helpers that read the textarea ref reads, to
+  // the React Compiler, a ref during render)
+  const tableItem = { id: 'table', Icon: Table, label: 'Table', onSelect: insertTable };
+  const imageItem = { id: 'image', Icon: ImageIcon, label: 'Image', onSelect: () => setShowMediaLibrary(true) };
+  const tocItem = { id: 'toc', Icon: TableOfContents, label: 'Table of contents', onSelect: insertTableOfContents };
+  const calloutItems = CALLOUT_TYPES.map((c) => ({ id: `callout-${c.type}`, Icon: CALLOUT_ICONS[c.type], label: c.label, onSelect: () => insertCallout(c.type) }));
+  const quoteItem = { id: 'quote', Icon: Quote, label: 'Quote', onSelect: () => insertMarkdown('> ', '', 'quote') };
+  const ruleItem = { id: 'rule', Icon: Minus, label: 'Horizontal rule', onSelect: insertHorizontalRule };
+  const codeBlockItem = { id: 'code-block', Icon: FileCode, label: 'Code block', onSelect: insertCodeBlock };
+  // PDF export only (the preview just marks them): see insertPdfDirective
+  const pdfItems = [
+    { id: 'pagebreak', Icon: SeparatorHorizontal, label: 'Page break', onSelect: () => insertPdfDirective('[[pagebreak]]') },
+    { id: 'blankpage', Icon: File, label: 'Blank page', onSelect: () => insertPdfDirective('[[blankpage]]') },
+    { id: 'centerpage', Icon: AlignCenter, label: 'Centered page', onSelect: () => wrapPdfDirective('centerpage', 'Example Title') },
+    { id: 'pdf-header', Icon: PanelTop, label: 'Page header', onSelect: () => wrapPdfDirective('header', 'Example Header') },
+    { id: 'pdf-footer', Icon: PanelBottom, label: 'Page footer', onSelect: () => wrapPdfDirective('footer', 'Example Footer') },
+  ];
+  const insertItems = [
+    tableItem, imageItem, tocItem,
+    { heading: 'Callouts' }, ...calloutItems,
+    { heading: 'Blocks' }, quoteItem, ruleItem, codeBlockItem,
+    { heading: 'PDF' }, ...pdfItems,
+  ];
+  const moreItems = [
+    { heading: 'Text' },
+    { id: 'strike', Icon: Strikethrough, label: 'Strikethrough', onSelect: () => insertMarkdown('~~', '~~', 'strikethrough') },
+    { id: 'code', Icon: Code, label: 'Code', onSelect: insertCode },
+    { heading: 'List' },
+    { id: 'outdent', Icon: IndentDecrease, label: 'Decrease indent', onSelect: () => indentText(false) },
+    { id: 'indent', Icon: IndentIncrease, label: 'Increase indent', onSelect: () => indentText(true) },
+    { heading: 'Insert' },
+    tableItem, imageItem, tocItem,
+    { heading: 'Callouts' }, ...calloutItems,
+    { heading: 'Blocks' }, quoteItem, ruleItem, codeBlockItem,
+    { heading: 'PDF' }, ...pdfItems,
+  ];
+
   return (
     <div className={`flex flex-col h-full bg-os-card ${className}`}>
 
-      {/* Toolbar */}
-      <div className="sc-editor-toolbar border-b border-os-border p-2 flex items-center gap-1 flex-wrap shrink-0 max-md:flex-nowrap max-md:overflow-x-auto">
-        {!locked && isOwner && (
+      {/* Toolbar: one strip, grouped (text | heading | list | link + insert),
+          then the edit/preview toggle right after the last group - never
+          pushed to the far edge. role="toolbar" with a roving tabindex (one
+          tab stop; Left/Right move, Home/End jump), the dropdowns are
+          WAI-ARIA menus (ToolbarMenu). On the phone the strip is seven
+          controls wide so nothing scrolls: Bold, Italic, Heading, List,
+          Link, More (the rest), the toggle. */}
+      <div
+        ref={attachToolbar}
+        onKeyDown={onToolbarKeyDown}
+        onFocus={onToolbarFocus}
+        role="toolbar"
+        aria-label="Editor toolbar"
+        data-testid="editor-toolbar"
+        className="sc-editor-toolbar border-b border-os-border p-2 flex items-center gap-1 flex-wrap shrink-0 max-md:flex-nowrap max-md:overflow-x-auto"
+      >
+        {canEdit && !isMobile && (
           <>
-            {/* Text Formatting */}
-            <button
-              onClick={() => insertMarkdown('**', '**', 'bold')}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Bold (Ctrl+B)"
-            >
-              <Bold size={16} className="text-os-text-primary" />
-            </button>
-            <button
-              onClick={() => insertMarkdown('*', '*', 'italic')}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Italic (Ctrl+I)"
-            >
-              <Italic size={16} className="text-os-text-primary" />
-            </button>
-            <button
-              onClick={() => insertMarkdown('~~', '~~', 'strikethrough')}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Strikethrough"
-            >
-              <Strikethrough size={16} className="text-os-text-primary" />
-            </button>
-            <button
-              onClick={() => insertMarkdown('`', '`', 'code')}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Inline code"
-            >
-              <Code size={16} className="text-os-text-primary" />
-            </button>
-            <button
-              onClick={insertCodeBlock}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Code block"
-            >
-              <FileCode size={16} className="text-os-text-primary" />
-            </button>
-
-            <div className="w-px h-6 bg-os-border mx-1" />
-
-            {/* Headings */}
-            <button
-              onClick={() => insertMarkdown('# ', '', 'Heading 1')}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Heading 1"
-            >
-              <Heading1 size={16} className="text-os-text-primary" />
-            </button>
-            <button
-              onClick={() => insertMarkdown('## ', '', 'Heading 2')}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Heading 2"
-            >
-              <Heading2 size={16} className="text-os-text-primary" />
-            </button>
-            <button
-              onClick={() => insertMarkdown('### ', '', 'Heading 3')}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Heading 3"
-            >
-              <Heading3 size={16} className="text-os-text-primary" />
-            </button>
-
-            <div className="w-px h-6 bg-os-border mx-1" />
-
-            {/* Lists */}
-            <button
-              onClick={() => insertList(false)}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Bullet list"
-            >
-              <List size={16} className="text-os-text-primary" />
-            </button>
-            <button
-              onClick={() => insertList(true)}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Numbered list"
-            >
-              <ListOrdered size={16} className="text-os-text-primary" />
-            </button>
-            <button
-              onClick={() => indentText(false)}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Decrease indent"
-            >
-              <IndentDecrease size={16} className="text-os-text-primary" />
-            </button>
-            <button
-              onClick={() => indentText(true)}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Increase indent"
-            >
-              <IndentIncrease size={16} className="text-os-text-primary" />
-            </button>
-
-            <div className="w-px h-6 bg-os-border mx-1" />
-
-            {/* Insert */}
-            <button
-              onClick={insertLink}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Insert link"
-            >
-              <Link size={16} className="text-os-text-primary" />
-            </button>
-            <button
-              onClick={insertTable}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Insert table"
-            >
-              <Table size={16} className="text-os-text-primary" />
-            </button>
-            <button
-              onClick={() => insertMarkdown('> ', '', 'quote')}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Quote"
-            >
-              <Quote size={16} className="text-os-text-primary" />
-            </button>
-            <button
-              onClick={insertHorizontalRule}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Horizontal rule"
-            >
-              <Minus size={16} className="text-os-text-primary" />
-            </button>
-            <button
-              onClick={insertTableOfContents}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Insert table of contents"
-            >
-              <TableOfContents size={16} className="text-os-text-primary" />
-            </button>
-            <div className="relative">
-              <button
-                onClick={() => setShowCalloutMenu((v) => !v)}
-                className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-                title="Insert callout"
-                aria-haspopup="menu"
-                aria-expanded={showCalloutMenu}
-                data-testid="insert-callout"
-              >
-                <MessageSquareWarning size={16} className="text-os-text-primary" />
-              </button>
-              {showCalloutMenu && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowCalloutMenu(false)} />
-                  <div role="menu" data-testid="callout-menu" className="absolute left-0 top-full mt-1 z-50 min-w-44 bg-os-card border border-os-border rounded-sm shadow-lg py-1">
-                    {CALLOUT_TYPES.map((c) => {
-                      const CalloutIcon = CALLOUT_ICONS[c.type];
-                      return (
-                        <button
-                          key={c.type}
-                          role="menuitem"
-                          type="button"
-                          onClick={() => insertCallout(c.type)}
-                          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left text-os-text-primary hover:bg-os-card-secondary"
-                          data-callout-type={c.type}
-                        >
-                          <CalloutIcon size={16} className="shrink-0" />
-                          {c.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-            <button
-              onClick={() => setShowMediaLibrary(true)}
-              className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-              title="Insert image"
-            >
-              <ImageIcon size={16} className="text-os-text-primary" />
-            </button>
-
-            <div className="w-px h-6 bg-os-border mx-1" />
+            <span className="sc-toolbar-group contents" data-testid="toolbar-group-text">
+              <ToolbarButton Icon={Bold} title={`Bold${shortcuts.bold}`} onClick={() => insertMarkdown('**', '**', 'bold')} testId="tb-bold" />
+              <ToolbarButton Icon={Italic} title={`Italic${shortcuts.italic}`} onClick={() => insertMarkdown('*', '*', 'italic')} testId="tb-italic" />
+              <ToolbarButton Icon={Strikethrough} title="Strikethrough" onClick={() => insertMarkdown('~~', '~~', 'strikethrough')} testId="tb-strike" />
+              <ToolbarButton Icon={Code} title="Code (inline, or a block for a multi-line selection)" onClick={insertCode} testId="tb-code" />
+            </span>
+            <div className="w-px h-6 bg-os-border mx-1" role="separator" aria-orientation="vertical" />
+            <ToolbarMenuButton title="Heading" label={headingLabel} menu={headingMenu} testId="heading-menu-button" />
+            <div className="w-px h-6 bg-os-border mx-1" role="separator" aria-orientation="vertical" />
+            <span className="sc-toolbar-group contents" data-testid="toolbar-group-list">
+              <ToolbarMenuButton Icon={ListIcon} title="List" menu={listMenu} testId="list-menu-button" />
+              <ToolbarButton Icon={IndentDecrease} title={`Decrease indent (${shortcuts.outdent} in a list)`} onClick={() => indentText(false)} testId="tb-outdent" />
+              <ToolbarButton Icon={IndentIncrease} title={`Increase indent (${shortcuts.indent} in a list)`} onClick={() => indentText(true)} testId="tb-indent" />
+            </span>
+            <div className="w-px h-6 bg-os-border mx-1" role="separator" aria-orientation="vertical" />
+            <span className="sc-toolbar-group contents" data-testid="toolbar-group-insert">
+              <ToolbarButton Icon={Link} title={`Insert link${shortcuts.link}`} onClick={insertLink} testId="tb-link" />
+              <ToolbarMenuButton Icon={Plus} title="Insert" menu={insertMenu} testId="insert-menu-button" />
+            </span>
+            <div className="w-px h-6 bg-os-border mx-1" role="separator" aria-orientation="vertical" />
+          </>
+        )}
+        {canEdit && isMobile && (
+          <>
+            <ToolbarButton Icon={Bold} title={`Bold${shortcuts.bold}`} onClick={() => insertMarkdown('**', '**', 'bold')} testId="tb-bold" />
+            <ToolbarButton Icon={Italic} title={`Italic${shortcuts.italic}`} onClick={() => insertMarkdown('*', '*', 'italic')} testId="tb-italic" />
+            <ToolbarMenuButton title="Heading" label={headingLabel} menu={headingMenu} testId="heading-menu-button" />
+            <ToolbarMenuButton Icon={ListIcon} title="List" menu={listMenu} testId="list-menu-button" />
+            <ToolbarButton Icon={Link} title={`Insert link${shortcuts.link}`} onClick={insertLink} testId="tb-link" />
+            <ToolbarMenuButton Icon={Ellipsis} title="More" menu={moreMenu} testId="more-menu-button" />
+            <div className="w-px h-6 bg-os-border mx-1" role="separator" aria-orientation="vertical" />
+          </>
+        )}
+        {canEdit && (
+          <>
+            <ToolbarMenu open={headingMenu.open} onClose={headingMenu.close} anchorRef={headingMenu.anchor} items={headingItems} label="Heading" testId="heading-menu" />
+            <ToolbarMenu open={listMenu.open} onClose={listMenu.close} anchorRef={listMenu.anchor} items={listItems} label="List" testId="list-menu" />
+            {!isMobile && <ToolbarMenu open={insertMenu.open} onClose={insertMenu.close} anchorRef={insertMenu.anchor} items={insertItems} label="Insert" testId="insert-menu" />}
+            {isMobile && <ToolbarMenu open={moreMenu.open} onClose={moreMenu.close} anchorRef={moreMenu.anchor} items={moreItems} label="More" testId="more-menu" />}
           </>
         )}
 
         {/* Auto-Typer Button (Testing Mode Only) */}
-        {typeof __BUILD_MODE__ !== 'undefined' && __BUILD_MODE__ === 'testing' && !locked && isOwner && (
+        {typeof __BUILD_MODE__ !== 'undefined' && __BUILD_MODE__ === 'testing' && canEdit && (
           <>
             <button
               onClick={isAutoTyping ? handleStopAutoTyper : handleStartAutoTyper}
@@ -2893,11 +3056,12 @@ export default function DocumentEditor({
           </>
         )}
 
-        {/* Preview Toggle: OFF -> PREVIEW (blue, this document) -> PREVIEW-ALL (orange, global) -> OFF */}
+        {/* Preview Toggle: OFF -> PREVIEW (blue, this document) -> PREVIEW-ALL (orange, global) -> OFF.
+            Left-aligned: it follows the last group like any other control (no spacer). */}
         <button
           onClick={togglePreview}
           data-testid="editor-mode-toggle"
-          className={`sc-editor-mode p-1.5 transition-colors ${
+          className={`sc-editor-mode p-1.5 rounded-sm transition-colors ${
  previewAllDocuments
  ?'bg-orange-500 text-white'
  : previewMode
@@ -2911,6 +3075,14 @@ export default function DocumentEditor({
                 ? 'Edit'
                 : 'Preview'
           }
+          aria-label={
+            previewAllDocuments
+              ? 'Preview (all documents) - click to turn off'
+              : previewMode
+                ? 'Edit'
+                : 'Preview'
+          }
+          aria-pressed={isPreviewActive}
         >
           {isPreviewActive ? (
             <Edit3 size={16} className="text-white" />

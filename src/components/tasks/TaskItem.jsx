@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2, FolderOpen, Tag, Calendar, AlertCircle, Cloud, Square, MessageSquare, Repeat, TrendingUp, Check, Clock } from 'lucide-react';
+import { CheckCircle, Circle, Trash2, FolderOpen, Tag, Calendar, AlertCircle, Cloud, Square, MessageSquare, Repeat, TrendingUp, Check, Clock } from 'lucide-react';
 import InlineEdit from '../common/inputs/InlineEdit';
 import DatePicker from '../common/inputs/DatePicker';
 import TaskTimer from './TaskTimer';
@@ -250,8 +250,16 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
           }}
           className="mt-0.5 shrink-0"
           disabled={isReadOnly}
+          title={isCompleted ? 'Mark as not done' : 'Mark as done'}
+          aria-label={isCompleted ? 'Mark as not done' : 'Mark as done'}
+          aria-pressed={isCompleted}
+          data-testid="task-done-toggle"
         >
-          
+          {isCompleted ? (
+            <CheckCircle className="w-4 h-4 text-green-500" />
+          ) : (
+            <Circle className={`w-4 h-4 text-os-text-muted ${!isReadOnly ? 'hover:text-os-blue transition-colors' : ''}`} />
+          )}
         </button>
 
         {/* Task content */}

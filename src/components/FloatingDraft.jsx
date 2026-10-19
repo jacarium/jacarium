@@ -1758,7 +1758,9 @@ export default function FloatingDraft({ instanceId = 'default' }) {
                     disabled={checkingBackend}
                     className="p-1 hover:bg-red-100 rounded-sm transition-colors disabled:opacity-50"
                     title="Retry connection"
+                    aria-label="Retry connection"
                   >
+                    <RefreshCw size={12} className={checkingBackend ? 'animate-spin text-red-600' : 'text-red-600'} />
                   </button>
                 </div>
               </div>
@@ -1915,7 +1917,9 @@ export default function FloatingDraft({ instanceId = 'default' }) {
                     disabled={checkingBackend}
                     className="p-1 hover:bg-red-100 rounded-sm transition-colors disabled:opacity-50"
                     title="Retry connection"
+                    aria-label="Retry connection"
                   >
+                    <RefreshCw size={12} className={checkingBackend ? 'animate-spin text-red-600' : 'text-red-600'} />
                   </button>
                 </div>
               </div>

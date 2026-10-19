@@ -367,7 +367,10 @@ export default function DraftSidebar({ isOpen }) {
             onClick={() => setShowSearch(!showSearch)}
             className={`p-1.5 rounded-sm transition-colors ${showSearch ?'bg-os-blue text-white':'hover:bg-os-card-secondary'}`}
             title="Load Document"
+            aria-label="Load Document"
+            aria-pressed={showSearch}
           >
+            <Search size={16} className={showSearch ? 'text-white' : 'text-os-text-primary'} />
           </button>
           <button
             onClick={handleSave}

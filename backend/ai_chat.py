@@ -1,5 +1,6 @@
 """AI chat routes (/api/ai/*) and per-provider chat handlers."""
 import os
+import re
 
 from flask import Blueprint, request, jsonify
 
@@ -9,6 +10,79 @@ from user_context import accounts_mode
 from ssh_interactive import get_ssh_connection, drop_ssh_connection
 
 ai_chat_bp = Blueprint('ai_chat', __name__)
+
+# A model's reasoning written inline into its answer (models without a
+# separate thinking channel do this; Ollama's own chat template also emits
+# it for some models). Stripped from the history, see plain_messages.
+THINK_BLOCK_RE = re.compile(r'<think>.*?</think>\s*', re.DOTALL | re.IGNORECASE)
+
+
+def plain_messages(messages):
+    """Reduce the conversation to what a provider may see: role and content.
+
+    The frontend sends its conversation as the message objects it keeps for
+    display, and an assistant message carries more than its answer: the
+    model's `thinking` of that turn (shown in the "thinking" tab),
+    `citations`, `thinkingDuration`, timestamps. Ollama's chat API accepts
+    `thinking` on an assistant message and renders it back into the
+    prompt, so a follow-up turn re-fed the previous turn's reasoning right
+    before the new question and a thinking model (qwen3, deepseek-r1,
+    gpt-oss) took that reasoning up again - "I asked a second question and
+    Robin answered the first one again". Reasoning models are meant to see
+    only the final answers of earlier turns (Qwen's guidance for its
+    thinking models), so every provider gets role + content only, with an
+    inline <think>...</think> block removed from the stored answers too.
+    """
+    plain = []
+    for msg in messages or []:
+        if not isinstance(msg, dict):
+            continue
+        content = msg.get('content')
+        if not isinstance(content, str):
+            content = '' if content is None else str(content)
+        if msg.get('role') == 'assistant':
+            content = THINK_BLOCK_RE.sub('', content).strip()
+            # An answer that never came (the reply was all reasoning and
+            # stopped at the token limit, or the request failed) was stored
+            # as an empty assistant message. Re-sent, it shows the model a
+            # question it never answered right before the new one, and a
+            # reasoning model picks the old question up again. Leave it out.
+            if not content:
+                continue
+        plain.append({'role': msg.get('role'), 'content': content})
+    return plain
+
+
+# Ollama counts a thinking model's reasoning against num_predict. With
+# num_predict = the user's Max tokens (2000 by default) qwen3's reasoning
+# alone ran to 1200+ tokens on a two-chunk RAG question, and a longer one
+# used the whole budget: done_reason "length", thinking streamed, answer
+# EMPTY - the user saw only the model's reasoning. So a model that thinks
+# gets this much on top of Max tokens, and num_ctx grows to hold it.
+THINKING_TOKEN_BUDGET = 4096
+OLLAMA_MIN_NUM_CTX = 8192
+# Shown at the end of a reply Ollama stopped at the token limit.
+TRUNCATED_NOTE = "\n\n*The reply stopped at the token limit (Max tokens in Settings).*"
+
+
+def ollama_thinks(model):
+    """Whether the model reasons before answering (Ollama's `think`)."""
+    name = (model or '').lower()
+    return 'gpt-oss' in name or 'deepseek-r1' in name or 'qwen3' in name
+
+
+def ollama_options(model, temperature, max_tokens):
+    """The options block of an Ollama chat request."""
+    num_predict = max_tokens + (THINKING_TOKEN_BUDGET if ollama_thinks(model) else 0)
+    return {
+        'temperature': temperature,
+        'num_predict': num_predict,
+        # Enlarged context window so RAG context + history isn't silently
+        # truncated (Ollama's default is ~2048-4096 tokens); wide enough
+        # to hold the prompt next to the whole reply budget
+        'num_ctx': max(OLLAMA_MIN_NUM_CTX, num_predict * 2),
+    }
+
 
 # Timeout (seconds) for requests to the user-configured custom/Ollama endpoint.
 # Applies as both the connect timeout and the max gap between received bytes,
@@ -302,6 +376,16 @@ def ai_models():
             }]
             debug_print(f"[AI Models] Configured SSH AI: {display_name}")
 
+        # The Default AI Provider / Model from Settings, so the chat UIs can
+        # pick a conversation's starting model in one order everywhere
+        # (desktop and web alike): the saved one, the default model, the
+        # default provider's first model, the first model - see
+        # src/utils/aiDefaults.js resolveModelOption.
+        models['defaults'] = {
+            'provider': setting('DEFAULT_AI_PROVIDER', '') or '',
+            'model': setting('DEFAULT_AI_MODEL', '') or '',
+        }
+
         return jsonify(models)
 
     except Exception as e:
@@ -366,7 +450,7 @@ def ai_chat():
     """Handle AI chat requests supporting multiple providers"""
     try:
         data = request.json
-        messages = data.get('messages', [])
+        messages = plain_messages(data.get('messages', []))
         provider = data.get('provider', 'openai')
         model = data.get('model', 'gpt-4')
         temperature = data.get('temperature', 0)
@@ -414,7 +498,7 @@ def ai_chat_stream():
     def generate():
         try:
             data = request.json
-            messages = data.get('messages', [])
+            messages = plain_messages(data.get('messages', []))
             provider = data.get('provider', 'openai')
             model = data.get('model', 'gpt-4')
             temperature = data.get('temperature', 0)
@@ -461,6 +545,31 @@ def ai_chat_stream():
     return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 
+
+# The Claude model used when none is configured, per path: the direct API
+# knows the alias, Vertex AI wants the "@date" id.
+ANTHROPIC_DEFAULT_MODEL_API = "claude-sonnet-4-5"
+ANTHROPIC_DEFAULT_MODEL_VERTEX = "claude-sonnet-4-5@20250929"
+
+# OpenAI's reasoning models (o1/o3/o4..., gpt-5...) reject a temperature other
+# than their default with a 400 ("Unsupported value: 'temperature' ...").
+OPENAI_REASONING_MODEL_RE = re.compile(r'^(o\d|gpt-5)')
+
+
+def anthropic_text(content):
+    """The text of a Messages response: every text block joined. Robust to an
+    empty content list and to a response that starts with a thinking block
+    (content[0].text raised on both). Works on SDK objects and on the dicts a
+    raw Bedrock body gives."""
+    parts = []
+    for block in content or []:
+        kind = block.get('type') if isinstance(block, dict) else getattr(block, 'type', None)
+        if kind != 'text':
+            continue
+        parts.append(block.get('text', '') if isinstance(block, dict) else getattr(block, 'text', ''))
+    return ''.join(parts)
+
+
 def handle_openai_chat(messages, model, temperature, max_tokens):
     """Handle OpenAI API chat"""
     import openai
@@ -469,7 +578,7 @@ def handle_openai_chat(messages, model, temperature, max_tokens):
     if not api_key:
         raise ValueError("OPENAI_API_KEY not found in environment variables")
 
-    openai.api_key = api_key
+    client = openai.OpenAI(api_key=api_key)
 
     # Convert message format
     formatted_messages = [
@@ -477,12 +586,16 @@ def handle_openai_chat(messages, model, temperature, max_tokens):
         for msg in messages
     ]
 
-    response = openai.ChatCompletion.create(
-        model=model,
-        messages=formatted_messages,
-        temperature=temperature,
-        max_tokens=max_tokens
-    )
+    request_params = {
+        "model": model,
+        "messages": formatted_messages,
+        "max_tokens": max_tokens,
+    }
+    # the reasoning models take no temperature (a 400 otherwise)
+    if not OPENAI_REASONING_MODEL_RE.match(model or ''):
+        request_params["temperature"] = temperature
+
+    response = client.chat.completions.create(**request_params)
 
     return response.choices[0].message.content
 
@@ -524,7 +637,7 @@ def handle_anthropic_chat(messages, model, temperature, max_tokens):
         request_body = {
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": max_tokens,
-            "temperature": temperature,
+            "temperature": temperature,  # the raw Bedrock body still takes it (only the SDK dropped it)
             "messages": formatted_messages
         }
 
@@ -538,7 +651,7 @@ def handle_anthropic_chat(messages, model, temperature, max_tokens):
         )
 
         response_body = json.loads(response['body'].read())
-        return response_body['content'][0]['text']
+        return anthropic_text(response_body.get('content'))
 
     elif use_vertex:
         # Use Google Cloud Vertex AI with gcloud credentials
@@ -557,9 +670,8 @@ def handle_anthropic_chat(messages, model, temperature, max_tokens):
 
         # Build request parameters
         request_params = {
-            "model": model if model else "claude-sonnet-4-5@20250929",
+            "model": model if model else ANTHROPIC_DEFAULT_MODEL_VERTEX,
             "max_tokens": max_tokens,
-            "temperature": temperature,
             "messages": formatted_messages
         }
 
@@ -569,7 +681,7 @@ def handle_anthropic_chat(messages, model, temperature, max_tokens):
 
         response = client.messages.create(**request_params)
 
-        return response.content[0].text
+        return anthropic_text(response.content)
 
     else:
         # Use direct API key authentication
@@ -583,9 +695,8 @@ def handle_anthropic_chat(messages, model, temperature, max_tokens):
 
         # Build request parameters
         request_params = {
-            "model": model if model else "claude-sonnet-4-5@20250929",
+            "model": model if model else ANTHROPIC_DEFAULT_MODEL_API,
             "max_tokens": max_tokens,
-            "temperature": temperature,
             "messages": formatted_messages
         }
 
@@ -595,7 +706,7 @@ def handle_anthropic_chat(messages, model, temperature, max_tokens):
 
         response = client.messages.create(**request_params)
 
-        return response.content[0].text
+        return anthropic_text(response.content)
 
 
 def _gemini_system_instruction(messages):
@@ -706,18 +817,12 @@ def handle_custom_chat(messages, model, temperature, max_tokens):
             'model': model,
             'messages': messages,
             'stream': False,
-            'options': {
-                'temperature': temperature,
-                'num_predict': max_tokens,
-                # Enlarged context window so RAG context + history isn't
-                # silently truncated (Ollama's default is ~2048-4096 tokens)
-                'num_ctx': 8192
-            }
+            'options': ollama_options(model, temperature, max_tokens)
         }
 
         # Only add 'think' parameter for models that support it
         # GPT-OSS and some other reasoning models support thinking
-        if 'gpt-oss' in model.lower() or 'deepseek-r1' in model.lower() or 'qwen3' in model.lower():
+        if ollama_thinks(model):
             payload['think'] = 'medium'  # GPT-OSS uses low/medium/high
     else:
         # OpenAI-compatible format
@@ -739,7 +844,10 @@ def handle_custom_chat(messages, model, temperature, max_tokens):
     # Parse response based on format
     if is_ollama:
         # Ollama response format: {"message": {"role": "assistant", "content": "..."}}
-        return data.get('message', {}).get('content', 'No response')
+        text = data.get('message', {}).get('content', 'No response')
+        if data.get('done_reason') == 'length':
+            text += TRUNCATED_NOTE
+        return text
     else:
         # OpenAI-compatible format
         return data.get('message', data.get('choices', [{}])[0].get('message', {}).get('content', 'No response'))
@@ -769,18 +877,12 @@ def handle_custom_chat_stream(messages, model, temperature, max_tokens):
             'model': model,
             'messages': messages,
             'stream': True,
-            'options': {
-                'temperature': temperature,
-                'num_predict': max_tokens,
-                # Enlarged context window so RAG context + history isn't
-                # silently truncated (Ollama's default is ~2048-4096 tokens)
-                'num_ctx': 8192
-            }
+            'options': ollama_options(model, temperature, max_tokens)
         }
 
         # Only add 'think' parameter for models that support it
         # GPT-OSS and some other reasoning models support thinking
-        if 'gpt-oss' in model.lower() or 'deepseek-r1' in model.lower() or 'qwen3' in model.lower():
+        if ollama_thinks(model):
             payload['think'] = 'medium'  # GPT-OSS uses low/medium/high
     else:
         # OpenAI-compatible format with streaming
@@ -840,6 +942,10 @@ def handle_custom_chat_stream(messages, model, temperature, max_tokens):
                     # If we're done but still in thinking mode, send thinking_end
                     if thinking_active:
                         yield {'type': 'thinking_end'}
+                    # Stopped by num_predict, not by the model: say so, else
+                    # a reply that is all reasoning looks like an empty answer
+                    if chunk_data.get('done_reason') == 'length':
+                        yield {'type': 'content', 'content': TRUNCATED_NOTE}
                     break
             else:
                 # OpenAI-compatible format
@@ -905,9 +1011,8 @@ def handle_anthropic_chat_stream(messages, model, temperature, max_tokens):
 
     # Build request parameters
     request_params = {
-        "model": model if model else "claude-sonnet-4-5@20250929",
+        "model": model if model else (ANTHROPIC_DEFAULT_MODEL_VERTEX if use_vertex else ANTHROPIC_DEFAULT_MODEL_API),
         "max_tokens": max_tokens,
-        "temperature": temperature,
         "messages": formatted_messages
     }
 

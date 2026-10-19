@@ -1,4 +1,5 @@
 import os
+import json
 import hashlib
 import lancedb
 from fastembed import TextEmbedding
@@ -23,6 +24,7 @@ class VectorDBManager:
         os.makedirs(db_path, exist_ok=True)
         self.db = lancedb.connect(db_path)
 
+        model_name = None
         if embedding_model is not None:
             self.embedding_model = embedding_model
         else:
@@ -39,17 +41,96 @@ class VectorDBManager:
             # Default: BAAI/bge-small-en-v1.5 (384 dimensions, ~150MB)
             self.embedding_model = TextEmbedding(model_name=model_name)
 
+        # What produced the vectors: the model's name and its dimension, so an
+        # index built by another model is recognised (see _ensure_table). The
+        # name comes from the fastembed object when the model was handed in
+        # (the per-account managers share one loaded model); the dimension
+        # from embedding one probe string - cheaper than trusting a table.
+        self.embedding_model_name = (
+            getattr(self.embedding_model, 'model_name', None) or model_name or type(self.embedding_model).__name__
+        )
+        self.embedding_dim = len(list(self.embedding_model.embed(['dimension probe']))[0])
+        self._fingerprint_path = os.path.join(db_path, 'embedder.json')
+
         # Create or open table
         self._ensure_table()
 
     def _ensure_table(self):
-        """Create document_chunks table if it doesn't exist"""
+        """Open document_chunks if it exists - and only if the current
+        embedder built it.
+
+        The embedding model is a setting (HF_EMBEDDING_MODEL) and a
+        dependency: change either and the stored vectors no longer live in
+        the query's space. A different dimension made every search raise
+        inside LanceDB (and every index call fail on insert); the same
+        dimension from a different model would have searched quietly and
+        returned nonsense. So the index directory carries embedder.json
+        ({model, dim}) written when the table is created, and a table whose
+        fingerprint does not match the current embedder is dropped here -
+        the next dataset save (or the pre-turn re-index) rebuilds it, since
+        no checksum survives. A table without a fingerprint (built before
+        this check) is kept when its vector width matches and stamped.
+        """
         try:
             self.table = self.db.open_table("document_chunks")
         except Exception:
             # Table doesn't exist, create it with schema
             # Create with empty data and schema will be inferred on first insert
             self.table = None
+            return
+
+        fingerprint = self._read_fingerprint()
+        current = {"model": self.embedding_model_name, "dim": self.embedding_dim}
+        if fingerprint is None:
+            table_dim = self._table_vector_dim()
+            if table_dim in (None, self.embedding_dim):
+                self._write_fingerprint(current)
+                return
+            reason = f"vector width {table_dim} != {self.embedding_dim}"
+        elif fingerprint == current:
+            return
+        else:
+            reason = f"built by {fingerprint.get('model')} ({fingerprint.get('dim')}d)"
+
+        print(f"[VectorDB] Index at {self.db.uri} was {reason}; current embedder is "
+              f"{self.embedding_model_name} ({self.embedding_dim}d). Dropping it - it is rebuilt on the next indexing run.")
+        try:
+            self.db.drop_table("document_chunks")
+        except Exception as e:
+            print(f"[VectorDB] Failed to drop the stale index: {e}")
+            raise
+        self.table = None
+        self._write_fingerprint(current)
+
+    def _read_fingerprint(self):
+        try:
+            with open(self._fingerprint_path, encoding='utf-8') as fh:
+                data = json.load(fh)
+            return {"model": data.get("model"), "dim": data.get("dim")}
+        except (OSError, ValueError):
+            return None
+
+    def _write_fingerprint(self, fingerprint):
+        try:
+            with open(self._fingerprint_path, 'w', encoding='utf-8') as fh:
+                json.dump(fingerprint, fh)
+        except OSError as e:
+            print(f"[VectorDB] Could not write {self._fingerprint_path}: {e}")
+
+    def _table_vector_dim(self):
+        """The stored vectors' width, from the schema (a fixed-size list) or a row."""
+        try:
+            field = self.table.schema.field("vector")
+            size = getattr(field.type, "list_size", None)
+            if size and size > 0:
+                return int(size)
+        except Exception:
+            pass
+        try:
+            rows = self.table.search().limit(1).to_list()
+            return len(rows[0]["vector"]) if rows else None
+        except Exception:
+            return None
 
     def calculate_checksum(self, content):
         """Calculate MD5 hash of document content"""
@@ -244,6 +325,7 @@ class VectorDBManager:
         # Insert into LanceDB
         if self.table is None:
             self.table = self.db.create_table("document_chunks", data=data)
+            self._write_fingerprint({"model": self.embedding_model_name, "dim": self.embedding_dim})
         else:
             self.table.add(data)
 
@@ -277,17 +359,20 @@ class VectorDBManager:
         # queries against passage embeddings (passages keep using embed()).
         query_embedding = list(self.embedding_model.query_embed([query]))[0]
 
-        # Build search with an explicit cosine metric (don't rely on defaults)
-        search_query = self.table.search(query_embedding.tolist()).metric("cosine")
-
-        # Filter by dataset IDs if provided
-        if dataset_ids:
-            # dataset_ids are validated ints (see validate_doc_ids above)
-            id_filter = " OR ".join([f"doc_id = {int(id)}" for id in dataset_ids])
-            search_query = search_query.where(f"({id_filter})")
-
-        # Execute search
+        # Build and run the search with an explicit cosine metric (don't rely
+        # on defaults). Everything LanceDB-side sits in the try: a query
+        # vector the table cannot take raised while BUILDING the query, not
+        # while running it, and turned a chat turn into a 500 instead of the
+        # plain-chat fallback.
         try:
+            search_query = self.table.search(query_embedding.tolist()).metric("cosine")
+
+            # Filter by dataset IDs if provided
+            if dataset_ids:
+                # dataset_ids are validated ints (see validate_doc_ids above)
+                id_filter = " OR ".join([f"doc_id = {int(id)}" for id in dataset_ids])
+                search_query = search_query.where(f"({id_filter})")
+
             results = search_query.limit(top_k).to_list()
         except Exception as e:
             print(f"[VectorDB] Search error: {e}")
@@ -312,21 +397,21 @@ class VectorDBManager:
             return []
 
         try:
-            # Group by doc_id and get unique documents
-            all_chunks = self.table.to_pandas()
-            if all_chunks.empty:
-                return []
-
-            docs = all_chunks.groupby('doc_id').first().reset_index()
-            return [
-                {
+            # One entry per doc_id, from the metadata columns only (pyarrow
+            # ships with lancedb; pandas, which an earlier revision used
+            # here, is not a dependency, so this always returned []).
+            rows = self.table.to_arrow().select(
+                ["doc_id", "doc_title", "doc_category", "doc_checksum"]
+            ).to_pylist()
+            docs = {}
+            for row in rows:
+                docs.setdefault(int(row["doc_id"]), {
                     "doc_id": int(row["doc_id"]),
                     "doc_title": row["doc_title"],
                     "doc_category": row["doc_category"],
                     "checksum": row["doc_checksum"]
-                }
-                for _, row in docs.iterrows()
-            ]
+                })
+            return [docs[k] for k in sorted(docs)]
         except Exception as e:
             print(f"[VectorDB] Failed to list indexed documents: {e}")
             return []

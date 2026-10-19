@@ -7,6 +7,7 @@ import { getBackendUrl, apiFetch } from '../../utils/backendUrl';
 import { useNotifications } from '../../contexts/NotificationContext';
 import AIMessageMarkdown from './AIMessageMarkdown';
 import { newConversationId, parseConversationId } from '../../utils/aiConversations';
+import { resolveModelOption } from '../../utils/aiDefaults';
 
 // Hoisted so the object reference is stable across renders - an inline
 // object literal here would defeat AIMessageMarkdown's React.memo.
@@ -146,8 +147,11 @@ export default function AIChatSidebar({ isOpen }) {
     commandTimeout: ''
   });
   const [sshConnected, setSshConnected] = useState(false);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  // Settings > Default AI Provider / Model, as /api/ai/models reports them
+  const [aiDefaults, setAiDefaults] = useState({ provider: '', model: '' });
 
-  const aiSettings = currentConversation?.settings || {
+  const savedSettings = currentConversation?.settings || {
     provider: 'anthropic',
     model: 'claude-sonnet-4-5@20250929',
     temperature: 0,
@@ -217,12 +221,22 @@ export default function AIChatSidebar({ isOpen }) {
   // Get current model label
   console.log('[AI Chat] Current conversation settings:', currentConversation?.settings);
   console.log('[AI Chat] aiSettings:', aiSettings);
-  const currentModelOption = modelOptions.find(
-    opt => opt.provider === aiSettings.provider && opt.model === aiSettings.model
-  ) || modelOptions[0];
+  // the saved model when configured, else the Settings default model, else the
+  // default provider's first, else the first configured (src/utils/aiDefaults.js)
+  const currentModelOption = resolveModelOption(modelOptions, savedSettings, aiDefaults);
   console.log('[AI Chat] Selected model option:', currentModelOption);
 
-  const noModelsConfigured = modelOptions.length === 0;
+  // The settings in force: the conversation's own when its model is among
+  // the configured ones, else the first configured model's - the one the
+  // header shows and a message is sent to (a fresh conversation carries
+  // placeholder defaults; see AIChatPage for the "external provider" case).
+  const aiSettings = currentModelOption
+    && (currentModelOption.provider !== savedSettings.provider || currentModelOption.model !== savedSettings.model)
+    ? { ...savedSettings, provider: currentModelOption.provider, model: currentModelOption.model }
+    : savedSettings;
+
+  // only once /api/ai/models has answered (or failed) does an empty list mean "nothing configured"
+  const noModelsConfigured = modelsLoaded && modelOptions.length === 0;
 
   const modelSelectorRef = useRef(null);
 
@@ -347,13 +361,42 @@ export default function AIChatSidebar({ isOpen }) {
           ollama: models.ollama || [],
           ssh: models.ssh || []
         });
+        setAiDefaults({ provider: models.defaults?.provider || '', model: models.defaults?.model || '' });
       }
     } catch (err) {
       console.error('Failed to load models:', err);
     } finally {
       setLoadingModels(false);
+      setModelsLoaded(true);
     }
   }
+
+  // What a chat starts with (see AIChatPage.newChatSettings): the resolved
+  // option once the list is known, else the placeholder defaults
+  function newChatSettings() {
+    const option = resolveModelOption(modelOptions, null, aiDefaults);
+    return option ? { ...defaultAISettings, provider: option.provider, model: option.model } : { ...defaultAISettings };
+  }
+
+  // A chat that has not started and whose saved model is not configured
+  // takes the resolved option once the list is known (stored = shown = sent)
+  useEffect(() => {
+    if (!modelsLoaded || modelOptions.length === 0) return;
+    setConversations((prev) => {
+      let changed = false;
+      const next = prev.map((conv) => {
+        if (conv.messages?.length) return conv;
+        if (modelOptions.some((o) => o.provider === conv.settings?.provider && o.model === conv.settings?.model)) return conv;
+        const option = resolveModelOption(modelOptions, null, aiDefaults);
+        if (!option) return conv;
+        changed = true;
+        return { ...conv, settings: { ...conv.settings, provider: option.provider, model: option.model } };
+      });
+      return changed ? next : prev;
+    });
+    // modelOptions is derived from availableModels each render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelsLoaded, availableModels, aiDefaults]);
 
   // Check backend health
   async function checkBackendHealth() {
@@ -672,7 +715,7 @@ export default function AIChatSidebar({ isOpen }) {
       name: `Conversation ${newCounter}`,
       messages: [],
       createdAt: new Date().toISOString(),
-      settings: { ...defaultAISettings }
+      settings: newChatSettings()
     };
     setConversations(prev => [newConv, ...prev]);
     setCurrentConversationId(newConv.id);
@@ -938,7 +981,10 @@ export default function AIChatSidebar({ isOpen }) {
                 onClick={checkBackendHealth}
                 disabled={checkingBackend}
                 className="text-red-700 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200 disabled:opacity-50"
+                title="Check the AI backend again"
+                aria-label="Check the AI backend again"
               >
+                <RefreshCw size={14} className={checkingBackend ? 'animate-spin' : ''} />
               </button>
               <button
                 onClick={() => setBackendBannerDismissed(true)}

@@ -15,6 +15,8 @@ import MobilePageHeader from './mobile/MobilePageHeader';
 import RowMenuButton from './mobile/RowMenuButton';
 import { useCloseDrawerOn } from '../hooks/useCloseDrawerOn';
 import { newConversationId, parseConversationId } from '../utils/aiConversations';
+import { resolveModelOption } from '../utils/aiDefaults';
+import { indexDatasetDocuments } from '../utils/ragIndex';
 
 export default function AIChatPage() {
   const { addNotification } = useNotifications();
@@ -33,6 +35,16 @@ export default function AIChatPage() {
     ollama: [],
     ssh: []
   });
+  // false until /api/ai/models has answered (or failed): before that the
+  // page knows nothing about the providers, so it shows neither the "no
+  // models configured" state nor the external-provider warning
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  // Settings > Default AI Provider / Model, as /api/ai/models reports them
+  const [aiDefaults, setAiDefaults] = useState({ provider: '', model: '' });
+  // The settings a new chat starts with. The provider/model here are only a
+  // placeholder until the configured models are known: the settings in
+  // force come from the model list (see aiSettings below), so a profile with
+  // only Ollama configured never runs - or warns - as Anthropic.
   const [defaultAISettings] = useState({
     provider: 'anthropic',
     model: 'claude-sonnet-4-5@20250929',
@@ -89,7 +101,7 @@ export default function AIChatPage() {
   // created when a conversation has no messages yet
   const messages = useMemo(() => currentConversation?.messages || [], [currentConversation]);
 
-  const aiSettings = currentConversation?.settings || defaultAISettings;
+  const savedSettings = currentConversation?.settings || defaultAISettings;
 
   // Build model options
   const modelOptions = [
@@ -141,11 +153,23 @@ export default function AIChatPage() {
     }))
   ];
 
-  const currentModelOption = modelOptions.find(
-    opt => opt.provider === aiSettings.provider && opt.model === aiSettings.model
-  ) || modelOptions[0];
+  // The saved model when configured, else the Settings default model, else
+  // the default provider's first model, else the first configured model
+  // (src/utils/aiDefaults.js, shared with the AI chat sidebar)
+  const currentModelOption = resolveModelOption(modelOptions, savedSettings, aiDefaults);
 
-  const noModelsConfigured = modelOptions.length === 0;
+  // The settings in force: the conversation's own when its model is among
+  // the configured ones, else the resolved option's - the one the header
+  // shows and a message is sent to. A fresh chat carries placeholder
+  // defaults (Anthropic); when only Ollama is configured, the page used to
+  // show "Ollama - ..." in the header yet warn "Using External AI Provider"
+  // and send to Anthropic until a model was picked by hand.
+  const aiSettings = currentModelOption
+    && (currentModelOption.provider !== savedSettings.provider || currentModelOption.model !== savedSettings.model)
+    ? { ...savedSettings, provider: currentModelOption.provider, model: currentModelOption.model }
+    : savedSettings;
+
+  const noModelsConfigured = modelsLoaded && modelOptions.length === 0;
 
   // Filter conversations by search
   const filteredConversations = conversations.filter(conv =>
@@ -282,11 +306,45 @@ export default function AIChatPage() {
           ollama: models.ollama || [],
           ssh: models.ssh || []
         });
+        setAiDefaults({ provider: models.defaults?.provider || '', model: models.defaults?.model || '' });
       }
     } catch (error) {
       console.error('[AI Chat Page] Error fetching models:', error);
+    } finally {
+      setModelsLoaded(true);
     }
   }
+
+  // What a chat starts with: the Settings default model (else the default
+  // provider's first, else the first configured) once the list is known;
+  // the placeholder until then - settleNewChats() below rewrites it.
+  function newChatSettings() {
+    const option = resolveModelOption(modelOptions, null, aiDefaults);
+    return option ? { ...defaultAISettings, provider: option.provider, model: option.model } : { ...defaultAISettings };
+  }
+
+  // Once the configured models are known, a chat that has not started and
+  // whose saved model is not among them takes the resolved option, so what
+  // is stored is what the header shows and a message is sent to.
+  useEffect(() => {
+    if (!modelsLoaded || modelOptions.length === 0) return;
+    // a functional update once the list is known (no cascade: nothing changes when every chat's model is listed)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setConversations((prev) => {
+      let changed = false;
+      const next = prev.map((conv) => {
+        if (conv.messages?.length) return conv;
+        if (modelOptions.some((o) => o.provider === conv.settings?.provider && o.model === conv.settings?.model)) return conv;
+        const option = resolveModelOption(modelOptions, null, aiDefaults);
+        if (!option) return conv;
+        changed = true;
+        return { ...conv, settings: { ...conv.settings, provider: option.provider, model: option.model } };
+      });
+      return changed ? next : prev;
+    });
+    // modelOptions is derived from availableModels each render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelsLoaded, availableModels, aiDefaults]);
 
   function loadConversations() {
     const saved = localStorage.getItem(scopedKey('aiChatPageConversations'));
@@ -319,7 +377,7 @@ export default function AIChatPage() {
         messages: [],
         createdAt: new Date().toISOString(),
         settings: {
-          ...defaultAISettings,
+          ...newChatSettings(),
           datasets: {
             documentIds: [],
             lastUpdated: null
@@ -341,7 +399,7 @@ export default function AIChatPage() {
       messages: [],
       createdAt: new Date().toISOString(),
       settings: {
-        ...defaultAISettings,
+        ...newChatSettings(),
         datasets: {
           documentIds: [],
           lastUpdated: null
@@ -418,7 +476,7 @@ export default function AIChatPage() {
         messages: [],
         createdAt: new Date().toISOString(),
         settings: {
-          ...defaultAISettings,
+          ...newChatSettings(),
           datasets: {
             documentIds: [],
             lastUpdated: null
@@ -447,7 +505,7 @@ export default function AIChatPage() {
       messages: [],
       createdAt: new Date().toISOString(),
       settings: {
-        ...defaultAISettings,
+        ...newChatSettings(),
         datasets: {
           documentIds: [],
           lastUpdated: null
@@ -532,7 +590,7 @@ export default function AIChatPage() {
   }
 
   async function handleSendMessage() {
-    if (!inputMessage.trim() || isLoading || backendStatus === 'offline' || noModelsConfigured) return;
+    if (!inputMessage.trim() || isLoading || backendStatus === 'offline' || noModelsConfigured || !modelsLoaded) return;
 
     const userMessage = { role: 'user', content: inputMessage };
     const updatedMessages = [...messages, userMessage];
@@ -561,8 +619,12 @@ export default function AIChatPage() {
       const supportsStreaming = ['ollama', 'custom', 'anthropic'].includes(aiSettings.provider);
 
       let endpoint = `${backendUrl}/api/ai/chat`;
+      // Role and content only: the stored message objects also carry the
+      // model's `thinking` of earlier turns, citations and timestamps, and
+      // Ollama would render an assistant's `thinking` back into the prompt
+      // (a thinking model then reasons about the previous question again).
       const requestBody = {
-        messages: updatedMessages,
+        messages: updatedMessages.map(({ role, content }) => ({ role, content })),
         provider: aiSettings.provider,
         model: aiSettings.model,
         temperature: aiSettings.temperature,
@@ -574,6 +636,14 @@ export default function AIChatPage() {
         endpoint = `${backendUrl}/api/ai/chat-rag-stream`;
         requestBody.dataset_ids = datasets.documentIds;
         requestBody.retrieval_k = 5; // Top-5 chunks
+        // Edits since the dataset was saved are not in the index: refresh
+        // the selected documents first (unchanged ones are skipped by
+        // checksum). A failed refresh is logged, the turn still goes ahead.
+        try {
+          await indexDatasetDocuments(backendUrl, datasets.documentIds);
+        } catch (error) {
+          console.warn('[AIChatPage] Could not refresh the dataset index before the turn:', error);
+        }
       } else if (supportsStreaming) {
         // Use streaming endpoint for supported providers
         endpoint = `${backendUrl}/api/ai/chat-stream`;
@@ -1148,8 +1218,9 @@ export default function AIChatPage() {
           </div>
         )}
 
-        {/* External Provider Warning */}
-        {!noModelsConfigured && aiSettings.provider !== 'ollama' && aiSettings.provider !== 'ssh' && (
+        {/* External Provider Warning: only once the configured models are known
+            (the settings in force come from that list), never for Ollama / SSH */}
+        {modelsLoaded && !noModelsConfigured && aiSettings.provider !== 'ollama' && aiSettings.provider !== 'ssh' && (
           <div className="px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 text-xs border-b border-yellow-200 dark:border-yellow-800">
             <div className="flex items-start gap-2">
               <AlertTriangle size={16} className="shrink-0 mt-0.5" />
@@ -1440,7 +1511,7 @@ export default function AIChatPage() {
                   handleSendMessage();
                 }
               }}
-              placeholder={noModelsConfigured ? 'No AI models configured...' : backendStatus === 'offline' ? 'AI backend offline...' : 'Type your message...'}
+              placeholder={noModelsConfigured ? 'No AI models configured...' : backendStatus === 'offline' ? 'AI backend offline...' : !modelsLoaded ? 'Loading models...' : 'Type your message...'}
               disabled={isLoading || backendStatus === 'offline' || noModelsConfigured}
               className="flex-1 px-4 py-3 border border-os-border resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-input-bg text-os-text-primary disabled:bg-os-card-secondary disabled:text-os-text-muted"
               rows={isMobile ? 1 : 3}
