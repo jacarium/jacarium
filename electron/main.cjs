@@ -44,7 +44,7 @@ installPdfExport({ ipcMain, BrowserWindow, session: require('electron').session,
 const { decideTrust, chainFromElectronCertificate } = require('./tls-trust.cjs');
 const { safeRequest, workflowPrivateUrlsAllowed } = require('./safe-url.cjs');
 const { sanitizeEnvData } = require('./env-file.cjs');
-const { parseEnvFile, publicView, withoutSecrets, mergeSettings, mergeLegacyEnvData } = require('./settings-store.cjs');
+const { parseEnvFile, publicView, withoutSecrets, mergeSettings, mergeLegacyEnvData, isSecretKey } = require('./settings-store.cjs');
 
 // Generate a fresh shared-secret token for this app launch. This token is
 // known only to this main process, the backend child process it spawns
@@ -1069,7 +1069,66 @@ ipcMain.handle('home-server:link', async (event, { url, username, password } = {
   return result;
 });
 
-ipcMain.handle('home-server:unlink', () => homeServer.unlinkHomeServer(homeServerContext()));
+ipcMain.handle('home-server:unlink', async () => {
+  // the account's settings leave with the link (cache, overlay, scope)
+  try { await getAccountSettings().wipe({ reason: 'unlink' }); } catch (error) { console.warn('[Settings] wipe on unlink:', error.message); }
+  return homeServer.unlinkHomeServer(homeServerContext());
+});
+
+// ---------------------------------------------------------------------------
+// Settings scope (electron/account-settings.cjs): this profile runs on its
+// own settings file or, as a whole, on its account's settings from the
+// home server - fetched here with the device token, secrets kept in the
+// OS keychain, handed to the local backend over the loopback as an
+// in-memory overlay. The renderer sees plain values and set / not set.
+// ---------------------------------------------------------------------------
+let accountSettingsController = null;
+function getAccountSettings() {
+  if (!accountSettingsController) {
+    const { safeStorage } = require('electron');
+    const { createAccountSettings } = require('./account-settings.cjs');
+    accountSettingsController = createAccountSettings({
+      dir: app.getPath('userData'),
+      safeStorage,
+      homeServer: {
+        fetch: (pathName, init) => homeServer.homeServerFetch(pathName, init, homeServerContext()),
+        linked: () => !!homeServer.homeServerStatus(homeServerContext()).linked,
+      },
+      localBackend: {
+        post: async (pathName, body) => {
+          const port = backendPort || process.env.PORT || '8080';
+          const response = await fetch(`http://127.0.0.1:${port}${pathName}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Token': appAuthToken, 'X-Requested-With': 'Jacarium' }, body: JSON.stringify(body),
+          });
+          return { ok: response.ok, status: response.status, text: await response.text() };
+        },
+      },
+      log: (message) => console.log(message),
+      onChange: (state) => {
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.isDestroyed()) win.webContents.send('account-settings:changed', state);
+        }
+      },
+    });
+  }
+  return accountSettingsController;
+}
+ipcMain.handle('account-settings:state', () => getAccountSettings().state());
+ipcMain.handle('account-settings:set-scope', (event, scope) => getAccountSettings().setScope(String(scope || 'device')));
+ipcMain.handle('account-settings:refresh', () => getAccountSettings().refresh());
+ipcMain.handle('account-settings:write', (event, payload) => getAccountSettings().write(payload || {}));
+// the migration: the device file is read HERE (its secrets never cross to the renderer)
+ipcMain.handle('account-settings:device-summary', () => {
+  const values = readEnvValues();
+  const summary = { values: {}, secretKeys: [] };
+  for (const [key, value] of Object.entries(values)) {
+    if (value === '') continue;
+    if (isSecretKey(key)) summary.secretKeys.push(key); else summary.values[key] = value;
+  }
+  return summary;
+});
+ipcMain.handle('account-settings:copy-from-device', (event, { plainKeys = [], secretKeys = [] } = {}) =>
+  getAccountSettings().copyFromDevice({ deviceValues: readEnvValues(), plainKeys: plainKeys.map(String), secretKeys: secretKeys.map(String) }));
 
 // This desktop's version/protocol and the linked (or given) server's - the
 // renderer decides what the difference means (src/utils/homeServer.js)
@@ -1180,6 +1239,9 @@ app.whenReady().then(async () => {
     }
   }
   startBackendServer();
+  // the account's settings, if this profile runs on them: fetched once the
+  // local backend can take the overlay (it answers /health within seconds)
+  setTimeout(() => { getAccountSettings().refresh().catch((error) => console.warn('[Settings] first refresh:', error.message)); }, 4000);
   createWindow();
 
   // The scheduled release check: a tick shortly after start and then every

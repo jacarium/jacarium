@@ -481,7 +481,7 @@ function OpenTabsSection() {
  * device token; afterwards the profile's data synchronises with that
  * account (src/utils/homeServer.js).
  */
-function HomeServerSection() {
+function HomeServerSection({ runScope = null, onCopySettings = null, onLinked = null }) {
   const { confirm, confirmationProps } = useConfirmation();
   const [status, setStatus] = useState(null);
   const [versions, setVersions] = useState(() => getLastVersionCheck());
@@ -521,6 +521,8 @@ function HomeServerSection() {
       }
       setMessage({ ok: true, text: `Linked as ${result.username}. Synchronisation starts now.${result.encrypted ? '' : ' (The OS keychain is not available here: the device token is stored unencrypted in the profile.)'}` });
       await refresh();
+      // the one-time offer to copy this device's settings to the account
+      if (onLinked) setTimeout(() => onLinked(), 0);
       // the cloud identity is the account's now: forget the old one and reconnect
       const { setAccountScope } = await import('../../../../utils/accountStorage');
       setAccountScope(result.user?.id || null);
@@ -592,6 +594,12 @@ function HomeServerSection() {
               : <>Certificate: trusted by the operating system (no pin needed).</>}
         </p>
       )}
+      {status?.linked && (
+        <p className="text-xs text-os-text-secondary" data-testid="home-server-settings-scope">
+          Settings: this device uses {runScope?.scope === 'account' ? <>your account&apos;s settings</> : <>its own settings</>} (the switch is at the top of Integrations and AI Providers).
+          {onCopySettings && <> <button type="button" className="underline" onClick={onCopySettings} data-testid="home-server-copy-settings">Copy settings to my account…</button></>}
+        </p>
+      )}
       {status?.linked && <CentralStatus />}
       {!status?.linked && (
         <form onSubmit={link} className="space-y-3" data-testid="home-server-form">
@@ -644,7 +652,7 @@ function TaskwarriorSection() {
 }
 
 
-export default function GeneralSettings({ remoteServer = null, theme, setTheme, machineId, zoomFactor, setZoomFactor, debugBarEnabled, setDebugBarEnabled, account = null, onExportDatabase, onImportDatabase, onWipeDatabase, onShowWhatsNew }) {
+export default function GeneralSettings({ remoteServer = null, runScope = null, onCopySettings = null, onLinked = null, theme, setTheme, machineId, zoomFactor, setZoomFactor, debugBarEnabled, setDebugBarEnabled, account = null, onExportDatabase, onImportDatabase, onWipeDatabase, onShowWhatsNew }) {
   // Zoom is only controllable in the desktop app (it goes through
   // webContents in the Electron main process); hide it in web mode.
   const zoomSupported = typeof window !== 'undefined' && !!window.electronAPI?.setZoomFactor;
@@ -663,7 +671,7 @@ export default function GeneralSettings({ remoteServer = null, theme, setTheme, 
   return (
     <div className="space-y-6">
       {account && <AccountSection account={account} remoteServer={remoteServer} />}
-      {typeof window !== 'undefined' && window.electronAPI?.homeServerStatus && <HomeServerSection />}
+      {typeof window !== 'undefined' && window.electronAPI?.homeServerStatus && <HomeServerSection runScope={runScope} onCopySettings={onCopySettings} onLinked={onLinked} />}
       <SyncSection />
       <OpenTabsSection />
 

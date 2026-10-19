@@ -100,6 +100,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   homeServerUnlink: () => ipcRenderer.invoke('home-server:unlink'),
   homeServerFetch: (path, init) => ipcRenderer.invoke('home-server:fetch', path, init),
   homeServerVersion: (url) => ipcRenderer.invoke('home-server:version', url),
+  // the settings scope (electron/account-settings.cjs): plain values and
+  // set / not set only - a secret value never crosses this bridge
+  accountSettingsState: () => ipcRenderer.invoke('account-settings:state'),
+  accountSettingsSetScope: (scope) => ipcRenderer.invoke('account-settings:set-scope', scope),
+  accountSettingsRefresh: () => ipcRenderer.invoke('account-settings:refresh'),
+  accountSettingsWrite: (payload) => ipcRenderer.invoke('account-settings:write', payload),
+  accountSettingsDeviceSummary: () => ipcRenderer.invoke('account-settings:device-summary'),
+  accountSettingsCopyFromDevice: (choice) => ipcRenderer.invoke('account-settings:copy-from-device', choice),
+  onAccountSettingsChanged: (callback) => {
+    const listener = (event, state) => callback(state);
+    ipcRenderer.on('account-settings:changed', listener);
+    return () => ipcRenderer.removeListener('account-settings:changed', listener);
+  },
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   // Release check (electron/update-check.cjs): the status, one request now,
   // the automatic-check setting, "Skip this version", and the main process

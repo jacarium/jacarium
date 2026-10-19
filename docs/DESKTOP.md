@@ -70,6 +70,54 @@ Certificate Trust Settings > enable full trust for the root. The desktop
 app then validates the server through the system too and records no pin. Linking is per profile, so two profiles can be two
 accounts, or the same account twice.
 
+## Settings on your devices
+
+Settings > Integrations and AI Providers (Jira, the AI providers and their
+keys, the Ollama endpoint, the Default AI provider and model...) live in a
+settings file, and there are two of them: this profile's own
+(`~/.jacarium.env`, or the named profile's) and your account's on the home
+server (the one the web app on your phone uses, resolved over the server
+defaults every account inherits). A linked profile chooses which one it
+runs on, as a whole, with the switch at the top of those two tabs:
+
+- **This device** - the profile's own file, as always. The default until
+  you decide otherwise, and the only choice while the profile is not linked.
+- **My account** - your account's settings on the home server. The desktop
+  then runs on them entirely, API keys included: the main process fetches
+  them with the device token (`GET /api/settings/effective`, a route only a
+  linked device may call, audited on the server by key name), keeps the
+  secrets in the OS keychain for offline starts, and hands them to the
+  local backend in memory - nothing is written to a plain file, the window
+  never receives a secret value, and the log never carries one. A change
+  made on your phone reaches the desktop with the next synchronisation
+  cycle; a change made here is saved to your account at once. Each field
+  shows where its value comes from: *your account*, *everyone* (the server
+  defaults) or *not set*. Save refuses a key another device changed since
+  the dialog loaded ("Changed on another device - reload") instead of
+  overwriting it.
+- **Everyone** - the server defaults. Read-only, unless you administer the
+  server: then Save asks for your password (the step-up) like the other
+  administrative actions from a linked desktop.
+
+There is no mixing: with My account the profile's own file is not
+consulted at all (it stays on disk, untouched), and switching back to This
+device takes effect at once. Unlinking the profile, a revoked device, a
+sign-out elsewhere that ends the token, or deleting the profile removes the
+account's settings from this device and puts it back on This device.
+
+"localhost" in an endpoint means the device that makes the call: with My
+account, `http://localhost:11434` for Ollama points the desktop at its own
+Ollama and the server at the server's own when your phone asks. Use an
+address every device can reach (`http://ollama.lan:11434`) to share one.
+
+When a profile is linked (and once for profiles linked before this
+version), the dialog offers to **copy this device's settings to your
+account**: every key of the profile's file, plain values and secrets by
+name, each with a checkbox; a key the account already sets is shown with
+both values and kept unless ticked. Copy puts the chosen keys on the
+account and switches the profile to My account; Not now leaves it on This
+device (the offer stays reachable from Settings > General > Home server).
+
 ## Google Calendar
 
 The Calendars page shows your Google calendars and syncs their events into

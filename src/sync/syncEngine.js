@@ -677,6 +677,9 @@ async function countPending() {
 async function cycle({ pullFirst = true } = {}) {
   if (running) return running;
   running = (async () => {
+    // the desktop profile that runs on its account's settings refreshes them
+    // with every cycle (electron/account-settings.cjs; a no-op on the device scope)
+    try { await window?.electronAPI?.accountSettingsRefresh?.(); } catch { /* the settings are not what this cycle is about */ }
     if (gate) {
       // the versions must match before a single record travels
       let verdict = { ok: true };

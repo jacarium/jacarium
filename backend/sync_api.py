@@ -35,7 +35,11 @@ def sync_status():
         counts = store.counts()
     finally:
         store.close()
-    return jsonify({'enabled': True, 'now': time.time() * 1000.0, **counts})
+    # the settings revisions ride along, so a linked desktop learns of a
+    # change made on another device without polling the settings routes
+    from settings_store import env_file_path, server_defaults_path, settings_revision
+    revisions = {'settingsRevision': settings_revision(env_file_path()), 'serverSettingsRevision': settings_revision(server_defaults_path())}
+    return jsonify({'enabled': True, 'now': time.time() * 1000.0, **counts, **revisions})
 
 
 @sync_api.route('/api/sync/push', methods=['POST'])

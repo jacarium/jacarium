@@ -580,7 +580,9 @@ def admin_settings():
     from settings_store import get_settings_for, put_settings_for, server_defaults_path
     if request.method == 'GET':
         return get_settings_for(server_defaults_path())
-    return put_settings_for(server_defaults_path(), apply_environ=False)
+    from settings_store import _limiters
+    _limiters()
+    return put_settings_for(server_defaults_path(), apply_environ=False, audit_scope='server')
 
 
 def bearer_token():

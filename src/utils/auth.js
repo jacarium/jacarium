@@ -101,6 +101,9 @@ async function call(method, path, body, { retried = false } = {}) {
   return data;
 }
 
+/** A request to the account's server as the auth calls make it (the linked home server from the desktop, with the step-up retry; the backend in a browser). */
+export const request = (method, path, body) => call(method, path, body);
+
 /** Confirm the password for the next administrative action (desktop over a device token). */
 export const stepUp = (password) => call('POST', '/api/auth/step-up', { password }, { retried: true });
 

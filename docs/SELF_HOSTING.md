@@ -534,6 +534,30 @@ Settings opens from the Documents page's menu (the three lines next to the
 page title) in the browser; the desktop app keeps its application menu
 (Cmd/Ctrl+,).
 
+**Whose settings.** With sign-in every account has its own settings file
+(`users/<id>/.jacarium.env`) over the server defaults an administrator keeps
+(`settings.env`, "Everyone" in the dialog, editable by administrators,
+shown read-only to everyone else). The switch at the top of Integrations
+and AI Providers chooses between **My account** and **Everyone**; each field
+says where its value comes from (*your account*, *everyone*, *not set*).
+Every save bumps a revision per key (`<file>.meta.json`); a save that
+carries the revision it saw is refused with 409 when another device changed
+the key since, so two devices never overwrite each other blindly. Saves
+and the linked desktops' reads of the resolved settings are written to the
+audit log (`accounts-audit.log`: who, when, which keys - never a value) and
+rate-limited.
+
+**A linked desktop running on the account.** The desktop app linked to this
+server can run on the account's settings instead of its own file (Settings
+> This device | My account, see DESKTOP.md "Settings on your devices"). It
+fetches the account's resolved settings - secrets included - over
+`GET /api/settings/effective?secrets=1`, a route that answers device tokens
+only (a browser session gets 403), for the token's own account only, and
+keeps them in the OS keychain. Revoking the device (Settings > General >
+Account > devices) removes them from that computer on its next contact.
+`/api/sync/status` carries `settingsRevision` so a linked desktop learns of
+a change made in the browser without polling the settings routes.
+
 ### HTTPS
 
 On first start the container writes a self-signed certificate to

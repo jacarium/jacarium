@@ -4,6 +4,24 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.2.9
+
+_2026-10-20_
+
+### [SETTINGS]
+
+Settings used by this device: choose This device or My account at the top of Integrations and AI Providers once the desktop is linked to your home server
+
+My account: the desktop uses your account's settings from the server, the same ones your phone uses, keys included; keys stay in your system keychain and are never shown
+
+Everyone shows the server-wide defaults: read-only, or editable by an administrator after confirming the password
+
+Each field says where its value comes from (your account, everyone or not set), and a change made on another device is never overwritten silently
+
+Copy this device's settings to your account: a one-time offer, also under General > Home server
+
+Unlinking the device or signing out removes your account's keys from this device
+
 ## What's New in v3.2.8
 
 _2026-10-19_

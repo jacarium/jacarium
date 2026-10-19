@@ -114,7 +114,8 @@ def ai_models():
         # when set (the container's /data volume), else ~/.jacarium.env.
         # (with accounts nothing is loaded into the process environment:
         # setting() resolves the account's file and the server defaults)
-        if not accounts_mode():
+        from settings_store import overlay_active
+        if not accounts_mode() and not overlay_active():
             from dotenv import load_dotenv
             from settings_store import env_file_path
             load_dotenv(env_file_path(), override=True)
