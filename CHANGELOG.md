@@ -4,6 +4,16 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.2.8
+
+_2026-10-19_
+
+### [AI]
+
+Quick AI (/ai), Ask AI, the AI panels in Quick Notes and the quiz and grid generators use your Default AI Provider and Model from Settings, on the desktop and the web
+
+With no AI provider set up, they say so ("No AI provider configured - set one in Settings > AI") instead of showing a backend error
+
 ## What's New in v3.2.7
 
 _2026-10-19_

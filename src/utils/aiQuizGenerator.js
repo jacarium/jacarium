@@ -4,7 +4,7 @@
  * Uses detailed prompts from original FloatingQuiz.jsx implementation
  */
 
-import { DEFAULT_CLAUDE_MODEL, defaultAiModel } from './aiDefaults';
+import { NO_AI_PROVIDER_MESSAGE, resolveAiRequestSettings } from './aiRequestSettings';
 import { getBackendUrl, apiFetch } from './backendUrl';
 
 /**
@@ -21,28 +21,21 @@ export async function generateAIQuizQuestions({ topic, numQuestions = 10, diffic
 
     // Load AI settings from environment
     const estimatedTokens = Math.max(4000, numQuestions * 500 + 1000);
-    let aiSettings = {
-      provider: 'anthropic',
-      model: DEFAULT_CLAUDE_MODEL,
-      temperature: 0.3,
-      maxTokens: estimatedTokens
-    };
-
+    // Settings > Default AI through /api/ai/models - the same on the desktop
+    // and the web (src/utils/aiRequestSettings.js); a bigger token budget
+    // from DEFAULT_AI_MAX_TOKENS is honoured when the desktop exposes it
+    let maxTokens = estimatedTokens;
     if (window.electronAPI?.readEnvFile) {
       try {
         const envVars = await window.electronAPI.readEnvFile();
-        const envMaxTokens = parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString());
-        aiSettings = {
-          provider: envVars.DEFAULT_AI_PROVIDER || 'anthropic',
-          model: defaultAiModel(envVars),
-          temperature: 0.3,
-          maxTokens: Math.max(envMaxTokens, estimatedTokens)
-        };
-        console.log('[AI Quiz] Using AI settings:', aiSettings);
+        maxTokens = Math.max(parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString()), estimatedTokens);
       } catch (error) {
-        console.warn('[AI Quiz] Failed to load env settings, using defaults:', error);
+        console.warn('[AI Quiz] Failed to read the desktop settings:', error);
       }
     }
+    const aiSettings = await resolveAiRequestSettings({ temperature: 0.3, maxTokens });
+    if (!aiSettings) throw new Error(NO_AI_PROVIDER_MESSAGE);
+    console.log('[AI Quiz] Using AI settings:', aiSettings);
 
     // Determine target audience and focus
     let targetAudience, focusAreas;
@@ -283,27 +276,21 @@ export async function generateQuizFromURL({ url, focusTopic = '', numQuestions =
     }
 
     const estimatedTokens = Math.max(6000, numQuestions * 500 + 2000);
-    let aiSettings = {
-      provider: 'anthropic',
-      model: DEFAULT_CLAUDE_MODEL,
-      temperature: 0.3,
-      maxTokens: estimatedTokens
-    };
-
+    // Settings > Default AI through /api/ai/models - the same on the desktop
+    // and the web (src/utils/aiRequestSettings.js); a bigger token budget
+    // from DEFAULT_AI_MAX_TOKENS is honoured when the desktop exposes it
+    let maxTokens = estimatedTokens;
     if (window.electronAPI?.readEnvFile) {
       try {
         const envVars = await window.electronAPI.readEnvFile();
-        const envMaxTokens = parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString());
-        aiSettings = {
-          provider: envVars.DEFAULT_AI_PROVIDER || 'anthropic',
-          model: defaultAiModel(envVars),
-          temperature: 0.3,
-          maxTokens: Math.max(envMaxTokens, estimatedTokens)
-        };
+        maxTokens = Math.max(parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString()), estimatedTokens);
       } catch (error) {
-        console.warn('[AI Quiz] Failed to load env settings:', error);
+        console.warn('[AI Quiz] Failed to read the desktop settings:', error);
       }
     }
+    const aiSettings = await resolveAiRequestSettings({ temperature: 0.3, maxTokens });
+    if (!aiSettings) throw new Error(NO_AI_PROVIDER_MESSAGE);
+    console.log('[AI Quiz] Using AI settings:', aiSettings);
 
     // Determine target audience and question style
     let targetAudience, questionStyle;
@@ -509,27 +496,21 @@ export async function generateQuizFromFile({ file, focusTopic = '', numQuestions
     });
 
     const estimatedTokens = Math.max(6000, numQuestions * 500 + 2000);
-    let aiSettings = {
-      provider: 'anthropic',
-      model: DEFAULT_CLAUDE_MODEL,
-      temperature: 0.3,
-      maxTokens: estimatedTokens
-    };
-
+    // Settings > Default AI through /api/ai/models - the same on the desktop
+    // and the web (src/utils/aiRequestSettings.js); a bigger token budget
+    // from DEFAULT_AI_MAX_TOKENS is honoured when the desktop exposes it
+    let maxTokens = estimatedTokens;
     if (window.electronAPI?.readEnvFile) {
       try {
         const envVars = await window.electronAPI.readEnvFile();
-        const envMaxTokens = parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString());
-        aiSettings = {
-          provider: envVars.DEFAULT_AI_PROVIDER || 'anthropic',
-          model: defaultAiModel(envVars),
-          temperature: 0.3,
-          maxTokens: Math.max(envMaxTokens, estimatedTokens)
-        };
+        maxTokens = Math.max(parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString()), estimatedTokens);
       } catch (error) {
-        console.warn('[AI Quiz] Failed to load env settings:', error);
+        console.warn('[AI Quiz] Failed to read the desktop settings:', error);
       }
     }
+    const aiSettings = await resolveAiRequestSettings({ temperature: 0.3, maxTokens });
+    if (!aiSettings) throw new Error(NO_AI_PROVIDER_MESSAGE);
+    console.log('[AI Quiz] Using AI settings:', aiSettings);
 
     // Same target audience and question style as URL
     let targetAudience, questionStyle;

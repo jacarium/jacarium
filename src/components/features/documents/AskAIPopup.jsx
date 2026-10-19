@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bot, X, RefreshCw, Check, Trash2 } from 'lucide-react';
 import { getBackendUrl } from '../../../utils/backendUrl';
+import { NO_AI_PROVIDER_MESSAGE, resolveAiRequestSettings, savedAiChatSettings } from '../../../utils/aiRequestSettings';
 
 /**
  * AskAIPopup - Ask AI about selected text
@@ -147,13 +148,20 @@ export default function AskAIPopup({
     setLoading(true);
     setResponse('');
 
-    const savedSettings = localStorage.getItem('aiChatSettings');
-    const aiSettings = savedSettings ? JSON.parse(savedSettings) : {
-      provider: 'anthropic',
-      model: 'claude-sonnet-4-5@20250929',
-      temperature: 0,
-      maxTokens: 2000
-    };
+    // Settings > Default AI through /api/ai/models (src/utils/aiRequestSettings.js)
+    let aiSettings = null;
+    try {
+      aiSettings = await resolveAiRequestSettings({ saved: savedAiChatSettings() });
+    } catch (error) {
+      setResponse('Error: ' + error.message);
+      setLoading(false);
+      return;
+    }
+    if (!aiSettings) {
+      setResponse(NO_AI_PROVIDER_MESSAGE);
+      setLoading(false);
+      return;
+    }
 
     const fullMessage = prompt.trim()
       ? `${prompt}\n\n${editableSelectedText}`

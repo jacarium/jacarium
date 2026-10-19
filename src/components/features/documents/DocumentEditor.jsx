@@ -5,7 +5,6 @@ import ToolbarMenu from './ToolbarMenu';
 import { useToolbarMenu, useRovingToolbar } from '../../../hooks/toolbarMenu';
 import { useMobile } from '../../../contexts/MobileContext';
 import { formatShortcut } from '../../../utils/shortcuts';
-import { DEFAULT_CLAUDE_MODEL } from '../../../utils/aiDefaults';
 import { BUILTIN_COMMANDS, matchesSlashQuery, slashQueryAt } from '../../../utils/slashCommands';
 
 // The GitHub-style callouts the preview renders (src/utils/interactiveMarkdown.js),
@@ -88,6 +87,7 @@ import { useYjsText } from '../../../hooks/useYjsText';
 import { getMachineId } from '../../../utils/cloudCentralSync';
 import { getSocket } from '../../../utils/cloudWebSocket';
 import { getBackendUrl, apiFetch } from '../../../utils/backendUrl';
+import { NO_AI_PROVIDER_MESSAGE, resolveAiRequestSettings, savedAiChatSettings } from '../../../utils/aiRequestSettings';
 import MediaLibraryModal from '../../common/modals/MediaLibraryModal';
 import { useLocalStorage } from '../../../hooks/useLocalStorage';
 import { takePendingEditorFocus, takePendingEditorJump, DOCUMENT_JUMP_EVENT } from '../../../utils/openDocument';
@@ -1722,14 +1722,22 @@ export default function DocumentEditor({
     setQuickAILoading(true);
     setQuickAIResponse('');
 
-    // Get AI settings from localStorage (same as FloatingAIChat)
-    const savedSettings = localStorage.getItem('aiChatSettings');
-    const aiSettings = savedSettings ? JSON.parse(savedSettings) : {
-      provider: 'anthropic',
-      model: DEFAULT_CLAUDE_MODEL, // nothing configured: the API alias (the backend falls back per path too)
-      temperature: 0,
-      maxTokens: 2000
-    };
+    // The provider and model from Settings > Default AI (through
+    // /api/ai/models, so the desktop and the web agree); nothing
+    // configured -> a plain message, not the backend's key error
+    let aiSettings = null;
+    try {
+      aiSettings = await resolveAiRequestSettings({ saved: savedAiChatSettings() });
+    } catch (error) {
+      setQuickAIResponse('Error: ' + error.message);
+      setQuickAILoading(false);
+      return;
+    }
+    if (!aiSettings) {
+      setQuickAIResponse(NO_AI_PROVIDER_MESSAGE);
+      setQuickAILoading(false);
+      return;
+    }
 
     // Call backend with concise prompt
     const systemPrompt = 'You are a code assistant. Respond ONLY with the requested code, command, or text. Do NOT include explanations, markdown formatting, or comments unless specifically requested. Be extremely concise.';

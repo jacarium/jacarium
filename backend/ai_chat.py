@@ -402,8 +402,7 @@ def ai_ask():
         data = request.json
         message = data.get('message', '')
         system_prompt = data.get('systemPrompt', '')
-        provider = data.get('provider', 'anthropic')  # Default to anthropic
-        model = data.get('model')
+        provider, model = request_provider(data, 'anthropic')
         temperature = data.get('temperature', 0)
         max_tokens = data.get('maxTokens', 1000)
 
@@ -451,8 +450,7 @@ def ai_chat():
     try:
         data = request.json
         messages = plain_messages(data.get('messages', []))
-        provider = data.get('provider', 'openai')
-        model = data.get('model', 'gpt-4')
+        provider, model = request_provider(data, 'openai', 'gpt-4')
         temperature = data.get('temperature', 0)
         max_tokens = data.get('maxTokens', 2000)
 
@@ -499,8 +497,7 @@ def ai_chat_stream():
         try:
             data = request.json
             messages = plain_messages(data.get('messages', []))
-            provider = data.get('provider', 'openai')
-            model = data.get('model', 'gpt-4')
+            provider, model = request_provider(data, 'openai', 'gpt-4')
             temperature = data.get('temperature', 0)
             max_tokens = data.get('maxTokens', 2000)
 
@@ -554,6 +551,20 @@ ANTHROPIC_DEFAULT_MODEL_VERTEX = "claude-sonnet-4-5@20250929"
 # OpenAI's reasoning models (o1/o3/o4..., gpt-5...) reject a temperature other
 # than their default with a 400 ("Unsupported value: 'temperature' ...").
 OPENAI_REASONING_MODEL_RE = re.compile(r'^(o\d|gpt-5)')
+
+
+def request_provider(data, fallback_provider, fallback_model=None):
+    """The provider and model of a chat request.
+
+    A request that names none means "the configured default": Settings >
+    Default AI Provider / Model (setting(), i.e. the profile's env file on
+    the desktop, the server's on the web), and only then the route's
+    historical fallback - a missing provider must never silently mean a
+    particular vendor.
+    """
+    provider = data.get('provider') or setting('DEFAULT_AI_PROVIDER', '') or fallback_provider
+    model = data.get('model') or setting('DEFAULT_AI_MODEL', '') or fallback_model
+    return provider, model
 
 
 def anthropic_text(content):

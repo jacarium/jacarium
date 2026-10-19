@@ -14,7 +14,10 @@ keys; the env file path pointed at an empty temp file):
   1. with DEFAULT_AI_PROVIDER / DEFAULT_AI_MODEL set the answer carries
      them under "defaults";
   2. unset, "defaults" is there with empty strings (the UIs need the key);
-  3. the provider lists are unaffected (empty here).
+  3. the provider lists are unaffected (empty here);
+  4. /api/ai/ask and /api/ai/chat without a provider run on the Settings
+     default (request_provider), a named provider is kept, and with no
+     default the routes' historical fallback still applies.
 
 Run:  backend/venv/bin/python tests/ai_models_defaults.test.py
 """
@@ -67,6 +70,34 @@ try:
     body = r.get_json() or {}
     check('with no defaults configured the key is still there, both empty', body.get('defaults') == {'provider': '', 'model': ''}, body.get('defaults'))
     check('nothing configured: every provider list is empty (ssh only appears when configured)', all(body.get(k) == [] for k in ('anthropic', 'openai', 'gemini', 'ollama')) and not body.get('ssh'), {k: body.get(k) for k in ('anthropic', 'openai', 'gemini', 'ollama', 'ssh')})
+    # ---- a request that names no provider runs on the configured default ----
+    seen = []
+
+    def fake_custom(messages, model, temperature, max_tokens):
+        seen.append(('custom', model))
+        return 'ok'
+
+    def fake_openai(messages, model, temperature, max_tokens):
+        seen.append(('openai', model))
+        return 'ok'
+    ai_chat.handle_custom_chat = fake_custom
+    ai_chat.handle_openai_chat = fake_openai
+    os.environ['DEFAULT_AI_PROVIDER'] = 'ollama'
+    os.environ['DEFAULT_AI_MODEL'] = 'qwen3:30b'
+    r = client.post('/api/ai/ask', json={'message': 'hi'})
+    check('/api/ai/ask without a provider runs on DEFAULT_AI_PROVIDER / DEFAULT_AI_MODEL (ollama, qwen3:30b)', r.status_code == 200 and seen == [('custom', 'qwen3:30b')], (r.status_code, seen))
+    seen.clear()
+    r = client.post('/api/ai/chat', json={'messages': [{'role': 'user', 'content': 'hi'}]})
+    check('/api/ai/chat without a provider: the same', r.status_code == 200 and seen == [('custom', 'qwen3:30b')], (r.status_code, seen))
+    seen.clear()
+    r = client.post('/api/ai/ask', json={'message': 'hi', 'provider': 'openai', 'model': 'gpt-4o-mini'})
+    check('a request that names its provider is not overridden by the default', r.status_code == 200 and seen == [('openai', 'gpt-4o-mini')], (r.status_code, seen))
+    seen.clear()
+    os.environ.pop('DEFAULT_AI_PROVIDER', None)
+    os.environ.pop('DEFAULT_AI_MODEL', None)
+    r = client.post('/api/ai/chat', json={'messages': [{'role': 'user', 'content': 'hi'}]})
+    check("no default set: the route's historical fallback (openai, gpt-4) still applies", r.status_code == 200 and seen == [('openai', 'gpt-4')], (r.status_code, seen))
+
     exit_code = 0 if all(ok for _, ok in results) else 1
 except Exception as e:  # noqa: BLE001
     import traceback

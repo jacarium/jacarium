@@ -103,6 +103,23 @@ const cleanup = () => {
   fs.rmSync(OLD, { recursive: true, force: true });
 };
 
+// A run that is interrupted (Ctrl+C, a killed run-all) skips the `finally`
+// below: clean up on the signal too, or the instance stays installed in the
+// podman machine as a systemd unit that starts with it.
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(sig, () => { cleanup(); process.exit(130); });
+}
+// Instances left by earlier runs that were killed outright (dt<pid> of a
+// process that is no longer alive on this machine) are removed before starting.
+const isAlive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+for (const name of remote(`ls ~/.config/containers/systemd/ 2>/dev/null`).split('\n')) {
+  const m = /^jacarium-(dt(\d+))\.container$/.exec(name.trim());
+  if (!m || m[1] === INSTANCE || isAlive(Number(m[2]))) continue;
+  console.log(`removing the leftover test instance ${m[1]} (its run is gone)`);
+  spawnSync('bash', [SCRIPT, TARGET, 'uninstall', '--instance', m[1], '--purge', '--yes'], { env, stdio: 'ignore' });
+  spawnSync('podman', ['rmi', '-f', `localhost/jacarium:${m[1]}`, `localhost/jacarium-central:${m[1]}`, `localhost/jacarium:${m[1]}-broken`], { stdio: 'ignore' });
+}
+
 try {
   // ---- 0. the 3.1.0 two-container shape, then the upgrade -----------------------------
   console.log(`--- 3.1.0 install (instance ${INSTANCE}, port ${CONSOLE_PORT}) with the scripts of tag v3.1.0`);

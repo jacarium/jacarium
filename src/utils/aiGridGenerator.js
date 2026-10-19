@@ -4,7 +4,7 @@
  * Uses detailed prompts from original FloatingQuiz.jsx implementation
  */
 
-import { DEFAULT_CLAUDE_MODEL, defaultAiModel } from './aiDefaults';
+import { NO_AI_PROVIDER_MESSAGE, resolveAiRequestSettings } from './aiRequestSettings';
 import { getBackendUrl, apiFetch } from './backendUrl';
 
 /**
@@ -20,27 +20,21 @@ export async function generateCategoryFromTopic({ categoryName, topicName, diffi
     console.log('[AI Grid] Generating category from topic:', { categoryName, topicName, difficultyYears });
 
     const estimatedTokens = Math.max(3000, 5 * 300 + 1000);
-    let aiSettings = {
-      provider: 'anthropic',
-      model: DEFAULT_CLAUDE_MODEL,
-      temperature: 0.3,
-      maxTokens: estimatedTokens
-    };
-
+    // Settings > Default AI through /api/ai/models - the same on the desktop
+    // and the web (src/utils/aiRequestSettings.js); a bigger token budget
+    // from DEFAULT_AI_MAX_TOKENS is honoured when the desktop exposes it
+    let maxTokens = estimatedTokens;
     if (window.electronAPI?.readEnvFile) {
       try {
         const envVars = await window.electronAPI.readEnvFile();
-        const envMaxTokens = parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString());
-        aiSettings = {
-          provider: envVars.DEFAULT_AI_PROVIDER || 'anthropic',
-          model: defaultAiModel(envVars),
-          temperature: 0.3,
-          maxTokens: Math.max(envMaxTokens, estimatedTokens)
-        };
+        maxTokens = Math.max(parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString()), estimatedTokens);
       } catch (error) {
-        console.warn('[AI Grid] Failed to load env settings:', error);
+        console.warn('[AI Grid] Failed to read the desktop settings:', error);
       }
     }
+    const aiSettings = await resolveAiRequestSettings({ temperature: 0.3, maxTokens });
+    if (!aiSettings) throw new Error(NO_AI_PROVIDER_MESSAGE);
+    console.log('[AI Grid] Using AI settings:', aiSettings);
 
     // Define difficulty levels
     const difficulties = [
@@ -232,27 +226,21 @@ export async function generateCategoryFromURL({ categoryName, url, urlTopic = ''
     }
 
     const estimatedTokens = Math.max(4000, 5 * 300 + 1500);
-    let aiSettings = {
-      provider: 'anthropic',
-      model: DEFAULT_CLAUDE_MODEL,
-      temperature: 0.3,
-      maxTokens: estimatedTokens
-    };
-
+    // Settings > Default AI through /api/ai/models - the same on the desktop
+    // and the web (src/utils/aiRequestSettings.js); a bigger token budget
+    // from DEFAULT_AI_MAX_TOKENS is honoured when the desktop exposes it
+    let maxTokens = estimatedTokens;
     if (window.electronAPI?.readEnvFile) {
       try {
         const envVars = await window.electronAPI.readEnvFile();
-        const envMaxTokens = parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString());
-        aiSettings = {
-          provider: envVars.DEFAULT_AI_PROVIDER || 'anthropic',
-          model: defaultAiModel(envVars),
-          temperature: 0.3,
-          maxTokens: Math.max(envMaxTokens, estimatedTokens)
-        };
+        maxTokens = Math.max(parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString()), estimatedTokens);
       } catch (error) {
-        console.warn('[AI Grid] Failed to load env settings:', error);
+        console.warn('[AI Grid] Failed to read the desktop settings:', error);
       }
     }
+    const aiSettings = await resolveAiRequestSettings({ temperature: 0.3, maxTokens });
+    if (!aiSettings) throw new Error(NO_AI_PROVIDER_MESSAGE);
+    console.log('[AI Grid] Using AI settings:', aiSettings);
 
     const difficulties = [
       { points: 100, level: 'Entry-level support engineers (1-2 years)', style: 'Basic concepts and fundamentals' },
@@ -433,27 +421,21 @@ export async function generateCategoryFromFile({ categoryName, file, fileTopic =
     });
 
     const estimatedTokens = Math.max(4000, 5 * 300 + 1500);
-    let aiSettings = {
-      provider: 'anthropic',
-      model: DEFAULT_CLAUDE_MODEL,
-      temperature: 0.3,
-      maxTokens: estimatedTokens
-    };
-
+    // Settings > Default AI through /api/ai/models - the same on the desktop
+    // and the web (src/utils/aiRequestSettings.js); a bigger token budget
+    // from DEFAULT_AI_MAX_TOKENS is honoured when the desktop exposes it
+    let maxTokens = estimatedTokens;
     if (window.electronAPI?.readEnvFile) {
       try {
         const envVars = await window.electronAPI.readEnvFile();
-        const envMaxTokens = parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString());
-        aiSettings = {
-          provider: envVars.DEFAULT_AI_PROVIDER || 'anthropic',
-          model: defaultAiModel(envVars),
-          temperature: 0.3,
-          maxTokens: Math.max(envMaxTokens, estimatedTokens)
-        };
+        maxTokens = Math.max(parseInt(envVars.DEFAULT_AI_MAX_TOKENS || estimatedTokens.toString()), estimatedTokens);
       } catch (error) {
-        console.warn('[AI Grid] Failed to load env settings:', error);
+        console.warn('[AI Grid] Failed to read the desktop settings:', error);
       }
     }
+    const aiSettings = await resolveAiRequestSettings({ temperature: 0.3, maxTokens });
+    if (!aiSettings) throw new Error(NO_AI_PROVIDER_MESSAGE);
+    console.log('[AI Grid] Using AI settings:', aiSettings);
 
     const difficulties = [
       { points: 100, level: 'Entry-level support engineers (1-2 years)', style: 'Basic concepts and fundamentals' },

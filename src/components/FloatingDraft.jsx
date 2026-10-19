@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { getBackendUrl, apiFetch } from '../utils/backendUrl';
+import { NO_AI_PROVIDER_MESSAGE, resolveAiRequestSettings, savedAiChatSettings } from '../utils/aiRequestSettings';
 import { createPortal } from 'react-dom';
 import { Pencil, X, Minus, Bold, Italic, Code, List, ListOrdered, Link, Table, Quote, Strikethrough, IndentDecrease, IndentIncrease, Tag, Palette, RefreshCw, Eye, Edit3, EyeOff, Bot, Trash2, AlertCircle, Check, Save, Heading1, Heading2, Heading3, FileCode } from 'lucide-react';
 import { marked } from 'marked';
@@ -985,13 +986,20 @@ export default function FloatingDraft({ instanceId = 'default' }) {
     setAskAILoading(true);
     setAskAIResponse('');
 
-    const savedSettings = localStorage.getItem('aiChatSettings');
-    const aiSettings = savedSettings ? JSON.parse(savedSettings) : {
-      provider: 'anthropic',
-      model: 'claude-sonnet-4-5@20250929',
-      temperature: 0,
-      maxTokens: 2000
-    };
+    // Settings > Default AI through /api/ai/models (src/utils/aiRequestSettings.js)
+    let aiSettings = null;
+    try {
+      aiSettings = await resolveAiRequestSettings({ saved: savedAiChatSettings() });
+    } catch (error) {
+      setAskAIResponse('Error: ' + error.message);
+      setAskAILoading(false);
+      return;
+    }
+    if (!aiSettings) {
+      setAskAIResponse(NO_AI_PROVIDER_MESSAGE);
+      setAskAILoading(false);
+      return;
+    }
 
     const fullMessage = askAIPrompt.trim()
       ? `${askAIPrompt}\n\n${askAISanitizedText}`
@@ -1080,13 +1088,20 @@ export default function FloatingDraft({ instanceId = 'default' }) {
     setQuickAILoading(true);
     setQuickAIResponse('');
 
-    const savedSettings = localStorage.getItem('aiChatSettings');
-    const aiSettings = savedSettings ? JSON.parse(savedSettings) : {
-      provider: 'anthropic',
-      model: 'claude-sonnet-4-5@20250929',
-      temperature: 0,
-      maxTokens: 2000
-    };
+    // Settings > Default AI through /api/ai/models (src/utils/aiRequestSettings.js)
+    let aiSettings = null;
+    try {
+      aiSettings = await resolveAiRequestSettings({ saved: savedAiChatSettings() });
+    } catch (error) {
+      setQuickAIResponse('Error: ' + error.message);
+      setQuickAILoading(false);
+      return;
+    }
+    if (!aiSettings) {
+      setQuickAIResponse(NO_AI_PROVIDER_MESSAGE);
+      setQuickAILoading(false);
+      return;
+    }
 
     const systemPrompt = 'You are a code assistant. Respond ONLY with the requested code, command, or text. Do NOT include explanations, markdown formatting, or comments unless specifically requested. Be extremely concise.';
 
