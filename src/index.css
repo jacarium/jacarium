@@ -853,6 +853,74 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   margin-bottom: 0;
 }
 
+/* GitHub-style callouts (> [!NOTE] ...; src/utils/interactiveMarkdown.js):
+   one left border and a tint of the type's colour, the title with a lucide
+   icon (the same drawings as the toolbar's, as a mask painted in the type's
+   colour). The colours are the theme's tokens, so dark and light follow;
+   Important and Caution share the red family and are told apart by their
+   icon and title. A folded one (> [!NOTE]-) is a <details>. */
+.markdown-preview .md-callout {
+  --callout-color: var(--os-blue);
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4'/%3E%3Cpath d='M12 8h.01'/%3E%3C/svg%3E");
+  margin: 0 0 16px 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--callout-color);
+  border-radius: var(--radius-sm);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  background: color-mix(in srgb, var(--callout-color) 10%, transparent);
+  color: inherit;
+  /* on paper too: the tint and the bar are printed, a short callout is not split across pages */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  break-inside: avoid;
+}
+.markdown-preview .md-callout-tip { --callout-color: var(--os-status-success); --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5'/%3E%3Cpath d='M9 18h6'/%3E%3Cpath d='M10 22h4'/%3E%3C/svg%3E"); }
+.markdown-preview .md-callout-important { --callout-color: var(--os-code-keyword); --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z'/%3E%3Cpath d='M12 15h.01'/%3E%3Cpath d='M12 7v4'/%3E%3C/svg%3E"); }
+.markdown-preview .md-callout-warning { --callout-color: var(--os-terminal-warning); --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/%3E%3Cpath d='M12 9v4'/%3E%3Cpath d='M12 17h.01'/%3E%3C/svg%3E"); }
+.markdown-preview .md-callout-caution { --callout-color: var(--os-terminal-error); --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16h.01'/%3E%3Cpath d='M12 8v4'/%3E%3Cpath d='M15.312 2a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586l-4.688-4.688A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2z'/%3E%3C/svg%3E"); }
+.markdown-preview .md-callout-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px 0;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--callout-color);
+}
+.markdown-preview .md-callout-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  background-color: var(--callout-color);
+  -webkit-mask: var(--callout-icon) center / contain no-repeat;
+  mask: var(--callout-icon) center / contain no-repeat;
+}
+.markdown-preview .md-callout-body > :first-child { margin-top: 0; }
+.markdown-preview .md-callout-body > :last-child { margin-bottom: 0; }
+.markdown-preview .md-callout-body > p:only-child { margin: 0; }
+/* folded: the title is the summary, a chevron shows the state, closed hides the body */
+.markdown-preview details.md-callout > summary.md-callout-title { cursor: pointer; list-style: none; }
+.markdown-preview details.md-callout > summary.md-callout-title::-webkit-details-marker { display: none; }
+.markdown-preview details.md-callout > summary.md-callout-title::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  background-color: var(--callout-color);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+  transition: transform 0.15s ease;
+}
+.markdown-preview details.md-callout[open] > summary.md-callout-title::after { transform: rotate(90deg); }
+.markdown-preview details.md-callout:not([open]) > summary.md-callout-title { margin-bottom: 0; }
+/* the dark theme's catch-alls below (.dark .markdown-preview * { border-color }, .dark
+   .markdown-preview div { background-color: transparent !important }) would paint over
+   the callout: these more specific twins keep the type's colour and tint */
+.dark .markdown-preview .md-callout { border-left-color: var(--callout-color); background: color-mix(in srgb, var(--callout-color) 10%, transparent) !important; }
+/* the PDF: the export opens every folded callout; no fold chevron on paper */
+.pdf-export-root details.md-callout > summary.md-callout-title::after { display: none; }
+
 .markdown-preview code {
   padding: 0.2em 0.4em;
   margin: 0;

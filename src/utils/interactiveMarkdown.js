@@ -117,6 +117,56 @@ renderer.code = function(token) {
   return originalCodeRenderer(token);
 };
 
+// GitHub-style callouts: a blockquote whose first line is a marker -
+//   > [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION]
+// renders as a titled, coloured block instead of a plain quote; the same
+// syntax GitHub, GitLab and Obsidian render, so a document pasted either way
+// keeps its meaning and a viewer without the extension shows a quote. The
+// marker may carry a title ("[!NOTE] Before you start", inline markdown
+// allowed) and Obsidian's fold sign ("[!TIP]-" closed, "[!TIP]+" open, a
+// <details>). The type is matched regardless of case; a marker with an
+// unknown word is no marker: the quote renders as it is, text untouched. The
+// body is the quote's own tokens, so lists, fences, tables and nested quotes
+// inside render exactly as anywhere else, and a marker inside a code fence is
+// never seen here (it is a code token, not a paragraph). The output uses only
+// elements and attributes DOMPurify keeps by default (div/details/summary/p,
+// class, role, aria-label, data-callout, open); the icon is drawn by CSS
+// (src/index.css .md-callout-icon, a lucide shape as a mask), so nothing
+// SVG passes through the sanitiser. The PDF export forces the folded ones open.
+export const CALLOUT_TYPES = Object.freeze({ note: 'Note', tip: 'Tip', important: 'Important', warning: 'Warning', caution: 'Caution' });
+const CALLOUT_MARKER = /^\[!([A-Za-z]+)\]([+-])?(?:[ \t]+([^\n]*))?(?:\n|$)/;
+
+const originalBlockquoteRenderer = renderer.blockquote.bind(renderer);
+
+/** The callout a blockquote token opens, or null: { type, fold, title, rest } */
+export function parseCalloutMarker(token) {
+  const first = token?.tokens?.[0];
+  if (!first || first.type !== 'paragraph') return null;
+  const m = CALLOUT_MARKER.exec(first.text || '');
+  if (!m) return null;
+  const type = m[1].toLowerCase();
+  if (!CALLOUT_TYPES[type]) return null;
+  return { type, fold: m[2] || '', title: (m[3] || '').trim(), rest: (first.text || '').slice(m[0].length) };
+}
+
+renderer.blockquote = function(token) {
+  const callout = parseCalloutMarker(token);
+  if (!callout) return originalBlockquoteRenderer(token);
+  const { type, fold, title, rest } = callout;
+  const inline = (text) => this.parser.parseInline(marked.Lexer.lexInline(text));
+  const titleHtml = title ? inline(title) : CALLOUT_TYPES[type];
+  // the marker's paragraph minus the marker line, then the quote's other blocks
+  const firstHtml = rest.trim() ? `<p>${inline(rest)}</p>\n` : '';
+  const bodyHtml = firstHtml + this.parser.parse(token.tokens.slice(1));
+  const titleTag = fold ? 'summary' : 'p';
+  const head = `<${titleTag} class="md-callout-title"><span class="md-callout-icon" aria-hidden="true"></span>${titleHtml}</${titleTag}>`;
+  const body = `<div class="md-callout-body">${bodyHtml}</div>`;
+  if (fold) {
+    return `<details class="md-callout md-callout-${type}" data-callout="${type}"${fold === '+' ? ' open' : ''}>${head}${body}</details>\n`;
+  }
+  return `<div class="md-callout md-callout-${type}" role="note" aria-label="${CALLOUT_TYPES[type]}" data-callout="${type}">${head}${body}</div>\n`;
+};
+
 marked.setOptions({ renderer });
 
 /**

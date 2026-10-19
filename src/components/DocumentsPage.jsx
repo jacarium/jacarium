@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import useSyncedOpenTabs from '../hooks/useSyncedOpenTabs';
 import { db as database } from '../db/database';
+import { BUILTIN_COMMANDS } from '../utils/slashCommands';
 import ResizableSidebar from './ResizableSidebar';
 import { useMobile } from '../contexts/MobileContext';
 import VerticalResizableDivider from './VerticalResizableDivider';
@@ -73,6 +74,8 @@ export default function DocumentsPage({
   const [documents, setDocuments] = useState([]);
   const [categories, setCategories] = useState([]);
   const [documentTemplates, setDocumentTemplates] = useState([]);
+  // the editor's "/" popup: the built-in commands (callouts, Quick Workflow / AI / Task) first, then the templates
+  const slashTemplates = useMemo(() => [...BUILTIN_COMMANDS, ...documentTemplates], [documentTemplates]);
   const [templateCategories, setTemplateCategories] = useState([]);
   const [currentDocument, setCurrentDocument] = useState(null);
   const [centralServerStatus, setCentralServerStatus] = useState(null); // null, 'checking', 'online', 'offline'
@@ -3018,7 +3021,7 @@ export default function DocumentsPage({
             }
             bottomContent={
               <TemplateSidebar
-                templates={documentTemplates}
+                templates={slashTemplates}
                 categories={templateCategories}
                 loading={false}
                 expandedCategories={expandedTemplateCategories}
@@ -3103,7 +3106,7 @@ export default function DocumentsPage({
                     onTitleChange={(e) => setTitle(e.target.value)}
                     onContentChange={(e) => setContent(e.target.value)}
                     onCategoryChange={(e) => setCategory(e.target.value)}
-                    templates={documentTemplates}
+                    templates={slashTemplates}
                     locked={currentDocument?.locked}
                     categories={categories}
                     isOnline={isOnline}
@@ -3158,7 +3161,7 @@ export default function DocumentsPage({
                   onTitleChange={(e) => setRightPane(prev => ({ ...prev, title: e.target.value }))}
                   onContentChange={(e) => setRightPane(prev => ({ ...prev, content: e.target.value }))}
                   onCategoryChange={(e) => setRightPane(prev => ({ ...prev, category: e.target.value }))}
-                  templates={documentTemplates}
+                  templates={slashTemplates}
                   locked={rightPane.currentDocument?.locked}
                   categories={categories}
                   isOnline={isOnline}

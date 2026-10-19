@@ -1,5 +1,22 @@
 [
   {
+    "version": "3.2.6",
+    "date": "2026-10-19",
+    "features": [
+      {
+        "category": "DOCUMENTS",
+        "description": [
+          "Callouts: write > [!NOTE], [!TIP], [!IMPORTANT], [!WARNING] or [!CAUTION] to get a coloured block with an icon, the same syntax as GitHub",
+          "Callouts take an optional title (> [!WARNING] Before you deploy) and can be folded with > [!TIP]- (closed) or > [!TIP]+ (open)",
+          "Callouts print as coloured blocks in PDF export, folded ones printed open, and show on the phone too",
+          "Insert callout in the editor toolbar, or type /note, /tip, /important, /warning or /caution",
+          "The \"/\" popup lists the built-in commands (callouts, Quick Workflow, Quick AI, Quick Task) above your templates, and nothing runs until you press Enter; paths like /usr/local/note stay plain text",
+          "Tab bar on a narrow window: the \"N open\" list has square corners and opens above the sidebar"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.2.5",
     "date": "2026-10-19",
     "features": [

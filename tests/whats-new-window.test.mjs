@@ -29,7 +29,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { setupDocumentsEnv, makeChecker, byText, click, sleep, REPO } from './helpers/jsdom-documents-env.mjs';
+import { setupDocumentsEnv, makeChecker, byText, click, waitFor, REPO } from './helpers/jsdom-documents-env.mjs';
+
+// Every change to the window happens on React's next scheduler task, not in
+// the event that asked for it (a keydown on the document, a click, a custom
+// event all set state; the render comes after), and the window's Escape
+// listener is attached by a passive effect, which flushes AFTER the window's
+// DOM has appeared. An Escape dispatched before that is simply lost - there is
+// no listener yet - so waiting for the window to be in the DOM is not enough.
+// WhatsNew broadcasts `whatsNewStateChange` from a passive effect of the same
+// commit, after its child FloatingWindow's effects: once the broadcast says
+// open, the listener is there. So an open is awaited through the broadcast,
+// a close through the DOM, each polled (up to 2s) instead of a fixed sleep -
+// which jsdom 30, slower on a reopen of the whole list, overran.
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { check, summary } = makeChecker();
@@ -40,6 +52,9 @@ const { versions, latestVersion } = versionsData;
 const { CATEGORIES } = categoriesData;
 const pkgVersion = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8')).version;
 
+const settle = (cond) => waitFor(cond, 2000, 10);
+// `fire` opens the window (a mount, a toggle): resolved once the open state was broadcast
+const opened = async (fire) => { const n = stateEvents.length; fire(); await settle(() => stateEvents.length > n && stateEvents[stateEvents.length - 1] === true && !!win()); };
 const win = () => document.querySelector('[data-floating-window="whatsNewWindow"]');
 const content = () => document.querySelector('[data-whats-new-content]');
 const sections = () => Array.from(document.querySelectorAll('[data-whats-new-version]'));
@@ -61,8 +76,7 @@ console.log('\n--- 1. fresh profile: one list of the current line ---');
 {
   window.localStorage.removeItem(WHATS_NEW_SEEN_KEY);
   window.localStorage.removeItem('whatsNewWindow');
-  renderWhatsNew();
-  await sleep(30);
+  await opened(() => renderWhatsNew());
   check('the window opens by itself on a fresh profile, on the shared FloatingWindow chrome', !!win() && win().classList.contains('fixed') && !!win().querySelector('[data-floating-window-header]'));
   check('it is titled just "What\'s New" - no version in the title bar', win().querySelector('[data-floating-window-header]').textContent.trim() === "What's New" && !document.querySelector('[data-whats-new-version-badge]'), win().querySelector('[data-floating-window-header]').textContent.trim());
   check('the state change was broadcast as open', stateEvents[stateEvents.length - 1] === true);
@@ -111,7 +125,7 @@ console.log('\n--- 1. fresh profile: one list of the current line ---');
   if (older.length) {
     const before = content();
     click(window, document.querySelector(`[data-whats-new-line-switch="${older[0]}"]`));
-    await sleep(20);
+    await settle(() => content()?.getAttribute('data-whats-new-line') === older[0]);
     check(`"Version ${older[0]}.x" shows that line's list: every ${older[0]}.x version newest first, nothing of ${currentLine}.x`, content().getAttribute('data-whats-new-line') === older[0] && sectionVersions().join(',') === ofLine(older[0]).map((v) => v.version).join(','), sectionVersions().join(','));
     check('...as a fresh container scrolled to the top', content() !== before && content().scrollTop === 0);
     const legacy = ofLine(older[0]).find((v) => v.features.some((f) => f.title));
@@ -124,7 +138,7 @@ console.log('\n--- 1. fresh profile: one list of the current line ---');
     const back = document.querySelector(`[data-whats-new-line-switch="${currentLine}"]`);
     check(`a "Back to version ${currentLine}.x" button is offered`, !!back && new RegExp(`Back to version ${currentLine}\\.x`).test(back.textContent));
     click(window, back);
-    await sleep(20);
+    await settle(() => content()?.getAttribute('data-whats-new-line') === currentLine);
     check('...and brings the current line back', content().getAttribute('data-whats-new-line') === currentLine && sectionVersions()[0] === latestVersion);
   } else {
     console.log('INFO: only one major line in the data - the line switch is not exercised');
@@ -137,40 +151,37 @@ console.log('\n--- 2. closing records the version; show once per version; "new" 
 /* ================================================================== */
 {
   click(window, byText(document, /^Got it!$/, 'button'));
-  await sleep(20);
+  await settle(() => !win());
   check('"Got it!" closes the window and records the version as seen', !win() && window.localStorage.getItem(WHATS_NEW_SEEN_KEY) === latestVersion && stateEvents[stateEvents.length - 1] === false);
   unmountWhatsNew();
+  const broadcasts = stateEvents.length;
   renderWhatsNew();
-  await sleep(20);
+  await settle(() => stateEvents.length > broadcasts); // the mount broadcast its (closed) state
   check('a remount with the version already seen stays closed', !win());
-  window.dispatchEvent(new window.Event('toggleWhatsNew'));
-  await sleep(20);
+  await opened(() => window.dispatchEvent(new window.Event('toggleWhatsNew')));
   check('the toggleWhatsNew event reopens it', !!win());
   const older = lines.filter((l) => Number(l) < Number(currentLine));
   if (older.length) {
     click(window, document.querySelector(`[data-whats-new-line-switch="${older[0]}"]`));
-    await sleep(20);
+    await settle(() => content()?.getAttribute('data-whats-new-line') === older[0]);
     check('an older line can be opened...', content().getAttribute('data-whats-new-line') === older[0]);
   }
   document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-  await sleep(20);
-  window.dispatchEvent(new window.Event('toggleWhatsNew'));
-  await sleep(20);
+  await settle(() => !win());
+  await opened(() => window.dispatchEvent(new window.Event('toggleWhatsNew')));
   check('...but a reopen goes back to the current line (the choice is not persisted)', content().getAttribute('data-whats-new-line') === currentLine && sectionVersions()[0] === latestVersion);
   document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-  await sleep(20);
+  await settle(() => !win());
   check('Escape closes it', !win());
-  window.dispatchEvent(new window.Event('toggleWhatsNew'));
-  await sleep(20);
+  await opened(() => window.dispatchEvent(new window.Event('toggleWhatsNew')));
   click(window, win().querySelector('button[aria-label="Close"]'));
-  await sleep(20);
+  await settle(() => !win());
   check('the header x closes it', !win());
   unmountWhatsNew();
   // seen an older version: it opens again and the newer ones are marked
   const seen = ofLine(currentLine)[ofLine(currentLine).length - 1].version;
   window.localStorage.setItem(WHATS_NEW_SEEN_KEY, seen);
-  renderWhatsNew();
-  await sleep(20);
+  await opened(() => renderWhatsNew());
   check(`a different seen version (${seen}) opens it again (once per version)`, !!win());
   const unseen = sectionVersions().filter((v) => v !== seen && v !== latestVersion);
   check(`the versions newer than ${seen} (other than the current one) carry a "new" badge, ${seen} itself does not`, unseen.every((v) => !!document.querySelector(`[data-whats-new-version="${v}"] [data-whats-new-new-badge]`)) && !document.querySelector(`[data-whats-new-version="${seen}"] [data-whats-new-new-badge]`) && document.querySelector(`[data-whats-new-version="${latestVersion}"]`).getAttribute('data-whats-new-unseen') === 'true', unseen.join(','));

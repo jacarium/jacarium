@@ -143,7 +143,7 @@ try {
   // Section 2: source guards
   // =====================================================================
   const editorSrc = fs.readFileSync(path.join(REPO, 'src', 'components', 'features', 'documents', 'DocumentEditor.jsx'), 'utf8');
-  check('section 2: the editor placeholder advertises /task next to /ai and /wf', /\/ai for Quick AI, \/wf for Quick Workflow, \/task for Quick Tasks/.test(editorSrc));
+  check('section 2: the editor placeholder advertises the "/" commands (callouts, Quick Workflow, Quick AI, Quick Task)', /\/ for commands and templates \(callouts, Quick Workflow, Quick AI, Quick Task\)/.test(editorSrc));
   check('section 2: DocumentEditor imports and renders QuickTasks', /import QuickTasks from '\.\/QuickTasks'/.test(editorSrc) && /<QuickTasks\b/.test(editorSrc));
   const popupSrc = fs.readFileSync(path.join(REPO, 'src', 'components', 'features', 'documents', 'QuickTasks.jsx'), 'utf8');
   check('section 2: QuickTasks creates through the Tasks page\'s createTask helper', /import \{ createTask, syncToTaskWarrior \} from '\.\.\/\.\.\/\.\.\/utils\/tasks'/.test(popupSrc));
@@ -160,6 +160,7 @@ try {
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import DocumentEditor from '@worktree/src/components/features/documents/DocumentEditor.jsx';
+import { BUILTIN_COMMANDS } from '@worktree/src/utils/slashCommands.js';
 import { NotificationProvider, useNotifications } from '@worktree/src/contexts/NotificationContext.jsx';
 import { db } from '@worktree/src/db/database.js';
 import { getTasks } from '@worktree/src/utils/tasks.js';
@@ -183,7 +184,7 @@ function Host() {
     document: { id: 1, title: 'Notes', inCloud: false },
     content,
     onContentChange: (e) => setContent(e.target.value),
-    templates: [],
+    templates: BUILTIN_COMMANDS, // as the Documents page hands them in: the built-in "/" commands, then its templates
     locked: false,
     isOnline: true,
   });
@@ -271,6 +272,16 @@ createRoot(document.getElementById('root')).render(
   const setInput = (el, value) => { setNative(el, value); el.dispatchEvent(new window.Event('input', { bubbles: true })); };
   const setSelect = (el, value) => { setNative(el, value); el.dispatchEvent(new window.Event('change', { bubbles: true })); };
   const popup = () => document.querySelector('[data-testid="quick-tasks-popup"]');
+  // the "/" popup: typing opens it with the command highlighted; Enter runs the command (nothing runs on typing alone)
+  const slashPopup = () => Array.from(document.querySelectorAll('span')).find((s) => /Commands and templates/.test(s.textContent))?.closest('.fixed') || null;
+  const pressEnter = () => document.querySelector('textarea').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  // "/task", then Enter on the Quick Task entry the popup offers: the window opens (typing alone opens nothing)
+  const openQuickTasks = async () => {
+    typeAtEnd('/task');
+    await waitFor(() => { const sp = slashPopup(); return sp && sp.querySelector('[data-slash-entry="quick-task"]') ? sp : null; });
+    pressEnter();
+    return waitFor(popup);
+  };
   const alerts = () => Array.from(popup()?.querySelectorAll('[role="alert"]') || []).map((e) => e.textContent.trim());
   const resetDoc = async (text) => {
     H.setContent(text);
@@ -285,11 +296,14 @@ createRoot(document.getElementById('root')).render(
   const beta = await H.createInstance({ name: 'Beta Lab', category: 'Ops', isActive: 0 });
   check('section 3: two synthetic instances seeded', (await H.getAllInstances()).length === 2);
 
-  // ---- /task opens Quick Tasks ----
+  // ---- /task + Enter opens Quick Tasks ----
   await resetDoc('Notes\n');
   typeAtEnd('/task');
+  const offered = await waitFor(() => { const sp = slashPopup(); return sp && sp.querySelector('[data-slash-entry="quick-task"]') ? sp : null; });
+  check('section 3: typing "/task" offers Quick Task in the "/" popup and opens nothing yet', !!offered && !popup(), JSON.stringify({ offered: !!offered, window: !!popup(), entries: Array.from(document.querySelectorAll('[data-slash-entry]')).map((e) => e.getAttribute('data-slash-entry')) }));
+  pressEnter();
   let p = await waitFor(popup);
-  check('section 3: typing "/task" opens the Quick Tasks window', !!p && /Quick Tasks/.test(p.textContent));
+  check('section 3: Enter on the Quick Task entry opens the Quick Tasks window', !!p && /Quick Tasks/.test(p.textContent) && !slashPopup());
   const dueField = () => popup()?.querySelector('[data-testid="quick-task-due"]');
   const dueButton = () => dueField()?.querySelector('button');
   const calendar = () => dueField()?.querySelector('.fixed');
@@ -319,19 +333,25 @@ createRoot(document.getElementById('root')).render(
   await resetDoc('path');
   typeAtEnd('/task');
   await sleep(150);
-  check('section 3: "path/task" (no word boundary) does not open the window', !popup());
+  pressEnter();
+  await sleep(150);
+  check('section 3: "path/task" (no word boundary) offers nothing and opens nothing (Enter runs no command)', !popup() && !slashPopup() && /^path\/task/.test(document.querySelector('textarea').value), document.querySelector('textarea').value);
 
-  // ---- /wf and /ai still work ----
+  // ---- /wf and /ai still work (through the popup, with Enter) ----
   await resetDoc('Notes\n');
   typeAtEnd('/wf');
-  const wf = await waitFor(() => Array.from(document.querySelectorAll('span')).find((s) => s.textContent === 'Quick Workflow'));
-  check('section 3: "/wf" still opens Quick Workflow', !!wf && !popup());
+  await waitFor(() => slashPopup());
+  pressEnter();
+  const wf = await waitFor(() => Array.from(document.querySelectorAll('span')).find((s) => s.textContent === 'Quick Workflow' && !s.closest('[data-slash-entry]')));
+  check('section 3: "/wf" + Enter still opens Quick Workflow', !!wf && !popup());
   if (wf) { wf.closest('.drag-handle').querySelector('button').click(); }
   await waitFor(() => !Array.from(document.querySelectorAll('span')).some((s) => s.textContent === 'Quick Workflow'));
   await resetDoc('Notes\n');
   typeAtEnd('/ai');
-  const ai = await waitFor(() => Array.from(document.querySelectorAll('span')).find((s) => s.textContent === 'Quick AI'));
-  check('section 3: "/ai" still opens Quick AI', !!ai && !popup());
+  await waitFor(() => slashPopup());
+  pressEnter();
+  const ai = await waitFor(() => Array.from(document.querySelectorAll('span')).find((s) => s.textContent === 'Quick AI' && !s.closest('[data-slash-entry]')));
+  check('section 3: "/ai" + Enter still opens Quick AI', !!ai && !popup());
   if (ai) {
     const input = ai.closest('.fixed').querySelector('input');
     input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
@@ -340,8 +360,7 @@ createRoot(document.getElementById('root')).render(
 
   // ---- validation ----
   await resetDoc('Notes\n');
-  typeAtEnd('/task');
-  p = await waitFor(popup);
+  p = await openQuickTasks();
   await waitFor(() => options().length === 2);
   submitBtn().click();
   check('section 3: submitting without text shows an inline error', await waitFor(() => alerts().includes('Task text is required')), alerts().join(' | '));
@@ -399,8 +418,7 @@ createRoot(document.getElementById('root')).render(
   check('section 3: the chosen instance is remembered for next time', window.localStorage.getItem('quickTasksLastInstanceId') === JSON.stringify(beta.id));
 
   // ---- last-used instance preselected on reopen ----
-  typeAtEnd('/task');
-  p = await waitFor(popup);
+  p = await openQuickTasks();
   await waitFor(() => options().length === 2 && instanceSelect().value === String(beta.id));
   check('section 3: reopening preselects the last-used instance', instanceSelect().value === String(beta.id));
   check('section 3: reopening starts from a clean form (no due date)', p.querySelector('#quick-task-description').value === '' && p.querySelector('#quick-task-priority').value === '' && /No due date/.test(dueButton().textContent));
@@ -410,8 +428,7 @@ createRoot(document.getElementById('root')).render(
 
   // ---- Enter in the text field submits ----
   await resetDoc('Notes\n');
-  typeAtEnd('/task');
-  p = await waitFor(popup);
+  p = await openQuickTasks();
   await waitFor(() => options().length === 2);
   setInput(p.querySelector('#quick-task-description'), 'Check the backups');
   p.querySelector('#quick-task-description').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
@@ -422,8 +439,7 @@ createRoot(document.getElementById('root')).render(
   // ---- no instances ----
   await H.db.taskwarriorInstances.clear();
   await resetDoc('Notes\n');
-  typeAtEnd('/task');
-  p = await waitFor(popup);
+  p = await openQuickTasks();
   check('section 3: with no instances the window explains it and disables submit',
     !!(await waitFor(() => p.querySelector('[data-testid="quick-tasks-no-instances"]'))) && submitBtn().disabled && instanceSelect().disabled,
     p ? p.textContent.slice(0, 200) : 'no popup');
@@ -436,7 +452,9 @@ createRoot(document.getElementById('root')).render(
   console.log = origLog; console.error = origErr; console.warn = origWarn;
   exitCode = results.every((r) => r.pass) ? 0 : 1;
 } catch (err) {
+  // an exception is a failure of the run, counted and shown like a failed check
   console.error('UNEXPECTED ERROR:', err && err.stack || err);
+  results.push({ name: `UNEXPECTED ERROR: ${err && err.message || err}`, pass: false });
   exitCode = 1;
 }
 

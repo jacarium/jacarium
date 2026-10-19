@@ -131,6 +131,9 @@ html[data-mobile="true"] .sc-editor-toolbar > .sc-editor-mode { width: 36px; hei
 html[data-mobile="true"] .markdown-preview { padding: 18px 20px 24px; font-size: 16px; line-height: 1.7; }
 html[data-mobile="true"] .markdown-preview h1 { font-size: 28px; line-height: 1.25; margin: 0 0 14px; padding-bottom: 8px; }
 html[data-mobile="true"] .markdown-preview h2 { font-size: 22px; line-height: 1.25; margin: 20px 0 12px; padding-bottom: 6px; }
+html[data-mobile="true"] .markdown-preview .md-callout { padding: 10px 12px; margin-bottom: 14px; }
+html[data-mobile="true"] .markdown-preview .md-callout-title { font-size: 15px; }
+html[data-mobile="true"] .markdown-preview .md-callout-icon { width: 18px; height: 18px; }
 html[data-mobile="true"] .markdown-preview pre { padding: 16px; border-radius: var(--radius-xs); font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
 /* the editor: 13.5px mono on 24px lines, a 40px gutter */
 html[data-mobile="true"] .sc-editor-textarea, html[data-mobile="true"] .sc-editor-gutter { font-size: 13.5px; line-height: 24px; }

@@ -1,5 +1,12 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { Bold, Italic, Code, List, ListOrdered, Link, Quote, Heading1, Heading2, Heading3, Table, TableOfContents, Image as ImageIcon, Strikethrough, IndentDecrease, IndentIncrease, Minus, Eye, Edit3, BookTemplate, Bot, X, RefreshCw, Check, Trash2, FileCode, Search, Replace, ChevronDown, ChevronUp, Square, Type, Download } from 'lucide-react';
+import { Bold, Italic, Info, Lightbulb, MessageSquareWarning, TriangleAlert, OctagonAlert, Code, List, ListOrdered, Link, Quote, Heading1, Heading2, Heading3, Table, TableOfContents, Image as ImageIcon, Strikethrough, IndentDecrease, IndentIncrease, Minus, Eye, Edit3, BookTemplate, Bot, X, RefreshCw, Check, Trash2, FileCode, Search, Replace, ChevronDown, ChevronUp, Square, Type, Download } from 'lucide-react';
+import { CALLOUT_TYPES } from '../../../utils/callouts';
+import { BUILTIN_COMMANDS, matchesSlashQuery, slashQueryAt } from '../../../utils/slashCommands';
+
+// The GitHub-style callouts the preview renders (src/utils/interactiveMarkdown.js),
+// each with its lucide icon (the same drawings the preview paints), for the
+// toolbar's Insert callout menu (the slash entries come in with the page's templates)
+const CALLOUT_ICONS = { note: Info, tip: Lightbulb, important: MessageSquareWarning, warning: TriangleAlert, caution: OctagonAlert };
 import { processInteractiveMarkdown, extractDocumentHeadings } from '../../../utils/interactiveMarkdown';
 import {
   findMermaidTargets, renderMermaidDiagrams, mermaidThemeForApp, MERMAID_PENDING_SELECTOR,
@@ -45,7 +52,7 @@ export default function DocumentEditor({
   document,
   content = '',
   onContentChange,
-  templates = [],
+  templates = BUILTIN_COMMANDS, // the page hands in the built-ins followed by its templates; alone, the built-ins
   locked = false,
   className = '',
   isOnline = true,
@@ -110,6 +117,8 @@ export default function DocumentEditor({
 
   // Media library state
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+  // the toolbar's "Insert callout" menu (the five GitHub-style callout types)
+  const [showCalloutMenu, setShowCalloutMenu] = useState(false);
 
   // Text selection context menu state
   const [selectionMenu, setSelectionMenu] = useState({
@@ -203,13 +212,10 @@ export default function DocumentEditor({
   //   }
   // }, [yjsEnabled, yjs.cursors]);
 
-  // Filter templates based on slash query
+  // Filter the "/" popup's entries by the query (the list the page hands in
+  // starts with the built-in commands, src/utils/slashCommands.js)
   const filteredTemplates = slashMenu.query
-    ? templates.filter(t =>
-        t.name.toLowerCase().includes(slashMenu.query.toLowerCase()) ||
-        (t.description && t.description.toLowerCase().includes(slashMenu.query.toLowerCase())) ||
-        (t.tags && t.tags.some(tag => tag.toLowerCase().includes(slashMenu.query.toLowerCase())))
-      )
+    ? templates.filter(t => matchesSlashQuery(t, slashMenu.query))
     : templates;
 
   // Reset scroll position and restore preview mode when switching documents
@@ -887,7 +893,8 @@ export default function DocumentEditor({
     if (!slashMenu.visible || !slashMenuRef.current) return;
 
     const popup = slashMenuRef.current;
-    const selectedButton = popup.querySelector(`button:nth-child(${slashMenu.selectedIndex + 1})`);
+    const selected = filteredTemplates[slashMenu.selectedIndex];
+    const selectedButton = selected ? popup.querySelector(`[data-slash-entry="${selected.id}"]`) : null;
 
     if (selectedButton) {
       selectedButton.scrollIntoView({
@@ -1059,6 +1066,39 @@ export default function DocumentEditor({
     insertMarkdown('\n---\n', '');
   };
 
+  // A GitHub-style callout around the selection (each selected line quoted),
+  // or an empty one to type into; on its own paragraph. The preview renders
+  // it (src/utils/interactiveMarkdown.js); the text stays plain GitHub syntax.
+  const insertCallout = (type) => {
+    setShowCalloutMenu(false);
+    if (locked || isPreviewActive) return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const selected = text.substring(start, end);
+    const body = (selected || `${CALLOUT_TYPES.find((c) => c.type === type)?.label || 'Note'} text`).split('\n').map((line) => `> ${line}`).join('\n');
+    const before = text.substring(0, start);
+    const after = text.substring(end);
+    const prefix = before.length === 0 || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n';
+    const suffix = after.length === 0 || after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n';
+    const block = `${prefix}> [!${type.toUpperCase()}]\n${body}${suffix}`;
+    const newText = before + block + after;
+    // the body selected, so typing replaces the placeholder
+    const bodyStart = before.length + prefix.length + `> [!${type.toUpperCase()}]\n> `.length;
+    const bodyEnd = before.length + block.length - suffix.length;
+    if (yjsEnabled && yjs.updateContent) {
+      yjs.updateContent(newText, bodyEnd);
+    } else if (onContentChange) {
+      onContentChange({ target: { value: newText } });
+    }
+    setTimeout(() => {
+      textarea.focus({ preventScroll: true });
+      textarea.setSelectionRange(selected ? bodyEnd : bodyStart, bodyEnd);
+    }, 0);
+  };
+
   const insertTableOfContents = () => {
     if (locked || isPreviewActive) return;
 
@@ -1187,7 +1227,16 @@ export default function DocumentEditor({
     }
   };
 
-  // Handle slash command input
+  // The "/" popup: one list of the built-in commands (the callouts, Quick
+  // Workflow / AI / Task - src/utils/slashCommands.js) and the templates,
+  // filtered by what follows the slash. It opens only where "/" starts a
+  // word (the line's start or after whitespace) and not inside code, closes
+  // when nothing matches, when a second "/" or a space is typed (a path like
+  // /usr/local/note is text), and NOTHING runs on typing alone: Enter or a
+  // click runs the highlighted entry (handleKeyDown / insertTemplate),
+  // Escape closes it and leaves the text as typed. The old immediate
+  // triggers (typing "/wf", "/ai" or "/task" opened their panel at once, so
+  // a path containing them could not be typed) are gone.
   const handleContentInput = (e) => {
     if (locked || isPreviewActive) return;
 
@@ -1196,77 +1245,45 @@ export default function DocumentEditor({
 
     const cursorPos = textarea.selectionStart;
     const textBeforeCursor = e.target.value.substring(0, cursorPos);
+    const query = slashQueryAt(textBeforeCursor);
+    const matching = query != null && templates.some((t) => matchesSlashQuery(t, query));
 
-    // Check for template slash command: / followed by text (but not /ai)
-    const slashMatch = textBeforeCursor.match(/(?:^|\s)\/(\w*)$/);
-    if (slashMatch) {
-      const query = slashMatch[1];
-
-      // Don't trigger template popup for /ai, /wf or /task commands
-      if (query === 'task') {
-        // Close template popup if it was showing
-        if (slashMenu.visible) {
-          setSlashMenu(prev => ({ ...prev, visible: false }));
-        }
-        // Check if we should trigger Quick Tasks
-        if (textBeforeCursor.endsWith('/task') && (cursorPos === 5 || /\s$/.test(textBeforeCursor.substring(0, cursorPos - 5)))) {
-          handleTriggerQuickTasks(cursorPos);
-        }
-      } else if (query === 'ai') {
-        // Close template popup if it was showing
-        if (slashMenu.visible) {
-          setSlashMenu(prev => ({ ...prev, visible: false }));
-        }
-        // Check if we should trigger Quick AI
-        if (textBeforeCursor.endsWith('/ai') && (cursorPos === 3 || /\s$/.test(textBeforeCursor.substring(0, cursorPos - 3)))) {
-          handleTriggerQuickAI(cursorPos);
-        }
-      } else if (query === 'wf') {
-        // Close template popup if it was showing
-        if (slashMenu.visible) {
-          setSlashMenu(prev => ({ ...prev, visible: false }));
-        }
-        // Check if we should trigger Quick Workflow
-        if (textBeforeCursor.endsWith('/wf') && (cursorPos === 3 || /\s$/.test(textBeforeCursor.substring(0, cursorPos - 3)))) {
-          handleTriggerQuickWorkflow(cursorPos);
-        }
-      } else {
-        // Calculate popup position near cursor
-        const rect = textarea.getBoundingClientRect();
-        const textareaStyle = window.getComputedStyle(textarea);
-        const fontSize = parseFloat(textareaStyle.fontSize);
-        const lineHeight = parseFloat(textareaStyle.lineHeight) || fontSize * 1.6;
-
-        const lines = textBeforeCursor.split('\n');
-        const currentLineNum = lines.length - 1;
-
-        let x = rect.left + 20;
-        let y = rect.top + (currentLineNum * lineHeight) + lineHeight + 10;
-
-        // Adjust position to keep popup within window bounds
-        const popupWidth = 400;
-        const popupHeight = 300;
-        const adjustedX = Math.min(x, window.innerWidth - popupWidth - 20);
-        const adjustedY = Math.min(y, window.innerHeight - popupHeight - 20);
-
-        setSlashMenu({
-          visible: true,
-          position: {
-            x: Math.max(20, adjustedX),
-            y: Math.max(20, adjustedY),
-          },
-          query,
-          slashPosition: textBeforeCursor.lastIndexOf('/'),
-          selectedIndex: 0,
-        });
-        return;
-      }
-    } else {
-      // Close slash command popup if no slash command detected
+    if (!matching) {
+      // no command here (a path, a space, code, no match): the popup goes
       if (slashMenu.visible) {
         setSlashMenu(prev => ({ ...prev, visible: false }));
       }
+      return;
     }
+
+    // Calculate popup position near cursor
+    const rect = textarea.getBoundingClientRect();
+    const textareaStyle = window.getComputedStyle(textarea);
+    const fontSize = parseFloat(textareaStyle.fontSize);
+    const lineHeight = parseFloat(textareaStyle.lineHeight) || fontSize * 1.6;
+
+    const lines = textBeforeCursor.split('\n');
+    const currentLineNum = lines.length - 1;
+
+    let x = rect.left + 20;
+    let y = rect.top + (currentLineNum * lineHeight) + lineHeight + 10;
+
+    // Adjust position to keep popup within window bounds
+    const popupWidth = 400;
+    const popupHeight = 300;
+    const adjustedX = Math.min(x, window.innerWidth - popupWidth - 20);
+    const adjustedY = Math.min(y, window.innerHeight - popupHeight - 20);
+
+    setSlashMenu({
+      visible: true,
+      position: {
+        x: Math.max(20, adjustedX),
+        y: Math.max(20, adjustedY),
+      },
+      query,
+      slashPosition: textBeforeCursor.lastIndexOf('/'),
+      selectedIndex: 0,
+    });
   };
 
   // Handle keyboard navigation in slash menu
@@ -1358,7 +1375,10 @@ export default function DocumentEditor({
     }
   };
 
-  // Insert a template at cursor position
+  // Insert a template at cursor position - or, for a built-in action entry
+  // (Quick Workflow / AI / Task), open its panel at the cursor: the typed
+  // command stays in the text until the panel's result replaces it, and a
+  // cancelled panel leaves it, as before.
   const insertTemplate = (template) => {
     if (!template || locked || isPreviewActive) return;
 
@@ -1366,6 +1386,14 @@ export default function DocumentEditor({
     if (!textarea) return;
 
     const cursorPos = textarea.selectionStart;
+
+    if (template.action) {
+      setSlashMenu({ visible: false, position: { x: 0, y: 0 }, query: '', slashPosition: 0, selectedIndex: 0 });
+      if (template.action === 'workflow') handleTriggerQuickWorkflow(cursorPos);
+      else if (template.action === 'ai') handleTriggerQuickAI(cursorPos);
+      else if (template.action === 'task') handleTriggerQuickTasks(cursorPos);
+      return;
+    }
 
     // Get current content (from Yjs or local state)
     const currentContent = yjsEnabled && yjs.ytext ? yjs.ytext.toString() : content;
@@ -2796,6 +2824,41 @@ export default function DocumentEditor({
             >
               <TableOfContents size={16} className="text-os-text-primary" />
             </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowCalloutMenu((v) => !v)}
+                className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
+                title="Insert callout"
+                aria-haspopup="menu"
+                aria-expanded={showCalloutMenu}
+                data-testid="insert-callout"
+              >
+                <MessageSquareWarning size={16} className="text-os-text-primary" />
+              </button>
+              {showCalloutMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowCalloutMenu(false)} />
+                  <div role="menu" data-testid="callout-menu" className="absolute left-0 top-full mt-1 z-50 min-w-44 bg-os-card border border-os-border rounded-sm shadow-lg py-1">
+                    {CALLOUT_TYPES.map((c) => {
+                      const CalloutIcon = CALLOUT_ICONS[c.type];
+                      return (
+                        <button
+                          key={c.type}
+                          role="menuitem"
+                          type="button"
+                          onClick={() => insertCallout(c.type)}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left text-os-text-primary hover:bg-os-card-secondary"
+                          data-callout-type={c.type}
+                        >
+                          <CalloutIcon size={16} className="shrink-0" />
+                          {c.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
             <button
               onClick={() => setShowMediaLibrary(true)}
               className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
@@ -2970,7 +3033,7 @@ export default function DocumentEditor({
                 ? 'Read-only: the server could not load this document - viewing your local copy'
                 : isAutoTyping
                 ? 'Auto-typing in progress...'
-                : 'Type / to insert templates, /ai for Quick AI, /wf for Quick Workflow, /task for Quick Tasks...'
+                : 'Type / for commands and templates (callouts, Quick Workflow, Quick AI, Quick Task)...'
             }
             className={`sc-editor-textarea w-full h-full px-6 py-4 font-mono resize-none outline-hidden border-0 text-sm bg-os-card text-os-text-primary ${
  locked || !isOwner || isAutoTyping ?'cursor-default':''
@@ -3401,7 +3464,7 @@ export default function DocumentEditor({
               <div className="flex items-center gap-2">
                 <BookTemplate size={14} className="text-purple-600 dark:text-purple-300" />
                 <span className="text-xs font-medium text-purple-900 dark:text-purple-200">
-                  Insert Template {slashMenu.query && `- "${slashMenu.query}"`}
+                  Commands and templates {slashMenu.query && `- "${slashMenu.query}"`}
                 </span>
               </div>
             </div>
@@ -3416,8 +3479,14 @@ export default function DocumentEditor({
                 </div>
               ) : (
                 filteredTemplates.map((template, idx) => (
+                  <div key={template.id}>
+                  {(idx === 0 || !!filteredTemplates[idx - 1].builtin !== !!template.builtin) && (
+                    <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-[0.06em] text-os-text-muted" data-slash-group={template.builtin ? 'builtin' : 'templates'}>
+                      {template.builtin ? 'BUILT-IN' : 'TEMPLATES'}
+                    </div>
+                  )}
                   <div
-                    key={template.id}
+                    data-slash-entry={template.id}
                     onMouseEnter={() => setSlashMenu(prev => ({ ...prev, selectedIndex: idx }))}
                     onClick={() => insertTemplate(template)}
                     className={`w-full px-3 py-2 text-left transition-colors border-b border-os-border dark:border-os-sidebar-hover last:border-b-0 cursor-pointer ${
@@ -3429,7 +3498,7 @@ export default function DocumentEditor({
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-os-text-primary truncate">
-                          {template.name}
+                          {template.builtin ? `${template.label} (${template.name})` : template.name}
                         </div>
                         {template.description && (
                           <div className="text-xs text-os-text-muted mt-0.5 truncate">
@@ -3453,6 +3522,7 @@ export default function DocumentEditor({
                         {template.category}
                       </div>
                     </div>
+                  </div>
                   </div>
                 ))
               )}

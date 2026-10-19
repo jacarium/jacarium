@@ -1,5 +1,6 @@
 import { ChevronDown, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useMobile } from '../../../contexts/MobileContext';
 import MobilePageHeader from '../../mobile/MobilePageHeader';
 import { useCloseDrawerOn } from '../../../hooks/useCloseDrawerOn';
@@ -15,8 +16,11 @@ import { useCloseDrawerOn } from '../../../hooks/useCloseDrawerOn';
  * - Drag and drop to reorder tabs
  * - Drag tabs between panes
  * - The strip scrolls inside itself (never widens the page) and keeps the
- *   active tab in view; on phones an "N open" menu lists every tab once
- *   the strip overflows (desktop widths keep their previous look)
+ *   active tab in view; an "N open" menu lists every tab once the strip
+ *   overflows - beside the strip on a narrow desktop window (its panel in a
+ *   portal, placed under the button: the editor column clips its overflow,
+ *   so an in-place panel was cut where it reached over the sidebar), in the
+ *   header's right slot on phones; square corners, like the tabs
  * - On phones (max-md) tabs truncate to a fixed width and the close button
  *   is always visible with a 32px touch target
  * - In the phone layout (src/utils/mobile.js) there is no strip at all: the
@@ -46,6 +50,9 @@ export default function TabBar({
   const [menuOpen, setMenuOpen] = useState(false);
   const stripRef = useRef(null);
   const menuRef = useRef(null);
+  const panelRef = useRef(null);
+  // where the desktop panel goes: under the "N open" button, right-aligned to it
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
 
   // Keep the active tab visible: only the strip scrolls, never the page.
   useEffect(() => {
@@ -78,10 +85,28 @@ export default function TabBar({
     return () => observer.disconnect();
   }, [tabs]);
 
+  // the desktop panel is portalled to the body: place it from the button's
+  // rect, and keep it there while the window or the sidebar resizes
+  useEffect(() => {
+    if (!menuOpen || isMobile) return undefined;
+    const place = () => {
+      const button = menuRef.current?.querySelector('[data-testid="tabs-overflow"]');
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 1, right: Math.max(0, window.innerWidth - rect.right) });
+    };
+    place();
+    window.addEventListener('resize', place);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place);
+    if (observer && stripRef.current) observer.observe(stripRef.current);
+    return () => { window.removeEventListener('resize', place); observer?.disconnect(); };
+  }, [menuOpen, isMobile]);
+
   useEffect(() => {
     if (!menuOpen) return undefined;
     const onPointerDown = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+      const inside = (menuRef.current && menuRef.current.contains(e.target)) || (panelRef.current && panelRef.current.contains(e.target));
+      if (!inside) setMenuOpen(false);
     };
     const onKeyDown = (e) => {
       if (e.key === 'Escape') setMenuOpen(false);
@@ -207,6 +232,46 @@ export default function TabBar({
   // The "N open" menu: every tab, the active one marked, each closable.
   // On the desktop it appears beside the strip once the tabs overflow; on a
   // phone it is the header's right slot.
+  // the panel's rows: every tab, the active one marked, each closable (square, like the tabs)
+  const menuRows = (
+    <>
+      {tabs.map((tab) => {
+        const isActive = activeTabId === tab.id;
+        return (
+          <div key={tab.id} role="none" className="flex items-stretch">
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="tabs-overflow-item"
+              onClick={() => {
+                setMenuOpen(false);
+                onTabClick(tab);
+              }}
+              className={`flex-1 min-w-0 text-left px-3 py-2 hover:bg-os-card-secondary transition-colors border-l-2 rounded-none ${isActive ?`${activeEdge(tab)} text-os-text-primary`:'border-l-transparent text-os-text-secondary'}`}
+            >
+              <span className="block text-sm font-medium truncate">{tab.title || 'Untitled'}</span>
+              {tab.category && (
+                <span className="block text-xs text-os-text-muted truncate">{tab.category}</span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTabClose(tab.id);
+              }}
+              className="shrink-0 min-w-8 flex items-center justify-center px-2 text-os-text-muted hover:text-os-text-primary hover:bg-os-card-secondary transition-colors rounded-none"
+              title="Close tab"
+              aria-label={`Close ${tab.title || 'Untitled'}`}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        );
+      })}
+    </>
+  );
+
   const openTabsMenu = (
     <div ref={menuRef} className={`relative shrink-0 flex ${isMobile ? '' : 'bg-os-card border-b border-l border-os-border md:hidden'}`}>
       <button
@@ -217,54 +282,32 @@ export default function TabBar({
         aria-expanded={menuOpen}
         className={isMobile
           ? 'flex items-center gap-1 h-10 px-2 text-[13px] text-os-text-secondary whitespace-nowrap'
-          : 'flex items-center gap-1 px-2 min-w-8 min-h-8 text-xs text-os-text-secondary hover:bg-os-card-secondary transition-colors whitespace-nowrap'}
+          : 'flex items-center gap-1 px-2 min-w-8 min-h-8 text-xs text-os-text-secondary hover:bg-os-card-secondary transition-colors whitespace-nowrap rounded-none'}
         title="All open documents"
       >
         <span>{tabs.length} open</span>
         <ChevronDown size={14} />
       </button>
-      {menuOpen && (
+      {menuOpen && (isMobile ? (
         <div
           role="menu"
           data-testid="tabs-overflow-menu"
-          className={`absolute right-0 top-full z-50 mt-px min-w-[220px] max-w-[calc(100vw-16px)] max-h-[60vh] overflow-y-auto bg-os-card border border-os-border shadow-lg py-1 ${isMobile ? 'rounded-none' : 'rounded-sm'}`}
+          className="absolute right-0 top-full z-50 mt-px min-w-[220px] max-w-[calc(100vw-16px)] max-h-[60vh] overflow-y-auto bg-os-card border border-os-border shadow-lg py-1 rounded-none"
         >
-          {tabs.map((tab) => {
-            const isActive = activeTabId === tab.id;
-            return (
-              <div key={tab.id} role="none" className="flex items-stretch">
-                <button
-                  type="button"
-                  role="menuitem"
-                  data-testid="tabs-overflow-item"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onTabClick(tab);
-                  }}
-                  className={`flex-1 min-w-0 text-left px-3 py-2 hover:bg-os-card-secondary transition-colors border-l-2 ${isMobile ? 'rounded-none' : ''} ${isActive ?`${activeEdge(tab)} text-os-text-primary`:'border-l-transparent text-os-text-secondary'}`}
-                >
-                  <span className="block text-sm font-medium truncate">{tab.title || 'Untitled'}</span>
-                  {tab.category && (
-                    <span className="block text-xs text-os-text-muted truncate">{tab.category}</span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onTabClose(tab.id);
-                  }}
-                  className={`shrink-0 min-w-8 flex items-center justify-center px-2 text-os-text-muted hover:text-os-text-primary hover:bg-os-card-secondary transition-colors ${isMobile ? 'rounded-none' : ''}`}
-                  title="Close tab"
-                  aria-label={`Close ${tab.title || 'Untitled'}`}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            );
-          })}
+          {menuRows}
         </div>
-      )}
+      ) : createPortal(
+        <div
+          ref={panelRef}
+          role="menu"
+          data-testid="tabs-overflow-menu"
+          className="fixed z-40 min-w-[220px] max-w-[calc(100vw-16px)] max-h-[60vh] overflow-y-auto bg-os-card border border-os-border shadow-lg py-1 rounded-none"
+          style={{ top: menuPos.top, right: menuPos.right }}
+        >
+          {menuRows}
+        </div>,
+        document.body
+      ))}
     </div>
   );
 

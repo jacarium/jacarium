@@ -5,6 +5,7 @@
  * Add new versions at the top of the imports and versions array.
  */
 
+import * as v3_2_6 from './v3.2.6.js';
 import * as v3_2_5 from './v3.2.5.js';
 import * as v3_2_4 from './v3.2.4.js';
 import * as v3_2_3 from './v3.2.3.js';
@@ -38,6 +39,7 @@ import * as v2_4_19 from './v2.4.19.js';
 
 // Export all versions sorted by newest first
 export const versions = [
+  v3_2_6,
   v3_2_5,
   v3_2_4,
   v3_2_3,

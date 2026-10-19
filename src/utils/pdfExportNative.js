@@ -216,6 +216,8 @@ export async function exportDocumentToPDFNative(doc, { report, filename, signal 
   container.className = 'markdown-preview pdf-export-root';
   container.style.cssText = `box-sizing: border-box; width: ${contentWidthPx}px; background-color: #ffffff;`;
   container.innerHTML = processInteractiveMarkdown(doc.content || '');
+  // a folded callout (> [!NOTE]-) prints open: nothing of the document is hidden on paper
+  for (const folded of container.querySelectorAll('details.md-callout')) folded.open = true;
   shell.appendChild(container);
   document.body.appendChild(shell);
 

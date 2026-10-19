@@ -223,6 +223,7 @@ try {
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import DocumentEditor from '@worktree/src/components/features/documents/DocumentEditor.jsx';
+import { BUILTIN_COMMANDS } from '@worktree/src/utils/slashCommands.js';
 import { NotificationProvider } from '@worktree/src/contexts/NotificationContext.jsx';
 
 const api = {};
@@ -236,7 +237,7 @@ function Host() {
     document: { id: 1, title: 'Notes', inCloud: false },
     content,
     onContentChange: (e) => setContent(e.target.value),
-    templates: [],
+    templates: BUILTIN_COMMANDS, // as the Documents page hands them in: the built-in "/" commands, then its templates
     locked: false,
     isOnline: true,
   });
@@ -351,8 +352,12 @@ createRoot(document.getElementById('root')).render(
 
   // Slash commands still work after the guard is attached
   ta = await resetDoc('Notes\n');
+  ta.setSelectionRange(ta.value.length, ta.value.length);
   typeChar(window, ta, '/'); typeChar(window, ta, 'w'); typeChar(window, ta, 'f');
-  const wf = await waitFor(() => Array.from(document.querySelectorAll('span')).find((s) => s.textContent === 'Quick Workflow'));
+  // typing offers the entry in the "/" popup; Enter runs it
+  await waitFor(() => document.querySelector('[data-slash-entry="quick-workflow"]'));
+  ta.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  const wf = await waitFor(() => Array.from(document.querySelectorAll('span')).find((s) => s.textContent === 'Quick Workflow' && !s.closest('[data-slash-entry]')));
   check('section 2: "/wf" still opens Quick Workflow', !!wf);
   if (wf) { wf.closest('.drag-handle').querySelector('button').click(); }
   await waitFor(() => !Array.from(document.querySelectorAll('span')).some((s) => s.textContent === 'Quick Workflow'));
