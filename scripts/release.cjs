@@ -179,7 +179,7 @@ async function prepare(args) {
   for (const c of kept) log(`  ${c.category.padEnd(11)} ${c.sha.slice(0, 7)} "${c.subject}" (${c.how})`);
   const suspicious = kept.filter((c) => /^(wip|fixup!|squash!|tmp|test)\b|^Revert "/i.test(c.subject) || c.subject.length < 12);
   for (const c of suspicious) log(`  check    ${c.sha.slice(0, 7)} ${c.date} "${c.subject}" (kept - may not belong in a What's New)`);
-  log('  files: package.json, package-lock.json, CHANGELOG.md, src/whats-new/versions/{v' + version + '.js, index.js, changelog.json}');
+  log('  files: package.json, package-lock.json, CHANGELOG.md, com.jacarium.app.metainfo.xml, packaging/copr/jacarium.spec, src/whats-new/versions/{v' + version + '.js, index.js, changelog.json}');
 
   if (args.dryRun) {
     process.stdout.write(versionSrc);
@@ -199,6 +199,7 @@ async function prepare(args) {
   }
   fs.writeFileSync(changelogFile, changelogMd);
   updateMetainfo(repo, version);
+  updateCoprSpec(repo, version);
   log(`Prepared ${version}. Review src/whats-new/versions/v${version}.js (edit freely), then finish with: npm run release:tag`);
 
   const answer = args.yes ? 'y' : await ask(`Commit and create the local tag v${version} now? [y/N] `);
@@ -216,6 +217,27 @@ function updateMetainfo(repo, version) {
   const date = new Date().toISOString().slice(0, 10);
   const src = fs.readFileSync(file, 'utf8');
   const out = src.replace(/<release version="[^"]*" date="[^"]*">/, `<release version="${version}" date="${date}">`);
+  if (out !== src) fs.writeFileSync(file, out);
+  return out !== src;
+}
+
+/**
+ * The COPR spec (packaging/copr/jacarium.spec) builds the version COPR's
+ * checkout is tagged with; its own fallback version and %changelog follow
+ * the release so a build by hand gets the same (tests/app-version-
+ * consistency.test.mjs checks the fallback agrees with package.json).
+ */
+function updateCoprSpec(repo, version) {
+  const file = path.join(repo, 'packaging', 'copr', 'jacarium.spec');
+  if (!fs.existsSync(file)) return false;
+  const src = fs.readFileSync(file, 'utf8');
+  let out = src.replace(/^(%\{!\?jacarium_version: %global jacarium_version )[^}]*\}$/m, `$1${version}}`);
+  if (!out.includes(` - ${version}-1\n`)) {
+    // rpm's changelog date: "Tue Oct 20 2026"
+    const d = new Date();
+    const date = `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()]} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()]} ${String(d.getDate()).padStart(2, '0')} ${d.getFullYear()}`;
+    out = out.replace(/^%changelog\n/m, `%changelog\n* ${date} Robin Cernin - ${version}-1\n- Jacarium ${version} (the official release RPM repackaged)\n\n`);
+  }
   if (out !== src) fs.writeFileSync(file, out);
   return out !== src;
 }

@@ -23,10 +23,10 @@
 # node_modules, builds and everything .gitignore'd never leave. Dot-files
 # and dot-directories are left out - except the ones building Jacarium
 # needs (EXPORTED_DOTFILES below: the .gitignore files, .nvmrc, the .npmrc
-# supply-chain settings, the container build's ignore files), which are
-# exported like any other file. Every other dot-path in <dest> is never
-# touched or deleted - its .git, a .github/ with the release workflow, stay
-# as they are.
+# supply-chain settings, the container build's ignore files, COPR's
+# .copr/Makefile), which are exported like any other file. Every other
+# dot-path in <dest> is never touched or deleted - its .git, a .github/
+# with the release workflow, stay as they are.
 #
 # Files the destination's own .gitignore ignores (node_modules after an
 # `npm install` there, a build) are never deleted: they cannot be committed
@@ -44,10 +44,12 @@ set -euo pipefail
 
 # The dot-files a build from the published source needs (the release
 # workflow reads .nvmrc; deploy/Containerfile copies .npmrc and its build
-# context honours .containerignore / .dockerignore); every other dot-path
-# (.github/, .claude/, editor settings) stays out
+# context honours .containerignore / .dockerignore; COPR runs .copr/Makefile
+# to make the SRPM from packaging/copr); every other dot-path (.github/,
+# .claude/, editor settings) stays out
 EXPORTED_DOTFILES=(.gitignore .nvmrc .npmrc .containerignore .dockerignore
-    backend/.gitignore jacarium-central/.gitignore jacarium-central/.npmrc)
+    backend/.gitignore jacarium-central/.gitignore jacarium-central/.npmrc
+    .copr/Makefile)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -138,9 +140,12 @@ for f in "${EXPORTED_DOTFILES[@]}"; do
     [ -f "$STAGE/$f" ] || continue
     mkdir -p "$KEEP/$(dirname "$f")" && cp -p "$STAGE/$f" "$KEEP/$f"
 done
-SKIPPED_DOT="$(cd "$STAGE" && find . -mindepth 1 -name '.*' -prune -print | sed 's|^\./||' | sort | { grep -vxF -f <(printf '%s\n' "${EXPORTED_DOTFILES[@]}") || true; })"
+# (the pruned paths minus the exported dot-files and their dot-directories:
+# .copr is pruned as a directory and comes back with its Makefile)
+SKIPPED_DOT="$(cd "$STAGE" && find . -mindepth 1 -name '.*' -prune -print | sed 's|^\./||' | sort | { grep -vxF -f <(printf '%s\n' "${EXPORTED_DOTFILES[@]}" "${EXPORTED_DOTFILES[@]%/*}") || true; })"
 (cd "$STAGE" && find . -mindepth 1 -name '.*' -prune -exec rm -rf {} +)
-(cd "$KEEP" && find . -type f -print) | while IFS= read -r f; do f="${f#./}"; cp -p "$KEEP/$f" "$STAGE/$f"; done
+# (a kept file under a dot-directory, .copr/Makefile, needs its directory back)
+(cd "$KEEP" && find . -type f -print) | while IFS= read -r f; do f="${f#./}"; mkdir -p "$STAGE/$(dirname "$f")"; cp -p "$KEEP/$f" "$STAGE/$f"; done
 
 # Regular files and symlinks, relative paths, never under a dot-path - plus
 # the exported dot-files that exist there

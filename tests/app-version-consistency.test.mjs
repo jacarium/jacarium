@@ -74,6 +74,14 @@ check('metainfo.xml <release version> matches (the release command updates it)',
 const metaLicense = (/<project_license>([^<]+)<\/project_license>/.exec(metainfo) || [])[1];
 check('metainfo.xml project_license equals package.json license and the LICENSE file is that license', metaLicense === pkg.license && pkg.license === 'AGPL-3.0-only' && /^\s*GNU AFFERO GENERAL PUBLIC LICENSE\s+Version 3,/.test(read('LICENSE')), `${metaLicense} / ${pkg.license}`);
 
+// The COPR spec's fallback version (a build by hand; COPR itself builds
+// the tag's version) and the newest %changelog entry follow the release.
+const spec = read('packaging/copr/jacarium.spec');
+const specVersion = (/^%\{!\?jacarium_version: %global jacarium_version ([^}]*)\}$/m.exec(spec) || [])[1];
+check('packaging/copr/jacarium.spec fallback version matches (the release command updates it)', specVersion === version, specVersion);
+const specChangelog = (/^%changelog\n\* \w{3} \w{3} \d{2} \d{4} [^\n]* - (\S+)-1$/m.exec(spec) || [])[1];
+check('packaging/copr/jacarium.spec newest %changelog entry is this version', specChangelog === version, specChangelog);
+
 // What's New ships text only: no entry imports an image and no image or
 // carousel block is left (a screenshot of a working profile shows real data).
 check('no What\'s New entry imports an image or has image/carousel blocks', versionsMod.versions.every((v) => { const s = fs.readFileSync(path.join(VERSIONS_DIR, `${v.file}.js`), 'utf8'); return !/\.(png|jpe?g|gif|webp|svg)['"]/.test(s) && !/type:\s*'(image|carousel)'/.test(s); }));

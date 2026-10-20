@@ -1,5 +1,18 @@
 [
   {
+    "version": "3.3.0",
+    "date": "2026-10-20",
+    "features": [
+      {
+        "category": "DESKTOP",
+        "description": [
+          "Fedora and RHEL: install and update Jacarium with dnf - sudo dnf copr enable robincernin/jacarium, then sudo dnf install jacarium (Fedora 42 and newer, RHEL 10 with EPEL)",
+          "The packages are the official release builds, checked against the release's SHA256SUMS.txt, and are built automatically when a release is published"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.2.9",
     "date": "2026-10-20",
     "features": [

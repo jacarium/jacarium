@@ -89,6 +89,9 @@ fs.writeFileSync(path.join(VERSIONS, 'index.js'), "import * as v2_5_9 from './v2
 fs.writeFileSync(path.join(VERSIONS, 'changelog.json'), JSON.stringify([{ version: '2.5.9', features: [{ title: 'Old', description: ['Old line'] }] }], null, 2) + '\n');
 fs.writeFileSync(path.join(WORK, 'CHANGELOG.md'), "# Changelog\n\nIntro stays.\n\n## What's New in v2.5.9\n\n### Old\n\nOld line\n");
 fs.writeFileSync(path.join(WORK, 'README.md'), "# Jacarium\n\nThe pitch stays as it is.\n");
+// the COPR spec: its fallback version and %changelog follow the release
+fs.mkdirSync(path.join(WORK, 'packaging', 'copr'), { recursive: true });
+fs.writeFileSync(path.join(WORK, 'packaging', 'copr', 'jacarium.spec'), "%{!?jacarium_version: %global jacarium_version 2.5.9}\nName: jacarium\nVersion: %{jacarium_version}\n\n%changelog\n* Mon Feb 02 2026 Robin Cernin - 2.5.9-1\n- Old\n");
 let n = 0;
 function commit(subject, date) {
   fs.writeFileSync(path.join(WORK, `f${++n}.txt`), `${subject}\n`);
@@ -125,6 +128,8 @@ console.log('\n--- 3. prepare 2.7.0 explicitly, then tag ---');
   const changelogMd = fs.readFileSync(path.join(WORK, 'CHANGELOG.md'), 'utf8');
   check('CHANGELOG.md gets the 2.7.0 section first (its date, the changes under [CATEGORY] headings), keeps its header and 2.5.9', /^# Changelog\n\nIntro stays\.\n\n## What's New in v2\.7\.0\n\n_2026-02-03_\n\n### \[[A-Z]+\]\n\n/.test(changelogMd) && /### \[UI\]\n\n(Fix the beta dialog|Add the alpha widget)\n/.test(changelogMd) && /Fix the beta dialog\n/.test(changelogMd) && /Add the alpha widget\n/.test(changelogMd) && /## What's New in v2\.5\.9/.test(changelogMd), changelogMd.slice(0, 200));
   check('README.md is not touched by a release', fs.readFileSync(path.join(WORK, 'README.md'), 'utf8') === "# Jacarium\n\nThe pitch stays as it is.\n");
+  const spec = fs.readFileSync(path.join(WORK, 'packaging', 'copr', 'jacarium.spec'), 'utf8');
+  check('packaging/copr/jacarium.spec: the fallback version is 2.7.0 and %changelog starts with a 2.7.0-1 entry (rpm date format), the old entry kept', /^%\{!\?jacarium_version: %global jacarium_version 2\.7\.0\}$/m.test(spec) && /^%changelog\n\* (Sun|Mon|Tue|Wed|Thu|Fri|Sat) [A-Z][a-z]{2} \d{2} \d{4} Robin Cernin - 2\.7\.0-1\n- Jacarium 2\.7\.0 [^\n]*\n\n\* Mon Feb 02 2026 Robin Cernin - 2\.5\.9-1\n- Old\n$/m.test(spec), spec.split('%changelog')[1].slice(0, 80));
   const entry270 = fs.readFileSync(path.join(VERSIONS, 'v2.7.0.js'), 'utf8');
   check('the generated entry carries the release date and category groups', /export const date = '2026-02-03';/.test(entry270) && /category: '[A-Z]+'/.test(entry270) && !/title: '2026/.test(entry270) && readJson('src/whats-new/versions/changelog.json')[0].date === '2026-02-03' && readJson('src/whats-new/versions/changelog.json')[0].features.every((f) => typeof f.category === 'string'));
   check('the throwaway repo got the commit "Release v2.7.0" and the annotated tag v2.7.0', git('log', '-1', '--format=%s') === 'Release v2.7.0' && git('tag', '-l', 'v2.7.0') === 'v2.7.0' && git('cat-file', '-t', 'v2.7.0') === 'tag' && git('status', '--porcelain') === '');

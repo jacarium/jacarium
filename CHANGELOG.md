@@ -4,6 +4,16 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.3.0
+
+_2026-10-20_
+
+### [DESKTOP]
+
+Fedora and RHEL: install and update Jacarium with dnf - sudo dnf copr enable robincernin/jacarium, then sudo dnf install jacarium (Fedora 42 and newer, RHEL 10 with EPEL)
+
+The packages are the official release builds, checked against the release's SHA256SUMS.txt, and are built automatically when a release is published
+
 ## What's New in v3.2.9
 
 _2026-10-20_

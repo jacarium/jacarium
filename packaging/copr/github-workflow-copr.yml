@@ -1,0 +1,56 @@
+# Fedora / RHEL packages: when a release is PUBLISHED - not on the tag push,
+# while the release is still a draft and its files are not public - ask COPR
+# to build the package from this repository at the release tag
+# (packaging/copr/jacarium.spec, built with .copr/Makefile; the spec downloads
+# the release RPMs and checks them against SHA256SUMS.txt).
+#
+# Users: sudo dnf copr enable robincernin/jacarium && sudo dnf install jacarium
+#
+# No third-party action: python + pip only.
+# Secret COPR_API_TOKEN = the whole token file from
+# https://copr.fedorainfracloud.org/api/ - it expires after 180 days (the job
+# then fails with 401; replace the secret with a new token).
+name: COPR
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  copr:
+    name: Fedora COPR (robincernin/jacarium)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Install copr-cli
+        # pinned: bump on purpose after checking its release notes
+        run: python3 -m pip install --user 'copr-cli==2.6'
+
+      - name: COPR credentials
+        env:
+          COPR_API_TOKEN: ${{ secrets.COPR_API_TOKEN }}
+        run: |
+          test -n "$COPR_API_TOKEN" || { echo "::error::COPR_API_TOKEN is not set (Settings > Secrets and variables > Actions)"; exit 1; }
+          umask 077
+          mkdir -p ~/.config
+          printf '%s\n' "$COPR_API_TOKEN" > ~/.config/copr
+
+      - name: Build the release tag in COPR
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          case "$TAG" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "::error::unexpected tag: $TAG"; exit 1 ;; esac
+          ~/.local/bin/copr-cli buildscm \
+            --clone-url https://github.com/jacarium/jacarium.git \
+            --commit "$TAG" \
+            --spec packaging/copr/jacarium.spec \
+            --method make_srpm \
+            --nowait \
+            robincernin/jacarium
+
+      - name: Remove the credentials
+        if: always()
+        run: rm -f ~/.config/copr
