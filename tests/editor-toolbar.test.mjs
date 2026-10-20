@@ -40,10 +40,13 @@
  *   7. the "/" popup's new built-ins: /hr, /quote, /toc, /code run the
  *      toolbar's helpers in place of the typed command; /pagebreak,
  *      /blankpage, /centerpage, /header, /footer insert the PDF directives;
- *   7b. shortcut labels follow the platform (src/utils/shortcuts.js): ⌘B,
- *      ⌘I, ⌘K, ⇥ / ⇧⇥ on a Mac, Ctrl+B, Ctrl+I, Ctrl+K, Tab / Shift+Tab
- *      elsewhere; the desktop app shows no Bold shortcut (its menu owns
- *      Cmd/Ctrl+B); the heading chords are gone;
+ *   7b. shortcut labels follow the platform (src/utils/shortcuts.js): ⌘I,
+ *      ⇥ / ⇧⇥ on a Mac, Ctrl+I, Tab / Shift+Tab elsewhere; Bold and Link
+ *      carry no chord anywhere (Cmd/Ctrl+B is the desktop menu's Toggle
+ *      Sidebar, Cmd/Ctrl+K the command palette's) and the editor ignores
+ *      Ctrl/Cmd+K, +B and +R (no link, bold or Replace chord; Replace is
+ *      the Find bar's "+ Replace"); Ctrl/Cmd+F and +I still work; the
+ *      heading chords are gone;
  *   8. the phone strip: exactly those seven controls, More holds the rest,
  *      the toggle follows the separator (no margin-left: auto, no spacer);
  *   9. a locked document: only the toggle.
@@ -303,7 +306,17 @@ await setContent(ta, 'see ', 4);
 click($('[data-testid="tb-link"]'));
 check('the Link button inserts "[link text](url)"', (await content('see [link text](url)')) === 'see [link text](url)', JSON.stringify(H.getContent()));
 await setContent(ta, 'see ', 4);
-check('Ctrl+K does the same (prevented)', key(ta, 'k', { ctrlKey: true }) && (await content('see [link text](url)')) === 'see [link text](url)', JSON.stringify(H.getContent()));
+check('Ctrl+K is not the editor\'s (the command palette\'s, app-wide): not prevented, nothing inserted', !key(ta, 'k', { ctrlKey: true }) && (await sleep(60), H.getContent() === 'see '), JSON.stringify(H.getContent()));
+await setContent(ta, 'x', 0, 1);
+check('Ctrl+B is not the editor\'s either (the desktop menu\'s Toggle Sidebar): not prevented, no bold', !key(ta, 'b', { ctrlKey: true }) && (await sleep(60), H.getContent() === 'x'), JSON.stringify(H.getContent()));
+const findHeading = () => $$('span').find((el) => /^Find( & Replace)?$/.test(el.textContent.trim()));
+check('Ctrl+R is not Replace any more: not prevented, no Find bar', !key(ta, 'r', { ctrlKey: true }) && (await sleep(60), !findHeading()), findHeading()?.textContent);
+check('Ctrl+F still opens Find (prevented)', key(ta, 'f', { ctrlKey: true }) && !!(await waitFor(() => findHeading())), findHeading()?.textContent);
+check('...and the Find bar offers "+ Replace" - the way to Replace now', !!$$('button').find((b) => b.textContent.trim() === '+ Replace'), $$('button').map((b) => b.textContent.trim()).filter(Boolean).join('|'));
+click($$('button').find((b) => b.title === 'Close (Esc)'));
+await waitFor(() => (!findHeading() ? true : null));
+await setContent(ta, 'x', 0, 1);
+check('Ctrl+I still wraps the selection in italics (prevented)', key(ta, 'i', { ctrlKey: true }) && (await content('*x*')) === '*x*', JSON.stringify(H.getContent()));
 await setContent(ta, 'run ls now', 4, 6);
 click($('[data-testid="tb-code"]'));
 check('Code with a one-line selection wraps it in backticks', (await content('run `ls` now')) === 'run `ls` now', JSON.stringify(H.getContent()));
@@ -413,21 +426,24 @@ setPlatform('MacIntel');
 check('isMac reads navigator.platform (MacIntel)', shortcuts.isMac() === true);
 ta = await mount({ content: 'Intro\n\nTitle' });
 const titles = () => ['tb-bold', 'tb-italic', 'tb-link', 'tb-indent', 'tb-outdent'].map((id) => $(`[data-testid="${id}"]`).title).join(' | ');
-check('on a Mac the tooltips read ⌘B, ⌘I, ⌘K, ⇥ / ⇧⇥ - nothing Windows-style', titles() === 'Bold (⌘B) | Italic (⌘I) | Insert link (⌘K) | Increase indent (⇥ in a list) | Decrease indent (⇧⇥ in a list)' && !/Ctrl|Alt\b|Shift/.test(titles()), titles());
+check('on a Mac the tooltips read ⌘I, ⇥ / ⇧⇥ - Bold and Link carry no chord - nothing Windows-style', titles() === 'Bold | Italic (⌘I) | Insert link | Increase indent (⇥ in a list) | Decrease indent (⇧⇥ in a list)' && !/Ctrl|Alt\b|Shift/.test(titles()), titles());
 m = await openMenu('heading-menu-button', 'heading-menu');
 check('on a Mac the Heading menu shows no shortcut text either', items('heading-menu').map((i) => i.textContent.trim()).join('|') === 'Paragraph|Heading 1|Heading 2|Heading 3', items('heading-menu').map((i) => i.textContent.trim()).join('|'));
 key(document.activeElement, 'Escape'); await waitFor(() => (!menu('heading-menu') ? true : null));
 await setContent(ta, 'see ', 4);
-check('on a Mac ⌘K (metaKey) inserts the link, as the label says', key(ta, 'k', { metaKey: true }) && (await content('see [link text](url)')) === 'see [link text](url)', JSON.stringify(H.getContent()));
+check('on a Mac ⌘K (metaKey) inserts nothing either: not prevented, the content stays', !key(ta, 'k', { metaKey: true }) && (await sleep(60), H.getContent() === 'see '), JSON.stringify(H.getContent()));
+await setContent(ta, 'x', 0, 1);
+check('on a Mac ⌘B (metaKey) inserts nothing: not prevented', !key(ta, 'b', { metaKey: true }) && (await sleep(60), H.getContent() === 'x'), JSON.stringify(H.getContent()));
+check('on a Mac ⌘I (metaKey) still wraps in italics', key(ta, 'i', { metaKey: true }) && (await content('*x*')) === '*x*', JSON.stringify(H.getContent()));
 const noTitles = () => Array.from(document.querySelectorAll('[data-testid="editor-toolbar"] [title]')).map((b) => b.title).filter((t) => /Ctrl|Alt\b/.test(t));
 check('no control in the Mac strip carries a Ctrl/Alt label', noTitles().length === 0, noTitles().join(' | '));
 setPlatform('Win32');
 check('isMac is false for Win32', shortcuts.isMac() === false);
 ta = await mount({ content: 'Intro\n\nTitle' });
-check('on Windows the tooltips read Ctrl+B, Ctrl+I, Ctrl+K, Tab / Shift+Tab', titles() === 'Bold (Ctrl+B) | Italic (Ctrl+I) | Insert link (Ctrl+K) | Increase indent (Tab in a list) | Decrease indent (Shift+Tab in a list)', titles());
+check('on Windows the tooltips read Ctrl+I, Tab / Shift+Tab (Bold and Link none)', titles() === 'Bold | Italic (Ctrl+I) | Insert link | Increase indent (Tab in a list) | Decrease indent (Shift+Tab in a list)', titles());
 window.electronAPI = { platform: 'win32' };
 ta = await mount({ content: 'x' });
-check('in the desktop app Bold shows no shortcut (its menu takes Cmd/Ctrl+B for Toggle Sidebar); Italic keeps Ctrl+I', $('[data-testid="tb-bold"]').title === 'Bold' && $('[data-testid="tb-italic"]').title === 'Italic (Ctrl+I)', $('[data-testid="tb-bold"]').title);
+check('in the desktop app the same: Bold shows no shortcut (its menu takes Cmd/Ctrl+B for Toggle Sidebar); Italic keeps Ctrl+I', $('[data-testid="tb-bold"]').title === 'Bold' && $('[data-testid="tb-italic"]').title === 'Italic (Ctrl+I)', $('[data-testid="tb-bold"]').title);
 window.electronAPI = { platform: 'darwin' };
 check('...and Electron\'s process.platform decides the platform (darwin -> Mac symbols)', shortcuts.isMac() === true);
 delete window.electronAPI;

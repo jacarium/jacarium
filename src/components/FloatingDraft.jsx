@@ -1621,8 +1621,8 @@ export default function FloatingDraft({ instanceId = 'default' }) {
             }}
             onInput={handleEditorInput}
             onKeyDown={(e) => {
-              // Ctrl+S to save (for local documents only)
-              if (e.ctrlKey && e.key === 's' && draftDoc && !draftDoc.inCloud && !draftDoc.readOnly) {
+              // Ctrl+S / Cmd+S to save (for local documents only)
+              if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S') && draftDoc && !draftDoc.inCloud && !draftDoc.readOnly) {
                 e.preventDefault();
                 handleManualSave();
               }

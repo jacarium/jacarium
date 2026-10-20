@@ -5,6 +5,8 @@ import ToolbarMenu from './ToolbarMenu';
 import { useToolbarMenu, useRovingToolbar } from '../../../hooks/toolbarMenu';
 import { useMobile } from '../../../contexts/MobileContext';
 import { formatShortcut } from '../../../utils/shortcuts';
+import { useShortcut, useShortcutHint, useShortcutLabel } from '../../../shortcuts/useShortcut';
+import { hasChordModifier } from '../../../shortcuts/registry';
 import { BUILTIN_COMMANDS, matchesSlashQuery, slashQueryAt } from '../../../utils/slashCommands';
 
 // The GitHub-style callouts the preview renders (src/utils/interactiveMarkdown.js),
@@ -1460,73 +1462,58 @@ export default function DocumentEditor({
     });
   };
 
+  // Open the Find bar (with the Replace row when asked and the document
+  // is editable), from the editor.find / editor.replace shortcuts
+  const openFind = (withReplace) => {
+    const isEditable = !locked && isOwner && !(document?.inCloud && !isOnline) && !serverCopyUnavailable;
+    // Cleanup old measure div for fresh measurements
+    if (measureDivRef.current) {
+      window.document.body.removeChild(measureDivRef.current);
+      measureDivRef.current = null;
+    }
+    setShowSearchReplace(true);
+    setShowReplace(withReplace && isEditable);
+    setTimeout(() => searchInputRef.current?.focus(), 0);
+  };
+
+  // The editor's shortcuts (src/shortcuts/registry.js: Find and Italic
+  // bound by default; Find and replace, Bold and Insert link unassigned
+  // until the user binds them in Settings > Shortcuts). They fire only
+  // while this textarea has focus (scope 'editor'); the dispatcher
+  // consumes the event, so the browser's own Ctrl+F never opens.
+  useShortcut('editor.find', () => openFind(false));
+  useShortcut('editor.replace', () => openFind(true));
+  useShortcut('editor.bold', () => insertMarkdown('**', '**', 'bold'));
+  useShortcut('editor.italic', () => insertMarkdown('*', '*', 'italic'));
+  useShortcut('editor.insertLink', () => insertLink());
+  const boldHint = useShortcutHint('editor.bold');
+  const italicHint = useShortcutHint('editor.italic');
+  const linkHint = useShortcutHint('editor.insertLink');
+  // the Find bar's own hint line names the bound chords ('' when unassigned)
+  const findLabel = useShortcutLabel('editor.find');
+  const replaceLabel = useShortcutLabel('editor.replace');
+
   // Handle keyboard navigation in slash menu
   const handleKeyDown = (e) => {
+    // a shortcut the dispatcher already ran (it stops propagation, so this
+    // is only a guard against a synthetic re-dispatch)
+    if (e.defaultPrevented) return;
     // Don't interfere if search panel is open (unless it's a shortcut)
-    if (showSearchReplace && !(e.ctrlKey || e.metaKey)) {
+    if (showSearchReplace && !hasChordModifier(e)) {
       return;
     }
 
     // Tab / Shift+Tab inside a list indent / outdent the lines (outside a
-    // list Tab keeps moving the focus, as a textarea does)
-    if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey && !slashMenu.visible && textareaRef.current) {
+    // list Tab keeps moving the focus, as a textarea does). A fixed
+    // shortcut (editor.indent / editor.outdent in the registry): not a
+    // chord a user can move, so it stays here rather than in the dispatcher.
+    if (e.key === 'Tab' && !hasChordModifier(e) && !e.altKey && !slashMenu.visible && textareaRef.current) {
       const textarea = textareaRef.current;
       const [lineStart, lineEnd] = lineBounds(textarea.value, textarea.selectionStart, textarea.selectionEnd);
       const lines = textarea.value.substring(lineStart, lineEnd).split('\n');
       if (lines.every((line) => describeLine(line).list)) {
         e.preventDefault();
         indentText(!e.shiftKey);
-        return;
-      }
-    }
-
-    // Global shortcuts for Search/Replace (Ctrl/Cmd+F, +R) and formatting (Ctrl/Cmd+B, +I, +K link).
-    // Ctrl/Cmd+Shift+F is the Documents page's "Find in Files" - leave it alone.
-    if (e.ctrlKey || e.metaKey) {
-      if ((e.key === 'k' || e.key === 'K') && !e.altKey) {
-        e.preventDefault();
-        insertLink();
-        return;
-      }
-      if ((e.key === 'f' || e.key === 'F') && !e.shiftKey) {
-        e.preventDefault();
-
-        // Cleanup old measure div for fresh measurements
-        if (measureDivRef.current) {
-          window.document.body.removeChild(measureDivRef.current);
-          measureDivRef.current = null;
-        }
-
-        setShowSearchReplace(true);
-        setShowReplace(false);
-        setTimeout(() => searchInputRef.current?.focus(), 0);
-        return;
-      }
-      if (e.key === 'r' || e.key === 'R') {
-        e.preventDefault();
-
-        // Only open replace mode if document is editable
-        const isEditable = !locked && isOwner && !(document?.inCloud && !isOnline) && !serverCopyUnavailable;
-
-        // Cleanup old measure div for fresh measurements
-        if (measureDivRef.current) {
-          window.document.body.removeChild(measureDivRef.current);
-          measureDivRef.current = null;
-        }
-
-        setShowSearchReplace(true);
-        setShowReplace(isEditable); // Only show replace if editable
-        setTimeout(() => searchInputRef.current?.focus(), 0);
-        return;
-      }
-      if (e.key === 'b' || e.key === 'B') {
-        e.preventDefault();
-        insertMarkdown('**', '**', 'bold');
-        return;
-      }
-      if (e.key === 'i' || e.key === 'I') {
-        e.preventDefault();
-        insertMarkdown('*', '*', 'italic');
         return;
       }
     }
@@ -2916,16 +2903,13 @@ export default function DocumentEditor({
   const canEdit = !locked && isOwner;
   const { attach: attachToolbar, onKeyDown: onToolbarKeyDown, onFocus: onToolbarFocus } = useRovingToolbar([canEdit, isMobile]);
   const headingLabel = caretBlock.heading ? `H${caretBlock.heading}` : '\u00b6';
-  // Shortcut labels for this platform (⌘B / ⌘I / ⌘K / ⇧⇥ on a Mac, Ctrl+B /
-  // Ctrl+I / Ctrl+K / Shift+Tab elsewhere - src/utils/shortcuts.js). The
-  // desktop app's own menu takes Cmd/Ctrl+B for "Toggle Sidebar" before
-  // the page sees it, so Bold shows no shortcut there rather than one that
-  // does not work.
-  const inDesktopApp = typeof window !== 'undefined' && !!window.electronAPI;
+  // Shortcut labels: the bound chords for this device and platform (⌘I /
+  // Ctrl+I; Bold and Insert link show one only once the user binds them in
+  // Settings > Shortcuts), the fixed Tab / Shift+Tab of the list indent.
   const shortcuts = {
-    bold: inDesktopApp ? '' : ` (${formatShortcut('Mod+B')})`,
-    italic: ` (${formatShortcut('Mod+I')})`,
-    link: ` (${formatShortcut('Mod+K')})`,
+    bold: boldHint,
+    italic: italicHint,
+    link: linkHint,
     indent: formatShortcut('Tab'),
     outdent: formatShortcut('Shift+Tab'),
   };
@@ -3786,18 +3770,6 @@ export default function DocumentEditor({
                   }
                 }}
                 onKeyDown={(e) => {
-                  // Handle Ctrl+R to toggle replace mode
-                  if ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R')) {
-                    e.preventDefault();
-                    // Only allow toggling replace if document is editable
-                    const isEditable = !locked && isOwner && !(document?.inCloud && !isOnline) && !serverCopyUnavailable;
-                    if (isEditable || showReplace) {
-                      // Allow turning off replace even if read-only, but not turning it on
-                      setShowReplace(!showReplace && isEditable);
-                    }
-                    return;
-                  }
-
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     handleFindNext();
@@ -3845,13 +3817,6 @@ export default function DocumentEditor({
                 value={replaceText}
                 onChange={(e) => setReplaceText(e.target.value)}
                 onKeyDown={(e) => {
-                  // Handle Ctrl+R to toggle replace mode (can always close replace mode)
-                  if ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R')) {
-                    e.preventDefault();
-                    setShowReplace(false); // Close replace mode
-                    return;
-                  }
-
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     handleReplace();
@@ -3943,7 +3908,9 @@ export default function DocumentEditor({
           )}
 
           <div className="text-xs text-os-text-muted mt-2 pt-2 border-t border-os-border">
-            <div>Ctrl+F: Find{!(locked || !isOwner || (document?.inCloud && !isOnline) || serverCopyUnavailable) && ' • Ctrl+R: Replace'}</div>
+            {(findLabel || replaceLabel) && (
+              <div data-testid="find-bar-hint">{[findLabel && `${findLabel}: Find`, replaceLabel && !(locked || !isOwner || (document?.inCloud && !isOnline) || serverCopyUnavailable) && `${replaceLabel}: Replace`].filter(Boolean).join(' \u2022 ')}</div>
+            )}
             <div>Enter: Next • Shift+Enter: Previous</div>
           </div>
         </div>

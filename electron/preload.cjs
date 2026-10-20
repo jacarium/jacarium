@@ -76,6 +76,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // bar is enabled the main process also pushes CPU/memory numbers to every
   // window on a single shared interval ('debug-metrics'); see the debug-bar
   // section in main.cjs.
+  // Keyboard shortcuts (electron/shortcuts.cjs): this profile's overrides,
+  // kept in ui-settings.json by the main process, which validates a new map,
+  // rebuilds the menu's accelerators and tells every window
+  getShortcuts: () => ipcRenderer.invoke('get-shortcuts'),
+  setShortcuts: (overrides) => ipcRenderer.invoke('set-shortcuts', overrides),
+  onShortcutsChanged: (callback) => {
+    const listener = (event, state) => callback(state);
+    ipcRenderer.on('shortcuts-changed', listener);
+    return () => ipcRenderer.removeListener('shortcuts-changed', listener);
+  },
   getDebugBarEnabled: () => ipcRenderer.invoke('get-debug-bar-enabled'),
   setDebugBarEnabled: (enabled) => ipcRenderer.invoke('set-debug-bar-enabled', enabled),
   onDebugBarChanged: (callback) => {

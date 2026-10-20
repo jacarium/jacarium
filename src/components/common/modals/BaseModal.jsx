@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
 /**
@@ -55,7 +55,20 @@ export const DIALOG_Z_INDEX = 2147483647;
  * @param {number} zIndex - Z-index for modal (default: 50; see tier table above.
  *   Pass DIALOG_Z_INDEX for dialogs that may open from inside an always-on-top
  *   floating widget)
+ * @param {boolean} trapFocus - Keep keyboard focus inside the dialog while it
+ *   is open (Tab and Shift+Tab wrap within it), focus the panel when it opens
+ *   and give focus back when it closes: to `returnFocusTo`, else to the
+ *   element that had focus when it opened. For a dialog stacked over another
+ *   one (the Settings dialog's copy sheet); the dialog underneath should mark
+ *   itself `inert` meanwhile.
+ * @param {Element|function} returnFocusTo - Where focus goes when a trapFocus
+ *   dialog closes (an element, or a function returning one): the control that
+ *   opened it, as the opener recorded it in its click handler - a dialog that
+ *   opens on its own (no click) names the dialog underneath. Read when the
+ *   dialog closes, so the latest value counts.
  */
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export default function BaseModal({
   isOpen,
   onClose,
@@ -65,7 +78,30 @@ export default function BaseModal({
   className = '',
   backdropClassName = '',
   zIndex = 50,
+  trapFocus = false,
+  returnFocusTo = null,
 }) {
+  const panelRef = useRef(null);
+  const returnFocusRef = useRef(null);
+  useEffect(() => { returnFocusRef.current = returnFocusTo; });
+
+  // Focus: into the panel on open (a layout effect: before anything else
+  // can move the focus, and while the element that had it is still
+  // focused), back out on close - a frame later, when the dialog underneath
+  // has dropped its `inert` (focus() on an inert element does nothing).
+  useLayoutEffect(() => {
+    if (!isOpen || !trapFocus) return undefined;
+    const opener = document.activeElement;
+    panelRef.current?.focus();
+    return () => {
+      const named = returnFocusRef.current;
+      const target = (typeof named === 'function' ? named() : named) || opener;
+      requestAnimationFrame(() => {
+        if (target && typeof target.focus === 'function' && document.contains(target)) target.focus();
+      });
+    };
+  }, [isOpen, trapFocus]);
+
   // Handle Escape key
   useEffect(() => {
     if (!isOpen || !closeOnEscape) return;
@@ -100,15 +136,30 @@ export default function BaseModal({
     }
   };
 
+  // Tab wraps inside the panel while the focus is trapped
+  const handleKeyDown = (e) => {
+    if (!trapFocus || e.key !== 'Tab' || !panelRef.current) return;
+    const items = Array.from(panelRef.current.querySelectorAll(FOCUSABLE)).filter((el) => el.getAttribute('aria-hidden') !== 'true');
+    if (items.length === 0) { e.preventDefault(); return; }
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey && (active === first || active === panelRef.current)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+  };
+
   const modalContent = (
     <div
       className={`sc-modal-backdrop fixed inset-0 bg-black/50 flex items-center justify-center p-4 ${backdropClassName}`}
       style={{ zIndex }}
       onMouseDown={handleBackdropClick}
       onClick={(e) => e.stopPropagation()}
+      onKeyDown={handleKeyDown}
     >
       <div
-        className={`bg-os-modal shadow-lg border border-os-border ${className}`}
+        ref={panelRef}
+        tabIndex={trapFocus ? -1 : undefined}
+        className={`bg-os-modal shadow-lg border border-os-border ${trapFocus ? 'focus:outline-hidden' : ''} ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {children}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getBackendUrl, apiFetch } from '../../../utils/backendUrl';
 import BaseModal from './BaseModal';
 import { AlertCircle } from 'lucide-react';
@@ -13,6 +13,8 @@ import AIProvidersSettings from './settings/AIProvidersSettings';
 import UsersSettings from './settings/UsersSettings';
 import AuditSettings from './settings/AuditSettings';
 import AboutSettings from './settings/AboutSettings';
+import ShortcutsSettings from './settings/ShortcutsSettings';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 import { Button, Note, ModalHeader } from './settings/ui';
 import { accountsEnabled, currentUser, isAdmin, setRemoteAccount, setStepUpPrompt } from '../../../utils/auth';
 import { adminAccess } from '../../../utils/adminAccess';
@@ -21,6 +23,7 @@ import { desktopOnly } from '../../../utils/platform';
 import { loadSettings as loadSettings_, saveSettings, settingsStoreAvailable, settingsStoreHost, getSettingsScopeState, setSettingsScope } from '../../../services/settingsStore';
 import { SettingsProvenanceContext, provenanceTag } from './settings/provenanceContext';
 import CopySettingsSheet from './settings/CopySettingsSheet';
+import { SETTINGS_FIELDS } from './settings/fieldCatalog';
 import { serverLabel } from '../../../utils/adminAccess';
 import { isSecretKey } from '../../../utils/secretKeys';
 import { SecretStatusContext } from './settings/secretStatusContext';
@@ -110,6 +113,8 @@ export default function SettingsModal({
   // Debug status bar toggle; default off, mirrored from the main process.
   const [debugBarEnabled, setDebugBarEnabledState] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
+  // no keyboard shortcuts to edit on a phone: the Shortcuts tab is not offered there
+  const isMobile = useIsMobile();
   useEffect(() => {
     // the opener's tab wins each time the dialog opens
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -132,6 +137,14 @@ export default function SettingsModal({
   const [pendingScope, setPendingScope] = useState(null);  // a scope chosen while edits are unsaved
   const [conflicts, setConflicts] = useState(null);    // the keys another device changed (409)
   const [copySheet, setCopySheet] = useState(false);
+  // the control that opened the copy sheet (focus goes back to it when the
+  // sheet closes; the dialog itself when the sheet opened on its own)
+  const copySheetOpener = useRef(null);
+  const dialogRef = useRef(null);
+  function openCopySheet() {
+    copySheetOpener.current = document.activeElement;
+    setCopySheet(true);
+  }
   // The desktop app linked to a home server: that server's account (role as
   // the server reports it now) and whether it lets a linked device
   // administer it (src/utils/adminAccess.js). The browser needs none of this.
@@ -188,6 +201,8 @@ export default function SettingsModal({
     let answered = null;
     try { answered = localStorage.getItem(migrationFlag); } catch { answered = 'unknown'; }
     if (answered) return;
+    // opened on its own: focus returns to the dialog, no opener to name
+    copySheetOpener.current = null;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCopySheet(true);
   }, [isOpen, runScope, migrationFlag]);
@@ -443,10 +458,18 @@ export default function SettingsModal({
       isOpen={isOpen}
       onClose={onClose}
       className="max-w-4xl w-full"
+      // Esc belongs to the dialog on top while one is stacked over this one
+      closeOnEscape={!copySheet && !stepUpRequest}
     >
-      <div data-testid="settings-modal">
+      {/* inert while the copy sheet is open: nothing in here (the footer's
+          Save included) can be reached or clicked until it is answered */}
+      <div data-testid="settings-modal" inert={copySheet} ref={dialogRef} tabIndex={-1} className="focus:outline-hidden">
       <ModalHeader title="Application Settings" onClose={onClose} />
       <StepUpModal request={stepUpRequest} server={access.server} onDone={() => setStepUpRequest(null)} />
+      {/* its own dialog, stacked above this one (z 55) */}
+      <CopySettingsSheet open={copySheet} server={serverName} onClose={() => { setCopySheet(false); markMigrationAnswered(); }}
+        returnFocusTo={() => (copySheetOpener.current && dialogRef.current?.contains(copySheetOpener.current) ? copySheetOpener.current : dialogRef.current)}
+        onCopied={() => { setCopySheet(false); markMigrationAnswered(); setScopeState('account'); getSettingsScopeState().then((s) => s && setRunScope(s)).catch(() => {}); addNotification({ type: 'success', title: 'Settings copied', message: `Your account on ${serverName} now holds them; this device uses your account's settings.` }); }} />
 
       {/* Body - Two column layout (the category rail folds above the content on a narrow window) */}
       <div className="flex flex-col sm:flex-row bg-os-modal h-[70vh]">
@@ -455,8 +478,9 @@ export default function SettingsModal({
           <div className="flex sm:flex-col gap-1" role="tablist">
             {[
               { id: 'general', label: 'General' },
-              { id: 'integrations', label: 'Integrations' },
-              { id: 'ai', label: 'AI Providers' },
+              { id: 'integrations', label: SETTINGS_FIELDS.integrations.tab },
+              { id: 'ai', label: SETTINGS_FIELDS.ai.tab },
+              ...(isMobile ? [] : [{ id: 'shortcuts', label: 'Shortcuts' }]),
               ...(accounts && admin ? [{ id: 'users', label: access.remote ? `Users on ${access.server}` : 'Users' }, { id: 'audit', label: 'Audit' }] : []),
               { id: 'about', label: 'About' },
             ].map(category => (
@@ -481,9 +505,7 @@ export default function SettingsModal({
         </div>
 
         {/* Right Content Area */}
-        <div className="relative flex-1 p-4 sm:p-6 space-y-6 overflow-y-auto" data-testid="settings-body">
-          <CopySettingsSheet open={copySheet} server={serverName} onClose={() => { setCopySheet(false); markMigrationAnswered(); }}
-            onCopied={() => { setCopySheet(false); markMigrationAnswered(); setScopeState('account'); getSettingsScopeState().then((s) => s && setRunScope(s)).catch(() => {}); addNotification({ type: 'success', title: 'Settings copied', message: `Your account on ${serverName} now holds them; this device uses your account's settings.` }); }} />
+        <div className="flex-1 p-4 sm:p-6 space-y-6 overflow-y-auto" data-testid="settings-body">
           {/* Error */}
           {error && (
             <Note tone="danger" icon={AlertCircle}>{error}</Note>
@@ -509,8 +531,8 @@ export default function SettingsModal({
                   account={accounts ? (access.remote ? { id: remote.userId, username: remote.username, displayName: remote.displayName, role: remote.role } : currentUser()) : null}
                   remoteServer={access.remote ? access.server : null}
                   runScope={runScope}
-                  onCopySettings={() => setCopySheet(true)}
-                  onLinked={() => { getSettingsScopeState().then((s) => { if (s) setRunScope(s); setCopySheet(true); }).catch(() => setCopySheet(true)); }}
+                  onCopySettings={openCopySheet}
+                  onLinked={() => { getSettingsScopeState().then((s) => { if (s) setRunScope(s); openCopySheet(); }).catch(() => openCopySheet()); }}
                   onExportDatabase={onExportDatabase}
                   onImportDatabase={onImportDatabase}
                   onWipeDatabase={onWipeDatabase}
@@ -531,6 +553,9 @@ export default function SettingsModal({
               )}
               {activeTab === 'about' && (
                 <AboutSettings onShowWhatsNew={onShowWhatsNew} />
+              )}
+              {activeTab === 'shortcuts' && !isMobile && (
+                <ShortcutsSettings />
               )}
 
               {envTab && scopeOptions.length > 0 && (
@@ -563,7 +588,7 @@ export default function SettingsModal({
                     <Note tone="info" testId="scope-device-banner">
                       This device uses its own settings. Your phone uses your account&apos;s.{' '}
                       <button type="button" className="underline" onClick={() => chooseScope('account')} data-testid="scope-use-account">Use my account&apos;s settings</button>
-                      {' '}or <button type="button" className="underline" onClick={() => setCopySheet(true)} data-testid="scope-copy-open">copy this device&apos;s settings to my account</button>.
+                      {' '}or <button type="button" className="underline" onClick={openCopySheet} data-testid="scope-copy-open">copy this device&apos;s settings to my account</button>.
                     </Note>
                   )}
                   {desktopLinked && scope === 'account' && (

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Upload, Search, Image as ImageIcon, Download, MoreHorizontal, Check, Tag, FileText, CheckSquare, Square } from 'lucide-react';
+import { SubTabs } from '../../ui/primitives';
 import {
   uploadMedia, getAllMedia, deleteMedia, updateMediaTags, getMediaUsage
 } from '../../../utils/media';
@@ -428,35 +429,14 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
           </button>
         </div>
 
-        {/* Tabs - Always show Browse and Upload */}
-        <div className="border-b border-os-border">
-          <div className="flex px-4">
-            <button
-              onClick={() => {
-                setActiveTab('browse');
-                // Preview reflects only the latest action; clear it when leaving the Upload tab
-                setRecentlyUploaded([]);
-              }}
-              className={`px-4 py-3 text-sm border-b-2 transition-colors ${
- activeTab ==='browse'
- ?'border-blue-600 text-blue-600'
- :'border-transparent text-os-text-secondary hover:text-os-text-primary hover:border-os-border'
- }`}
-            >
-              Browse
-            </button>
-            <button
-              onClick={() => setActiveTab('upload')}
-              className={`px-4 py-3 text-sm border-b-2 transition-colors ${
- activeTab ==='upload'
- ?'border-blue-600 text-blue-600'
- :'border-transparent text-os-text-secondary hover:text-os-text-primary hover:border-os-border'
- }`}
-            >
-              Upload
-            </button>
-          </div>
-        </div>
+        {/* Tabs - Always show Browse and Upload (the app's tab bar, src/components/ui/primitives.jsx) */}
+        <SubTabs className="px-4" active={activeTab}
+          tabs={[{ id: 'browse', label: 'Browse', testId: 'media-tab-browse' }, { id: 'upload', label: 'Upload', testId: 'media-tab-upload' }]}
+          onChange={(id) => {
+            setActiveTab(id);
+            // Preview reflects only the latest action; clear it when leaving the Upload tab
+            if (id === 'browse') setRecentlyUploaded([]);
+          }} />
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-4">

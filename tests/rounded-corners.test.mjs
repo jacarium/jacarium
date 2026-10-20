@@ -4,8 +4,8 @@
  * 3xl 28), the components use the rounded-* utilities (no arbitrary
  * `rounded-[...]`, no inline border radii outside the allow-list), every
  * hand-written border-radius in index.css is a token, 0 or a full round, and
- * the square exceptions (the tabs of a tab strip, table cells, the editor
- * textarea, scrollbar thumbs) are declared. The computed values in the
+ * the square exceptions (the tabs of a tab strip, the SubTabs buttons, table
+ * cells, the editor textarea, scrollbar thumbs) are declared. The computed values in the
  * browser are checked by tests/tailwind-visual-regression.test.mjs.
  *
  * Exit code 0 = all checks passed, 1 = failure (details on stdout).
@@ -40,6 +40,8 @@ css.split('\n').forEach((line, i) => {
   literal.push(`${i + 1}: ${v}`);
 });
 check('every hand-written border-radius in index.css is a token, 0 or a full round', literal.length === 0, literal.join(' ; '));
+const subTabs = (/export function SubTabs[\s\S]*?\n\}\n/.exec(read('src/components/ui/primitives.jsx')) || [''])[0];
+check('the SubTabs primitive squares its tab buttons (rounded-none on the border-b-2 button: a straight underline with square ends)', /<button[\s\S]*?className=\{`[^`]*\bborder-b-2\b[^`]*\brounded-none\b/.test(subTabs), subTabs.slice(0, 200));
 check('the exceptions are declared: tab strips square (every tab of .sc-tab-strip, the document tabs by test id), table cells square, the editor textarea square, scrollbar thumbs square',
   /\.sc-tab-strip > \*, \[data-testid="document-tab"\] \{ border-radius: 0; \}/.test(css)
   && /td, th, td\[class\], th\[class\] \{ border-radius: 0; \}/.test(css)

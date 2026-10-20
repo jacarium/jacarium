@@ -460,8 +460,10 @@ console.log('\n--- 6. source-level wiring ---');
   const win = read('src/components/features/documents/FindInFilesWindow.jsx');
   check('DocumentsPage renders FindInFilesWindow and passes onFindInFiles to the sidebar', /<FindInFilesWindow\b/.test(page) && /onFindInFiles=\{openFindInFiles\}/.test(page));
   check('DocumentsPage opens the document in the left pane and requests the jump (requestEditorJumpToLine)', /requestEditorJumpToLine\(docId, \{ line, range, broadcast: alreadyActive \}\)/.test(page) && /await handleSelectDocument\(\{ id: docId \}\)/.test(page));
-  check('DocumentsPage binds Ctrl/Cmd+Shift+F to Find in Files (everywhere)', /e\.shiftKey && \(e\.key === 'f' \|\| e\.key === 'F'\)/.test(page) && /openFindInFiles\(null\)/.test(page));
-  check('the editor\'s Ctrl+F handler ignores the shifted chord', /\(e\.key === 'f' \|\| e\.key === 'F'\) && !e\.shiftKey/.test(editor));
+  // the chords live in the shortcut registry now (src/shortcuts/registry.js), remappable in Settings > Shortcuts
+  const registry = fs.readFileSync(path.join(REPO, 'src', 'shortcuts', 'registry.js'), 'utf8');
+  check('DocumentsPage binds Find in Files through the registry (default Ctrl/Cmd+Shift+F)', /useShortcut\('app\.findInFiles', \(\) => openFindInFiles\(null\)\)/.test(page) && /id: 'app\.findInFiles'[^\n]*defaults: same\('Mod\+Shift\+KeyF'\)/.test(registry));
+  check('the editor\'s Find is its own action (Ctrl/Cmd+F), distinct from the shifted chord', /useShortcut\('editor\.find'/.test(editor) && /id: 'editor\.find'[^\n]*defaults: same\('Mod\+KeyF'\)/.test(registry));
   check('the editor consumes jump requests (takePendingEditorJump + the window event)', /takePendingEditorJump\(documentId\)/.test(editor) && /DOCUMENT_JUMP_EVENT/.test(editor));
   check('the sidebar no longer has the title filter state or the lucide Search icon', !/searchQuery|filteredDocuments|Search documents\.\.\./.test(sidebar) && !/\bSearch,|\bSearch \}/.test(sidebar));
   check('the window is built on the shared FloatingWindow and the pure findInFiles util', /from '\.\.\/\.\.\/common\/FloatingWindow'/.test(win) && /from '\.\.\/\.\.\/\.\.\/utils\/findInFiles'/.test(win));

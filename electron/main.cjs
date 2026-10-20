@@ -13,6 +13,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { loadEnvironmentVariables } = require('./load-env.cjs');
 const { readUiSettings, persistUiSettings } = require('./ui-settings.cjs');
+const { readShortcutOverrides, writeShortcutOverrides, validateShortcutOverrides, menuAccelerators } = require('./shortcuts.cjs');
 const { createUpdateChecker } = require('./update-check.cjs');
 const { installNavigationGuards } = require('./navigation-guard.cjs');
 const { installPdfExport } = require('./pdf-export.cjs');
@@ -508,6 +509,43 @@ ipcMain.handle('get-debug-bar-enabled', () => debugBarEnabled);
 
 ipcMain.handle('set-debug-bar-enabled', (event, enabled) => setDebugBarEnabled(enabled));
 
+// ---------------------------------------------------------------------------
+// Keyboard shortcuts (electron/shortcuts.cjs, the registry in
+// electron/shortcuts-registry.cjs)
+//
+// The user's overrides live in ui-settings.json (per profile, never in the
+// env file or the settings scopes). The renderer's Settings > Shortcuts tab
+// sends the whole override map; the main process validates it against the
+// registry's rules again, persists it, rebuilds the application menu so
+// the menu-owned actions (Settings, Toggle Sidebar, zoom, the Pages) carry
+// the new accelerators, and tells every window. The renderer's own
+// handlers never fire a menu-owned action on the desktop, so a chord
+// never fires twice.
+// ---------------------------------------------------------------------------
+let shortcutOverrides = readShortcutOverrides(uiSettingsPath()).overrides;
+
+function shortcutState() {
+  return { version: 1, overrides: shortcutOverrides, platform: process.platform };
+}
+
+function setShortcutOverrides(raw) {
+  const result = validateShortcutOverrides(raw, process.platform);
+  if (!result.ok) return { ok: false, errors: result.errors };
+  try {
+    shortcutOverrides = writeShortcutOverrides(uiSettingsPath(), result.overrides);
+  } catch (err) {
+    return { ok: false, errors: [{ id: null, message: 'Could not save the shortcuts: ' + err.message }] };
+  }
+  createApplicationMenu();
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send('shortcuts-changed', shortcutState());
+  }
+  return { ok: true, ...shortcutState() };
+}
+
+ipcMain.handle('get-shortcuts', () => shortcutState());
+ipcMain.handle('set-shortcuts', (event, overrides) => setShortcutOverrides(overrides));
+
 // Start the backend server (Flask in production, Node.js in development)
 function startBackendServer() {
   const isDevelopment = process.env.NODE_ENV === 'development' || !app.isPackaged;
@@ -657,6 +695,14 @@ function createWindow() {
 
 function createApplicationMenu() {
   const isMac = process.platform === 'darwin';
+  // The accelerators of the menu-owned actions come from the shortcut
+  // registry under the user's overrides (electron/shortcuts.cjs); an
+  // unassigned action (the Pages by default) gets none. A fixed role
+  // (reload, togglefullscreen) keeps Electron's own.
+  const accelerators = menuAccelerators(shortcutOverrides, process.platform);
+  const accel = (id) => (accelerators[id]?.accelerator ? { accelerator: accelerators[id].accelerator } : {});
+  // hidden twins so an alias chord (Zoom in's Shift+=) works too
+  const aliasItems = (id, item) => (accelerators[id]?.aliases || []).map((accelerator) => ({ ...item, label: `${item.label} (Alternate)`, accelerator, visible: false, acceleratorWorksWhenHidden: true }));
 
   const template = [
     // App Menu (macOS only)
@@ -710,7 +756,7 @@ function createApplicationMenu() {
         { type: 'separator' },
         {
           label: 'Settings',
-          accelerator: 'CommandOrControl+,',
+          ...accel('app.settings'),
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send('open-settings');
@@ -724,7 +770,7 @@ function createApplicationMenu() {
         { type: 'separator' },
         {
           label: 'Toggle Sidebar',
-          accelerator: 'CommandOrControl+B',
+          ...accel('app.toggleSidebar'),
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send('toggle-sidebar');
@@ -736,13 +782,16 @@ function createApplicationMenu() {
       ]
     },
 
-    // Pages Menu
+    // Pages Menu - the pages by name, with NO accelerators: the former
+    // Ctrl/Cmd+Shift+<letter> chords (Shift+C for Calendars...) collided with
+    // terminal and GTK conventions on Linux (Ctrl+Shift+C is copy there), so
+    // a mistyped copy switched the page. Pages are switched from the rail.
     {
       label: 'Pages',
       submenu: [
         {
           label: 'Documents',
-          accelerator: 'CommandOrControl+Shift+D',
+          ...accel('page.documents'),
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send('navigate-to-page', 'documents');
@@ -751,7 +800,7 @@ function createApplicationMenu() {
         },
         {
           label: 'Calendars',
-          accelerator: 'CommandOrControl+Shift+C',
+          ...accel('page.calendars'),
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send('navigate-to-page', 'calendars');
@@ -760,7 +809,7 @@ function createApplicationMenu() {
         },
         {
           label: 'Kanban',
-          accelerator: 'CommandOrControl+Shift+K',
+          ...accel('page.kanban'),
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send('navigate-to-page', 'kanban');
@@ -769,7 +818,7 @@ function createApplicationMenu() {
         },
         {
           label: 'Tasks',
-          accelerator: 'CommandOrControl+Shift+T',
+          ...accel('page.tasks'),
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send('navigate-to-page', 'tasks');
@@ -778,7 +827,7 @@ function createApplicationMenu() {
         },
         {
           label: 'Workflow Builder',
-          accelerator: 'CommandOrControl+Shift+W',
+          ...accel('page.workflow'),
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send('navigate-to-page', 'workflow');
@@ -787,7 +836,7 @@ function createApplicationMenu() {
         },
         {
           label: 'Diagnostics',
-          accelerator: 'CommandOrControl+Shift+A',
+          ...accel('page.diagnostics'),
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send('navigate-to-page', 'diagnostics');
@@ -796,7 +845,7 @@ function createApplicationMenu() {
         },
         {
           label: 'JQL Search',
-          accelerator: 'CommandOrControl+Shift+S',
+          ...accel('page.search'),
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send('navigate-to-page', 'search');
@@ -805,7 +854,7 @@ function createApplicationMenu() {
         },
         {
           label: 'Tools',
-          accelerator: 'CommandOrControl+Shift+O',
+          ...accel('page.tools'),
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send('navigate-to-page', 'tools');
@@ -848,30 +897,23 @@ function createApplicationMenu() {
         // the roles only touch the focused window's webContents, while these
         // route through applyZoomFactor() so keyboard shortcuts, the
         // Settings > General "UI Scale" dropdown, and persistence all share
-        // one source of truth across every window. The accelerators mirror
-        // the ones Electron auto-assigns to the roles.
+        // one source of truth across every window. The accelerators come
+        // from the registry (Cmd/Ctrl+0, += with a hidden Shift+= twin, +-
+        // by default, as Electron assigns to the roles).
         {
           label: 'Actual Size',
-          accelerator: 'CommandOrControl+0',
+          ...accel('app.zoomReset'),
           click: () => applyZoomFactor(RESET_ZOOM)
         },
         {
           label: 'Zoom In',
-          accelerator: 'CommandOrControl+Plus',
+          ...accel('app.zoomIn'),
           click: () => stepZoomFactor(1)
         },
-        {
-          // Hidden twin of Zoom In so plain Cmd/Ctrl+= (no Shift) keeps
-          // working like it did with the built-in zoomIn role.
-          label: 'Zoom In (Alternate)',
-          accelerator: 'CommandOrControl+=',
-          visible: false,
-          acceleratorWorksWhenHidden: true,
-          click: () => stepZoomFactor(1)
-        },
+        ...aliasItems('app.zoomIn', { label: 'Zoom In', click: () => stepZoomFactor(1) }),
         {
           label: 'Zoom Out',
-          accelerator: 'CommandOrControl+-',
+          ...accel('app.zoomOut'),
           click: () => stepZoomFactor(-1)
         },
         { type: 'separator' },

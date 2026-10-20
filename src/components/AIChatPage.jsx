@@ -16,6 +16,7 @@ import RowMenuButton from './mobile/RowMenuButton';
 import { useCloseDrawerOn } from '../hooks/useCloseDrawerOn';
 import { newConversationId, parseConversationId } from '../utils/aiConversations';
 import { resolveModelOption } from '../utils/aiDefaults';
+import { SubTabs } from './ui/primitives';
 import { indexDatasetDocuments } from '../utils/ragIndex';
 
 export default function AIChatPage() {
@@ -1386,65 +1387,24 @@ export default function AIChatPage() {
                         <div className="text-xs whitespace-pre-wrap wrap-break-word text-os-text-primary p-4">{msg.content}</div>
                       ) : (
                         <>
-                          {/* Tabs for assistant messages with thinking */}
+                          {/* Tabs for assistant messages with thinking (the app's tab bar, src/components/ui/primitives.jsx; Thinking in yellow) */}
                           {msg.thinking && msg.content && (
-                            <div className="border-b border-os-border">
-                              <div className="flex gap-1 px-4 pt-2">
-                                <button
-                                  onClick={() => {
-                                    setConversations(prev => prev.map(conv => {
-                                      if (conv.id === currentConversationId) {
-                                        const msgs = [...conv.messages];
-                                        const msgIndex = msgs.findIndex(m => m === msg);
-                                        if (msgIndex !== -1) {
-                                          msgs[msgIndex] = {
-                                            ...msgs[msgIndex],
-                                            activeTab: 'reply'
-                                          };
-                                        }
-                                        return { ...conv, messages: msgs };
-                                      }
-                                      return conv;
-                                    }));
-                                  }}
-                                  className={`px-3 py-1.5 text-xs transition-colors border-b-2 -mb-px ${
- (msg.activeTab ||'reply') ==='reply'
- ?'border-blue-500 text-blue-600 dark:text-blue-400'
- :'border-transparent text-os-text-secondary hover:text-os-text-primary'
- }`}
-                                >
-                                  Reply
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setConversations(prev => prev.map(conv => {
-                                      if (conv.id === currentConversationId) {
-                                        const msgs = [...conv.messages];
-                                        const msgIndex = msgs.findIndex(m => m === msg);
-                                        if (msgIndex !== -1) {
-                                          msgs[msgIndex] = {
-                                            ...msgs[msgIndex],
-                                            activeTab: 'thinking'
-                                          };
-                                        }
-                                        return { ...conv, messages: msgs };
-                                      }
-                                      return conv;
-                                    }));
-                                  }}
-                                  className={`px-3 py-1.5 text-xs transition-colors border-b-2 -mb-px ${
- msg.activeTab ==='thinking'
- ?'border-yellow-500 text-yellow-600 dark:text-yellow-400'
- :'border-transparent text-os-text-secondary hover:text-os-text-primary'
- }`}
-                                >
-                                  <span className="flex items-center gap-1">
-                                    Thinking
-                                    {msg.thinkingDuration && ` (${msg.thinkingDuration.toFixed(1)}s)`}
-                                  </span>
-                                </button>
-                              </div>
-                            </div>
+                            <SubTabs className="px-4 pt-2" active={msg.activeTab || 'reply'}
+                              tabs={[
+                                { id: 'reply', label: 'Reply' },
+                                { id: 'thinking', label: `Thinking${msg.thinkingDuration ? ` (${msg.thinkingDuration.toFixed(1)}s)` : ''}`, activeClassName: 'border-yellow-500 text-yellow-600 dark:text-yellow-400' },
+                              ]}
+                              onChange={(id) => {
+                                setConversations(prev => prev.map(conv => {
+                                  if (conv.id === currentConversationId) {
+                                    const msgs = [...conv.messages];
+                                    const msgIndex = msgs.findIndex(m => m === msg);
+                                    if (msgIndex !== -1) msgs[msgIndex] = { ...msgs[msgIndex], activeTab: id };
+                                    return { ...conv, messages: msgs };
+                                  }
+                                  return conv;
+                                }));
+                              }} />
                           )}
 
                           <div className="p-4">

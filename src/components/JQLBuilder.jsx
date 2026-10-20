@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useShortcut } from '../shortcuts/useShortcut';
+import { loadOverrides } from '../shortcuts/store';
+import PageShortcuts from '../shortcuts/PageShortcuts';
 import { flushSync } from 'react-dom';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Trash2, Copy, Check, AlertCircle, Loader2, Save } from 'lucide-react';
@@ -502,30 +505,13 @@ export default function JQLBuilder({ standalone }) {
     return unsubscribe;
   }, []);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    function handleKeyDown(e) {
-      // Cmd/Ctrl + K = Open Command Palette (global)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setCommandPaletteOpen(true);
-      }
-      // Cmd/Ctrl + Enter = Open in Jira (only on search page)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        if (currentPage === 'search') {
-          e.preventDefault();
-          if (jql) {
-            openInJira();
-          }
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-    // openInJira is recreated per render and reads jql (already a dep)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jql, currentPage]);
+  // Keyboard shortcuts (src/shortcuts/registry.js): the command palette
+  // everywhere, Open in Jira on the JQL Search page. The Pages actions are
+  // registered by <PageShortcuts> below (the desktop menu owns them there).
+  useShortcut('app.palette', () => setCommandPaletteOpen(true));
+  // this device's bindings (the main process's ui-settings.json, or localStorage in a browser)
+  useEffect(() => { loadOverrides(); }, []);
+  useShortcut('jql.openInJira', () => { if (!jql) return false; openInJira(); return true; }, { when: () => currentPage === 'search' });
 
   // Monitor rootGroup for project selection and fetch metadata
   useEffect(() => {
@@ -1811,6 +1797,7 @@ export default function JQLBuilder({ standalone }) {
       />
 
       {/* Command Palette */}
+      <PageShortcuts onNavigate={handlePageChange} />
       <CommandPalette
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}

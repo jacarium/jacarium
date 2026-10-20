@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { useShortcut } from '../shortcuts/useShortcut';
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -245,64 +246,24 @@ export default function WorkflowBuilder() {
     return () => window.removeEventListener('innerSidebarVisibilityChange', handleVisibilityChange);
   }, []);
 
-  // Keyboard shortcuts: copy/paste, undo/redo
-  useEffect(() => {
-    function handleKeyDown(event) {
-      // Only handle if not focused on editable fields (native undo/copy apply there)
-      if (isEditableTarget(event.target)) {
-        return;
-      }
-
-      const modifier = event.ctrlKey || event.metaKey;
-
-      // Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl+Y redo - owners only
-      if (modifier && isOwner && (event.key === 'z' || event.key === 'Z' || event.key === 'y')) {
-        event.preventDefault();
-        if (event.key === 'y' || event.shiftKey) {
-          history.redo();
-        } else {
-          history.undo();
-        }
-        return;
-      }
-
-      // F or Shift+1 - fit the whole workflow into view
-      if ((!modifier && !event.shiftKey && (event.key === 'f' || event.key === 'F')) || (event.shiftKey && event.code === 'Digit1')) {
-        event.preventDefault();
-        fitCanvas();
-        return;
-      }
-
-      // Tab - quick-add palette at the pointer (owners only; Space is the pan key)
-      if (event.key === 'Tab' && !modifier && isOwner && currentWorkflow) {
-        event.preventDefault();
-        openQuickAddAtPointer();
-        return;
-      }
-
-      // Ctrl+C or Cmd+C - copy selected nodes. If the user has highlighted
-      // text (e.g. inside a Visualizer/Result output) the browser's native
-      // copy must win (see shouldCopyNodesOnShortcut).
-      if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
-        if (!shouldCopyNodesOnShortcut({ target: event.target, selection: window.getSelection(), nodes })) {
-          return;
-        }
-        event.preventDefault();
-        copySelectedNodes();
-      }
-
-      // Ctrl+V or Cmd+V - Paste
-      if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
-        event.preventDefault();
-        pasteNodes();
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-    // the handlers close over nodes/edges/history/fitCanvas/currentWorkflow (the listed deps)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, history, isOwner, fitCanvas, currentWorkflow, openQuickAddAtPointer]);
+  // The canvas shortcuts (src/shortcuts/registry.js, scope 'workflow-canvas':
+  // undo/redo, fit, Tab quick-add, copy/paste of nodes). None of them runs
+  // while an editable field has focus (native undo/copy apply there - a
+  // handler that returns false declines and the event goes on untouched).
+  const onCanvas = (e) => !isEditableTarget(e.target);
+  useShortcut('workflow.undo', () => (isOwner ? history.undo() : false), { when: onCanvas });
+  useShortcut('workflow.redo', () => (isOwner ? history.redo() : false), { when: onCanvas });
+  useShortcut('workflow.fit', () => fitCanvas(), { when: onCanvas });
+  // quick-add palette at the pointer (owners only; Space is the pan key)
+  useShortcut('workflow.quickAdd', () => (isOwner && currentWorkflow ? openQuickAddAtPointer() : false), { when: onCanvas });
+  // copy selected nodes - unless the user has highlighted text (e.g. inside
+  // a Visualizer/Result output): then the browser's native copy must win
+  useShortcut('workflow.copyNodes', (event) => {
+    if (!shouldCopyNodesOnShortcut({ target: event.target, selection: window.getSelection(), nodes })) return false;
+    copySelectedNodes();
+    return true;
+  }, { when: onCanvas });
+  useShortcut('workflow.pasteNodes', () => pasteNodes(), { when: onCanvas });
 
   // Handle tab context menu
   function handleTabContextMenu(e, tabId) {

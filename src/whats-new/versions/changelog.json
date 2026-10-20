@@ -1,5 +1,27 @@
 [
   {
+    "version": "3.3.1",
+    "date": "2026-10-20",
+    "features": [
+      {
+        "category": "SETTINGS",
+        "description": [
+          "Settings > Shortcuts: every keyboard shortcut is listed and can be changed, removed or reset, per device; the desktop menu follows at once",
+          "The shortcut recorder warns before you pick keys another action already uses, keys your system or browser takes first are refused, and Linux habits such as Ctrl+Shift+C get a warning",
+          "Copy this device's settings to your account opens as its own window on top of Settings, and lists each setting by its name in Settings"
+        ]
+      },
+      {
+        "category": "UI",
+        "description": [
+          "No more shortcuts that switch pages by accident (Ctrl+Shift+C opened Calendars); assign your own in Settings > Shortcuts if you want them",
+          "Bold, Insert link and Replace have no shortcut by default; Find (Ctrl/⌘+F), Find in Files (Ctrl/⌘+Shift+F) and the command palette (Ctrl/⌘+K) stay",
+          "Tabs in the Media Library, the import dialog and under Robin's replies have the app's straight underline"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.3.0",
     "date": "2026-10-20",
     "features": [

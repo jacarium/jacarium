@@ -1,44 +1,59 @@
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
+import { useShortcutBindings } from '../../shortcuts/useShortcut';
+import { useKeyboardLayout } from '../../shortcuts/layout';
+import { actionById, aliasesOf, formatChord, platformOf } from '../../shortcuts/registry';
+import { detectOs, isMacOs } from '../../shortcuts/store';
 
-const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
-const MOD = IS_MAC ? '⌘' : 'Ctrl';
-
-/** The editor's shortcuts and gestures, grouped as the popover shows them. */
-const SECTIONS = [
-  {
-    title: 'Moving around',
-    items: [
-      ['Scroll / two-finger swipe', 'Pan the canvas'],
-      [`${MOD} + scroll, pinch`, 'Zoom'],
-      ['Space + drag, middle or right drag', 'Pan'],
-      ['Drag on empty canvas', 'Select nodes in a box'],
-      ['F  or  Shift + 1', 'Fit the workflow into view'],
-    ],
-  },
-  {
-    title: 'Adding and wiring',
-    items: [
-      ['Tab, double-click or right-click on empty canvas', 'Quick-add a node at the pointer'],
-      ['Drag a wire onto empty canvas', 'Add a connected node'],
-      ['Click a wire, then Delete', 'Remove the wire'],
-      [`${MOD} + click a wire`, 'Remove the wire'],
-      ['Drag a node from the library', 'Add it where it is dropped'],
-    ],
-  },
-  {
-    title: 'Editing',
-    items: [
-      [`${MOD} + Z`, 'Undo'],
-      [`${MOD} + Shift + Z  or  ${IS_MAC ? '⌘' : 'Ctrl'} + Y`, 'Redo'],
-      [`${MOD} + C,  ${MOD} + V`, 'Copy and paste the selected nodes'],
-      ['Delete / Backspace', 'Delete the selection'],
-      ['Arrow keys', 'Nudge the selected node'],
-      ['Shift + drag, Ctrl + click', 'Add to the selection'],
-      ['Right-click a node', 'Layer order and pin clearing'],
-    ],
-  },
-];
+/**
+ * The editor's shortcuts and gestures, grouped as the popover shows them.
+ * The chords of the registry's actions (fit, quick-add, undo/redo, copy/
+ * paste) are the ones bound on this device - Settings > Shortcuts can move
+ * them - with their fixed aliases; the mouse gestures are fixed.
+ */
+function sections(bindings, { mac, layout }) {
+  const platform = platformOf(detectOs());
+  const chords = (id) => {
+    const bound = bindings[id];
+    const all = [bound, ...aliasesOf(actionById(id), platform)].filter(Boolean).map((c) => formatChord(c, { mac, layout }));
+    return all.length ? all.join('  or  ') : 'Not bound';
+  };
+  const MOD = mac ? '⌘' : 'Ctrl';
+  return [
+    {
+      title: 'Moving around',
+      items: [
+        ['Scroll / two-finger swipe', 'Pan the canvas'],
+        [`${MOD} + scroll, pinch`, 'Zoom'],
+        ['Space + drag, middle or right drag', 'Pan'],
+        ['Drag on empty canvas', 'Select nodes in a box'],
+        [chords('workflow.fit'), 'Fit the workflow into view'],
+      ],
+    },
+    {
+      title: 'Adding and wiring',
+      items: [
+        [`${chords('workflow.quickAdd')}, double-click or right-click on empty canvas`, 'Quick-add a node at the pointer'],
+        ['Drag a wire onto empty canvas', 'Add a connected node'],
+        ['Click a wire, then Delete', 'Remove the wire'],
+        [`${MOD} + click a wire`, 'Remove the wire'],
+        ['Drag a node from the library', 'Add it where it is dropped'],
+      ],
+    },
+    {
+      title: 'Editing',
+      items: [
+        [chords('workflow.undo'), 'Undo'],
+        [chords('workflow.redo'), 'Redo'],
+        [`${chords('workflow.copyNodes')},  ${chords('workflow.pasteNodes')}`, 'Copy and paste the selected nodes'],
+        ['Delete / Backspace', 'Delete the selection'],
+        ['Arrow keys', 'Nudge the selected node'],
+        ['Shift + drag, Ctrl + click', 'Add to the selection'],
+        ['Right-click a node', 'Layer order and pin clearing'],
+      ],
+    },
+  ];
+}
 
 /**
  * The "?" popover of the toolbar: a card listing the editor's keyboard
@@ -48,6 +63,9 @@ const SECTIONS = [
  */
 export default function ShortcutsHelp({ anchorRef, onClose }) {
   const panelRef = useRef(null);
+  const bindings = useShortcutBindings();
+  const layout = useKeyboardLayout();
+  const SECTIONS = sections(bindings, { mac: isMacOs(), layout });
 
   useEffect(() => {
     function handleMouseDown(event) {

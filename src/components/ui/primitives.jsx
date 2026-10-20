@@ -306,13 +306,22 @@ export function EmptyState({ icon: Icon, title, description, action = null, comp
 /* ------------------------------------------------------------------ */
 
 /** Underlined sub-tabs. */
-export function SubTabs({ tabs, active, onChange, className = '' }) {
+/**
+ * The underlined tab bar of a dialog or panel (the Settings sub-tabs, the
+ * Media Library's Browse / Upload, the Import dialog's modes...): a straight
+ * 2px underline under the active tab, square ends (`rounded-none` - the
+ * button base radius would curve it), no background. `className` replaces
+ * the default outer margins (a dialog header passes its own padding); a
+ * tab's `activeClassName` replaces the blue active colours (the AI chat's
+ * yellow "Thinking" tab).
+ */
+export function SubTabs({ tabs, active, onChange, className = '-mt-1 mb-4' }) {
   return (
-    <div className={`sc-subtabs border-b border-os-border -mt-1 mb-4 ${className}`}>
+    <div className={`sc-subtabs border-b border-os-border ${className}`}>
       <div className="flex flex-wrap gap-1" role="tablist">
         {tabs.map((tab) => (
-          <button key={tab.id} type="button" role="tab" aria-selected={active === tab.id} onClick={() => onChange(tab.id)}
-            className={`px-3 py-1.5 text-xs transition-colors whitespace-nowrap border-b-2 -mb-px rounded-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 ${active === tab.id ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-os-text-secondary hover:text-os-text-primary'}`}>
+          <button key={tab.id} type="button" role="tab" aria-selected={active === tab.id} onClick={() => onChange(tab.id)} data-testid={tab.testId}
+            className={`px-3 py-1.5 text-xs transition-colors whitespace-nowrap border-b-2 -mb-px rounded-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 ${active === tab.id ? (tab.activeClassName || 'border-blue-500 text-blue-600 dark:text-blue-400') : 'border-transparent text-os-text-secondary hover:text-os-text-primary'}`}>
             {tab.label}
           </button>
         ))}

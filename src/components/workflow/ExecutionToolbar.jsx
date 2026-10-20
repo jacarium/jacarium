@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useShortcutHint } from '../../shortcuts/useShortcut';
 import { Play, Square, Eraser, Undo2, Redo2, Magnet, AlignCenterHorizontal, ChevronDown, LayoutGrid, CircleHelp } from 'lucide-react';
 import AlignMenu from './AlignMenu';
 import ShortcutsHelp from './ShortcutsHelp';
@@ -52,13 +53,16 @@ export default function ExecutionToolbar({
   const [helpOpen, setHelpOpen] = useState(false);
   const alignButtonRef = useRef(null);
   const helpButtonRef = useRef(null);
+  // the tooltips name the chords bound on this device (src/shortcuts)
+  const undoHint = useShortcutHint('workflow.undo');
+  const redoHint = useShortcutHint('workflow.redo');
 
   return (
     <div className="border-b border-os-border px-4 py-2 flex items-center gap-1 shrink-0 bg-os-card relative">
-      <ToolbarButton onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">
+      <ToolbarButton onClick={onUndo} disabled={!canUndo} title={`Undo${undoHint}`}>
         <Undo2 size={18} />
       </ToolbarButton>
-      <ToolbarButton onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">
+      <ToolbarButton onClick={onRedo} disabled={!canRedo} title={`Redo${redoHint}`}>
         <Redo2 size={18} />
       </ToolbarButton>
       <Divider />

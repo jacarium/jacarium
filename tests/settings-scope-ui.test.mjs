@@ -11,10 +11,14 @@
  *   1. desktop, not linked: no switch, no banner, the device file loads;
  *   2. desktop, linked, running on This device: the switch with the three
  *      options, This device checked; the banner with "Use my account's
- *      settings"; the migration sheet opens once (lists the device file's
- *      plain keys with values and its secrets by name, conflicts with the
- *      account's values; Not now closes it and the flag stops a second
- *      offer); no provenance tags in this scope;
+ *      settings"; the migration sheet opens once - a dialog of its own
+ *      (role dialog, aria-modal, portalled above the Settings dialog, which
+ *      is inert meanwhile) listing the device file's plain keys with values
+ *      and its secrets by name, each under its field's label and tab >
+ *      sub-tab group (settings/fieldCatalog.js), never a raw key as the
+ *      label, conflicts with the account's values; Esc is Not now, closes
+ *      only the sheet, the flag stops a second offer, focus returns to the
+ *      opener; no provenance tags in this scope;
  *   3. switching to My account calls the controller (setScope) and loads
  *      the account's values; every field carries its provenance tag ("your
  *      account" / "everyone" / "not set"); secrets show set / not set, no
@@ -40,6 +44,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire, isBuiltin } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(here, '..');
@@ -194,12 +199,36 @@ check('it lists the device file\'s plain keys with their values and its secrets 
 if (!$('[data-testid="copy-JIRA_URL"]')) { report(`\n${total - failures}/${total} checks passed`); process.exit(1); }
 check('a key the account already sets is flagged and unticked by default; the others are ticked', !!$('[data-testid="copy-conflict-DEFAULT_AI_PROVIDER"]') && $('[data-testid="copy-DEFAULT_AI_PROVIDER"]').checked === false && $('[data-testid="copy-JIRA_URL"]').checked === true && $('[data-testid="copy-JIRA_PAT"]').checked === true);
 check('the localhost explanation is on the sheet', /"localhost" in an endpoint means the device that makes the call/.test(sheet.textContent));
-click($('[data-testid="copy-not-now"]'));
+// a dialog of its own, over the Settings dialog
+const settingsRoot = $('[data-testid="settings-modal"]');
+const backdropOf = (el) => el?.closest('.sc-modal-backdrop');
+check('the sheet is a separate dialog (role dialog, aria-modal) portalled outside the Settings dialog, stacked above it (z 55 over 50)', sheet.getAttribute('role') === 'dialog' && sheet.getAttribute('aria-modal') === 'true' && !settingsRoot.contains(sheet) && backdropOf(sheet) !== backdropOf(settingsRoot) && Number(backdropOf(sheet).style.zIndex) > Number(backdropOf(settingsRoot).style.zIndex) && backdropOf(sheet).compareDocumentPosition(backdropOf(settingsRoot)) & window.Node.DOCUMENT_POSITION_PRECEDING, `${backdropOf(sheet)?.style.zIndex} over ${backdropOf(settingsRoot)?.style.zIndex}`);
+check('the Settings dialog is inert while the sheet is open: its footer\'s Save button is inside the inert subtree, the sheet\'s own buttons are not', settingsRoot.hasAttribute('inert') && !!$('[data-testid="settings-save"]')?.closest('[inert]') && !$('[data-testid="copy-not-now"]').closest('[inert]') && !$('[data-testid="copy-confirm"]').closest('[inert]'));
+check('focus is inside the sheet', backdropOf(sheet).contains(document.activeElement), document.activeElement?.outerHTML?.slice(0, 80));
+// friendly labels, grouped by tab > sub-tab
+const catalog = await import(pathToFileURL(path.join(REPO, 'src/components/common/modals/settings/fieldCatalog.js')).href);
+const sheetLabels = Object.fromEntries($$('[data-testid^="copy-label-"]').map((l) => [l.getAttribute('data-testid').slice(11), l.textContent.trim()]));
+check('each key is shown under the label its Settings field uses (fieldCatalog.js), never the raw key', Object.keys(sheetLabels).length === 5 && Object.entries(sheetLabels).every(([k, l]) => l === catalog.settingsFieldLabel(k) && l !== k && !/^[A-Z][A-Z0-9_]+$/.test(l)) && sheetLabels.JIRA_URL === 'Jira URL' && sheetLabels.ANTHROPIC_API_KEY === 'Anthropic API Key' && sheetLabels.CUSTOM_AI_ENDPOINT === 'Custom Endpoint URL', JSON.stringify(sheetLabels));
+check('...grouped by tab > sub-tab in field order: AI Providers > Default Settings, > Anthropic, > Custom/Ollama, Integrations > JIRA', $$('[data-testid^="copy-group-"]').map((g) => g.getAttribute('data-testid').slice(11) + ':' + g.querySelector('p').textContent).join(' | ') === 'integrations-jira:Integrations \u203a JIRA | ai-default:AI Providers \u203a Default Settings | ai-anthropic:AI Providers \u203a Anthropic | ai-custom:AI Providers \u203a Custom/Ollama' && $('[data-testid="copy-group-integrations-jira"]').textContent.includes('Jira API Token'), $$('[data-testid^="copy-group-"]').map((g) => g.getAttribute('data-testid') + ':' + g.querySelector('p').textContent).join(' | '));
+check('the key itself stays as the row\'s tooltip', $('[data-testid="copy-label-JIRA_URL"]').closest('label').getAttribute('title') === 'JIRA_URL');
+// Esc = Not now: only the sheet closes
+document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 await waitFor(() => (!$('[data-testid="copy-settings-sheet"]') ? true : null));
-check('Not now closes it and remembers the answer', !$('[data-testid="copy-settings-sheet"]') && Object.keys(window.localStorage).some((k) => /settingsScopeMigrationAnswered/.test(k)));
+check('Esc closes the sheet as Not now (the answer remembered) and leaves the Settings dialog open', !$('[data-testid="copy-settings-sheet"]') && !!$('[data-testid="settings-modal"]') && !$('[data-testid="settings-modal"]').hasAttribute('inert') && Object.keys(window.localStorage).some((k) => /settingsScopeMigrationAnswered/.test(k)));
+await waitFor(() => (document.activeElement === $('[data-testid="settings-modal"]') ? true : null));
+check('...and, as the sheet opened on its own, focus goes to the Settings dialog', document.activeElement === $('[data-testid="settings-modal"]'), document.activeElement?.outerHTML?.slice(0, 80));
 await open('ai');
 check('...so it does not open again', !$('[data-testid="copy-settings-sheet"]') && !!$('[data-testid="scope-device-banner"]'));
 check('no provenance tags on This device', tags().length === 0);
+// opened from the banner: focus goes back to that button on close
+const opener = $('[data-testid="scope-copy-open"]');
+opener.focus(); click(opener);
+const sheetAgain = await waitFor(() => $('[data-testid="copy-settings-sheet"]'));
+check('the banner link opens it again, focus moves into it', !!sheetAgain && backdropOf(sheetAgain).contains(document.activeElement) && document.activeElement !== opener);
+click($('[data-testid="copy-not-now"]'));
+await waitFor(() => (!$('[data-testid="copy-settings-sheet"]') ? true : null));
+await waitFor(() => (document.activeElement === $('[data-testid="scope-copy-open"]') ? true : null));
+check('Not now closes it and focus returns to the control that opened it', !$('[data-testid="copy-settings-sheet"]') && document.activeElement === $('[data-testid="scope-copy-open"]'), document.activeElement?.outerHTML?.slice(0, 80));
 
 /* 3. My account */
 report('\n--- 3. My account ---');
@@ -216,6 +245,7 @@ check('the Custom/Ollama panel: the endpoint set on the account is tagged "your 
 check('the localhost hint sits under the endpoint field', !!$('[data-testid="endpoint-localhost-hint"]') && /device that makes the call/.test($('[data-testid="endpoint-localhost-hint"]').textContent));
 await subTab('Anthropic');
 check('the Anthropic panel: the key stored on the account shows as set, tagged "your account"; no secret value anywhere in the DOM', /your account/.test($$('label').find((l) => /Anthropic API Key/.test(l.textContent))?.textContent || '') && !text().includes(SECRET) && !document.body.innerHTML.includes(SECRET), $$('label').find((l) => /Anthropic API Key/.test(l.textContent))?.textContent);
+check('the field\'s label is the catalog\'s (what the copy sheet showed for the same key)', $$('label.sc-label').find((l) => l.textContent.startsWith('Anthropic API Key'))?.firstChild?.textContent === sheetLabels.ANTHROPIC_API_KEY, $$('label.sc-label').map((l) => l.firstChild?.textContent).join(' | '));
 check('the "last synced" line names the server', /Last synced .* with pi\.console/.test($('[data-testid="scope-synced"]')?.textContent || ''), $('[data-testid="scope-synced"]')?.textContent);
 await subTab('Default Settings');
 check('the account note: the computer runs on the account\'s settings, secrets stay in the keychain', /runs on your account.s settings/.test($('[data-testid="scope-account-note"]')?.textContent || ''));
@@ -321,6 +351,16 @@ const uiFiles = ['src/components/common/modals/SettingsModal.jsx', 'src/componen
 const offenders = uiFiles.filter((f) => /\b(this|the|your) (Mac|computer)\b/i.test(fs.readFileSync(path.join(REPO, f), 'utf8')));
 check('the feature says "this device", never "Mac" or "computer" (the app runs on Linux too)', offenders.length === 0, offenders.join(', '));
 check('the sheet\'s title is "Copy this device\'s settings to your account?"', /Copy this device&apos;s settings to your account/.test(fs.readFileSync(path.join(REPO, 'src/components/common/modals/settings/CopySettingsSheet.jsx'), 'utf8')));
+// the catalog is the one definition of the field labels
+const panelDir = path.join(REPO, 'src/components/common/modals/settings');
+const panelFiles = ['integrations', 'ai-providers'].flatMap((d) => fs.readdirSync(path.join(panelDir, d)).map((f) => path.join(d, f)));
+const panelKeys = panelFiles.flatMap((f) => [...fs.readFileSync(path.join(panelDir, f), 'utf8').matchAll(/forKey="([A-Z_0-9]+)"/g)].map((m) => m[1]));
+const uncatalogued = panelKeys.filter((k) => !catalog.settingsField(k));
+check('every forKey in the panels has an entry in fieldCatalog.js (32 fields)', panelKeys.length === 32 && uncatalogued.length === 0, `${panelKeys.length} keys; missing: ${uncatalogued.join(', ')}`);
+const ownLabels = panelFiles.filter((f) => /forKey="[A-Z_0-9]+"[^>]*\blabel=/.test(fs.readFileSync(path.join(panelDir, f), 'utf8')));
+check('no panel gives a forKey field a label of its own (the catalog is the only source, so the sheet cannot drift)', ownLabels.length === 0, ownLabels.join(', '));
+const catalogKeys = Object.values(catalog.SETTINGS_FIELDS).flatMap((t) => Object.values(t.sections).flatMap((s) => Object.keys(s.fields)));
+check('and the catalog lists no key without a field', catalogKeys.every((k) => panelKeys.includes(k)), catalogKeys.filter((k) => !panelKeys.includes(k)).join(', '));
 
 report(`\n${total - failures}/${total} checks passed`);
 fs.rmSync(WORKDIR, { recursive: true, force: true });

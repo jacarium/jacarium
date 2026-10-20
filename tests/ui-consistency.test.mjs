@@ -13,6 +13,11 @@
  *    (text-left), menu items, options, tree items and tabs keep theirs;
  *    tooltip-like children (sr-only, opacity-0, absolute ...) do not count
  *    as text;
+ *  - an underline tab (a button whose className has border-b-2, the active
+ *    tab's indicator) is square: rounded-none, as SubTabs in
+ *    src/components/ui/primitives.jsx - the button base radius would curve
+ *    the underline's ends into a pill (the Media Library's Browse / Upload
+ *    once did); dialogs and panels use SubTabs rather than restyling;
  *  - no raw hex colour and no Tailwind grey class (gray/slate/zinc ...) in a
  *    component's className outside the allow-list (charts, syntax
  *    highlighting, Mermaid, the games, the node palette): the --os-* tokens
@@ -71,7 +76,7 @@ const classStrings = (attr, src) => {
 };
 const attrText = (el, src) => src.slice(el.openingElement.range[0], el.openingElement.range[1]);
 
-const weightOnControls = [], radiusOnControls = [], weightOnLabels = [], iconsInTextButtons = [], emptyButtons = [], hexColours = [], greys = [];
+const weightOnControls = [], radiusOnControls = [], weightOnLabels = [], iconsInTextButtons = [], emptyButtons = [], hexColours = [], greys = [], roundedTabs = [];
 for (const f of files) {
   const src = fs.readFileSync(path.join(REPO, f), 'utf8');
   let ast; try { ast = espree.parse(src, { ecmaVersion: 'latest', sourceType: 'module', ecmaFeatures: { jsx: true }, range: true, loc: true }); } catch (e) { check(`${f} parses`, false, e.message); continue; }
@@ -87,6 +92,7 @@ for (const f of files) {
         const strs = classStrings(a, src);
         if (isControl) { for (const s of strs) { if (WEIGHT.test(s)) weightOnControls.push(`${f}:${line} <${name}> ${s.match(WEIGHT)[0]}`); if (RADIUS.test(s)) radiusOnControls.push(`${f}:${line} <${name}> ${s.match(RADIUS)[0]}`); } }
         if (name === 'label') for (const s of strs) if (WEIGHT.test(s)) weightOnLabels.push(`${f}:${line} ${s.match(WEIGHT)[0]}`);
+        if ((name === 'button' || name === 'Button') && /(?<![\w-])border-b-2(?![\w-])/.test(strs.join(' ')) && !/(?<![\w-])rounded-none(?![\w-])/.test(strs.join(' '))) roundedTabs.push(`${f}:${line} <${name}>`);
         if (!HEX_ALLOW.test(f)) for (const s of strs) { const m = s.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/); if (m) hexColours.push(`${f}:${line} ${m[0]}`); }
         if (!GREY_ALLOW.test(f)) for (const s of strs) { const m = s.match(GREY); if (m) greys.push(`${f}:${line} ${m[0]}`); }
       }
@@ -127,6 +133,7 @@ check('no one-off radius class on buttons and fields', radiusOnControls.length =
 check('no weight class on labels', weightOnLabels.length === 0, weightOnLabels.slice(0, 8).join(' ; '));
 check('no icon in a text button', iconsInTextButtons.length === 0, iconsInTextButtons.slice(0, 8).join(' ; '));
 check('no empty button (an icon-only button shows its icon)', emptyButtons.length === 0, emptyButtons.slice(0, 8).join(' ; '));
+check('no underline tab with a radius: a button with border-b-2 carries rounded-none (use SubTabs from src/components/ui/primitives.jsx)', roundedTabs.length === 0, roundedTabs.slice(0, 8).join(' ; '));
 check('no raw hex colour in a component className outside the allow-list', hexColours.length === 0, hexColours.slice(0, 8).join(' ; '));
 check('no Tailwind grey class in a component className outside the allow-list (the --os-* tokens carry the neutrals)', greys.length === 0, greys.slice(0, 10).join(' ; '));
 

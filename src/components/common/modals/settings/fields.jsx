@@ -1,13 +1,16 @@
 /**
  * Field and Toggle for the Integrations / AI Providers panels: the shared
  * primitives (src/components/ui/primitives.jsx) with `forKey` - the
- * settings key the control edits - so the dialog can tag where its value
- * comes from in the My account scope ("your account" / "everyone" /
- * "not set", settings/provenanceContext.js). The other primitives come
- * from ./ui as before.
+ * settings key the control edits. The label is the key's entry in
+ * settings/fieldCatalog.js (the one definition of these labels, which the
+ * copy sheet uses too; a `label` prop overrides it), and the dialog tags
+ * where the value comes from in the My account scope ("your account" /
+ * "everyone" / "not set", settings/provenanceContext.js). The other
+ * primitives come from ./ui as before.
  */
 import { Field as BaseField, Toggle as BaseToggle } from '../../../ui/primitives';
 import { useSettingsProvenance } from './provenanceContext';
+import { settingsFieldLabel } from './fieldCatalog';
 
 function ProvenanceTag({ tag }) {
   if (!tag) return null;
@@ -18,11 +21,13 @@ function ProvenanceTag({ tag }) {
 export function Field({ forKey, label, ...props }) {
   const { tagFor } = useSettingsProvenance();
   const tag = forKey ? tagFor(forKey) : null;
-  return <BaseField {...props} label={tag ? <>{label}<ProvenanceTag tag={tag} /></> : label} />;
+  const text = label ?? (forKey ? settingsFieldLabel(forKey) : undefined);
+  return <BaseField {...props} label={tag ? <>{text}<ProvenanceTag tag={tag} /></> : text} />;
 }
 
 export function Toggle({ forKey, label, ...props }) {
   const { tagFor } = useSettingsProvenance();
   const tag = forKey ? tagFor(forKey) : null;
-  return <BaseToggle {...props} label={tag ? <>{label}<ProvenanceTag tag={tag} /></> : label} />;
+  const text = label ?? (forKey ? settingsFieldLabel(forKey) : undefined);
+  return <BaseToggle {...props} label={tag ? <>{text}<ProvenanceTag tag={tag} /></> : text} />;
 }

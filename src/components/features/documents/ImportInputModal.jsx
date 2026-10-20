@@ -3,6 +3,7 @@ import BaseModal from '../../common/modals/BaseModal';
 import ImportFooter from '../../common/ImportFooter';
 import MergeModeOption from '../../common/MergeModeOption';
 import { FileJson, AlertCircle, FileUp, X } from 'lucide-react';
+import { SubTabs } from '../../ui/primitives';
 
 /**
  * ImportInputModal - Modal for pasting JSON data or uploading a file to
@@ -233,33 +234,9 @@ export default function ImportInputModal({
           </div>
         </div>
 
-        {/* Mode Tabs */}
-        <div className="flex gap-2 mb-4 border-b border-os-border">
-          <button
-            onClick={() => setMode('paste')}
-            className={`px-4 py-2 text-sm transition-colors border-b-2 ${
- mode ==='paste'
- ?'text-os-blue border-os-blue'
- :'text-os-text-secondary border-transparent hover:text-os-text-primary'
- }`}
-          >
-            <div className="flex items-center gap-2">
-              Paste JSON
-            </div>
-          </button>
-          <button
-            onClick={() => setMode('file')}
-            className={`px-4 py-2 text-sm transition-colors border-b-2 ${
- mode ==='file'
- ?'text-os-blue border-os-blue'
- :'text-os-text-secondary border-transparent hover:text-os-text-primary'
- }`}
-          >
-            <div className="flex items-center gap-2">
-              Upload File
-            </div>
-          </button>
-        </div>
+        {/* Mode Tabs (the app's tab bar, src/components/ui/primitives.jsx) */}
+        <SubTabs className="mb-4" active={mode} onChange={setMode}
+          tabs={[{ id: 'paste', label: 'Paste JSON', testId: 'import-tab-paste' }, { id: 'file', label: 'Upload File', testId: 'import-tab-file' }]} />
 
         {/* JSON Input - Paste Mode */}
         {mode === 'paste' && (

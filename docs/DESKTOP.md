@@ -118,6 +118,35 @@ both values and kept unless ticked. Copy puts the chosen keys on the
 account and switches the profile to My account; Not now leaves it on This
 device (the offer stays reachable from Settings > General > Home server).
 
+## Keyboard shortcuts
+
+Settings > Shortcuts lists every keyboard shortcut and lets you change it.
+By default the editor has Find (Ctrl+F / ⌘F) and Italic (Ctrl+I / ⌘I),
+the Documents page Find in files (Ctrl+Shift+F / ⇧⌘F), the workflow canvas
+undo, redo, F / Shift+1 to fit, Tab to quick-add a node and Ctrl/⌘+C / V
+for nodes, the JQL Search page Ctrl/⌘+Enter to open the query in Jira, and
+Ctrl/⌘+K opens the command palette everywhere; the desktop menu keeps
+Settings (⌘,), Toggle Sidebar (⌘B) and zoom. Opening a page by keyboard,
+Bold, Insert link and Find and replace have no shortcut until you give
+them one (the old Ctrl+Shift+<letter> page shortcuts collided with copy in
+Linux terminals).
+
+**Change** records the next combination you press: a shortcut the system
+or the browser keeps (⌘Q, ⌘W, Alt+F4, Ctrl+T...) is refused, one that
+another action already uses offers to take it over, and one that is a
+habit on Linux (Ctrl+Shift+C is copy in terminals) warns. **×** removes a
+shortcut, **Reset** puts one back, **Reset all** puts everything back. Esc
+cancels the recorder; Backspace clears.
+
+Shortcuts are stored on the device - the desktop profile's own settings
+file, or the browser - not in your account's settings, so each machine
+can have its own; they never travel with "Copy this device's settings to
+your account". A shortcut is bound to the physical key: switch keyboard
+layouts and it stays where your fingers are, while its label follows the
+layout (on an AZERTY keyboard the key next to Tab shows as A). Tab and
+Shift+Tab in lists and the Reload / Full screen menu items cannot be
+changed. Phones have no shortcuts to edit, so the entry is not shown there.
+
 ## Google Calendar
 
 The Calendars page shows your Google calendars and syncs their events into

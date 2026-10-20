@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useShortcut } from '../shortcuts/useShortcut';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import useSyncedOpenTabs from '../hooks/useSyncedOpenTabs';
 import { db as database } from '../db/database';
@@ -197,18 +198,9 @@ export default function DocumentsPage({
   const openFindInFiles = (scope = null) => setFindInFiles({ open: true, scope: scope || null });
   const closeFindInFiles = () => setFindInFiles((prev) => ({ ...prev, open: false }));
 
-  // Ctrl/Cmd+Shift+F anywhere on the page opens Find in Files (everywhere);
-  // the editor's own Ctrl+F handler ignores the shifted chord.
-  useEffect(() => {
-    function handleKeyDown(e) {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
-        e.preventDefault();
-        openFindInFiles(null);
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  // The Find in Files shortcut (app.findInFiles in src/shortcuts/registry.js,
+  // Ctrl/Cmd+Shift+F by default) anywhere on this page, the editor included
+  useShortcut('app.findInFiles', () => openFindInFiles(null));
 
   // Listen for inner sidebar visibility changes
   useEffect(() => {

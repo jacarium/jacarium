@@ -6,15 +6,10 @@ import GeminiSettings from './ai-providers/GeminiSettings';
 import CustomAISettings from './ai-providers/CustomAISettings';
 import SSHAISettings from './ai-providers/SSHAISettings';
 import { SubTabs } from './ui';
+import { settingsSubTabs } from './fieldCatalog';
 
-const TABS = [
-  { id: 'default', label: 'Default Settings' },
-  { id: 'openai', label: 'OpenAI' },
-  { id: 'anthropic', label: 'Anthropic' },
-  { id: 'gemini', label: 'Google Gemini' },
-  { id: 'custom', label: 'Custom/Ollama' },
-  { id: 'ssh', label: 'AI Over SSH' },
-];
+// the sub-tabs and their titles: settings/fieldCatalog.js (one per panel below)
+const TABS = settingsSubTabs('ai');
 
 export default function AIProvidersSettings({ settings, handleChange, availableModels }) {
   const [tab, setTab] = useState('default');

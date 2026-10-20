@@ -3,12 +3,10 @@ import JiraSettings from './integrations/JiraSettings';
 import GoogleCalendarSettings from './integrations/GoogleCalendarSettings';
 import HuggingFaceSettings from './integrations/HuggingFaceSettings';
 import { SubTabs } from './ui';
+import { settingsSubTabs } from './fieldCatalog';
 
-const TABS = [
-  { id: 'jira', label: 'JIRA' },
-  { id: 'calendar', label: 'Google Calendar' },
-  { id: 'huggingface', label: 'HuggingFace' },
-];
+// the sub-tabs and their titles: settings/fieldCatalog.js (one per panel below)
+const TABS = settingsSubTabs('integrations');
 
 const isTab = (id) => TABS.some((t) => t.id === id);
 

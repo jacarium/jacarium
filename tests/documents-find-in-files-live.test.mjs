@@ -40,6 +40,9 @@
  */
 import { launchDocumentsApp, createNewDocument, createDocumentViaSidebar, setEditorContent, sleep } from './helpers/live-documents-app.mjs';
 
+// Find in Files' chord is the platform's Mod+Shift+F (src/shortcuts/registry.js): Command on the Mac this runs on, Control elsewhere (CDP modifiers: Alt 1, Ctrl 2, Meta 4, Shift 8)
+const MOD_SHIFT = (process.platform === 'darwin' ? 4 : 2) | 8;
+
 const PORT = Number(process.env.SMOKE_PORT || 5237);
 const MIN_RATIO = 4.5;
 
@@ -349,8 +352,8 @@ async function main() {
     check('the editor body has focus', state && state.focused);
 
     // ---- dropdown: change re-runs the search; category context menu presets it ----
-    await app.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'F', code: 'KeyF', windowsVirtualKeyCode: 70, modifiers: 10 });
-    await app.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'F', code: 'KeyF', windowsVirtualKeyCode: 70, modifiers: 10 });
+    await app.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'F', code: 'KeyF', windowsVirtualKeyCode: 70, modifiers: MOD_SHIFT });
+    await app.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'F', code: 'KeyF', windowsVirtualKeyCode: 70, modifiers: MOD_SHIFT });
     await sleep(400);
     dd = await dropdown();
     check('Ctrl+Shift+F presets "All categories"', dd && dd.value === '');
@@ -386,8 +389,8 @@ async function main() {
     await sleep(300);
 
     // ---- Ctrl+Shift+F opens, Escape closes ----
-    await app.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'F', code: 'KeyF', windowsVirtualKeyCode: 70, modifiers: 10 });
-    await app.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'F', code: 'KeyF', windowsVirtualKeyCode: 70, modifiers: 10 });
+    await app.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'F', code: 'KeyF', windowsVirtualKeyCode: 70, modifiers: MOD_SHIFT });
+    await app.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'F', code: 'KeyF', windowsVirtualKeyCode: 70, modifiers: MOD_SHIFT });
     await sleep(400);
     check('Ctrl+Shift+F opens Find in Files', await windowOpen(app));
     const inDocSearch = await app.evaluate(`!!document.querySelector('input[placeholder="Search..."]') && !document.querySelector('${WINDOW}')`);
