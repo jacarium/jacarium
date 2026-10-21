@@ -130,6 +130,18 @@ const state = (page) => page.evaluate(() => ({
   chevrons: document.querySelectorAll('[data-testid="row-menu-button"]').length,
 }));
 const openDrawer = async (page) => { await page.locator('[data-testid="mobile-open-sidebar"]').first().click(); await page.waitForTimeout(400); };
+// The drawer meets the bottom bar: its aside's bottom edge IS the bar's top
+// edge (no seam where the page shows through, no overlap), and a probe in
+// the 4 px just above the bar lands inside the drawer. Both offsets come
+// from one CSS variable (--sc-mobile-nav-height, src/mobile.css).
+const seam = (page) => page.evaluate(() => {
+  const aside = document.querySelector('[data-testid="mobile-drawer"] aside'); const nav = document.querySelector('[data-testid="mobile-bottom-nav"]');
+  if (!aside || !nav) return { ok: false, why: 'no drawer or no bar' };
+  const a = aside.getBoundingClientRect(); const n = nav.getBoundingClientRect();
+  const probes = [1, 2, 3, 4].map((dy) => { const el = document.elementFromPoint(Math.round(a.left + a.width / 2), n.top - dy); return !!el && !!el.closest('[data-testid="mobile-drawer"] aside'); });
+  const inset = getComputedStyle(document.documentElement).getPropertyValue('--sc-mobile-nav-height').trim();
+  return { ok: Math.abs(a.bottom - n.top) <= 0.5 && probes.every(Boolean), asideBottom: a.bottom, navTop: n.top, navHeight: n.height, probes, inset };
+});
 // rows are looked up inside the drawer: the header names the open item too
 const inDrawer = (page, text) => page.locator('[data-testid="mobile-drawer"]').getByText(text, { exact: true }).first();
 const expand = async (page, name) => { const c = inDrawer(page, name); if (await c.count()) { await c.click().catch(() => {}); await page.waitForTimeout(300); } };
@@ -161,6 +173,29 @@ try {
   await openDrawer(page);
   check('phone: the header button opens the drawer over a scrim', !!(await page.locator('[data-testid="mobile-drawer-scrim"]').count()) && (await page.locator('[data-testid="mobile-drawer"] aside').boundingBox())?.width === 324);
   await shot(page, 'phone-02-documents-drawer');
+  {
+    const g = await seam(page);
+    check('phone: the Documents drawer meets the bottom bar exactly (aside.bottom === bar.top, the 4 px above the bar are the drawer)', g.ok, JSON.stringify(g));
+    // every page's drawer, the same way
+    for (const p of ['workflow', 'kanban', 'tasks']) {
+      await nav(page, p); await openDrawer(page);
+      const gp = await seam(page);
+      check(`phone: the ${p} drawer meets the bottom bar exactly`, gp.ok, JSON.stringify(gp));
+    }
+    // with a home-indicator inset (Chromium's safe-area override, when this build has it): the bar grows, the drawer still meets it
+    try {
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, bottom: 34, right: 0 } }).catch(() => cdp.send('Emulation.setSafeAreaInsetsOverride', { top: 0, left: 0, bottom: 34, right: 0 }));
+      await page.waitForTimeout(300);
+      const gi = await seam(page);
+      check('phone: with a 34 px home-indicator inset the bar is 95 px and the drawer still meets it', gi.ok && Math.round(gi.navHeight) === 95, JSON.stringify(gi));
+      await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, bottom: 0, right: 0 } }).catch(() => {});
+      await cdp.detach().catch(() => {});
+    } catch (e) {
+      console.log(`SKIP: safe-area inset emulation not available in this Chromium (${String(e.message).split('\n')[0].slice(0, 80)})`);
+    }
+    await nav(page, 'documents'); await openDrawer(page);
+  }
   s = await state(page);
   const doc = inDrawer(page, 'Kubernetes upgrade runbook');
   if (!(await doc.isVisible().catch(() => false))) await expand(page, 'Runbooks');

@@ -27,7 +27,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { reapOnExit } from './reap.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -41,16 +41,26 @@ const stop = (child) => new Promise((resolve) => {
   setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* gone */ } resolve(); }, 3000);
 });
 
+// playwright-core is a test-only package (not in package.json). When the
+// repo's node_modules has it, it is used from there. Otherwise it is
+// installed ONCE into its own prefix under the OS temp dir and imported
+// from that path: an `npm install --no-save` in the repo root would prune
+// every other extraneous package - jsdom and fake-indexeddb, which the
+// jsdom tests of the same run need - out of node_modules.
+const PLAYWRIGHT_PREFIX = path.join(tmpdir(), 'jacarium-test-playwright-core');
 async function ensurePlaywright() {
-  if (!existsSync(path.join(REPO, 'node_modules', 'playwright-core'))) {
+  const local = path.join(REPO, 'node_modules', 'playwright-core');
+  const remote = path.join(PLAYWRIGHT_PREFIX, 'node_modules', 'playwright-core');
+  if (!existsSync(local) && !existsSync(remote)) {
     try {
-      execFileSync('npm', ['install', '--no-save', '--no-audit', '--no-fund', 'playwright-core'], { cwd: REPO, stdio: 'ignore' });
+      execFileSync('npm', ['install', '--prefix', PLAYWRIGHT_PREFIX, '--no-save', '--no-audit', '--no-fund', 'playwright-core'], { cwd: tmpdir(), stdio: 'ignore' });
     } catch {
       return null;
     }
   }
   try {
-    return (await import('playwright-core'))._electron;
+    const mod = existsSync(local) ? await import('playwright-core') : await import(pathToFileURL(path.join(remote, 'index.js')).href);
+    return mod._electron;
   } catch {
     return null;
   }

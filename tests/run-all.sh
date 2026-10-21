@@ -72,18 +72,22 @@ check_dependencies() {
 
     # Needed by the tests that mount real React components in jsdom
     # (cloud-upload-live-sync, collab-cursor-rendering,
-    # yjs-server-doc-load-failure) - deliberately not in package.json, see
-    # those test files' header comments. Safe to auto-install: --no-save
-    # never touches package.json/package-lock.json.
-    if [ -d "$REPO_ROOT/node_modules/jsdom" ] && [ -d "$REPO_ROOT/node_modules/fake-indexeddb" ]; then
-        echo "✓ jsdom + fake-indexeddb present"
+    # yjs-server-doc-load-failure) and by the real-browser / Electron tests
+    # (playwright-core) - deliberately not in package.json, see those test
+    # files' header comments. Safe to auto-install: --no-save never touches
+    # package.json/package-lock.json. The three are installed TOGETHER: an
+    # `npm install --no-save` prunes every other extraneous package, so
+    # installing them one at a time evicts the others (jsdom vanished mid-run
+    # once, after playwright-core was installed on its own).
+    if [ -d "$REPO_ROOT/node_modules/jsdom" ] && [ -d "$REPO_ROOT/node_modules/fake-indexeddb" ] && [ -d "$REPO_ROOT/node_modules/playwright-core" ]; then
+        echo "✓ jsdom + fake-indexeddb + playwright-core present"
     else
-        echo "⚠️  jsdom and/or fake-indexeddb missing (needed by the jsdom-based tests)"
-        echo "   Installing now: npm install --no-save jsdom fake-indexeddb"
-        if (cd "$REPO_ROOT" && npm install --no-save jsdom fake-indexeddb > /dev/null 2>&1); then
+        echo "⚠️  jsdom, fake-indexeddb and/or playwright-core missing (needed by the jsdom-based and browser tests)"
+        echo "   Installing now: npm install --no-save jsdom fake-indexeddb playwright-core"
+        if (cd "$REPO_ROOT" && npm install --no-save jsdom fake-indexeddb playwright-core > /dev/null 2>&1); then
             echo "✓ installed"
         else
-            echo "❌ install failed - run it yourself: npm install --no-save jsdom fake-indexeddb"
+            echo "❌ install failed - run it yourself: npm install --no-save jsdom fake-indexeddb playwright-core"
             MISSING=1
         fi
     fi
@@ -133,6 +137,21 @@ check_dependencies
 
 declare -a RESULTS=()
 FAILED=0
+# The test-only packages must survive the whole run: a test or script that
+# runs `npm install` / `npm ci` / `npm prune` in the repo root evicts them,
+# and every jsdom test after it fails for the wrong reason. Each test is
+# checked afterwards; the first one after which they are gone is named.
+TEST_ONLY_PKGS="jsdom fake-indexeddb playwright-core"
+test_only_pkgs_present() {
+    local p
+    for p in $TEST_ONLY_PKGS; do
+        [ -d "$REPO_ROOT/node_modules/$p" ] || return 1
+    done
+    return 0
+}
+PKGS_AT_START=0
+test_only_pkgs_present && PKGS_AT_START=1
+PKGS_VANISHED_AFTER=""
 
 run_test() {
     local file="$1"
@@ -149,6 +168,12 @@ run_test() {
         RESULTS+=("PASS  $name")
     else
         RESULTS+=("FAIL  $name")
+        FAILED=1
+    fi
+
+    if [ "$PKGS_AT_START" = 1 ] && [ -z "$PKGS_VANISHED_AFTER" ] && ! test_only_pkgs_present; then
+        PKGS_VANISHED_AFTER="$name"
+        echo "❌ $TEST_ONLY_PKGS: one or more vanished from node_modules during $name - it ran npm install/ci/prune in the repo root"
         FAILED=1
     fi
 }
@@ -173,6 +198,16 @@ echo "════════════════════════�
 for line in "${RESULTS[@]}"; do
     echo "  $line"
 done
+if [ -n "$PKGS_VANISHED_AFTER" ]; then
+    echo ""
+    echo "❌ The test-only packages ($TEST_ONLY_PKGS) vanished from node_modules after: $PKGS_VANISHED_AFTER"
+    echo "   That test (or a script it runs) touched the repo's node_modules (npm install / ci / prune)."
+    echo "   Every jsdom-based test after it failed for that reason. Reinstall: npm install --no-save $TEST_ONLY_PKGS"
+elif [ "$PKGS_AT_START" = 1 ] && ! test_only_pkgs_present; then
+    echo ""
+    echo "❌ The test-only packages ($TEST_ONLY_PKGS) are gone at the end of the run."
+    FAILED=1
+fi
 echo ""
 
 if [ "$FAILED" -eq 0 ]; then

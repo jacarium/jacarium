@@ -16,7 +16,7 @@
  * are text. Each primitive carries a stable `sc-*` class the visual audits
  * recognise (tests/settings-visual-audit.test.mjs, tests/ui-primitives.test.mjs).
  */
-import { AlertTriangle, Info } from 'lucide-react';
+import { AlertTriangle, Info, Send } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
 /* Fields                                                              */
@@ -26,6 +26,32 @@ export const FIELD_CLASS = 'sc-field w-full px-3 py-2 text-sm bg-os-input-bg bor
 export const FIELD_MONO_CLASS = `${FIELD_CLASS} font-mono`;
 /** The same field, compact (toolbars, inline filters). */
 export const FIELD_SM_CLASS = FIELD_CLASS.replace('px-3 py-2 text-sm', 'px-2.5 py-1.5 text-xs');
+
+/* ------------------------------------------------------------------ */
+/* Chat composer                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The message box of a chat sidebar (AI Chat, Team Chat): a three-row
+ * textarea and, beside it, the tall square send button - the same height,
+ * padding, radius and type on both; `accent` is the focus ring / button
+ * colour ('blue' for the AI, 'purple' for the team).
+ */
+export const CHAT_COMPOSER_ROWS = 3;
+const COMPOSER_BASE = 'flex-1 px-3 py-2 border border-os-border rounded-sm resize-none outline-hidden text-sm bg-os-input-bg text-os-text-primary disabled:bg-os-card-secondary disabled:text-os-text-muted';
+const COMPOSER_FOCUS = { blue: 'focus:ring-2 focus:ring-blue-500 focus:border-blue-500', purple: 'focus:ring-2 focus:ring-purple-500 focus:border-purple-500' };
+export function chatComposerInputClass(accent = 'blue') {
+  return `${COMPOSER_BASE} ${COMPOSER_FOCUS[accent] || COMPOSER_FOCUS.blue}`;
+}
+const SEND_ACCENT = { blue: 'bg-blue-600 hover:bg-blue-700', purple: 'bg-purple-600 hover:bg-purple-700' };
+export function ChatSendButton({ accent = 'blue', title = 'Send message', className = '', ...props }) {
+  return (
+    <button type="button" title={title} aria-label={title} {...props}
+      className={`px-4 py-2 text-white rounded-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-[76px] ${SEND_ACCENT[accent] || SEND_ACCENT.blue} ${className}`}>
+      <Send size={18} />
+    </button>
+  );
+}
 
 /** Label / control / hint (or error). */
 export function Field({ label, hint, error, htmlFor, children, className = '', testId }) {

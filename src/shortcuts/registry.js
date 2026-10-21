@@ -46,6 +46,7 @@ export const GROUPS = [
   { id: 'editor', label: 'Editor' },
   { id: 'workflow', label: 'Workflow' },
   { id: 'jql', label: 'JQL' },
+  { id: 'panels', label: 'Panels' },
 ];
 
 export const SCOPES = {
@@ -96,7 +97,14 @@ export const ACTIONS = [
   { id: 'workflow.pasteNodes', label: 'Paste nodes', group: 'workflow', scope: 'workflow-canvas', owner: 'renderer', defaults: same('Mod+KeyV') },
   // --- JQL Search ---
   { id: 'jql.openInJira', label: 'Open the query in Jira', group: 'jql', scope: 'page:search', owner: 'renderer', defaults: same('Mod+Enter') },
+  // --- Panels (unassigned by default): a rail click as a key - the panel opens on its remembered side, or closes ---
+  { id: 'panel.aiChat', label: 'Open AI Chat', group: 'panels', scope: 'global', owner: 'renderer', defaults: same(null) },
+  { id: 'panel.quickNotes', label: 'Open Quick Notes', group: 'panels', scope: 'global', owner: 'renderer', defaults: same(null) },
+  { id: 'panel.teamChat', label: 'Open Team Chat', group: 'panels', scope: 'global', owner: 'renderer', defaults: same(null) },
 ];
+
+/** Former action ids: a stored override under one of these is kept under the new id. */
+export const RENAMED_ACTIONS = { 'panel.aiChatRight': 'panel.aiChat', 'panel.quickNotesRight': 'panel.quickNotes', 'panel.teamChatRight': 'panel.teamChat' };
 
 const BY_ID = Object.fromEntries(ACTIONS.map((a) => [a.id, a]));
 
@@ -304,14 +312,16 @@ export function scopesOverlap(a, b) {
 
 /**
  * Stored overrides, cleaned: only known rebindable actions, chords with a
- * valid spelling (null = explicitly unassigned). Returns the kept overrides
- * and the ids that were dropped.
+ * valid spelling (null = explicitly unassigned); an override stored under a
+ * former id (RENAMED_ACTIONS) moves to the current one. Returns the kept
+ * overrides and the ids that were dropped.
  */
 export function normalizeOverrides(raw) {
   const overrides = {};
   const dropped = [];
   if (raw && typeof raw === 'object') {
-    for (const [id, chord] of Object.entries(raw)) {
+    for (const [rawId, chord] of Object.entries(raw)) {
+      const id = RENAMED_ACTIONS[rawId] || rawId;
       const action = actionById(id);
       if (!action || !isRebindable(action) || !(chord === null || isChord(chord))) { dropped.push(id); continue; }
       overrides[id] = chord;

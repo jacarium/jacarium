@@ -49,6 +49,7 @@ import NodeContextMenu from './workflow/NodeContextMenu';
 import ExecutionToolbar from './workflow/ExecutionToolbar';
 import FloatingSSHTerminal from './workflow/FloatingSSHTerminal';
 import Base64TransferModal from './workflow/Base64TransferModal';
+import TransferTextModal from './common/TransferTextModal';
 import BulkMoveCategoryModal from './workflow/BulkMoveCategoryModal';
 import WorkflowTabContextMenu from './workflow/WorkflowTabContextMenu';
 import { ANNOTATION_NODE_TYPES, NODE_CATEGORIES } from './workflow/workflowNodeCategories';
@@ -201,7 +202,7 @@ export default function WorkflowBuilder() {
     selectionMode, selectedWorkflows, toggleSelectionMode, toggleWorkflowSelection,
     handleBulkDelete, showBulkDeleteModal, closeBulkDelete, confirmBulkDelete,
     handleBulkMove, showBulkMoveModal, closeBulkMove, confirmBulkMove,
-    handleExportAll, handleImport, showImportModal, closeImportModal, confirmJsonImport, handleExportBase64, handleImportBase64,
+    handleExportAll, jsonExport, closeJsonExport, downloadJsonExport, handleImport, showImportModal, closeImportModal, confirmJsonImport, handleExportBase64, handleImportBase64,
     showBase64Modal, base64Mode, base64Data, setBase64Data, closeBase64Modal, confirmBase64Import
   } = useWorkflowLibraryActions(session);
 
@@ -641,6 +642,18 @@ export default function WorkflowBuilder() {
           onDataChange={setBase64Data}
           onClose={closeBase64Modal}
           onImport={confirmBase64Import}
+        />
+      )}
+
+      {/* Export ... (JSON): the file's text to see and copy, or download */}
+      {jsonExport && (
+        <TransferTextModal
+          mode="export"
+          format="json"
+          data={jsonExport.text}
+          filename={jsonExport.filename}
+          onDownload={downloadJsonExport}
+          onClose={closeJsonExport}
         />
       )}
 

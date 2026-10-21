@@ -5,7 +5,7 @@
  * A context is the item's CONTENT - a document's markdown, a board rendered
  * as markdown - in a delimited block the model can tell from the question:
  *
- *   --- Document: <title> (category: <category>) ---
+ *   --- Document ---
  *   <content>
  *   --- End of document ---
  *
@@ -102,7 +102,7 @@ const RULES = [
   { type: 'token', re: new RegExp(`\\b${KEY_NAMES}\\b\\s*[:=]\\s*["']?([^\\s"',;]{4,})`, 'gi'), value: (m) => (looksLikePlaceholder(m[1]) ? null : m[1]), offset: (m) => m[0].length - m[1].length },
   { type: 'email', re: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, value: (m) => m[0] },
   { type: 'ip', re: /(?<![\w.])(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?![\w.])/g, value: (m) => ([m[1], m[2], m[3], m[4]].every((o) => Number(o) <= 255) && !/^(0\.0\.0\.0|127\.0\.0\.1)$/.test(m[0]) ? m[0] : null) },
-  { type: 'host', re: /(?<![\w.@/\\-])((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z][a-z0-9-]{1,}(?:\.[a-z]{2,})?)(?![\w-])/gi, value: (m, ctx) => hostValue(m[1], ctx) },
+  { type: 'host', re: /(?<![\w.@/\\-])((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z][a-z0-9-]{1,}(?:\.[a-z]{2,})?)(?![\w(-])/gi, value: (m, ctx) => hostValue(m[1], ctx) },
   { type: 'host', re: /\b(?:node|server|host|vm|worker|master|controller|db|web|app|k8s|ocp)-?\d+\b/gi, value: (m) => m[0] },
   { type: 'username', re: /\b(?:user(?:name)?|login|uid|owner)\s*[:=]\s*["']?([A-Za-z][A-Za-z0-9._-]{1,})/gi, value: (m) => (looksLikePlaceholder(m[1]) ? null : m[1]), offset: (m) => m[0].length - m[1].length },
   { type: 'username', re: /\/(?:home|Users)\/([A-Za-z][A-Za-z0-9._-]+)/g, value: (m) => m[1], offset: (m) => m[0].length - m[1].length },
@@ -113,6 +113,7 @@ function hostValue(raw, ctx) {
   const labels = host.split('.');
   const last = labels[labels.length - 1];
   if (labels.length < 2) return null;
+  if (/[A-Z]/.test(raw)) return null;                         // "JSON.parse", "Object.keys": code, not a host (hosts are written lower case)
   if (!/^[a-z]{2,}$/.test(last)) return null;                 // "python3.11", "1.2": no TLD
   if (FILE_EXTENSIONS.has(last)) return null;                 // a file name
   if (labels.some((l) => /^\d+$/.test(l)) && labels.length < 3) return null;
@@ -217,14 +218,21 @@ export function maskValue(value) {
 /* The blocks the model receives                                       */
 /* ------------------------------------------------------------------ */
 
-const KIND_LABEL = { document: 'Document', kanban: 'Kanban board', selection: 'Selection from document' };
-const KIND_END = { document: 'End of document', kanban: 'End of board', selection: 'End of selection' };
+const KIND_LABEL = { document: 'Document', kanban: 'Kanban board', selection: 'Selection', workflow: 'Workflow' };
+const KIND_END = { document: 'End of document', kanban: 'End of board', selection: 'End of selection', workflow: 'End of workflow' };
 
-/** The delimited block for one context. */
-export function formatContextBlock({ kind = 'document', title, category, text }) {
-  const label = KIND_LABEL[kind] || 'Document';
-  const header = `--- ${label}: ${title || 'Untitled'}${category && kind !== 'selection' ? ` (category: ${category})` : ''} ---`;
-  return `${header}\n${String(text ?? '').replace(/\s+$/, '')}\n--- ${KIND_END[kind] || 'End of document'} ---`;
+/**
+ * The delimited block for one context. The markers are generic - never
+ * the item's title or category, which stay in the UI (the chip, the
+ * dialog header) and are not sent: `--- Document ---` ... `--- End of
+ * document ---`. With several contexts in one chat each block carries its
+ * ordinal so the model can tell them apart: `--- Document 1 ---` ...
+ * `--- End of document 1 ---`.
+ */
+export function formatContextBlock({ kind = 'document', text, ordinal = null }) {
+  const n = ordinal ? ` ${ordinal}` : '';
+  const header = `--- ${KIND_LABEL[kind] || 'Document'}${n} ---`;
+  return `${header}\n${String(text ?? '').replace(/\s+$/, '')}\n--- ${KIND_END[kind] || 'End of document'}${n} ---`;
 }
 
 /** The first message's text: the blocks (with the redaction note when a placeholder is in them), then the question. */
@@ -270,7 +278,9 @@ export function selectionContextPayload(doc, text) {
 
 /**
  * A chat's context as kept on the conversation: { id, kind, title,
- * category, raw, source, policy, decisions, manual }. The text the model
+ * category, raw, source, policy, decisions, manual, error }. `error` is the
+ * loader's word when the content could not be loaded (aiContextSources.js);
+ * the chip shows it and an empty block is never sent. The text the model
  * receives is derived here - the block over the redacted raw content, or
  * the hand-edited text (`manual`) once the user edited it in the dialog:
  * an edit freezes the text, so the switches and per-finding choices stop
@@ -278,15 +288,21 @@ export function selectionContextPayload(doc, text) {
  * never fight, and the preview is always exactly what is sent).
  */
 export function newContext(payload) {
-  return { id: `ctx-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, kind: payload.kind || 'document', title: payload.title || 'Untitled', category: payload.category || '', raw: String(payload.content ?? ''), source: payload.source || null, policy: { enabled: true, types: { ...DEFAULT_POLICY.types } }, decisions: {}, manual: null };
+  return { id: `ctx-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, kind: payload.kind || 'document', title: payload.title || 'Untitled', category: payload.category || '', raw: String(payload.content ?? ''), source: payload.source || null, policy: { enabled: true, types: { ...DEFAULT_POLICY.types } }, decisions: {}, manual: null , error: payload.error || null };
 }
 
-/** { text, findings, hidden, edited } for a context under the device's lists. */
-export function renderContext(ctx, lists = { allow: [], deny: [] }) {
+/**
+ * { text, findings, hidden, edited, empty } for a context under the
+ * device's lists; `ordinal` numbers the block's markers when the chat holds
+ * several contexts (null: the only one).
+ */
+export function renderContext(ctx, lists = { allow: [], deny: [] }, { ordinal = null } = {}) {
   const { text, findings } = redactText(ctx.raw, { policy: ctx.policy || DEFAULT_POLICY, decisions: ctx.decisions || {}, allow: lists.allow || [], deny: lists.deny || [] });
   const edited = typeof ctx.manual === 'string';
-  const block = edited ? ctx.manual : formatContextBlock({ kind: ctx.kind, title: ctx.title, category: ctx.category, text });
-  return { text: block, findings, hidden: edited ? 0 : findings.filter((f) => f.hidden).length, edited };
+  const block = edited ? ctx.manual : formatContextBlock({ kind: ctx.kind, text, ordinal });
+  // empty: nothing to send - no content was loaded (or the source is empty) and no hand edit supplied any
+  const empty = edited ? !String(ctx.manual).trim() : !String(ctx.raw ?? '').trim();
+  return { text: block, findings, hidden: edited ? 0 : findings.filter((f) => f.hidden).length, edited, empty };
 }
 
 /** "3 hidden" for a chip; '' when nothing is hidden. */

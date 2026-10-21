@@ -4,6 +4,32 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.3.3
+
+_2026-10-21_
+
+### [AI]
+
+Add as AI Context for a whole document or a workflow now sends its real content (it was empty in 3.3.2); a workflow is described step by step with its connections
+
+The context sent to the AI no longer names the document, board or workflow, or its category
+
+An empty or missing context is shown in red and never sent
+
+### [UI]
+
+Right-click AI Chat, Quick Notes or Team Chat in the compact sidebar to open it on the right; each panel reopens on the side you closed it on
+
+Settings > Shortcuts: Open AI Chat, Open Quick Notes and Open Team Chat open the panel on its side
+
+Team Chat's message box matches the AI Chat's
+
+Export as JSON in Workflows, Kanban and Tasks opens a window where you can copy the JSON or download the file
+
+Tasks: right-clicking a category opens its menu again (Export Category)
+
+Phone: the sidebar drawers meet the bottom bar with no gap
+
 ## What's New in v3.3.2
 
 _2026-10-21_

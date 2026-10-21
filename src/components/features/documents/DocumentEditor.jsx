@@ -86,6 +86,7 @@ import QuickWorkflow from './QuickWorkflow';
 import QuickTasks from './QuickTasks';
 import { getUserColor, hexToRgba } from '../../../utils/userColors';
 import { useYjsText } from '../../../hooks/useYjsText';
+import { LIVE_CONTENT_EVENT } from '../../../utils/aiContextSources';
 import { getMachineId } from '../../../utils/cloudCentralSync';
 import { getSocket } from '../../../utils/cloudWebSocket';
 import { getBackendUrl, apiFetch } from '../../../utils/backendUrl';
@@ -280,6 +281,24 @@ export default function DocumentEditor({
   // same banner a known non-owner gets. The hook has already resynced the
   // document from the server, dropping the refused edit; DocumentsPage turns
   // this announcement into a notice so that does not happen silently.
+  // "Add as AI Context" asks the open editors for the document's live text
+  // (src/utils/aiContextSources.js): unsaved edits, and a cloud document's
+  // Yjs text, which reaches IndexedDB only through a debounced mirror. The
+  // textarea holds the live text in both modes; the ytext / the prop stand
+  // in while the preview hides it.
+  useEffect(() => {
+    const answer = (e) => {
+      const d = e.detail;
+      if (!d || d.content !== undefined || documentId == null || String(d.documentId) !== String(documentId)) return;
+      const el = textareaRef.current;
+      if (el && typeof el.value === 'string') d.content = el.value;
+      else if (yjsEnabled && yjs.ytext) d.content = yjs.ytext.toString();
+      else if (typeof content === 'string') d.content = content;
+    };
+    window.addEventListener(LIVE_CONTENT_EVENT, answer);
+    return () => window.removeEventListener(LIVE_CONTENT_EVENT, answer);
+  }, [documentId, yjsEnabled, yjs.ytext, content]);
+
   const writeRejected = !!(yjsEnabled && yjs.writeRejected);
   useEffect(() => {
     if (!writeRejected) return;

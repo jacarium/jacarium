@@ -54,6 +54,10 @@ let r = redactText(SAMPLE);
 check('public registries, package indexes and vendors are not redacted (ghcr.io, quay.io, registry.redhat.io, github.com, pypi.org)', /ghcr\.io\/acme/.test(r.text) && /quay\.io\/x/.test(r.text) && /registry\.redhat\.io\/ubi9/.test(r.text) && /github\.com/.test(r.text) && /pypi\.org/.test(r.text), r.text);
 check('file names, path segments, version strings and loopback are left alone', /file\.tar\.gz/.test(r.text) && /\/etc\/host\.conf/.test(r.text) && /python3\.11/.test(r.text) && /v1\.2\.3\.4/.test(r.text) && /127\.0\.0\.1/.test(r.text), r.text);
 check('a private host, a numbered host, an IP, an email, a username and tokens are hidden as [REDACTED_TYPE_n]', /\[REDACTED_HOST_\d\]/.test(r.text) && !/lab\.corp\.internal/.test(r.text) && !/node-12/.test(r.text) && !/10\.0\.0\.5/.test(r.text) && !/bob@corp/.test(r.text) && !/abcd1234secret/.test(r.text) && !/ghp_abcdef/.test(r.text) && !/\brobin\b/.test(r.text), r.text);
+{
+  const code = redactText('return JSON.parse(input).ok && Object.keys(cfg).length; see lab.corp.internal and node.js');
+  check('code is not a host: JSON.parse(...) / Object.keys(...) (upper case, a call) stay; a real host beside them is still hidden', /JSON\.parse\(input\)\.ok && Object\.keys\(cfg\)/.test(code.text) && /\[REDACTED_HOST_1\]/.test(code.text) && !/lab\.corp\.internal/.test(code.text), code.text);
+}
 check('the same value gets the same placeholder every time (10.0.0.5 twice -> one ip-1, count 2)', (r.text.match(/\[REDACTED_IP_1\]/g) || []).length === 2 && r.findings.find((f) => f.type === 'ip').count === 2, r.text);
 check('the findings carry type, value, placeholder and hidden', r.findings.some((f) => f.type === 'token' && f.value.startsWith('ghp_') && f.hidden) && r.findings.some((f) => f.type === 'email' && f.value === 'bob@corp.example') && r.findings.some((f) => f.type === 'username' && f.value === 'robin'), JSON.stringify(r.findings.map((f) => [f.type, f.value])));
 const policyOff = { enabled: true, types: { token: true, host: false, ip: true, email: true, username: true } };
@@ -70,15 +74,16 @@ check('the chat switch off sends everything as it is', r.text === SAMPLE && r.fi
 check('a password assignment, a Bearer token, a JWT and an AWS key are tokens; a placeholder value (<secret>) is not', (() => { const t = redactText('password: hunter2x Authorization: Bearer abcdefghijklmnopqrstu eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdefghijk ' + FAKE_AWS + ' api_key=<your-key>'); return t.findings.filter((f) => f.type === 'token').length === 4 && /api_key=<your-key>/.test(t.text); })());
 check('maskValue keeps the shape, not the value', maskValue('' + FAKE_GH + '') === 'gh••••••••89' && maskValue('abc') === '•••');
 const block = formatContextBlock({ title: 'Runbook', category: 'Ops', text: 'line 1\nline 2\n' });
-check('the block: header with title and category, the content, the end marker', block === '--- Document: Runbook (category: Ops) ---\nline 1\nline 2\n--- End of document ---', JSON.stringify(block));
-check('a selection block and a board block have their own markers', formatContextBlock({ kind: 'selection', title: 'Runbook', text: 'x' }) === '--- Selection from document: Runbook ---\nx\n--- End of selection ---' && /^--- Kanban board: B \(category: Work\) ---\n/.test(formatContextBlock({ kind: 'kanban', title: 'B', category: 'Work', text: 'x' })) && /--- End of board ---$/.test(formatContextBlock({ kind: 'kanban', title: 'B', text: 'x' })));
+check('the block: generic markers (no title, no category), the content, the end marker', block === '--- Document ---\nline 1\nline 2\n--- End of document ---' && !/Runbook|Ops/.test(block), JSON.stringify(block));
+check('a selection, a board and a workflow block have their own generic markers', formatContextBlock({ kind: 'selection', title: 'Runbook', text: 'x' }) === '--- Selection ---\nx\n--- End of selection ---' && formatContextBlock({ kind: 'kanban', title: 'B', category: 'Work', text: 'x' }) === '--- Kanban board ---\nx\n--- End of board ---' && formatContextBlock({ kind: 'workflow', title: 'W', category: 'Ops', text: 'x' }) === '--- Workflow ---\nx\n--- End of workflow ---');
+check('with several contexts in one chat the markers carry the ordinal', formatContextBlock({ kind: 'document', text: 'a', ordinal: 1 }) === '--- Document 1 ---\na\n--- End of document 1 ---' && formatContextBlock({ kind: 'kanban', text: 'b', ordinal: 2 }) === '--- Kanban board 2 ---\nb\n--- End of board 2 ---');
 const msg = buildContextMessage([formatContextBlock({ title: 'A', text: 'host [REDACTED_HOST_1]' })], 'why?');
-check('the message carries the redaction note when a placeholder is in it, then the blocks, then the question; no note without placeholders', msg.includes(REDACTION_NOTE) && msg.endsWith('\n\nQuestion: why?') && msg.indexOf(REDACTION_NOTE) < msg.indexOf('--- Document: A ---') && !buildContextMessage([formatContextBlock({ title: 'A', text: 'clean' })], 'q').includes('REDACTED'), msg);
+check('the message carries the redaction note when a placeholder is in it, then the blocks, then the question; no note without placeholders', msg.includes(REDACTION_NOTE) && msg.endsWith('\n\nQuestion: why?') && msg.indexOf(REDACTION_NOTE) < msg.indexOf('--- Document ---') && !/\bA\b/.test(msg.replace(/A\?/, '')) && !buildContextMessage([formatContextBlock({ title: 'A', text: 'clean' })], 'q').includes('REDACTED'), msg);
 check('a board renders as markdown: a section per column, cards as a list with description', kanbanBoardMarkdown({ columns: [{ id: 'todo', title: 'To Do' }, { id: 'done', title: 'Done' }] }, [{ title: 'Fix', status: 'todo', description: 'd' }, { title: 'Ship', status: 'done' }]) === '## To Do\n- **Fix**\n  d\n\n## Done\n- **Ship**');
 check('the document payload carries the content, not the metadata', JSON.stringify(documentContextPayload({ id: 7, title: 'T', category: 'C', content: 'body', locked: false, stableId: 'x' })) === JSON.stringify({ kind: 'document', title: 'T', category: 'C', content: 'body', source: { kind: 'document', id: 7 } }));
 const ctx = newContext(selectionContextPayload({ id: 1, title: 'Doc' }, 'on node-3 and ghcr.io'));
 let rc = renderContext(ctx);
-check('renderContext: the block over the redacted text, the hidden count; a hand edit freezes the text', rc.text === '--- Selection from document: Doc ---\non [REDACTED_HOST_1] and ghcr.io\n--- End of selection ---' && rc.hidden === 1 && renderContext({ ...ctx, manual: 'my own text' }).text === 'my own text' && renderContext({ ...ctx, manual: 'my own text' }).edited === true, rc.text);
+check('renderContext: the block over the redacted text, the hidden count; a hand edit freezes the text', rc.text === '--- Selection ---\non [REDACTED_HOST_1] and ghcr.io\n--- End of selection ---' && renderContext(ctx, undefined, { ordinal: 3 }).text.startsWith('--- Selection 3 ---\n') && rc.hidden === 1 && renderContext({ ...ctx, manual: 'my own text' }).text === 'my own text' && renderContext({ ...ctx, manual: 'my own text' }).edited === true, rc.text);
 
 /* ---------- 2. the sidebar ---------- */
 report('\n--- 2. the AI chat sidebar ---');
@@ -91,10 +96,16 @@ import AIChatSidebar from '@worktree/src/components/common/AIChatSidebar.jsx';
 import { NotificationProvider } from '@worktree/src/contexts/NotificationContext.jsx';
 import { db } from '@worktree/src/db/database.js';
 import * as privacy from '@worktree/src/utils/aiPrivacy.js';
+import * as sources from '@worktree/src/utils/aiContextSources.js';
+import { workflowMarkdown } from '@worktree/src/utils/workflowMarkdown.js';
+import { addWorkflowAsAIContext } from '@worktree/src/utils/workflowAIContext.js';
+import { createDocument, getDocumentsMetadata } from '@worktree/src/utils/documents.js';
+import { createBoard, createCard } from '@worktree/src/utils/kanban.js';
+import { createWorkflow } from '@worktree/src/utils/workflows.js';
 let setView = null; let key = 0;
 function Host() { const [view, set] = React.useState(null); setView = set; if (!view) return null; return React.createElement(AIChatSidebar, { key: view.key, isOpen: true, onClose: () => {} }); }
 const whenReady = (fn) => { const go = () => (setView ? fn() : setTimeout(go, 10)); go(); };
-window.__harness = { mount: () => whenReady(() => setView({ key: ++key })), unmount: () => whenReady(() => setView(null)), db, privacy };
+window.__harness = { mount: () => whenReady(() => setView({ key: ++key })), unmount: () => whenReady(() => setView(null)), db, privacy, sources, workflowMarkdown, addWorkflowAsAIContext, documents: { createDocument, getDocumentsMetadata }, kanban: { createBoard, createCard }, workflows: { createWorkflow } };
 createRoot(document.getElementById('root')).render(React.createElement(NotificationProvider, null, React.createElement(Host)));
 `);
 const { build } = await import(req.resolve('esbuild'));
@@ -160,7 +171,7 @@ check('...on the default provider / model (ollama / qwen3:30b)', stored()[0]?.se
 // the eye: exactly what is sent
 click($('[data-testid="ai-context-eye"]'));
 const dialog = await waitFor(() => $('[data-testid="ai-context-dialog"]'));
-const expectedText = '--- Document: Runbook (category: Ops) ---\nPull ghcr.io/acme/app:1.2.3 on [REDACTED_HOST_1] at [REDACTED_IP_1] via [REDACTED_HOST_2]. token=[REDACTED_TOKEN_1]\n--- End of document ---';
+const expectedText = '--- Document ---\nPull ghcr.io/acme/app:1.2.3 on [REDACTED_HOST_1] at [REDACTED_IP_1] via [REDACTED_HOST_2]. token=[REDACTED_TOKEN_1]\n--- End of document ---';
 check('the eye dialog shows the delimited block (content, redacted), as plain text, with the explanation line', !!dialog && $('[data-testid="ctx-text"]').value === expectedText && /This is exactly what the AI receives/.test(dialog.textContent), $('[data-testid="ctx-text"]')?.value);
 check('the findings list: 4 findings, values masked, placeholders, each hidden', $$('[data-testid^="ctx-finding-"][data-hidden]').length === 4 && $$('[data-testid^="ctx-finding-"][data-hidden]').every((f) => f.getAttribute('data-hidden') === 'true') && /ab•+et/.test(dialog.textContent) && !/abcd1234secret/.test(dialog.textContent), dialog.textContent.slice(0, 400));
 // the dialog's tabs: Document (default, the text) and Privacy (the switches, with the count)
@@ -192,7 +203,7 @@ setNative(chatInput(), 'what is this?'); await sleep(30);
 click($$('button').find((b) => b.querySelector('svg.lucide-send')) || $$('button').find((b) => /send/i.test(b.getAttribute('title') || '')));
 await waitFor(() => (requests.length ? true : null));
 const sentText = requests[0]?.messages?.[0]?.content || '';
-check('the request body carries the delimited content block exactly as the preview showed, with the redaction note and the question; no metadata JSON', requests.length === 1 && sentText.includes('--- Document: Runbook (category: Ops) ---\nPull ghcr.io/acme/app:1.2.3 on node-12 at 10.0.0.5 via lab.corp.internal. token=\[REDACTED_TOKEN_1\]\n--- End of document ---') && sentText.includes(REDACTION_NOTE) && sentText.endsWith('Question: what is this?') && !/stableId|"locked"|updatedAt/.test(sentText) && requests[0].provider === 'ollama' && requests[0].model === 'qwen3:30b', sentText);
+check('the request body carries the delimited content block exactly as the preview showed, with the redaction note and the question; no metadata JSON', requests.length === 1 && sentText.includes('--- Document ---\nPull ghcr.io/acme/app:1.2.3 on node-12 at 10.0.0.5 via lab.corp.internal. token=\[REDACTED_TOKEN_1\]\n--- End of document ---') && !/Runbook|Ops/.test(sentText) && sentText.includes(REDACTION_NOTE) && sentText.endsWith('Question: what is this?') && !/stableId|"locked"|updatedAt/.test(sentText) && requests[0].provider === 'ollama' && requests[0].model === 'qwen3:30b', sentText);
 await waitFor(() => (/ANSWER/.test(document.body.textContent) ? true : null));
 check('the answer lands in the new chat', /ANSWER/.test(document.body.textContent));
 // a hand edit is what gets sent; Reset reloads the document
@@ -213,7 +224,7 @@ click($('[data-testid="ai-context-eye"]'));
 await waitFor(() => $('[data-testid="ai-context-dialog"]'));
 click($('[data-testid="ctx-reset"]'));
 await waitFor(() => (/Updated runbook/.test($('[data-testid="ctx-text"]').value) ? true : null));
-check('Reset to the document reloads the current content, drops the edit and keeps the chat\'s privacy choices (Hosts still "Send all")', $('[data-testid="ctx-text"]').value === '--- Document: Runbook (category: Ops) ---\nUpdated runbook on node-7.\n--- End of document ---' && !$('[data-testid="ctx-edited-note"]') && !$('[data-testid="ctx-type-toggle-host"]').disabled && $('[data-testid="ctx-type-toggle-host"]').getAttribute('aria-checked') === 'false', $('[data-testid="ctx-text"]').value);
+check('Reset to the document reloads the current content, drops the edit and keeps the chat\'s privacy choices (Hosts still "Send all")', $('[data-testid="ctx-text"]').value === '--- Document ---\nUpdated runbook on node-7.\n--- End of document ---' && !$('[data-testid="ctx-edited-note"]') && !$('[data-testid="ctx-type-toggle-host"]').disabled && $('[data-testid="ctx-type-toggle-host"]').getAttribute('aria-checked') === 'false', $('[data-testid="ctx-text"]').value);
 click($('[data-testid="ctx-type-toggle-host"]')); await sleep(30);
 check('Hosts back to "Hide all": node-7 redacted afresh', /on \[REDACTED_HOST_1\]\./.test($('[data-testid="ctx-text"]').value), $('[data-testid="ctx-text"]').value);
 // Never hide -> the device list, honoured in a later chat
@@ -225,9 +236,93 @@ window.dispatchEvent(new window.CustomEvent('addAIContext', { detail: { contextD
 await waitFor(() => (/Selection: Runbook/.test($('[data-testid="ai-context-chip"]')?.textContent || '') ? true : null));
 click($('[data-testid="ai-context-eye"]'));
 await waitFor(() => $('[data-testid="ai-context-dialog"]'));
-check('a selection payload: its own chip and block; the allow list is honoured across chats (node-7 sent, node-8 hidden)', $('[data-testid="ctx-text"]').value === '--- Selection from document: Runbook ---\nsee node-7 and [REDACTED_HOST_1] at ghcr.io\n--- End of selection ---', $('[data-testid="ctx-text"]').value);
+check('a selection payload: its own chip and block; the allow list is honoured across chats (node-7 sent, node-8 hidden)', $('[data-testid="ctx-text"]').value === '--- Selection ---\nsee node-7 and [REDACTED_HOST_1] at ghcr.io\n--- End of selection ---', $('[data-testid="ctx-text"]').value);
 click($('[data-testid="ctx-cancel"]'));
 check('the allow / deny lists live in localStorage on this device only (jacarium.aiPrivacy), not with the conversations', !!window.localStorage.getItem('jacarium.aiPrivacy') && !JSON.stringify(stored()).includes('"allow"'));
+
+/* ---------- 2b. the content comes from where it lives (v3.3.2 sent empty blocks) ---------- */
+report('\n--- 2b. real storage: documents, boards, workflows ---');
+{
+  const S = H.sources;
+  // a document: the sidebar row is metadata only - what the old path handed to the payload
+  const realId = await H.documents.createDocument({ title: 'Real doc', content: 'Body on node-9 for real.', category: 'Ops' });
+  const metaRow = (await H.documents.getDocumentsMetadata()).find((d) => d.id === realId);
+  check('a Documents sidebar row carries no `content` (metadata only) - the old path sent an empty block from it', !!metaRow && !('content' in metaRow), JSON.stringify(metaRow));
+  let p = await S.loadDocumentContext(metaRow);
+  check('loadDocumentContext reads the body from storage for a metadata-only row', p.content === 'Body on node-9 for real.' && !p.error && p.title === 'Real doc' && p.kind === 'document', JSON.stringify(p));
+  const live = (e) => { if (String(e.detail.documentId) === String(realId)) e.detail.content = 'Body on node-9 for real. Plus unsaved typing.'; };
+  window.addEventListener(S.LIVE_CONTENT_EVENT, live);
+  p = await S.loadDocumentContext(realId);
+  window.removeEventListener(S.LIVE_CONTENT_EVENT, live);
+  check('an open editor answers the live-text event (unsaved edits, a cloud document\'s Yjs text) and that wins over storage', p.content === 'Body on node-9 for real. Plus unsaved typing.' && !p.error, p.content);
+  const emptyId = await H.documents.createDocument({ title: 'Empty', content: '', category: 'Ops' });
+  check('a missing or empty document carries an error instead of an empty block', (await S.loadDocumentContext(999999)).error === 'The document could not be found.' && (await S.loadDocumentContext(emptyId)).error === 'The document is empty.');
+
+  // a board: the cards are separate records
+  const board = await H.kanban.createBoard({ title: 'Release', category: 'Work', columns: [{ id: 'todo', title: 'To Do' }, { id: 'done', title: 'Done' }] });
+  await H.kanban.createCard({ boardId: board.id, title: 'Write notes', status: 'todo', position: 0, description: 'on node-3' });
+  await H.kanban.createCard({ boardId: board.id, title: 'Ship it', status: 'done', position: 0 });
+  p = await S.loadKanbanContext(board.id);
+  check('a board loads its cards (separate records) into its block, per column', /## To Do\n- \*\*Write notes\*\*/.test(p.content) && /## Done\n- \*\*Ship it\*\*/.test(p.content) && /on node-3/.test(p.content) && !p.error, p.content);
+  check('a board\'s block never carries its title or category (generic markers, the title stays in the UI)', (() => { const txt = renderContext(newContext(p)).text; return /^--- Kanban board ---\n/.test(txt) && /--- End of board ---$/.test(txt) && !/Release|\bWork\b/.test(txt); })(), renderContext(newContext(p)).text.slice(0, 120));
+
+  // a workflow: nodes and edges on the row, as readable Markdown in execution order
+  const nodes = [
+    { id: 'n1', type: 'beginplay', position: { x: 0, y: 0 }, data: { label: 'Begin' } },
+    { id: 'n2', type: 'restapi', position: { x: 200, y: 0 }, data: { label: 'Fetch status', method: 'POST', url: 'https://api.example.internal/backup' } },
+    { id: 'n3', type: 'ssh', position: { x: 400, y: 0 }, data: { label: 'Dump', host: 'db01.corp.internal', username: 'backup', command: 'pg_dump app > /backups/app.sql' } },
+    { id: 'n4', type: 'transformation', position: { x: 600, y: 0 }, data: { label: 'Parse', code: 'return JSON.parse(input).ok;' } },
+    { id: 'n5', type: 'branch', position: { x: 800, y: 0 }, data: { label: 'Succeeded?' } },
+    { id: 'n6', type: 'result', position: { x: 1000, y: 0 }, data: { label: 'Done' } },
+    { id: 'n7', type: 'note', position: { x: 0, y: 200 }, data: { text: 'Runs at 02:00.' } },
+  ];
+  const edges = [
+    { id: 'e1', source: 'n1', target: 'n2', sourceHandle: 'exec-out', targetHandle: 'exec-in' },
+    { id: 'e2', source: 'n2', target: 'n3', sourceHandle: 'exec-out', targetHandle: 'exec-in' },
+    { id: 'e3', source: 'n3', target: 'n4', sourceHandle: 'exec-out', targetHandle: 'exec-in' },
+    { id: 'e4', source: 'n4', target: 'n5', sourceHandle: 'exec-out', targetHandle: 'exec-in' },
+    { id: 'e5', source: 'n5', target: 'n6', sourceHandle: 'true', targetHandle: 'exec-in' },
+  ];
+  const wfId = await H.workflows.createWorkflow({ title: 'Nightly backup', category: 'Ops', nodes, edges });
+  p = await S.loadWorkflowContext(wfId);
+  const md = p.content;
+  const order = ['Fetch status', 'Dump', 'Parse', 'Succeeded?', 'Done'].map((l) => md.indexOf(l));
+  check('a workflow becomes readable Markdown: the note, then the nodes in execution order with type and key fields (REST method + URL, SSH user@host + command, Transform code), outlets and connections - no JSON dump', p.kind === 'workflow' && /> Note: Runs at 02:00\./.test(md) && /Fetch status - REST API POST/.test(md) && /https:\/\/api\.example\.internal\/backup/.test(md) && /backup@db01\.corp\.internal/.test(md) && /pg_dump app > \/backups\/app\.sql/.test(md) && /return JSON\.parse\(input\)\.ok;/.test(md) && /- TRUE: Done \(#\d\)/.test(md) && /### Connections/.test(md) && order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])) && !/"position"/.test(md), md);
+  const blankId = await H.workflows.createWorkflow({ title: 'Blank', category: 'Ops', nodes: [], edges: [] });
+  check('an empty workflow carries an error', (await S.loadWorkflowContext(blankId)).error === 'The workflow has no nodes.');
+
+  // the workflow menu's handler, end to end: a NEW chat, the chip, the tabs, the block in the request
+  const nameBefore = convName();
+  await H.addWorkflowAsAIContext({ id: wfId, title: 'Nightly backup' });
+  const wfChip = await waitFor(() => $$('[data-testid="ai-context-chip"]').find((c) => /Workflow: Nightly backup/.test(c.textContent)) || null);
+  check('the workflow menu handler opens a NEW chat with the "Workflow: Nightly backup" chip (v3.3.2 dropped it: no kind on the payload)', !!wfChip && convName() !== nameBefore && /Nightly backup - Chat/.test(convName() || '') && wfChip.getAttribute('data-empty') === 'false', `${convName()} / ${wfChip?.textContent}`);
+  check('...on the default provider / model', stored()[0]?.settings?.provider === 'ollama' && stored()[0]?.settings?.model === 'qwen3:30b');
+  click(wfChip.querySelector('[data-testid="ai-context-eye"]'));
+  await waitFor(() => $('[data-testid="ai-context-dialog"]'));
+  check('the eye opens the dialog with a "Workflow" tab, the readable description in its text and the Privacy tab', $('[data-testid="ctx-tab-text"]').textContent === 'Workflow' && /^--- Workflow ---\n/.test($('[data-testid="ctx-text"]').value) && /--- End of workflow ---$/.test($('[data-testid="ctx-text"]').value) && !/Nightly backup|\bOps\b/.test($('[data-testid="ctx-text"]').value) && /Privacy \d+\/\d+/.test($('[data-testid="ctx-tab-privacy"]').textContent) && /Reset to the workflow/.test($('[data-testid="ctx-reset"]').textContent), $('[data-testid="ctx-text"]')?.value.slice(0, 120));
+  check('the private name inside the workflow (the SSH user and host db01.corp.internal) is redacted like any other', /\[REDACTED_(HOST|EMAIL)_\d\]/.test($('[data-testid="ctx-text"]').value) && !/db01\.corp\.internal/.test($('[data-testid="ctx-text"]').value), $('[data-testid="ctx-text"]').value);
+  click($('[data-testid="ctx-cancel"]'));
+  await waitFor(() => (!$('[data-testid="ai-context-dialog"]') ? true : null));
+  requests.length = 0;
+  setNative(chatInput(), 'what does it do?'); await sleep(30);
+  click($$('button').find((b) => b.querySelector('svg.lucide-send')) || $$('button').find((b) => /send/i.test(b.getAttribute('title') || '')));
+  await waitFor(() => (requests.length ? true : null));
+  const wfSent = requests[0]?.messages?.[0]?.content || '';
+  check('the request body carries the workflow block with the readable description', /--- Workflow ---\n/.test(wfSent) && !/Nightly backup|\bOps\b|category:/.test(wfSent) && /POST/.test(wfSent) && /api\.example\.internal\/backup/.test(wfSent) && /pg_dump/.test(wfSent) && /--- End of workflow ---/.test(wfSent) && /Question: what does it do\?$/.test(wfSent), wfSent.slice(0, 300));
+  await waitFor(() => (/ANSWER/.test(document.body.textContent) ? true : null));
+
+  // the guard: a context without content is shown as such and never sent
+  window.dispatchEvent(new window.CustomEvent('addAIContext', { detail: { contextData: { kind: 'document', title: 'Ghost', category: 'Ops', content: '', source: { kind: 'document', id: 999999 }, error: 'The document could not be found.' } } }));
+  const ghost = await waitFor(() => $$('[data-testid="ai-context-chip"]').find((c) => /Document: Ghost/.test(c.textContent)) || null);
+  check('a context whose content could not be loaded shows the error on its chip', !!ghost && ghost.getAttribute('data-empty') === 'true' && /could not be found/.test(ghost.querySelector('[data-testid="ai-context-error"]')?.textContent || ''), ghost?.textContent);
+  requests.length = 0;
+  setNative(chatInput(), 'still there?'); await sleep(30);
+  click($$('button').find((b) => b.querySelector('svg.lucide-send')) || $$('button').find((b) => /send/i.test(b.getAttribute('title') || '')));
+  await waitFor(() => (requests.length ? true : null));
+  const ghostSent = requests[0]?.messages?.[0]?.content || '';
+  check('an empty context block is never sent: the question goes alone (no "--- Document" block, no empty delimiters)', !/--- Document/.test(ghostSent) && !/providing context/.test(ghostSent) && ghostSent === 'still there?', ghostSent);
+  await waitFor(() => (/ANSWER/.test(document.body.textContent) ? true : null));
+}
 
 /* ---------- 3. never in a settings payload; the placeholder format ---------- */
 report('\n--- 3. the settings scopes, the placeholder format ---');
@@ -245,7 +340,7 @@ const src = (p) => fs.readFileSync(path.join(REPO, p), 'utf8');
   check('no «» guillemets remain anywhere in src (nor in this test)', guillemets.length === 0 && !/[\u00ab\u00bb]/.test(src('tests/ai-context-content.test.mjs').replace(/no [\u00ab\u00bb]+ guillemets/, '')), guillemets.join(', '));
 }
 check('settingsStore.js and the copy sheet know nothing of the privacy lists; the lists module never touches the settings store', !/aiPrivacy|PRIVACY_STORAGE/.test(src('src/services/settingsStore.js')) && !/aiPrivacy/.test(src('src/components/common/modals/settings/CopySettingsSheet.jsx')) && !/settingsStore|homeServer/.test(src('src/utils/aiPrivacy.js')));
-check('the four "Add as AI Context" sources send the content payloads (document / board), and the selection menu offers the new entry', /documentContextPayload\(freshDoc\)/.test(src('src/components/features/documents/DocumentSidebar.jsx')) && /documentContextPayload\(doc\)/.test(src('src/components/DocumentsPage.jsx')) && /kanbanContextPayload\(board, cards\)/.test(src('src/components/KanbanPage.jsx')) && /kanbanContextPayload\(board, cards\)/.test(src('src/components/kanban/KanbanBoardList.jsx')) && /selectionContextPayload\(document, text\)/.test(src('src/components/features/documents/DocumentEditor.jsx')) && /Add as AI Context/.test(src('src/components/features/documents/TextSelectionMenu.jsx')));
+check('every "Add as AI Context" source goes through the loaders (the content read from where it lives), and the selection menu offers its entry', /addDocumentAsAIContext\(freshDoc\.id\)/.test(src('src/components/features/documents/DocumentSidebar.jsx')) && /addDocumentAsAIContext\(tabContextMenuTarget\)/.test(src('src/components/DocumentsPage.jsx')) && /addKanbanAsAIContext\(tabContextMenuTarget\)/.test(src('src/components/KanbanPage.jsx')) && /addKanbanAsAIContext\(contextMenu\.target\.id\)/.test(src('src/components/kanban/KanbanBoardList.jsx')) && /addWorkflowAsAIContext/.test(src('src/components/workflow/WorkflowList.jsx')) && /addWorkflowAsAIContext\(workflow\)/.test(src('src/components/WorkflowBuilder.jsx')) && /selectionContextPayload\(document, text\)/.test(src('src/components/features/documents/DocumentEditor.jsx')) && /Add as AI Context/.test(src('src/components/features/documents/TextSelectionMenu.jsx')));
 
 report(`\n${total - failures}/${total} checks passed`);
 H.unmount();

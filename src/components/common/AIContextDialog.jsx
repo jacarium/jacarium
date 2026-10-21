@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Eye, EyeOff, FileText, Trello } from 'lucide-react';
+import { Eye, EyeOff, FileText, Trello, GitBranch } from 'lucide-react';
 import BaseModal from './modals/BaseModal';
 import ConfirmationModal from './modals/ConfirmationModal';
 import { Badge, Button, Note, SubTabs, Toggle } from '../ui/primitives';
@@ -33,9 +33,10 @@ import { allowValue, denyValue, usePrivacyLists } from '../../utils/aiPrivacy';
  * Everything is a draft until Save; Cancel drops it (the sidebar mounts the
  * dialog per context, keyed by its id). Props: context (as kept on the
  * conversation), onSave(nextContext), onCancel, reload(): Promise<string|
- * null> - the source's current content.
+ * null> - the source's current content, ordinal (the block's number when
+ * the chat holds several contexts).
  */
-export default function AIContextDialog({ context, onSave, onCancel, reload }) {
+export default function AIContextDialog({ context, onSave, onCancel, reload, ordinal = null }) {
   const lists = usePrivacyLists();
   const [draft, setDraft] = useState(context);
   const [tab, setTab] = useState('text');
@@ -44,14 +45,14 @@ export default function AIContextDialog({ context, onSave, onCancel, reload }) {
   const [reloading, setReloading] = useState(false);
   const titleId = useId();
 
-  const rendered = renderContext(draft, lists);
+  const rendered = renderContext(draft, lists, { ordinal });
   const findings = rendered.findings;
   const edited = rendered.edited;
   const policy = draft.policy;
   const setPolicy = (next) => setDraft((d) => ({ ...d, policy: { ...d.policy, ...next, types: { ...d.policy.types, ...(next.types || {}) } } }));
   const decide = (id, choice) => setDraft((d) => ({ ...d, decisions: { ...d.decisions, [id]: choice } }));
-  const Icon = draft.kind === 'kanban' ? Trello : FileText;
-  const sourceLabel = draft.kind === 'kanban' ? 'board' : draft.kind === 'selection' ? 'selection' : 'document';
+  const Icon = draft.kind === 'kanban' ? Trello : draft.kind === 'workflow' ? GitBranch : FileText;
+  const sourceLabel = draft.kind === 'kanban' ? 'board' : draft.kind === 'selection' ? 'selection' : draft.kind === 'workflow' ? 'workflow' : 'document';
   const tokensOff = policy.enabled && policy.types.token === false;
   const hiddenCount = findings.filter((f) => f.hidden).length;
   const summaryParts = [];
@@ -64,7 +65,7 @@ export default function AIContextDialog({ context, onSave, onCancel, reload }) {
     setReloading(true);
     try {
       const fresh = reload ? await reload() : null;
-      setDraft((d) => ({ ...d, raw: fresh ?? d.raw, manual: null }));
+      setDraft((d) => ({ ...d, raw: fresh ?? d.raw, manual: null, error: fresh == null ? d.error : null }));
     } finally { setReloading(false); }
   }
 
@@ -134,6 +135,9 @@ export default function AIContextDialog({ context, onSave, onCancel, reload }) {
         {/* Both panels stay mounted; the inactive one is hidden */}
         <div hidden={tab !== 'text'} className="space-y-3" data-testid="ctx-panel-text">
           <p className="text-xs text-os-text-muted">Edit the text to restore a value, remove parts or add a note; the Privacy tab decides what is hidden.</p>
+          {(draft.error || rendered.empty) && !edited && (
+            <Note tone="danger" testId="ctx-error">{draft.error || 'No content was loaded for this context.'} It will not be sent as it is: reset to the {sourceLabel}, or write the text yourself.</Note>
+          )}
           {edited && frozenNote('ctx-edited-note')}
           <textarea value={rendered.text} onChange={(e) => setDraft((d) => ({ ...d, manual: e.target.value }))} spellCheck={false} aria-label="Context text"
             className="w-full min-h-[50vh] bg-os-input-bg text-os-text-primary border border-os-border rounded-sm p-3 text-xs font-mono resize-y focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40" data-testid="ctx-text" />

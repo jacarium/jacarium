@@ -17,6 +17,7 @@ import KanbanColumn from './kanban/KanbanColumn';
 import KanbanCard from './kanban/KanbanCard';
 import ConfirmationModal from './common/ConfirmationModal';
 import ImportJsonModal from './common/ImportJsonModal';
+import TransferTextModal from './common/TransferTextModal';
 import JsonImportStats from './common/JsonImportStats';
 import { validateBoardsImport, runBoardsImport } from '../utils/kanbanImport';
 import { jsonMergeLabel, jsonMergeHint, jsonImportMessage } from '../utils/jsonImportMerge';
@@ -60,6 +61,7 @@ export default function KanbanPage() {
   const [draggedOverColumnPosition, setDraggedOverColumnPosition] = useState(null);
   const [showTabContextMenu, setShowTabContextMenu] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false); // the list menu's "Import from JSON"
+  const [jsonExport, setJsonExport] = useState(null); // "Export All (JSON)": { text, filename } shown in the transfer dialog
   const [isCreatingColumn, setIsCreatingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState('');
   const [tabContextMenuPosition, setTabContextMenuPosition] = useState({ x: 0, y: 0 });
@@ -1197,24 +1199,9 @@ export default function KanbanPage() {
   async function handleAddKanbanAsAIContext() {
     if (!tabContextMenuTarget) return;
 
-    const board = await getBoard(tabContextMenuTarget);
-    if (board) {
-      // Get cards for this board
-      const cards = await getCards(board.id);
-
-      // Open AI Chat sidebar first
-      window.dispatchEvent(new CustomEvent('aiChatSidebarStateChange', {
-        detail: { isOpen: true }
-      }));
-
-      // Add context after a short delay to ensure sidebar is mounted
-      setTimeout(async () => {
-        const { kanbanContextPayload } = await import('../utils/aiContext');
-        window.dispatchEvent(new CustomEvent('addAIContext', {
-          detail: { contextData: kanbanContextPayload(board, cards) }
-        }));
-      }, 100);
-    }
+    // the loader reads the board and its cards (separate records)
+    const { addKanbanAsAIContext } = await import('../utils/aiContextSources');
+    addKanbanAsAIContext(tabContextMenuTarget);
 
     setShowTabContextMenu(false);
     setTabContextMenuTarget(null);
@@ -1481,14 +1468,20 @@ export default function KanbanPage() {
     }
   }
 
+  // "Export All (JSON)": the dialog shows the exact text the file export writes;
+  // "Download .json" writes it under the same name as the download always had
   function handleExport() {
+    setJsonExport({ text: JSON.stringify(boards, null, 2), filename: `kanban-boards-${new Date().toISOString().split('T')[0]}.json` });
+  }
+
+  function downloadJsonExport() {
+    if (!jsonExport) return;
     try {
-      const dataStr = JSON.stringify(boards, null, 2);
-      const blob = new Blob([dataStr], { type: 'application/json' });
+      const blob = new Blob([jsonExport.text], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `kanban-boards-${new Date().toISOString().split('T')[0]}.json`;
+      link.download = jsonExport.filename;
       link.click();
       URL.revokeObjectURL(url);
 
@@ -1884,6 +1877,11 @@ export default function KanbanPage() {
           />
         </div>
       </FormModal>
+
+      {/* Export All (JSON): the text to see and copy, or download */}
+      {jsonExport && (
+        <TransferTextModal mode="export" format="json" data={jsonExport.text} filename={jsonExport.filename} onDownload={downloadJsonExport} onClose={() => setJsonExport(null)} />
+      )}
 
       {/* Import from JSON (the board list's menu) */}
       <ImportJsonModal

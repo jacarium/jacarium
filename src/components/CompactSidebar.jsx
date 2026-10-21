@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Search, FileText, Activity, Workflow, FileText as NotesIcon, Bot, Brain, Bell, MessageSquare, Menu, Trello, CheckSquare, Calendar, Wrench, MoreHorizontal, ExternalLink, PanelLeft, Trash2 } from 'lucide-react';
+import { Search, FileText, Activity, Workflow, FileText as NotesIcon, Bot, Brain, Bell, MessageSquare, Menu, Trello, CheckSquare, Calendar, Wrench, MoreHorizontal, ExternalLink, PanelLeft, PanelRight, Trash2 } from 'lucide-react';
 import { isDesktopApp, openStandalonePage } from '../utils/platform';
 import BrandMark from '../brand/BrandMark';
 import { openAppSettings } from '../utils/openSettings';
@@ -65,9 +65,19 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
   const isGradientTheme = theme && theme.startsWith('gradient-');
   const gradientConfig = isGradientTheme ? GRADIENT_THEMES[theme] : null;
 
+  // The side each panel is on, or remembered for its next opening (JQLBuilder
+  // sends it with every open state): the menu item reads "Open on the right"
+  // or "Move to the left" accordingly
+  const [panelSides, setPanelSides] = useState({ aiChat: 'left', draft: 'left', chat: 'left' });
+  const noteSide = (key, event) => setPanelSides((prev) => {
+    if (!event.detail || !('side' in event.detail)) return prev;
+    const side = event.detail.side === 'right' ? 'right' : 'left';
+    return prev[key] === side ? prev : { ...prev, [key]: side };
+  });
   useEffect(() => {
     function handleAIChatStateChange(event) {
       setIsAIChatOpen(event.detail.isOpen);
+      noteSide('aiChat', event);
     }
 
     function handleQuizStateChange(event) {
@@ -76,6 +86,7 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
 
     function handleChatSidebarStateChange(event) {
       setIsChatSidebarOpen(event.detail.isOpen);
+      noteSide('chat', event);
     }
 
     function handleNotificationSidebarStateChange(event) {
@@ -84,6 +95,7 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
 
     function handleDraftSidebarStateChange(event) {
       setIsDraftSidebarOpen(event.detail.isOpen);
+      noteSide('draft', event);
     }
 
     window.addEventListener('aiChatSidebarStateChange', handleAIChatStateChange);
@@ -543,6 +555,13 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
 
   const handleOpenAIChatInNewWindow = () => openPopOut('openAIChatWindow', 'ai-chat', 'AI Chat');
 
+  // The rail's panels: their context-menu type, the toggle event JQLBuilder listens to, the side key
+  const PANEL_MENUS = {
+    'panel-ai-chat': { key: 'aiChat', event: 'toggleAIChatSidebar' },
+    'panel-quick-notes': { key: 'draft', event: 'toggleDraftSidebar' },
+    'panel-team-chat': { key: 'chat', event: 'toggleChatSidebar' },
+  };
+
   const handleOpenCalendarInNewWindow = () => openPopOut('openCalendarWindow', 'calendars', 'Calendar');
 
   const handleOpenKanbanInNewWindow = () => openPopOut('openKanbanWindow', 'kanban', 'Kanban');
@@ -624,9 +643,10 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
   // Define all utility items
   const utilityItems = [
     { icon: Brain, label: 'Quiz', onClick: handleToggleQuiz, active: isQuizOpen },
-    { icon: Bot, label: 'AI Chat', onClick: handleToggleAIChat, active: isAIChatOpen },
-    { icon: NotesIcon, label: 'Quick Notes', onClick: handleToggleDraft, active: isDraftSidebarOpen },
-    { icon: MessageSquare, label: 'Team Chat', onClick: handleToggleChat, active: isChatSidebarOpen, badge: unreadMentions > 0 },
+    // the three panels: right-click offers "Open on the right" / "Move to the left" (PANEL_MENUS)
+    { icon: Bot, label: 'AI Chat', onClick: handleToggleAIChat, active: isAIChatOpen, contextMenu: 'panel-ai-chat', testId: 'rail-ai-chat' },
+    { icon: NotesIcon, label: 'Quick Notes', onClick: handleToggleDraft, active: isDraftSidebarOpen, contextMenu: 'panel-quick-notes', testId: 'rail-quick-notes' },
+    { icon: MessageSquare, label: 'Team Chat', onClick: handleToggleChat, active: isChatSidebarOpen, badge: unreadMentions > 0, contextMenu: 'panel-team-chat', testId: 'rail-team-chat' },
     // the bell: right-click offers "Clear All Notifications" (the same rail menu as the page icons)
     { icon: Bell, label: 'Notifications', onClick: handleToggleNotifications, active: isNotificationSidebarOpen, badge: history.length > 0, contextMenu: 'notifications', testId: 'rail-notifications' },
     { icon: PanelLeft, label: 'Toggle Sidebar', onClick: handleToggleInnerSidebar, active: innerSidebarVisible },
@@ -938,6 +958,34 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
             </button>
           </div>
         )}
+
+        {/* The panels' context menu: open on the right / move back to the left (the rail
+            is not rendered in the phone layout, where the panels are drawers) */}
+        {PANEL_MENUS[contextMenu.type] && contextMenu.visible && (() => {
+          const menu = PANEL_MENUS[contextMenu.type];
+          const onRight = panelSides[menu.key] === 'right';
+          const sideLabel = onRight ? 'Move to the left' : 'Open on the right';
+          return (
+            <div
+              ref={contextMenuRef}
+              className="fixed bg-os-card border border-os-border rounded-lg shadow-xl z-50 py-1 min-w-[180px]"
+              style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
+              data-testid="rail-panel-menu"
+            >
+              <button
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent(menu.event, { detail: { side: onRight ? 'left' : 'right', open: true } }));
+                  closeContextMenu();
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
+                data-testid="rail-panel-side"
+              >
+                <PanelRight size={14} className="text-os-text-secondary" />
+                {sideLabel}
+              </button>
+            </div>
+          );
+        })()}
 
         {/* AI Chat Context Menu */}
         {isContextMenuType('ai-chat') && (

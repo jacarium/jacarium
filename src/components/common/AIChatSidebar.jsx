@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { scopedKey } from '../../utils/accountStorage';
-import { Bot, Send, Trash2, Plus, Edit2, AlertCircle, RefreshCw, Code2, X, ChevronDown, FileJson, FileText, Trello, GitBranch, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Bot, Trash2, Plus, Edit2, AlertCircle, RefreshCw, Code2, X, ChevronDown, FileJson, FileText, Trello, GitBranch, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import SidebarHeader from './sidebar/SidebarHeader';
 import ResizableSidebar from '../ResizableSidebar';
 import { getBackendUrl, apiFetch } from '../../utils/backendUrl';
@@ -11,7 +11,9 @@ import { resolveModelOption } from '../../utils/aiDefaults';
 import AIContextDialog from './AIContextDialog';
 import ConfirmationModal from './modals/ConfirmationModal';
 import { buildContextMessage, newContext, renderContext } from '../../utils/aiContext';
+import { loadDocumentContext, loadKanbanContext, loadWorkflowContext } from '../../utils/aiContextSources';
 import { usePrivacyLists } from '../../utils/aiPrivacy';
+import { ChatSendButton, chatComposerInputClass, CHAT_COMPOSER_ROWS } from '../ui/primitives';
 
 // Hoisted so the object reference is stable across renders - an inline
 // object literal here would defeat AIMessageMarkdown's React.memo.
@@ -21,7 +23,7 @@ const MESSAGE_MARKDOWN_STYLE = {
   wordBreak: 'break-word'
 };
 
-export default function AIChatSidebar({ isOpen }) {
+export default function AIChatSidebar({ isOpen, side = 'left' }) {
   const { addNotification } = useNotifications();
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -504,16 +506,12 @@ export default function AIChatSidebar({ isOpen }) {
   // the source's current content for "Reset to the document / board"; a selection keeps its own text
   async function reloadContextSource(ctx) {
     try {
-      if (ctx.source?.kind === 'document' && ctx.source.id != null) {
-        const { getDocument } = await import('../../utils/documents');
-        const doc = await getDocument(ctx.source.id);
-        return doc ? String(doc.content ?? '') : null;
-      }
-      if (ctx.source?.kind === 'kanban' && ctx.source.id != null) {
-        const { getBoard, getCards } = await import('../../utils/kanban');
-        const { kanbanBoardMarkdown } = await import('../../utils/aiContext');
-        const board = await getBoard(ctx.source.id);
-        return board ? kanbanBoardMarkdown(board, await getCards(board.id)) : null;
+      const load = ctx.source?.kind === 'document' ? loadDocumentContext
+        : ctx.source?.kind === 'kanban' ? loadKanbanContext
+          : ctx.source?.kind === 'workflow' ? loadWorkflowContext : null;
+      if (load && ctx.source.id != null) {
+        const payload = await load(ctx.source.id);
+        return payload.error ? null : payload.content;
       }
     } catch (err) {
       console.error('[AI Chat] Could not reload the context source:', err);
@@ -538,7 +536,19 @@ export default function AIChatSidebar({ isOpen }) {
     let messageContent = inputMessage;
     const sendContexts = contexts.length > 0 && !contextSent;
     if (sendContexts) {
-      messageContent = buildContextMessage(contexts.map((ctx) => renderContext(ctx, privacyLists).text), inputMessage);
+      // never an empty block: a context whose content could not be loaded is
+      // left out, and the user is told (the chip carries the error as well)
+      const rendered = contexts.map((ctx, i) => ({ ctx, r: renderContext(ctx, privacyLists, { ordinal: contexts.length > 1 ? i + 1 : null }) }));
+      const usable = rendered.filter(({ r }) => !r.empty);
+      const skipped = rendered.filter(({ r }) => r.empty);
+      if (skipped.length) {
+        addNotification({
+          type: 'warning',
+          title: 'Context not sent',
+          message: `${skipped.map(({ ctx }) => `"${ctx.title}"`).join(', ')} ${skipped.length === 1 ? 'has' : 'have'} no content and ${skipped.length === 1 ? 'was' : 'were'} left out. Use the chip's eye to reset or edit it.`,
+        });
+      }
+      if (usable.length) messageContent = buildContextMessage(usable.map(({ r }) => r.text), inputMessage);
     }
 
     const userMessage = { role: 'user', content: messageContent };
@@ -758,9 +768,11 @@ export default function AIChatSidebar({ isOpen }) {
       minWidth={350}
       maxWidth={600}
       storageKey="aiChatSidebarWidth"
-      position="right"
+      side={side}
+      canvasMinWidth={480}
+      testId="panel-ai-chat"
     >
-      <div className="flex flex-col h-full bg-os-card border-r border-os-border">
+      <div className={`flex flex-col h-full bg-os-card ${side === 'right' ? 'border-l' : 'border-r'} border-os-border`}>
         {/* Header - Wrapper for header and dropdown */}
         <div className="relative">
           <SidebarHeader
@@ -1065,15 +1077,17 @@ export default function AIChatSidebar({ isOpen }) {
         {/* Input */}
         <div className="border-t border-os-border p-4">
           {/* The contexts: a chip each - its title, how much is hidden, the eye (what the AI receives), remove */}
-          {contexts.map((ctx) => {
-            const r = renderContext(ctx, privacyLists);
+          {contexts.map((ctx, i) => {
+            const r = renderContext(ctx, privacyLists, { ordinal: contexts.length > 1 ? i + 1 : null });
             const ContextIcon = getContextIcon(ctx.kind);
             return (
-              <div key={ctx.id} className="mb-2 flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-sm text-xs" data-testid="ai-context-chip" data-context-id={ctx.id}>
+              <div key={ctx.id} className={`mb-2 flex items-center justify-between p-2 rounded-sm text-xs border ${r.empty ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'}`} data-testid="ai-context-chip" data-context-id={ctx.id} data-empty={r.empty ? 'true' : 'false'}>
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <ContextIcon size={14} className="text-blue-600 dark:text-blue-300 shrink-0" />
-                  <span className="text-blue-800 dark:text-blue-200 font-medium truncate">{ctx.kind === 'selection' ? `Selection: ${ctx.title}` : ctx.kind === 'kanban' ? `Board: ${ctx.title}` : `Document: ${ctx.title}`}</span>
-                  <span className="text-blue-700/70 dark:text-blue-300/70 shrink-0" data-testid="ai-context-summary">{r.edited ? '\u00b7 edited' : r.hidden ? `\u00b7 ${r.hidden} hidden` : ''}</span>
+                  <span className="text-blue-800 dark:text-blue-200 font-medium truncate">{ctx.kind === 'selection' ? `Selection: ${ctx.title}` : ctx.kind === 'kanban' ? `Board: ${ctx.title}` : ctx.kind === 'workflow' ? `Workflow: ${ctx.title}` : `Document: ${ctx.title}`}</span>
+                  {r.empty
+                    ? <span className="text-red-700 dark:text-red-300 truncate" data-testid="ai-context-error" title={ctx.error || 'No content loaded'}>{'\u00b7'} {ctx.error || 'No content loaded - not sent'}</span>
+                    : <span className="text-blue-700/70 dark:text-blue-300/70 shrink-0" data-testid="ai-context-summary">{r.edited ? '\u00b7 edited' : r.hidden ? `\u00b7 ${r.hidden} hidden` : ''}</span>}
                 </div>
                 <div className="flex items-center gap-1">
                   <button type="button" onClick={() => setEditingContextId(ctx.id)} className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800/40 rounded-sm transition-colors shrink-0" title="What the AI receives" aria-label="What the AI receives" data-testid="ai-context-eye">
@@ -1100,16 +1114,14 @@ export default function AIChatSidebar({ isOpen }) {
               }}
               placeholder={noModelsConfigured ? 'No AI models configured...' : backendStatus === 'offline' ? 'AI backend offline...' : 'Type your message...'}
               disabled={isLoading || backendStatus === 'offline' || noModelsConfigured}
-              className="flex-1 px-3 py-2 border border-os-border rounded-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-input-bg text-os-text-primary disabled:bg-os-card-secondary disabled:text-os-text-muted"
-              rows={3}
+              className={chatComposerInputClass('blue')}
+              rows={CHAT_COMPOSER_ROWS}
             />
-            <button
+            <ChatSendButton
+              accent="blue"
               onClick={handleSendMessage}
               disabled={!inputMessage.trim() || isLoading || backendStatus === 'offline' || noModelsConfigured}
-              className="px-4 py-2 bg-blue-600 text-white rounded-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-[76px]"
-            >
-              <Send size={18} />
-            </button>
+            />
           </div>
         </div>
 
@@ -1119,6 +1131,7 @@ export default function AIChatSidebar({ isOpen }) {
         {/* What the AI receives for a context, and the say over the redaction */}
         {editingContextId && contexts.some((c) => c.id === editingContextId) && (
           <AIContextDialog
+            ordinal={contexts.length > 1 ? contexts.findIndex((c) => c.id === editingContextId) + 1 : null}
             key={editingContextId}
             context={contexts.find((c) => c.id === editingContextId)}
             onSave={(next) => { updateContext(editingContextId, next); setEditingContextId(null); }}

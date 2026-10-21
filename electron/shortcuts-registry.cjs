@@ -48,6 +48,7 @@ const GROUPS = [
   { id: 'editor', label: 'Editor' },
   { id: 'workflow', label: 'Workflow' },
   { id: 'jql', label: 'JQL' },
+  { id: 'panels', label: 'Panels' },
 ];
 
 const SCOPES = {
@@ -98,7 +99,14 @@ const ACTIONS = [
   { id: 'workflow.pasteNodes', label: 'Paste nodes', group: 'workflow', scope: 'workflow-canvas', owner: 'renderer', defaults: same('Mod+KeyV') },
   // --- JQL Search ---
   { id: 'jql.openInJira', label: 'Open the query in Jira', group: 'jql', scope: 'page:search', owner: 'renderer', defaults: same('Mod+Enter') },
+  // --- Panels (unassigned by default): a rail click as a key - the panel opens on its remembered side, or closes ---
+  { id: 'panel.aiChat', label: 'Open AI Chat', group: 'panels', scope: 'global', owner: 'renderer', defaults: same(null) },
+  { id: 'panel.quickNotes', label: 'Open Quick Notes', group: 'panels', scope: 'global', owner: 'renderer', defaults: same(null) },
+  { id: 'panel.teamChat', label: 'Open Team Chat', group: 'panels', scope: 'global', owner: 'renderer', defaults: same(null) },
 ];
+
+/** Former action ids: a stored override under one of these is kept under the new id. */
+const RENAMED_ACTIONS = { 'panel.aiChatRight': 'panel.aiChat', 'panel.quickNotesRight': 'panel.quickNotes', 'panel.teamChatRight': 'panel.teamChat' };
 
 const BY_ID = Object.fromEntries(ACTIONS.map((a) => [a.id, a]));
 
@@ -306,14 +314,16 @@ function scopesOverlap(a, b) {
 
 /**
  * Stored overrides, cleaned: only known rebindable actions, chords with a
- * valid spelling (null = explicitly unassigned). Returns the kept overrides
- * and the ids that were dropped.
+ * valid spelling (null = explicitly unassigned); an override stored under a
+ * former id (RENAMED_ACTIONS) moves to the current one. Returns the kept
+ * overrides and the ids that were dropped.
  */
 function normalizeOverrides(raw) {
   const overrides = {};
   const dropped = [];
   if (raw && typeof raw === 'object') {
-    for (const [id, chord] of Object.entries(raw)) {
+    for (const [rawId, chord] of Object.entries(raw)) {
+      const id = RENAMED_ACTIONS[rawId] || rawId;
       const action = actionById(id);
       if (!action || !isRebindable(action) || !(chord === null || isChord(chord))) { dropped.push(id); continue; }
       overrides[id] = chord;
@@ -388,4 +398,4 @@ function validateChord(chord, { actionId, os, build, bindings }) {
   return { ok: true, level: null, message: '' };
 }
 
-module.exports = { SCHEMA_VERSION, STORAGE_KEY, GROUPS, SCOPES, ACTIONS, actionById, platformOf, defaultChord, aliasesOf, isRebindable, parseChord, isChord, chordFromEvent, matchesChord, hasChordModifier, hasAnyModifier, hasMod, keyLabel, formatChord, legacyToChord, toAccelerator, resolveBindings, actionsForBuild, actionsForChord, scopePriority, scopesOverlap, normalizeOverrides, diffOverrides, validateChord };
+module.exports = { SCHEMA_VERSION, STORAGE_KEY, GROUPS, SCOPES, ACTIONS, RENAMED_ACTIONS, actionById, platformOf, defaultChord, aliasesOf, isRebindable, parseChord, isChord, chordFromEvent, matchesChord, hasChordModifier, hasAnyModifier, hasMod, keyLabel, formatChord, legacyToChord, toAccelerator, resolveBindings, actionsForBuild, actionsForChord, scopePriority, scopesOverlap, normalizeOverrides, diffOverrides, validateChord };

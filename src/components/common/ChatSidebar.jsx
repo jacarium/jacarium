@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { MessageSquare, Send, User, FileText, Trello, Brain, Check, X, GitBranch } from 'lucide-react';
+import { MessageSquare, User, FileText, Trello, Brain, Check, X, GitBranch } from 'lucide-react';
 import SidebarHeader from './sidebar/SidebarHeader';
 import ResizableSidebar from '../ResizableSidebar';
+import { ChatSendButton, chatComposerInputClass, CHAT_COMPOSER_ROWS } from '../ui/primitives';
 import { sendChatMessage, isWebSocketConnected } from '../../utils/cloudWebSocket';
 import { getUserColor, getUserColorDark } from '../../utils/userColors';
 import { getDocumentsMetadata } from '../../utils/documents';
@@ -12,7 +13,7 @@ import { useChat } from '../../contexts/ChatContext';
 /**
  * ChatSidebar - Resizable sidebar for real-time chat between connected users
  */
-export default function ChatSidebar({ isOpen }) {
+export default function ChatSidebar({ isOpen, side = 'left' }) {
   const { messages, username, userId, addMessage, removeMessage, clearUnreadMentions, connectedUsers } = useChat();
   const [inputValue, setInputValue] = useState('');
   const [documents, setDocuments] = useState([]);
@@ -442,8 +443,11 @@ export default function ChatSidebar({ isOpen }) {
       minWidth={250}
       maxWidth={500}
       storageKey="chat-sidebar-width"
+      side={side}
+      canvasMinWidth={480}
+      testId="panel-team-chat"
     >
-      <div className="flex flex-col h-full bg-os-card border-r border-os-border">
+      <div className={`flex flex-col h-full bg-os-card ${side === 'right' ? 'border-l' : 'border-r'} border-os-border`}>
         {/* Header */}
         <SidebarHeader
           title="Team Chat"
@@ -607,7 +611,7 @@ export default function ChatSidebar({ isOpen }) {
 
         {/* Input Area */}
         <form onSubmit={handleSendMessage} className="border-t border-os-border p-3">
-          <div className="relative flex gap-2">
+          <div className="relative flex items-end gap-2">
             {/* Suggestions Dropdown */}
             {showSuggestions && filteredSuggestions.length > 0 && (
               <>
@@ -654,22 +658,23 @@ export default function ChatSidebar({ isOpen }) {
               </>
             )}
 
-            <input
+            {/* the AI Chat sidebar's composer: the same box and send button (Enter sends, Shift+Enter breaks the line) */}
+            <textarea
               ref={inputRef}
-              type="text"
               value={inputValue}
               onChange={handleInputChange}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !showSuggestions) {
+                  e.preventDefault();
+                  handleSendMessage(e);
+                }
+              }}
               placeholder="Type a message... (@user, @document, @board, @workflow, or @quiz)"
-              className="flex-1 px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-hidden text-sm bg-os-input-bg text-os-text-primary placeholder:text-os-text-muted"
+              className={chatComposerInputClass('purple')}
+              rows={CHAT_COMPOSER_ROWS}
+              data-testid="team-chat-input"
             />
-            <button
-              type="submit"
-              disabled={!inputValue.trim()}
-              className="p-2 bg-purple-600 text-white rounded-sm hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Send message"
-            >
-              <Send size={18} />
-            </button>
+            <ChatSendButton accent="purple" type="submit" disabled={!inputValue.trim()} data-testid="team-chat-send" />
           </div>
         </form>
       </div>

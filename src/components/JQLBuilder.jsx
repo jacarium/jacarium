@@ -163,6 +163,20 @@ export default function JQLBuilder({ standalone }) {
   const [isNotificationSidebarOpen, setIsNotificationSidebarOpen] = useLocalStorage('notificationSidebarOpen', false);
   const [isDraftSidebarOpen, setIsDraftSidebarOpen] = useLocalStorage('draftSidebarOpen', false);
   const [isAIChatSidebarOpen, setIsAIChatSidebarOpen] = useLocalStorage('aiChatSidebarOpen', false);
+  // Which side of the window Team Chat / Quick Notes / AI Chat sit on,
+  // chosen from the rail's right-click menu ("Open on the right" / "Move to
+  // the left") and REMEMBERED per device (localStorage `panelSide.<panel>`,
+  // beside the per-side widths; never a settings-scope value): a plain
+  // click, and anything else that opens the panel, puts it on the side it
+  // was last on. Panels on the left keep excluding each other as they
+  // always did; a panel on the right is independent of them, so one can be
+  // open on each side at once. The phone layout ignores the side.
+  const [aiChatSide, setAiChatSide] = useLocalStorage('panelSide.aiChat', 'left');
+  const [draftSide, setDraftSide] = useLocalStorage('panelSide.draft', 'left');
+  const [chatSide, setChatSide] = useLocalStorage('panelSide.chat', 'left');
+  const panelSides = { chat: chatSide === 'right' ? 'right' : 'left', draft: draftSide === 'right' ? 'right' : 'left', aiChat: aiChatSide === 'right' ? 'right' : 'left' };
+  const panelSidesRef = useRef(panelSides);
+  useEffect(() => { panelSidesRef.current = panelSides; }, [panelSides.chat, panelSides.draft, panelSides.aiChat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Restore state from URL on mount
   useEffect(() => {
@@ -259,19 +273,45 @@ export default function JQLBuilder({ standalone }) {
     }
   }, [rootGroup, selectedProject, sortFields, activeTemplateId, activeTemplateName, currentPage]);
 
+  // The panel toggles. A toggle event may carry { side: 'left' | 'right',
+  // open: true } (the rail's menu): the panel
+  // opens on that side - moving there when it is already open on the
+  // other - and that side is remembered. A plain toggle opens on the
+  // remembered side. Opening on the LEFT closes the other panels that are
+  // on the left (as before); the right side is left alone, and a panel
+  // opening on the right closes nothing.
+  const setters = { chat: setIsChatSidebarOpen, draft: setIsDraftSidebarOpen, aiChat: setIsAIChatSidebarOpen };
+  const sideSetters = { chat: setChatSide, draft: setDraftSide, aiChat: setAiChatSide };
+  const closeOtherLeftPanels = (except) => {
+    for (const key of Object.keys(setters)) {
+      if (key !== except && panelSidesRef.current[key] !== 'right') setters[key](false);
+    }
+    if (except !== 'notifications') setIsNotificationSidebarOpen(false);
+  };
+  const setPanelSide = (key, side) => { if (panelSidesRef.current[key] !== side) sideSetters[key](side); };
+  const openPanel = (key, side) => {
+    setPanelSide(key, side);
+    setters[key](true);
+    if (side === 'left') closeOtherLeftPanels(key);
+  };
+  const togglePanel = (key, event) => {
+    const side = event?.detail?.side;
+    if (side === 'left' || side === 'right') { openPanel(key, side); return; }
+    setters[key]((prev) => {
+      const next = !prev;
+      // opening: on the remembered side (the left closes the other left panels)
+      if (next && panelSidesRef.current[key] !== 'right') closeOtherLeftPanels(key);
+      return next;
+    });
+  };
+  // the listeners below are registered once; they reach the current helpers through this ref
+  const panelOpsRef = useRef(null);
+  panelOpsRef.current = { togglePanel, closeOtherLeftPanels, setPanelSide, setters };
+
   // Listen for chat sidebar toggle
   useEffect(() => {
-    function handleToggleChatSidebar() {
-      setIsChatSidebarOpen(prev => {
-        const newState = !prev;
-        // If opening chat, close notification and draft sidebars
-        if (newState) {
-          setIsNotificationSidebarOpen(false);
-          setIsDraftSidebarOpen(false);
-          setIsAIChatSidebarOpen(false);
-        }
-        return newState;
-      });
+    function handleToggleChatSidebar(event) {
+      panelOpsRef.current.togglePanel('chat', event);
     }
 
     function handleChatSidebarStateChange(event) {
@@ -292,11 +332,11 @@ export default function JQLBuilder({ standalone }) {
     function handleToggleNotificationSidebar() {
       setIsNotificationSidebarOpen(prev => {
         const newState = !prev;
-        // If opening notification, close chat and draft sidebars
+        // If opening notification, close the other LEFT panels (a panel on the right stays)
         if (newState) {
-          setIsChatSidebarOpen(false);
-          setIsDraftSidebarOpen(false);
-          setIsAIChatSidebarOpen(false);
+          for (const key of Object.keys(panelSidesRef.current)) {
+            if (panelSidesRef.current[key] !== 'right') panelOpsRef.current.setters[key](false);
+          }
         }
         return newState;
       });
@@ -317,17 +357,8 @@ export default function JQLBuilder({ standalone }) {
 
   // Listen for draft sidebar toggle
   useEffect(() => {
-    function handleToggleDraftSidebar() {
-      setIsDraftSidebarOpen(prev => {
-        const newState = !prev;
-        // If opening draft, close chat and notification sidebars
-        if (newState) {
-          setIsChatSidebarOpen(false);
-          setIsNotificationSidebarOpen(false);
-          setIsAIChatSidebarOpen(false);
-        }
-        return newState;
-      });
+    function handleToggleDraftSidebar(event) {
+      panelOpsRef.current.togglePanel('draft', event);
     }
 
     function handleDraftSidebarStateChange(event) {
@@ -345,28 +376,18 @@ export default function JQLBuilder({ standalone }) {
 
   // Listen for AI chat sidebar toggle
   useEffect(() => {
-    function handleToggleAIChatSidebar() {
-      setIsAIChatSidebarOpen(prev => {
-        const newState = !prev;
-        // If opening AI chat, close other sidebars
-        if (newState) {
-          setIsChatSidebarOpen(false);
-          setIsNotificationSidebarOpen(false);
-          setIsDraftSidebarOpen(false);
-        }
-        return newState;
-      });
+    function handleToggleAIChatSidebar(event) {
+      panelOpsRef.current.togglePanel('aiChat', event);
     }
 
     function handleAIChatSidebarStateChange(event) {
       const newState = event.detail.isOpen;
       setIsAIChatSidebarOpen(newState);
-      // If opening AI chat, close other sidebars (same behavior as clicking the icon)
-      if (newState) {
-        setIsChatSidebarOpen(false);
-        setIsNotificationSidebarOpen(false);
-        setIsDraftSidebarOpen(false);
-      }
+      if (!newState) return;
+      // Opened from elsewhere ("Add as AI Context"): on its remembered side -
+      // on the right it closes nothing; on the left it closes the other
+      // left panels (same behavior as clicking the icon)
+      if (panelSidesRef.current.aiChat !== 'right') panelOpsRef.current.closeOtherLeftPanels('aiChat');
     }
 
     window.addEventListener('toggleAIChatSidebar', handleToggleAIChatSidebar);
@@ -378,12 +399,12 @@ export default function JQLBuilder({ standalone }) {
     };
   }, [setIsChatSidebarOpen, setIsNotificationSidebarOpen, setIsDraftSidebarOpen, setIsAIChatSidebarOpen]);
 
-  // Dispatch chat sidebar state change for compact sidebar button
+  // Dispatch chat sidebar state change for compact sidebar button (with its side)
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('chatSidebarStateChange', {
-      detail: { isOpen: isChatSidebarOpen }
+      detail: { isOpen: isChatSidebarOpen, side: panelSides.chat }
     }));
-  }, [isChatSidebarOpen]);
+  }, [isChatSidebarOpen, panelSides.chat]);
 
   // Dispatch notification sidebar state change for compact sidebar button
   useEffect(() => {
@@ -392,19 +413,25 @@ export default function JQLBuilder({ standalone }) {
     }));
   }, [isNotificationSidebarOpen]);
 
-  // Dispatch draft sidebar state change for compact sidebar button
+  // Dispatch draft sidebar state change for compact sidebar button (with its side)
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('draftSidebarStateChange', {
-      detail: { isOpen: isDraftSidebarOpen }
+      detail: { isOpen: isDraftSidebarOpen, side: panelSides.draft }
     }));
-  }, [isDraftSidebarOpen]);
+  }, [isDraftSidebarOpen, panelSides.draft]);
 
-  // Dispatch AI chat sidebar state change for compact sidebar button
+  // Dispatch AI chat sidebar state change for compact sidebar button (with its side)
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('aiChatSidebarStateChange', {
-      detail: { isOpen: isAIChatSidebarOpen }
+      detail: { isOpen: isAIChatSidebarOpen, side: panelSides.aiChat }
     }));
-  }, [isAIChatSidebarOpen]);
+  }, [isAIChatSidebarOpen, panelSides.aiChat]);
+
+  // The optional "Open AI Chat / Quick Notes / Team Chat" shortcuts (unassigned by default; desktop
+  // layout only): exactly a rail click - the panel opens on its remembered side, or closes if open
+  useShortcut('panel.aiChat', () => { window.dispatchEvent(new CustomEvent('toggleAIChatSidebar')); return true; }, { enabled: !isMobile });
+  useShortcut('panel.quickNotes', () => { window.dispatchEvent(new CustomEvent('toggleDraftSidebar')); return true; }, { enabled: !isMobile });
+  useShortcut('panel.teamChat', () => { window.dispatchEvent(new CustomEvent('toggleChatSidebar')); return true; }, { enabled: !isMobile });
 
   // Load cached data on mount, fetch if empty (one-time setup)
   useEffect(() => {
@@ -1262,6 +1289,7 @@ export default function JQLBuilder({ standalone }) {
           <ForcedDrawerScope onBack={() => setIsChatSidebarOpen(false)} label="Team Chat">
             <ChatSidebar
               isOpen={isChatSidebarOpen}
+              side={isMobile ? 'left' : panelSides.chat}
               onClose={() => setIsChatSidebarOpen(false)}
             />
           </ForcedDrawerScope>
@@ -1283,6 +1311,7 @@ export default function JQLBuilder({ standalone }) {
         {isDraftSidebarOpen && (
           <DraftSidebar
             isOpen={isDraftSidebarOpen}
+            side={isMobile ? 'left' : panelSides.draft}
             onClose={() => setIsDraftSidebarOpen(false)}
           />
         )}
@@ -1291,6 +1320,7 @@ export default function JQLBuilder({ standalone }) {
         {isAIChatSidebarOpen && (
           <AIChatSidebar
             isOpen={isAIChatSidebarOpen}
+            side={isMobile ? 'left' : panelSides.aiChat}
             onClose={() => setIsAIChatSidebarOpen(false)}
           />
         )}

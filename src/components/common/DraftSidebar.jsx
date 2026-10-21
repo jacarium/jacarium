@@ -6,7 +6,7 @@ import SidebarHeader from './sidebar/SidebarHeader';
 import ResizableSidebar from '../ResizableSidebar';
 import { getDocumentsMetadata, getDocument, createDocument, updateDocument } from '../../utils/documents';
 
-export default function DraftSidebar({ isOpen }) {
+export default function DraftSidebar({ isOpen, side = 'left' }) {
   const [content, setContent] = useState('');
   const [title, setTitle] = useState('');
   const [currentDocumentId, setCurrentDocumentId] = useState(null);
@@ -252,8 +252,11 @@ export default function DraftSidebar({ isOpen }) {
       minWidth={300}
       maxWidth={600}
       storageKey="draft-sidebar-width"
+      side={side}
+      canvasMinWidth={480}
+      testId="panel-quick-notes"
     >
-      <div className="flex flex-col h-full bg-os-card border-r border-os-border">
+      <div className={`flex flex-col h-full bg-os-card ${side === 'right' ? 'border-l' : 'border-r'} border-os-border`}>
         {/* Header */}
         <SidebarHeader
           title="Draft"

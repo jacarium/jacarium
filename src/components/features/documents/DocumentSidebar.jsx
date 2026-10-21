@@ -36,6 +36,7 @@ import DocumentsImportStats from './DocumentsImportStats';
 import { notifyCentralUnavailable } from '../../../utils/centralAvailability';
 import { MenuItemIcon } from '../../common/menus/MenuItemIcon';
 import { MENU_ICONS } from '../../common/menus/menuIcons';
+import { addDocumentAsAIContext } from '../../../utils/aiContextSources';
 
 /**
  * DocumentSidebar - Document management sidebar
@@ -1393,19 +1394,10 @@ export default function DocumentSidebar({
                 </button>
                 <button
                   onClick={() => {
-                    // Open AI Chat sidebar first
-                    window.dispatchEvent(new CustomEvent('aiChatSidebarStateChange', {
-                      detail: { isOpen: true }
-                    }));
-
-                    // Add context after a short delay to ensure sidebar is mounted
-                    setTimeout(async () => {
-                      const { documentContextPayload } = await import('../../../utils/aiContext');
-                      window.dispatchEvent(new CustomEvent('addAIContext', {
-                        detail: { contextData: documentContextPayload(freshDoc) }
-                      }));
-                    }, 100);
-
+                    // the list row has no `content` (metadata only): the
+                    // loader reads the document - the open editor's live text
+                    // first, else IndexedDB
+                    addDocumentAsAIContext(freshDoc.id);
                     closeContextMenu();
                   }}
                   className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"

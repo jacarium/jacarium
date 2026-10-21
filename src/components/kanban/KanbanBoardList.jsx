@@ -720,26 +720,9 @@ export default function KanbanBoardList({
             <>
               <button
                 onClick={async () => {
-                  const { getBoard, getCards } = await import('../../utils/kanban');
-                  const board = await getBoard(contextMenu.target.id);
-                  if (board) {
-                    // Get cards for this board
-                    const cards = await getCards(board.id);
-
-                    // Open AI Chat sidebar first
-                    window.dispatchEvent(new CustomEvent('aiChatSidebarStateChange', {
-                      detail: { isOpen: true }
-                    }));
-
-                    // Add context after a short delay to ensure sidebar is mounted
-                    setTimeout(async () => {
-                      const { kanbanContextPayload } = await import('../../utils/aiContext');
-                      window.dispatchEvent(new CustomEvent('addAIContext', {
-                        detail: { contextData: kanbanContextPayload(board, cards) }
-                      }));
-                    }, 100);
-                  }
-
+                  // the loader reads the board and its cards (separate records)
+                  const { addKanbanAsAIContext } = await import('../../utils/aiContextSources');
+                  addKanbanAsAIContext(contextMenu.target.id);
                   closeContextMenu();
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"

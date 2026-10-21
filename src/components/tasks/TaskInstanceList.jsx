@@ -11,6 +11,8 @@ import TaskInstanceModal from './TaskInstanceModal';
 import DocumentPermissionsModal from '../common/modals/DocumentPermissionsModal';
 import ConfirmationModal from '../common/modals/ConfirmationModal';
 import ImportJsonModal from '../common/ImportJsonModal';
+import TransferTextModal from '../common/TransferTextModal';
+import { dateStamp } from '../../utils/exportHelpers';
 import JsonImportStats from '../common/JsonImportStats';
 import { validateInstancesImport, runInstancesImport } from '../../utils/taskInstancesImport';
 import { jsonMergeLabel, jsonMergeHint, jsonImportMessage } from '../../utils/jsonImportMerge';
@@ -82,6 +84,10 @@ export default function TaskInstanceList({
   // Import/Export
   const { exportToJSON } = useImportExport();
   const [showImportModal, setShowImportModal] = useState(false); // the menu's "Import from JSON"
+  // "Export ... (JSON)": { data, base, text, filename } shown in the transfer dialog;
+  // Download .json runs today's exportToJSON(data, base) (the same file and name)
+  const [jsonExport, setJsonExport] = useState(null);
+  const openJsonExport = (data, base) => setJsonExport({ data, base, text: JSON.stringify(data, null, 2), filename: `${base}-${dateStamp()}.json` });
 
   // Toggle category expansion
   const toggleCategory = (categoryName) => {
@@ -329,13 +335,13 @@ export default function TaskInstanceList({
   };
 
   const handleExportInstance = (instance) => {
-    exportToJSON([instance], `task-instance-${instance.name}`);
+    openJsonExport([instance], `task-instance-${instance.name}`);
     closeContextMenu();
   };
 
   const handleExportCategory = (categoryName) => {
     const categoryInstances = instances.filter(inst => (inst.category || 'General') === categoryName);
-    exportToJSON(categoryInstances, `task-instances-${categoryName}`);
+    openJsonExport(categoryInstances, `task-instances-${categoryName}`);
     closeContextMenu();
   };
 
@@ -362,8 +368,17 @@ export default function TaskInstanceList({
   };
 
   const handleExportInstances = () => {
-    exportToJSON(instances, 'task-instances');
+    openJsonExport(instances, 'task-instances');
     closeMenu();
+  };
+
+  const downloadJsonExport = async () => {
+    if (!jsonExport) return;
+    try {
+      await exportToJSON(jsonExport.data, jsonExport.base);
+    } catch (error) {
+      addNotification({ type: 'error', title: 'Export Failed', message: `Failed to export: ${error.message}` });
+    }
   };
 
   // Get status for header
@@ -398,6 +413,8 @@ export default function TaskInstanceList({
           <EmptyState compact icon={CheckSquare} title="No instances yet" description="Create your first TaskWarrior instance" />
         ) : (
           <CategoryList
+            // the category header's menu: Export Category (JSON) (the branch below)
+            onCategoryContextMenu={(name, e) => openContextMenu(e, 'category', name)}
             categories={getCategoriesFromItems(instances)}
             items={instances}
             getItemsByCategory={(cat) => getItemsByCategory(instances, cat)}
@@ -672,6 +689,11 @@ export default function TaskInstanceList({
         document={permissionsInstance}
         onSave={handleSavePermissions}
       />
+
+      {/* Export ... (JSON): the text to see and copy, or download */}
+      {jsonExport && (
+        <TransferTextModal mode="export" format="json" data={jsonExport.text} filename={jsonExport.filename} onDownload={downloadJsonExport} onClose={() => setJsonExport(null)} />
+      )}
 
       {/* Import from JSON (the menu) */}
       <ImportJsonModal

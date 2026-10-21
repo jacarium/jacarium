@@ -58,11 +58,14 @@ export function makeChecker() {
 
 /**
  * @param {string} name - temp-dir prefix for the bundle
- * @param {{ entry?: string }} [options] - `entry`: an alternative jsdom entry
- *   module to bundle instead of documents-import-entry.mjs (e.g.
- *   tests/helpers/find-in-files-entry.mjs); `@worktree/` resolves to the repo.
+ * @param {{ entry?: string, stubs?: Record<string, string> }} [options] - `entry`: an
+ *   alternative jsdom entry module to bundle instead of documents-import-entry.mjs
+ *   (e.g. tests/helpers/find-in-files-entry.mjs); `@worktree/` resolves to the
+ *   repo. `stubs`: { '<import specifier ending>': '<absolute stub module>' } -
+ *   every import whose specifier ends with the key (e.g. 'utils/cloudWebSocket')
+ *   is bundled from the stub instead (a fake socket for the Yjs editor).
  */
-export async function setupDocumentsEnv(name, { entry = path.join(here, 'documents-import-entry.mjs') } = {}) {
+export async function setupDocumentsEnv(name, { entry = path.join(here, 'documents-import-entry.mjs'), stubs = {} } = {}) {
   requireResolvable('react', 'Run: npm install');
   requireResolvable('esbuild', 'Run: npm install');
   requireResolvable('dexie', 'Run: npm install');
@@ -154,6 +157,10 @@ export async function setupDocumentsEnv(name, { entry = path.join(here, 'documen
     plugins: [{
       name: 'alias',
       setup(b) {
+        for (const [ending, stub] of Object.entries(stubs)) {
+          const re = new RegExp(`${ending.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\.js)?$`);
+          b.onResolve({ filter: re }, () => ({ path: stub }));
+        }
         b.onResolve({ filter: /^@worktree\// }, (args) => ({
           path: path.join(REPO, args.path.replace(/^@worktree\//, '')),
         }));

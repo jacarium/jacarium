@@ -65,26 +65,33 @@ html[data-mobile="true"]:not(.dark) .sc-mobile-header [data-testid="tabs-overflo
 html[data-mobile="true"] body { padding: 0; background: var(--os-rail); }
 html[data-mobile="true"] .sc-mobile-root { height: 100vh; height: 100dvh; width: 100vw; }
 html[data-mobile="true"] .sc-mobile-header { padding-top: env(safe-area-inset-top); height: calc(56px + env(safe-area-inset-top)); }
-html[data-mobile="true"] .sc-mobile-nav { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+/* the bottom bar's height is ONE value: 1px border + 8px top padding + the
+   52px slots + the bottom padding (8px, or the home-indicator inset). The
+   bar is exactly that tall, and everything that stops above it - the
+   drawers, the More sheet, the status corner - sits on the same variable,
+   so they meet the bar's top edge whatever the inset (a 62px constant beside
+   a 61px bar once left a seam where the page showed through) */
+html[data-mobile="true"] { --sc-mobile-nav-height: calc(61px + max(8px, env(safe-area-inset-bottom))); }
+html[data-mobile="true"] .sc-mobile-nav { padding-bottom: max(8px, env(safe-area-inset-bottom)); height: var(--sc-mobile-nav-height); box-sizing: border-box; }
 /* every scrim is square, edge to edge (the backdrops are buttons, which the
    global styles round) */
 html[data-mobile="true"] .sc-mobile-scrim, html[data-mobile="true"] .sc-menu-scrim { background: rgba(8, 6, 14, 0.62); border-radius: var(--radius-none); }
 /* the sheet's drag handle shows in every theme */
 html[data-mobile="true"] .sc-sheet-handle { background: var(--os-text-muted); }
-html[data-mobile="true"] .sc-mobile-sheet { bottom: calc(62px + max(8px, env(safe-area-inset-bottom))); }
+html[data-mobile="true"] .sc-mobile-sheet { bottom: var(--sc-mobile-nav-height); }
 html[data-mobile="true"] .sc-mobile-drawer aside { padding-top: env(safe-area-inset-top); }
 /* the drawer is in the page's theme: the sidebar surface is dark in the light theme too (the desktop's rail-side look), the phone's drawer is the card surface there */
 html[data-mobile="true"]:not(.dark) .sc-mobile-drawer aside { background: var(--os-card); }
 /* the connection indicator sits above the bar, where the mockups put the sync
    badge - and above Robin's composer when there is one (AIChatPage measures it) */
-html[data-mobile="true"] .sc-status-corner { bottom: calc(74px + max(8px, env(safe-area-inset-bottom)) + var(--sc-composer-lift, 0px)); right: 14px; }
-html[data-mobile="true"] body:has(.sc-chat-composer) .sc-status-corner { bottom: calc(74px + max(8px, env(safe-area-inset-bottom)) + var(--sc-composer-lift, 80px)); }
+html[data-mobile="true"] .sc-status-corner { bottom: calc(var(--sc-mobile-nav-height) + 5px + var(--sc-composer-lift, 0px)); right: 14px; }
+html[data-mobile="true"] body:has(.sc-chat-composer) .sc-status-corner { bottom: calc(var(--sc-mobile-nav-height) + 5px + var(--sc-composer-lift, 80px)); }
 /* every drawer ends above the bottom bar, which stays in reach (a tab tap
    closes the drawer and goes there): a long list's last rows are never
    behind the bar, a full-screen panel (Team Chat, Notifications) keeps its
    input right above it - and above the keyboard when one is up - and the
    bar names the panel */
-html[data-mobile="true"] .sc-mobile-drawer { bottom: calc(62px + max(8px, env(safe-area-inset-bottom))); }
+html[data-mobile="true"] .sc-mobile-drawer { bottom: var(--sc-mobile-nav-height); }
 /* hover-only reveals (row actions, close buttons) have no hover to wait for */
 html[data-mobile="true"] .group .opacity-0.group-hover\:opacity-100 { opacity: 1; }
 /* fields: iOS Safari zooms into anything under 16px (src/index.css covers the md breakpoint; a wide phone in landscape is beyond it) */

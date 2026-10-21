@@ -40,6 +40,8 @@ export default function useWorkflowLibraryActions(session) {
   const [showBulkMoveModal, setShowBulkMoveModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false); // the list menu's "Import from JSON"
   const [showBase64Modal, setShowBase64Modal] = useState(false);
+  // "Export ... (JSON)": the exact file text shown in the transfer dialog (copy / download / close)
+  const [jsonExport, setJsonExport] = useState(null); // { text, filename } | null
   const [base64Data, setBase64Data] = useState('');
   const [base64Mode, setBase64Mode] = useState('export'); // 'export' or 'import'
 
@@ -342,8 +344,17 @@ export default function useWorkflowLibraryActions(session) {
   async function handleExportAll(workflowsToExport = null, { category = null } = {}) {
     try {
       const list = workflowsToExport || await getWorkflows();
-      const blob = new Blob([serializeWorkflows(list)], { type: 'application/json' });
-      downloadBlob(blob, workflowExportFileName({ workflows: list, category }));
+      // the dialog shows the text; "Download .json" writes the same file as the export always did
+      setJsonExport({ text: serializeWorkflows(list), filename: workflowExportFileName({ workflows: list, category }) });
+    } catch (error) {
+      notifyFailure('Export Failed', 'Failed to export workflows.', error);
+    }
+  }
+
+  function downloadJsonExport() {
+    if (!jsonExport) return;
+    try {
+      downloadBlob(new Blob([jsonExport.text], { type: 'application/json' }), jsonExport.filename);
     } catch (error) {
       notifyFailure('Export Failed', 'Failed to export workflows.', error);
     }
@@ -467,6 +478,9 @@ export default function useWorkflowLibraryActions(session) {
     confirmBulkMove,
     // transfer
     handleExportAll,
+    jsonExport,
+    closeJsonExport: () => setJsonExport(null),
+    downloadJsonExport,
     handleImport,
     showImportModal,
     closeImportModal: () => setShowImportModal(false),

@@ -2587,21 +2587,9 @@ export default function DocumentsPage({
   async function handleAddDocumentAsAIContext() {
     if (!tabContextMenuTarget) return;
 
-    const doc = await getDocument(tabContextMenuTarget);
-    if (doc) {
-      // Open AI Chat sidebar first
-      window.dispatchEvent(new CustomEvent('aiChatSidebarStateChange', {
-        detail: { isOpen: true }
-      }));
-
-      // Add context after a short delay to ensure sidebar is mounted
-      setTimeout(async () => {
-        const { documentContextPayload } = await import('../utils/aiContext');
-        window.dispatchEvent(new CustomEvent('addAIContext', {
-          detail: { contextData: documentContextPayload(doc) }
-        }));
-      }, 100);
-    }
+    // the loader reads the document: the open editor's live text first, else IndexedDB
+    const { addDocumentAsAIContext } = await import('../utils/aiContextSources');
+    addDocumentAsAIContext(tabContextMenuTarget);
 
     setShowTabContextMenu(false);
     setTabContextMenuTarget(null);
