@@ -416,7 +416,8 @@ try {
   check('section 1: real AIChatPage mounted with seeded conversation', !!ta, ta ? undefined : 'textarea never appeared');
 
   const initialParses = calls();
-  const proseDivs = () => [...window.document.querySelectorAll('.prose')];
+  // the bubbles carry markdown-preview + sc-chat-markdown (the inert prose classes are gone)
+  const proseDivs = () => [...window.document.querySelectorAll('.sc-chat-markdown')];
   check('section 1: all 4 seeded assistant messages rendered as markdown',
     proseDivs().length === 4 && initialParses >= 4,
     `prose divs=${proseDivs().length}, marked calls at load=${initialParses}`);

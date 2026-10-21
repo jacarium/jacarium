@@ -16,6 +16,10 @@ import KanbanBoardList from './kanban/KanbanBoardList';
 import KanbanColumn from './kanban/KanbanColumn';
 import KanbanCard from './kanban/KanbanCard';
 import ConfirmationModal from './common/ConfirmationModal';
+import ImportJsonModal from './common/ImportJsonModal';
+import JsonImportStats from './common/JsonImportStats';
+import { validateBoardsImport, runBoardsImport } from '../utils/kanbanImport';
+import { jsonMergeLabel, jsonMergeHint, jsonImportMessage } from '../utils/jsonImportMerge';
 import FormModal from './common/modals/FormModal';
 import { useNotifications } from '../contexts/NotificationContext';
 import { MenuItemIcon } from './common/menus/MenuItemIcon';
@@ -55,6 +59,7 @@ export default function KanbanPage() {
   const [draggedColumn, setDraggedColumn] = useState(null);
   const [draggedOverColumnPosition, setDraggedOverColumnPosition] = useState(null);
   const [showTabContextMenu, setShowTabContextMenu] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false); // the list menu's "Import from JSON"
   const [isCreatingColumn, setIsCreatingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState('');
   const [tabContextMenuPosition, setTabContextMenuPosition] = useState({ x: 0, y: 0 });
@@ -1203,15 +1208,10 @@ export default function KanbanPage() {
       }));
 
       // Add context after a short delay to ensure sidebar is mounted
-      setTimeout(() => {
+      setTimeout(async () => {
+        const { kanbanContextPayload } = await import('../utils/aiContext');
         window.dispatchEvent(new CustomEvent('addAIContext', {
-          detail: {
-            contextType: `Kanban: ${board.title}`,
-            contextData: {
-              ...board,
-              cards
-            }
-          }
+          detail: { contextData: kanbanContextPayload(board, cards) }
         }));
       }, 100);
     }
@@ -1456,43 +1456,29 @@ export default function KanbanPage() {
     setSortBy(newSortBy);
   }
 
+  // "Import from JSON" opens the shared ImportJsonModal (paste or file, Dry
+  // Run); the boards it validates are created as the old file picker did
   function handleImport() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+    setShowImportModal(true);
+  }
 
-      try {
-        const text = await file.text();
-        const data = JSON.parse(text);
-
-        if (!Array.isArray(data)) {
-          throw new Error('Invalid format: Expected an array of boards');
-        }
-
-        for (const boardData of data) {
-          await createBoard(boardData);
-        }
-
-        addNotification({
-          type: 'success',
-          title: 'Import Successful',
-          message: `Imported ${data.length} board${data.length !== 1 ? 's' : ''}`
-        });
-
-        await loadBoards();
-      } catch (error) {
-        console.error('Import failed:', error);
-        addNotification({
-          type: 'error',
-          title: 'Import Failed',
-          message: error.message
-        });
-      }
-    };
-    input.click();
+  async function importBoardsFromJson(items, { mergeMode = false } = {}) {
+    try {
+      const result = await runBoardsImport(items, { mergeMode });
+      addNotification({
+        type: result.totals.invalid && !(result.totals.created + result.totals.updated + result.totals.filled) ? 'error' : 'success',
+        title: result.totals.invalid ? 'Import Finished With Errors' : 'Import Successful',
+        message: jsonImportMessage(result, { noun: 'board', plural: 'boards' })
+      });
+      await loadBoards();
+    } catch (error) {
+      console.error('Import failed:', error);
+      addNotification({
+        type: 'error',
+        title: 'Import Failed',
+        message: error.message
+      });
+    }
   }
 
   function handleExport() {
@@ -1898,6 +1884,24 @@ export default function KanbanPage() {
           />
         </div>
       </FormModal>
+
+      {/* Import from JSON (the board list's menu) */}
+      <ImportJsonModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="Import Boards"
+        description={'Upload a JSON file or paste JSON data: an array of boards, as "Export All (JSON)" writes it. Dry Run checks the data and shows what would be imported without writing anything.'}
+        importLabel="Import Boards"
+        validateFn={validateBoardsImport}
+        onDryRun={(items, { mergeMode }) => runBoardsImport(items, { dryRun: true, mergeMode })}
+        renderStats={(result) => <JsonImportStats result={result} noun="board" importLabel="Import Boards" />}
+        onValidated={(items, { mergeMode }) => { importBoardsFromJson(items, { mergeMode }); }}
+        mergeLabel={jsonMergeLabel('boards')}
+        mergeHint={(checked) => jsonMergeHint(checked, { noun: 'board', plural: 'boards', keyLabel: 'title and category' })}
+        exampleData={[
+          { title: 'Example Board', category: 'General', columns: [{ id: 'todo', title: 'To Do' }, { id: 'doing', title: 'In Progress' }, { id: 'done', title: 'Done' }] },
+        ]}
+      />
     </div>
   );
 }

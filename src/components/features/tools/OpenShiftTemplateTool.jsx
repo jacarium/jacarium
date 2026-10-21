@@ -588,7 +588,7 @@ export default function OpenShiftTemplateTool() {
                               />
                               <div className="flex-1 min-w-0">
                                 <span className={`text-sm truncate block ${
- isSelected ?'text-os-blue font-medium':'text-os-text-primary'
+ isSelected ?'text-os-blue':'text-os-text-primary'
  }`}>
                                   {template.name}
                                 </span>

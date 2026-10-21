@@ -20,6 +20,18 @@ export function parseWorkflowsExport(text) {
   return Array.isArray(parsed) ? parsed : null;
 }
 
+/**
+ * The "Import from JSON" modal's validation of parsed data: true, or the
+ * message the importer always raised for a non-array.
+ */
+export function validateWorkflowsImport(data) {
+  if (!Array.isArray(data)) return 'Invalid workflow file format. Expected an array of workflows.';
+  if (data.length === 0) return 'Array is empty: No workflows to import';
+  const notObjects = data.map((w, i) => (w && typeof w === 'object' && !Array.isArray(w) ? null : i + 1)).filter(Boolean);
+  if (notObjects.length) return `Invalid workflow structure: Items at positions ${notObjects.join(', ')} are not workflow objects`;
+  return true;
+}
+
 /** A filesystem-safe version of a title: lower-case, dashes, no punctuation. */
 export function slugify(text) {
   return String(text || '')

@@ -97,6 +97,11 @@ export const SETTINGS_FIELDS = {
           SSH_AI_COMMAND_FOLLOWUP: 'Follow-up Message Command Template',
         },
       },
+      // the AI-context redaction lists: kept on the device (src/utils/aiPrivacy.js), no settings fields
+      privacy: {
+        title: 'Privacy',
+        fields: {},
+      },
     },
   },
 };

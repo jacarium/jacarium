@@ -5,6 +5,7 @@ import AnthropicSettings from './ai-providers/AnthropicSettings';
 import GeminiSettings from './ai-providers/GeminiSettings';
 import CustomAISettings from './ai-providers/CustomAISettings';
 import SSHAISettings from './ai-providers/SSHAISettings';
+import PrivacySettings from './ai-providers/PrivacySettings';
 import { SubTabs } from './ui';
 import { settingsSubTabs } from './fieldCatalog';
 
@@ -22,6 +23,7 @@ export default function AIProvidersSettings({ settings, handleChange, availableM
       {tab === 'gemini' && <GeminiSettings settings={settings} handleChange={handleChange} />}
       {tab === 'custom' && <CustomAISettings settings={settings} handleChange={handleChange} />}
       {tab === 'ssh' && <SSHAISettings settings={settings} handleChange={handleChange} />}
+      {tab === 'privacy' && <PrivacySettings />}
     </div>
   );
 }

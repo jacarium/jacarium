@@ -6,13 +6,15 @@ import { MenuItemIcon } from '../../common/menus/MenuItemIcon';
  * TextSelectionMenu - Context menu for selected text
  *
  * Features:
- * - Ask AI About This
+ * - Ask AI About This (opens Quick AI with the selection as context)
+ * - Add as AI Context (a new AI Chat with the selection attached, redacted)
  * - Search In (submenu with engine templates)
  */
 const TextSelectionMenu = forwardRef(function TextSelectionMenu({
   visible,
   x,
   y,
+  onAskAI,
   onAddAsContext,
   onSearchIn,
   engineTemplates = [],
@@ -41,12 +43,23 @@ const TextSelectionMenu = forwardRef(function TextSelectionMenu({
       style={{ left: `${x}px`, top: `${y}px` }}
     >
       <button
-        onClick={onAddAsContext}
+        onClick={onAskAI}
         className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
+        data-testid="selection-ask-ai"
       >
         <MenuItemIcon action="aiContext" />
         Ask AI About This
       </button>
+      {onAddAsContext && (
+        <button
+          onClick={onAddAsContext}
+          className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
+          data-testid="selection-add-context"
+        >
+          <MenuItemIcon action="aiContext" />
+          Add as AI Context
+        </button>
+      )}
 
       {/* Search In with submenu */}
       {engineTemplates.length > 0 && (

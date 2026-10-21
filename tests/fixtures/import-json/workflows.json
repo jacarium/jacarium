@@ -1,0 +1,19 @@
+[
+  {
+    "title": "Nightly backup",
+    "category": "Ops",
+    "nodes": [
+      { "id": "start", "type": "start", "position": { "x": 0, "y": 0 }, "data": { "label": "Start" } },
+      { "id": "dump", "type": "command", "position": { "x": 200, "y": 0 }, "data": { "label": "pg_dump", "command": "pg_dump app > /backups/app.sql" } }
+    ],
+    "edges": [ { "id": "e1", "source": "start", "target": "dump" } ]
+  },
+  {
+    "title": "Deploy docs",
+    "category": "Ops",
+    "nodes": [
+      { "id": "start", "type": "start", "position": { "x": 0, "y": 0 }, "data": { "label": "Start" } }
+    ],
+    "edges": []
+  }
+]

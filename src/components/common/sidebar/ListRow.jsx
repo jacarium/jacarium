@@ -3,7 +3,10 @@
  * The sidebar list row every page uses (Documents and Kanban through
  * ItemList, the Workflows list and the template sidebars directly): a
  * full-width square row - hover background, the selected row marked by the
- * left accent bar, never a radius or a per-row border. It is a <div>, so the
+ * left accent bar, never a radius or a per-row border. Selection changes
+ * colour and background only: the label keeps its font, size and weight in
+ * both states, so the row's height and the text's baseline never move (a
+ * heavier weight shifts them, visibly so with Linux font hinting). It is a <div>, so the
  * base rule that rounds every <button> does not reach it; `as` renders
  * another element when needed and `rounded-none` keeps it square anyway.
  */

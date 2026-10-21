@@ -1108,15 +1108,15 @@ export default function DocumentSidebar({
                       />
                       <span title={doc.title} className={`text-sm truncate ${
  selectionMode && selectedDocuments.includes(doc.id)
- ?'text-os-text-primary font-medium'
+ ?'text-os-text-primary'
  : isCloudDoc && (isInLeftPane || isInRightPane || isInBothPanes) && !selectionMode
  ?'text-purple-700'
  : isInBothPanes && !selectionMode
- ?'text-os-blue font-medium'
+ ?'text-os-blue'
  : isInRightPane && !selectionMode
  ?'text-green-600'
  : isInLeftPane && !selectionMode
- ?'text-os-blue font-medium'
+ ?'text-os-blue'
  :'text-os-text-primary'
  }`}>
                         {doc.title}
@@ -1399,12 +1399,10 @@ export default function DocumentSidebar({
                     }));
 
                     // Add context after a short delay to ensure sidebar is mounted
-                    setTimeout(() => {
+                    setTimeout(async () => {
+                      const { documentContextPayload } = await import('../../../utils/aiContext');
                       window.dispatchEvent(new CustomEvent('addAIContext', {
-                        detail: {
-                          contextType: `Document: ${freshDoc.title}`,
-                          contextData: freshDoc
-                        }
+                        detail: { contextData: documentContextPayload(freshDoc) }
                       }));
                     }, 100);
 

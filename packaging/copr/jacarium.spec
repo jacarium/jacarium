@@ -15,7 +15,7 @@
 # it from the git tag COPR checks out (v3.2.9 -> 3.2.9) and passes it as
 # `--define 'jacarium_version 3.2.9'`; without that define the fallback below
 # applies - `npm run release` bumps it together with package.json.
-%{!?jacarium_version: %global jacarium_version 3.3.1}
+%{!?jacarium_version: %global jacarium_version 3.3.2}
 %global forgeurl https://github.com/jacarium/jacarium
 %global release_url %{forgeurl}/releases/download/v%{jacarium_version}
 %global appid com.jacarium.app
@@ -210,6 +210,9 @@ fi
 
 # `npm run release` adds an entry for every version (scripts/release.cjs)
 %changelog
+* Wed Oct 21 2026 Robin Cernin - 3.3.2-1
+- Jacarium 3.3.2 (the official release RPM repackaged)
+
 * Tue Oct 20 2026 Robin Cernin - 3.3.1-1
 - Jacarium 3.3.1 (the official release RPM repackaged)
 

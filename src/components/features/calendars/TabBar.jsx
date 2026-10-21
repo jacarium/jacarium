@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import { X } from 'lucide-react';
+import useWheelScrollsStrip from '../../../hooks/useWheelScrollsStrip';
 
 /**
  * TabBar - Tab bar for open calendars
@@ -18,6 +20,9 @@ export default function TabBar({
   onTabClose,
   onTabRightClick
 }) {
+  const stripRef = useRef(null);
+  useWheelScrollsStrip(stripRef, [openTabs.length > 0]); // a plain mouse wheel scrolls the strip sideways
+
   // Get calendar by ID
   const getCalendar = (calendarId) => {
     return calendars.find(cal => cal.id === calendarId);
@@ -28,7 +33,7 @@ export default function TabBar({
   }
 
   return (
-    <div className="sc-tab-strip bg-os-card border-b border-os-border flex items-center overflow-x-auto shrink-0">
+    <div ref={stripRef} className="sc-tab-strip bg-os-card border-b border-os-border flex items-center overflow-x-auto shrink-0">
       {openTabs.map(calendarId => {
         const calendar = getCalendar(calendarId);
         if (!calendar) return null;

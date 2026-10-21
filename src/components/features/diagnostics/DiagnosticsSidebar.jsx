@@ -114,7 +114,7 @@ export default function DiagnosticsSidebar({
                         const IconComponent = getIconComponent(tab.icon);
                         return <IconComponent size={16} className={isActive ?'text-os-blue':'text-os-text-secondary'} />;
                       })()}
-                      <span className={`text-sm ${isActive ?'text-os-blue font-medium':'text-os-text-primary'}`}>
+                      <span className={`text-sm ${isActive ?'text-os-blue':'text-os-text-primary'}`}>
                         {tab.label}
                       </span>
                     </div>
@@ -148,7 +148,7 @@ export default function DiagnosticsSidebar({
                               const IconComponent = getIconComponent(subTab.icon);
                               return <IconComponent size={14} className={isSubActive ?'text-os-blue':'text-os-text-secondary'} />;
                             })()}
-                            <span className={`text-sm ${isSubActive ?'font-medium':''}`}>{subTab.label}</span>
+                            <span className={`text-sm ${isSubActive ?'text-os-blue':''}`}>{subTab.label}</span>
                           </div>
                         );
                       })}

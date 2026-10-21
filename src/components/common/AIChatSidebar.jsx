@@ -8,6 +8,10 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import AIMessageMarkdown from './AIMessageMarkdown';
 import { newConversationId, parseConversationId } from '../../utils/aiConversations';
 import { resolveModelOption } from '../../utils/aiDefaults';
+import AIContextDialog from './AIContextDialog';
+import ConfirmationModal from './modals/ConfirmationModal';
+import { buildContextMessage, newContext, renderContext } from '../../utils/aiContext';
+import { usePrivacyLists } from '../../utils/aiPrivacy';
 
 // Hoisted so the object reference is stable across renders - an inline
 // object literal here would defeat AIMessageMarkdown's React.memo.
@@ -21,37 +25,12 @@ export default function AIChatSidebar({ isOpen }) {
   const { addNotification } = useNotifications();
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [contextAdded, setContextAdded] = useState(false);
-  const [contextData, setContextData] = useState(null);
-  const [contextSent, setContextSent] = useState(false);
+  // the device's never-hide / always-hide lists for the context redaction
+  const privacyLists = usePrivacyLists();
   const [backendStatus, setBackendStatus] = useState('checking');
   const [checkingBackend, setCheckingBackend] = useState(false);
   const [backendBannerDismissed, setBackendBannerDismissed] = useState(false);
 
-  // Add CSS for code block wrapping
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.textContent = `
-      .ai-chat-message pre {
-        white-space: pre-wrap !important;
-        word-wrap: break-word !important;
-        overflow-wrap: break-word !important;
-        max-width: 100% !important;
-        overflow-x: auto !important;
-      }
-      .ai-chat-message code {
-        white-space: pre-wrap !important;
-        word-wrap: break-word !important;
-        overflow-wrap: break-word !important;
-      }
-      .ai-chat-message p {
-        word-wrap: break-word !important;
-        overflow-wrap: break-word !important;
-      }
-    `;
-    document.head.appendChild(style);
-    return () => document.head.removeChild(style);
-  }, []);
 
   // Track conversation counter
   const [conversationCounter, setConversationCounter] = useState(() => {
@@ -114,8 +93,9 @@ export default function AIChatSidebar({ isOpen }) {
   const [showRawMarkdown, setShowRawMarkdown] = useState(false);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [modelSearchQuery, setModelSearchQuery] = useState('');
-  const [showContextModal, setShowContextModal] = useState(false);
-  const [editedContextJson, setEditedContextJson] = useState('');
+  const [editingContextId, setEditingContextId] = useState(null);   // the context open in the eye dialog
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);     // the conversation the bin asks about
+  const abortRef = useRef(null);                                    // the request in flight (deleting the chat aborts it)
 
   // Available providers (dynamically determined from environment)
   const [, setAvailableProviders] = useState([]);
@@ -220,7 +200,6 @@ export default function AIChatSidebar({ isOpen }) {
 
   // Get current model label
   console.log('[AI Chat] Current conversation settings:', currentConversation?.settings);
-  console.log('[AI Chat] aiSettings:', aiSettings);
   // the saved model when configured, else the Settings default model, else the
   // default provider's first, else the first configured (src/utils/aiDefaults.js)
   const currentModelOption = resolveModelOption(modelOptions, savedSettings, aiDefaults);
@@ -234,6 +213,7 @@ export default function AIChatSidebar({ isOpen }) {
     && (currentModelOption.provider !== savedSettings.provider || currentModelOption.model !== savedSettings.model)
     ? { ...savedSettings, provider: currentModelOption.provider, model: currentModelOption.model }
     : savedSettings;
+  console.log('[AI Chat] aiSettings:', aiSettings);
 
   // only once /api/ai/models has answered (or failed) does an empty list mean "nothing configured"
   const noModelsConfigured = modelsLoaded && modelOptions.length === 0;
@@ -382,6 +362,9 @@ export default function AIChatSidebar({ isOpen }) {
   // takes the resolved option once the list is known (stored = shown = sent)
   useEffect(() => {
     if (!modelsLoaded || modelOptions.length === 0) return;
+    // a one-off correction of stored settings once the list is known (a no-op
+    // render otherwise: `prev` is returned unchanged)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setConversations((prev) => {
       let changed = false;
       const next = prev.map((conv) => {
@@ -472,143 +455,90 @@ export default function AIChatSidebar({ isOpen }) {
     }
   }, [showModelSelector]);
 
-  // Sanitize context data - replaces hostnames and IPs
-  function sanitizeContextData(data) {
-    function sanitizeValue(value) {
-      if (typeof value === 'string') {
-        // Replace IP addresses (IPv4)
-        value = value.replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, 'X.X.X.X');
-
-        // Replace domain names (basic pattern)
-        value = value.replace(/\b([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b/g, 'sanitized.domain');
-
-        // Replace common hostname patterns
-        value = value.replace(/\b(node|server|host|vm|worker|master|controller)-?\d+/gi, '$1-X');
-
-        return value;
-      }
-      return value;
-    }
-
-    // Recursively sanitize object
-    function sanitizeObject(obj) {
-      if (Array.isArray(obj)) {
-        return obj.map(item => sanitizeObject(item));
-      } else if (obj !== null && typeof obj === 'object') {
-        const sanitized = {};
-        for (const key in obj) {
-          sanitized[key] = sanitizeObject(obj[key]);
-        }
-        return sanitized;
-      } else {
-        return sanitizeValue(obj);
-      }
-    }
-
-    return sanitizeObject(data);
-  }
-
-  // Listen for context added from tab right-click
+  // "Add as AI Context" (a document, a board, a highlighted passage): a NEW
+  // conversation on the Settings default provider / model, with the item's
+  // CONTENT attached as a delimited block (src/utils/aiContext.js). The
+  // redaction and the user's choices over it live on the context; the eye
+  // on the chip (AIContextDialog) shows and edits exactly what is sent.
+  const newChatSettingsRef = useRef(null);
+  useEffect(() => { newChatSettingsRef.current = newChatSettings; });
   useEffect(() => {
     function handleContextAdded(event) {
-      const { contextType, contextData } = event.detail;
-      console.log('[AI Chat] Context added via event:', contextType, contextData);
-      // Automatically sanitize context when adding
-      const sanitized = sanitizeContextData(contextData);
-      setContextData({ type: contextType, data: sanitized });
-      setContextAdded(true);
-      setContextSent(false);
+      const payload = event.detail?.contextData;
+      if (!payload || !payload.kind) { console.warn('[AI Chat] addAIContext without a payload'); return; }
+      const context = newContext(payload);
+      setConversationCounter((n) => {
+        const counter = n + 1;
+        const conv = {
+          id: newConversationId(),
+          name: `${payload.title || 'Context'} - Chat ${counter}`,
+          messages: [],
+          createdAt: new Date().toISOString(),
+          settings: newChatSettingsRef.current ? newChatSettingsRef.current() : { ...defaultAISettings },
+          contexts: [context],
+          contextSent: false,
+        };
+        setConversations((prev) => [conv, ...prev]);
+        setCurrentConversationId(conv.id);
+        return counter;
+      });
+      setShowConversations(false);
     }
-
     window.addEventListener('addAIContext', handleContextAdded);
     return () => window.removeEventListener('addAIContext', handleContextAdded);
+    // defaultAISettings only seeds a conversation before the models are known
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function handleRemoveContext() {
-    setContextData(null);
-    setContextAdded(false);
-    setContextSent(false);
+  const contexts = currentConversation?.contexts || [];
+  const contextSent = !!currentConversation?.contextSent;
+  function updateConversation(patch) {
+    setConversations((prev) => prev.map((conv) => (conv.id === currentConversationId ? { ...conv, ...patch } : conv)));
   }
-
-  function handleOpenContextModal() {
-    // Automatically sanitize when opening modal
-    const sanitized = sanitizeContextData(contextData.data);
-    // Convert \n to actual newlines for better readability in the editor
-    setEditedContextJson(JSON.stringify(sanitized, null, 2).replace(/\\n/g, '\n'));
-    setShowContextModal(true);
+  function updateContext(id, next) {
+    updateConversation({ contexts: contexts.map((c) => (c.id === id ? { ...c, ...next } : c)), contextSent: false });
   }
-
-  function handleSaveContextChanges() {
+  function removeContext(id) {
+    updateConversation({ contexts: contexts.filter((c) => c.id !== id) });
+  }
+  // the source's current content for "Reset to the document / board"; a selection keeps its own text
+  async function reloadContextSource(ctx) {
     try {
-      // Parse the edited JSON by properly handling newlines
-      // Strategy: Replace actual newlines that appear within string values with \\n
-      let result = '';
-      let inString = false;
-      let escapeNext = false;
-
-      for (let i = 0; i < editedContextJson.length; i++) {
-        const char = editedContextJson[i];
-
-        if (escapeNext) {
-          result += char;
-          escapeNext = false;
-          continue;
-        }
-
-        if (char === '\\') {
-          result += char;
-          escapeNext = true;
-          continue;
-        }
-
-        if (char === '"') {
-          inString = !inString;
-          result += char;
-          continue;
-        }
-
-        if (char === '\n' && inString) {
-          // Inside a string value, convert actual newline to \\n
-          result += '\\n';
-          continue;
-        }
-
-        result += char;
+      if (ctx.source?.kind === 'document' && ctx.source.id != null) {
+        const { getDocument } = await import('../../utils/documents');
+        const doc = await getDocument(ctx.source.id);
+        return doc ? String(doc.content ?? '') : null;
       }
-
-      const parsed = JSON.parse(result);
-      setContextData({ ...contextData, data: parsed });
-      setContextSent(false); // Reset so new context is sent on next message
-      // Don't close modal - allow user to continue editing/sanitizing
-    } catch (error) {
-      console.error('JSON parse error:', error);
-      addNotification({
-        type: 'error',
-        title: 'Invalid JSON',
-        message: 'Invalid JSON format. Cannot save changes. Please check the syntax.'
-      });
+      if (ctx.source?.kind === 'kanban' && ctx.source.id != null) {
+        const { getBoard, getCards } = await import('../../utils/kanban');
+        const { kanbanBoardMarkdown } = await import('../../utils/aiContext');
+        const board = await getBoard(ctx.source.id);
+        return board ? kanbanBoardMarkdown(board, await getCards(board.id)) : null;
+      }
+    } catch (err) {
+      console.error('[AI Chat] Could not reload the context source:', err);
     }
+    return null;
   }
 
   // Get icon for context type
-  function getContextIcon(contextType) {
-    if (contextType.includes('Document')) return FileText;
-    if (contextType.includes('Kanban')) return Trello;
-    if (contextType.includes('Workflow')) return GitBranch;
-    if (contextType.includes('Diagnostic')) return FileJson;
-    if (contextType.includes('Text Selection')) return FileText;
-    return FileJson;
+  function getContextIcon(kind) {
+    if (kind === 'kanban') return Trello;
+    if (kind === 'workflow') return GitBranch;
+    if (kind === 'diagnostics') return FileJson;
+    return FileText;
   }
 
   async function handleSendMessage() {
     if (!inputMessage.trim() || isLoading || backendStatus === 'offline') return;
 
-    // Prepare message content with context if added (only on first message)
+    // The contexts go with the first message, as the delimited blocks the
+    // eye dialog shows (exactly that text), with the redaction note when a
+    // placeholder is in them
     let messageContent = inputMessage;
-    if (contextAdded && contextData && !contextSent) {
-      const contextJson = JSON.stringify(contextData.data, null, 2);
-      messageContent = `I'm providing context from the current page to help answer my questions:\n\nContext from ${contextData.type}:\n\`\`\`json\n${contextJson}\n\`\`\`\n\nQuestion: ${inputMessage}`;
-      setContextSent(true); // Mark context as sent
+    const sendContexts = contexts.length > 0 && !contextSent;
+    if (sendContexts) {
+      messageContent = buildContextMessage(contexts.map((ctx) => renderContext(ctx, privacyLists).text), inputMessage);
     }
 
     const userMessage = { role: 'user', content: messageContent };
@@ -616,7 +546,7 @@ export default function AIChatSidebar({ isOpen }) {
 
     setConversations(prev => prev.map(conv =>
       conv.id === currentConversationId
-        ? { ...conv, messages: updatedMessages }
+        ? { ...conv, messages: updatedMessages, contextSent: sendContexts ? true : conv.contextSent }
         : conv
     ));
 
@@ -624,6 +554,9 @@ export default function AIChatSidebar({ isOpen }) {
     // Keep context persistent so user can ask multiple questions
     setIsLoading(true);
 
+    // the request can be abandoned (the bin while it runs): nothing lands then
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const backendUrl = await getBackendUrl();
 
@@ -651,8 +584,10 @@ export default function AIChatSidebar({ isOpen }) {
       const response = await apiFetch(`${backendUrl}/api/ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
       });
+      if (controller.signal.aborted) return;
 
       if (!response.ok) {
         // Surface the backend's error detail (e.g. SSH auth setup
@@ -681,6 +616,7 @@ export default function AIChatSidebar({ isOpen }) {
         setSshConnected(true);
       }
     } catch (error) {
+      if (error?.name === 'AbortError' || controller.signal.aborted) return;   // the chat was deleted or cleared meanwhile
       console.error('AI chat error:', error);
 
       // Update SSH connection status on failure
@@ -704,6 +640,7 @@ export default function AIChatSidebar({ isOpen }) {
           : conv
       ));
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
       setIsLoading(false);
     }
   }
@@ -749,14 +686,33 @@ export default function AIChatSidebar({ isOpen }) {
     setModelSearchQuery(''); // Clear search when closing
   }
 
-  function handleDeleteConversation(convId) {
-    if (conversations.length === 1) return;
-
-    setConversations(prev => {
-      const filtered = prev.filter(c => c.id !== convId);
-      if (currentConversationId === convId) {
-        setCurrentConversationId(filtered[0].id);
+  // The bin. One conversation: it is CLEARED in place (messages and contexts
+  // gone, the default model applied - a fresh chat under the same id, so the
+  // sidebar is never empty); several: that one is removed. A running request
+  // is aborted first, so nothing lands in the emptied chat. A chat with
+  // messages or context asks first; an empty one goes without asking.
+  const conversationIsEmpty = (conv) => !(conv?.messages?.length) && !(conv?.contexts?.length);
+  function requestDeleteConversation(convId) {
+    const conv = conversations.find((c) => c.id === convId);
+    if (!conv) return;
+    if (conversationIsEmpty(conv)) deleteConversation(convId);
+    else setConfirmDeleteId(convId);
+  }
+  function deleteConversation(convId) {
+    setConfirmDeleteId(null);
+    if (convId === currentConversationId && abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+      setIsLoading(false);
+    }
+    setConversations((prev) => {
+      if (prev.length <= 1) {
+        const only = prev[0];
+        if (!only) return prev;
+        return [{ ...only, messages: [], contexts: [], contextSent: false, settings: newChatSettings() }];
       }
+      const filtered = prev.filter((c) => c.id !== convId);
+      if (currentConversationId === convId) setCurrentConversationId(filtered[0].id);
       return filtered;
     });
   }
@@ -888,12 +844,14 @@ export default function AIChatSidebar({ isOpen }) {
                   </button>
                 )}
 
-                {/* Delete conversation button */}
+                {/* Delete / clear conversation button: with one conversation the bin clears it; disabled only when there is nothing to clear */}
                 <button
-                  onClick={() => handleDeleteConversation(currentConversationId)}
-                  disabled={conversations.length === 1}
+                  onClick={() => requestDeleteConversation(currentConversationId)}
+                  disabled={conversations.length === 1 && conversationIsEmpty(currentConversation)}
                   className="p-1.5 text-os-text-muted hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  title={conversations.length === 1 ? "Can't delete last conversation" : "Delete conversation"}
+                  title={conversations.length === 1 ? (conversationIsEmpty(currentConversation) ? 'Nothing to clear' : 'Clear conversation') : 'Delete conversation'}
+                  aria-label={conversations.length === 1 ? 'Clear conversation' : 'Delete conversation'}
+                  data-testid="ai-chat-delete"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -1030,7 +988,7 @@ export default function AIChatSidebar({ isOpen }) {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteConversation(conv.id);
+                        requestDeleteConversation(conv.id);
                       }}
                       className="p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-sm"
                     >
@@ -1072,8 +1030,8 @@ export default function AIChatSidebar({ isOpen }) {
                          re-parse the message actually changing. */
                       <AIMessageMarkdown
                         content={msg.content}
-                        className={`prose prose-xs max-w-none text-xs wrap-break-word overflow-hidden ${
- msg.role ==='user'?'prose-invert':''
+                        className={`markdown-preview sc-chat-markdown text-xs wrap-break-word overflow-hidden ${
+ msg.role ==='user'?'sc-chat-markdown-user':''
  }`}
                         style={MESSAGE_MARKDOWN_STYLE}
                       />
@@ -1106,36 +1064,28 @@ export default function AIChatSidebar({ isOpen }) {
 
         {/* Input */}
         <div className="border-t border-os-border p-4">
-          {/* Context Display */}
-          {contextAdded && contextData && (
-            <div className="mb-3 flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-sm text-xs">
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                {(() => {
-                  const ContextIcon = getContextIcon(contextData.type);
-                  return <ContextIcon size={14} className="text-blue-600 shrink-0" />;
-                })()}
-                <span className="text-blue-800 font-medium truncate">
-                  {contextData.type}
-                </span>
+          {/* The contexts: a chip each - its title, how much is hidden, the eye (what the AI receives), remove */}
+          {contexts.map((ctx) => {
+            const r = renderContext(ctx, privacyLists);
+            const ContextIcon = getContextIcon(ctx.kind);
+            return (
+              <div key={ctx.id} className="mb-2 flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-sm text-xs" data-testid="ai-context-chip" data-context-id={ctx.id}>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <ContextIcon size={14} className="text-blue-600 dark:text-blue-300 shrink-0" />
+                  <span className="text-blue-800 dark:text-blue-200 font-medium truncate">{ctx.kind === 'selection' ? `Selection: ${ctx.title}` : ctx.kind === 'kanban' ? `Board: ${ctx.title}` : `Document: ${ctx.title}`}</span>
+                  <span className="text-blue-700/70 dark:text-blue-300/70 shrink-0" data-testid="ai-context-summary">{r.edited ? '\u00b7 edited' : r.hidden ? `\u00b7 ${r.hidden} hidden` : ''}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button type="button" onClick={() => setEditingContextId(ctx.id)} className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800/40 rounded-sm transition-colors shrink-0" title="What the AI receives" aria-label="What the AI receives" data-testid="ai-context-eye">
+                    <Eye size={14} className="text-blue-600 dark:text-blue-300" />
+                  </button>
+                  <button type="button" onClick={() => removeContext(ctx.id)} className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800/40 rounded-sm transition-colors shrink-0" title="Remove context" aria-label="Remove context" data-testid="ai-context-remove">
+                    <X size={14} className="text-blue-600 dark:text-blue-300" />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={handleOpenContextModal}
-                  className="p-1 hover:bg-blue-100 rounded-sm transition-colors shrink-0"
-                  title="View context data"
-                >
-                  <Eye size={14} className="text-blue-600" />
-                </button>
-                <button
-                  onClick={handleRemoveContext}
-                  className="p-1 hover:bg-blue-100 rounded-sm transition-colors shrink-0"
-                  title="Remove context"
-                >
-                  <X size={14} className="text-blue-600" />
-                </button>
-              </div>
-            </div>
-          )}
+            );
+          })}
 
           <div className="flex items-end gap-2">
             <textarea
@@ -1163,57 +1113,18 @@ export default function AIChatSidebar({ isOpen }) {
           </div>
         </div>
 
-        {/* Context Data Modal */}
-        {showContextModal && contextData && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-9999" onClick={() => setShowContextModal(false)}>
-            <div className="bg-os-modal rounded-lg shadow-xl max-w-4xl w-full max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-              {/* Modal Header */}
-              <div className="px-6 py-4 border-b border-os-border flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {(() => {
-                    const ContextIcon = getContextIcon(contextData.type);
-                    return <ContextIcon size={18} className="text-blue-600" />;
-                  })()}
-                  <h3 className="text-lg font-semibold text-os-text-primary">
-                    Edit Context Data: {contextData.type}
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setShowContextModal(false)}
-                  className="p-1.5 hover:bg-os-card-secondary rounded-sm transition-colors"
-                  title="Close without saving"
-                >
-                  <X size={20} className="text-os-text-secondary" />
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <div className="flex-1 overflow-auto p-6">
-                <textarea
-                  value={editedContextJson}
-                  onChange={(e) => setEditedContextJson(e.target.value)}
-                  className="w-full h-full min-h-[400px] bg-os-input-bg text-os-text-primary border border-os-border rounded-sm p-4 text-xs font-mono resize-none focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                  spellCheck={false}
-                />
-              </div>
-
-              {/* Modal Footer */}
-              <div className="px-6 py-4 border-t border-os-border flex items-center justify-end gap-2">
-                <button
-                  onClick={() => setShowContextModal(false)}
-                  className="px-4 py-2 bg-os-divider text-os-text-primary rounded-sm hover:bg-os-border transition-colors text-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveContextChanges}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-sm hover:bg-blue-700 transition-colors text-sm"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </div>
-          </div>
+        <ConfirmationModal isOpen={!!confirmDeleteId} type="danger" title={conversations.length === 1 ? 'Clear this conversation?' : 'Delete this conversation?'}
+          message={conversations.length === 1 ? 'Its messages and context are removed and the chat starts fresh on the default model.' : `"${conversations.find((c) => c.id === confirmDeleteId)?.name || ''}" and its messages are removed.`}
+          confirmLabel={conversations.length === 1 ? 'Clear' : 'Delete'} onConfirm={() => deleteConversation(confirmDeleteId)} onCancel={() => setConfirmDeleteId(null)} />
+        {/* What the AI receives for a context, and the say over the redaction */}
+        {editingContextId && contexts.some((c) => c.id === editingContextId) && (
+          <AIContextDialog
+            key={editingContextId}
+            context={contexts.find((c) => c.id === editingContextId)}
+            onSave={(next) => { updateContext(editingContextId, next); setEditingContextId(null); }}
+            onCancel={() => setEditingContextId(null)}
+            reload={() => reloadContextSource(contexts.find((c) => c.id === editingContextId))}
+          />
         )}
       </div>
     </ResizableSidebar>

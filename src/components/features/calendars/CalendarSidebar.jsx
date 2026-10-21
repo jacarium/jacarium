@@ -95,7 +95,7 @@ export default function CalendarSidebar({
 
                     {/* Calendar name */}
                     <span className={`text-sm flex-1 truncate ${
- isActive ?'text-os-blue font-medium':'text-os-text-primary'
+ isActive ?'text-os-blue':'text-os-text-primary'
  }`}>
                       {calendar.summary || 'Untitled Calendar'}
                     </span>

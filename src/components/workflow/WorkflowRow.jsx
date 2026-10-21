@@ -105,11 +105,11 @@ export default function WorkflowRow({
           />
           <span className={`text-sm truncate ${
  isSelected
- ?'text-os-text-primary font-medium'
+ ?'text-os-text-primary'
  : isActive && isShared
  ?'text-purple-700'
  : isActive
- ?'text-os-blue font-medium'
+ ?'text-os-blue'
  :'text-os-text-primary'
  }`}>
             {workflow.title || 'Untitled'}

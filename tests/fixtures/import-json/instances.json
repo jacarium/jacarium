@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Work tasks",
+    "category": "Work",
+    "description": "The office TaskWarrior data",
+    "rcPath": "~/.taskrc-work",
+    "dataPath": "~/.task-work"
+  },
+  {
+    "name": "Home tasks",
+    "category": "Home",
+    "description": "Chores and errands",
+    "rcPath": "~/.taskrc-home",
+    "dataPath": "~/.task-home"
+  }
+]

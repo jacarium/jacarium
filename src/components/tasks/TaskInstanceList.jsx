@@ -10,6 +10,10 @@ import HamburgerMenu, { HamburgerMenuItem, HamburgerMenuDivider } from '../commo
 import TaskInstanceModal from './TaskInstanceModal';
 import DocumentPermissionsModal from '../common/modals/DocumentPermissionsModal';
 import ConfirmationModal from '../common/modals/ConfirmationModal';
+import ImportJsonModal from '../common/ImportJsonModal';
+import JsonImportStats from '../common/JsonImportStats';
+import { validateInstancesImport, runInstancesImport } from '../../utils/taskInstancesImport';
+import { jsonMergeLabel, jsonMergeHint, jsonImportMessage } from '../../utils/jsonImportMerge';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import {
   createInstance,
@@ -76,7 +80,8 @@ export default function TaskInstanceList({
   } = useDropdownMenu();
 
   // Import/Export
-  const { exportToJSON, importFromJSON } = useImportExport();
+  const { exportToJSON } = useImportExport();
+  const [showImportModal, setShowImportModal] = useState(false); // the menu's "Import from JSON"
 
   // Toggle category expansion
   const toggleCategory = (categoryName) => {
@@ -334,18 +339,22 @@ export default function TaskInstanceList({
     closeContextMenu();
   };
 
-  const handleImportInstances = async () => {
+  // "Import from JSON" opens the shared ImportJsonModal (paste or file, Dry
+  // Run); the instances it validates are created as the old file picker did
+  const handleImportInstances = () => {
     closeMenu();
+    setShowImportModal(true);
+  };
+
+  const importInstancesFromJson = async (items, { mergeMode = false } = {}) => {
     try {
-      const imported = await importFromJSON();
-      if (imported && Array.isArray(imported)) {
-        for (const inst of imported) {
-          const { id: _id, ...instanceData } = inst;
-          await createInstance(instanceData);
-        }
-        addNotification({ type: 'success', title: 'Instances Imported', message: `Imported ${imported.length} instance(s)` });
-        onRefresh && onRefresh();
-      }
+      const result = await runInstancesImport(items, { mergeMode });
+      addNotification({
+        type: result.totals.invalid && !(result.totals.created + result.totals.updated + result.totals.filled) ? 'error' : 'success',
+        title: result.totals.invalid ? 'Import Finished With Errors' : 'Instances Imported',
+        message: jsonImportMessage(result, { noun: 'instance', plural: 'instances' }),
+      });
+      onRefresh && onRefresh();
     } catch (error) {
       console.error('Error importing instances:', error);
       addNotification({ type: 'error', title: 'Import Failed', message: `Failed to import: ${error.message}` });
@@ -425,7 +434,7 @@ export default function TaskInstanceList({
  isCloudInstance && isActive
  ?'text-purple-700'
  : isActive
- ?'text-os-blue font-medium'
+ ?'text-os-blue'
  :'text-os-text-primary'
  }`}>
                         {instance.name}
@@ -662,6 +671,24 @@ export default function TaskInstanceList({
         }}
         document={permissionsInstance}
         onSave={handleSavePermissions}
+      />
+
+      {/* Import from JSON (the menu) */}
+      <ImportJsonModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="Import Task Instances"
+        description={'Upload a JSON file or paste JSON data: an array of TaskWarrior instances, as "Export All (JSON)" writes it. Dry Run checks the data and shows what would be imported without writing anything.'}
+        importLabel="Import Instances"
+        validateFn={validateInstancesImport}
+        onDryRun={(items, { mergeMode }) => runInstancesImport(items, { dryRun: true, mergeMode })}
+        renderStats={(result) => <JsonImportStats result={result} noun="instance" importLabel="Import Instances" typeLabels={{ taskwarriorInstances: 'Instances' }} />}
+        onValidated={(items, { mergeMode }) => { importInstancesFromJson(items, { mergeMode }); }}
+        mergeLabel={jsonMergeLabel('instances')}
+        mergeHint={(checked) => jsonMergeHint(checked, { noun: 'instance', plural: 'instances', keyLabel: 'name' })}
+        exampleData={[
+          { name: 'Example instance', category: 'General', dataPath: '~/.task', description: 'A TaskWarrior data directory' },
+        ]}
       />
 
       {/* Confirmation Modal (replaces native window.confirm) */}

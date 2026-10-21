@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import { X } from 'lucide-react';
+import useWheelScrollsStrip from '../../../hooks/useWheelScrollsStrip';
 
 /**
  * ToolsTabBar - Tab bar for open tools
@@ -14,8 +16,11 @@ export default function ToolsTabBar({
   onTabClose,
   onTabContextMenu,
 }) {
+  const stripRef = useRef(null);
+  useWheelScrollsStrip(stripRef); // a plain mouse wheel scrolls the strip sideways
+
   return (
-    <div className="sc-tab-strip flex items-center bg-os-card-secondary border-b border-os-border overflow-x-auto">
+    <div ref={stripRef} className="sc-tab-strip flex items-center bg-os-card-secondary border-b border-os-border overflow-x-auto">
       {openTabs.map(toolId => {
         const tool = tools.find(t => t.id === toolId);
         if (!tool) return null;

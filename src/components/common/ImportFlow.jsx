@@ -1,11 +1,11 @@
-import ImportInputModal from '../features/documents/ImportInputModal';
+import ImportJsonModal from './ImportJsonModal';
 import ImportModal from '../features/documents/ImportModal';
 
 /**
  * ImportFlow - Complete import flow with input and progress modals
  *
  * A reusable component that handles the full import process:
- * 1. Input modal (paste JSON or upload file) with the same footer as the
+ * 1. Input modal (ImportJsonModal: paste JSON or upload file) with the same footer as the
  *    database import: Cancel / Dry Run / <importLabel>. Validation runs when
  *    one of those is clicked; a dry run shows the statistics in place.
  * 2. Progress modal with logging for the real import, ending in the same
@@ -56,7 +56,7 @@ export default function ImportFlow({
   return (
     <>
       {/* Step 1: Input Modal (Paste or Upload) */}
-      <ImportInputModal
+      <ImportJsonModal
         isOpen={isInputOpen}
         onClose={onInputClose}
         onValidated={onValidated}

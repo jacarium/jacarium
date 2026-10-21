@@ -96,7 +96,7 @@ export default function ToolsSidebar({
  }`}
                       />
                       <span className={`text-sm truncate ${
- isActive ?'text-os-blue font-medium':'text-os-text-primary'
+ isActive ?'text-os-blue':'text-os-text-primary'
  }`}>
                         {tool.name}
                       </span>

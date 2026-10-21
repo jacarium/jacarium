@@ -2117,6 +2117,87 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 .brand-page-foot { color: var(--os-text-secondary); }
 .brand-link { color: var(--brand-accent); }
 
+/* ---------------------------------------------------------------------------
+   AI chat bubbles (AIChatSidebar, Robin's AIChatPage - src/components/common/
+   AIMessageMarkdown.jsx): a message is rendered by the same marked pipeline
+   as the Documents preview (the global renderer of src/utils/
+   interactiveMarkdown.js: highlighted code, callouts, heading ids), and
+   carries `markdown-preview sc-chat-markdown`, so every preview rule
+   applies - headings, lists, code, tables, blockquotes, callouts, hr - and
+   these overrides scale it for a bubble: the bubble's text size, headings a
+   step or two up rather than the preview's 2em, tighter margins, a thin
+   hr in the border token, code that scrolls sideways instead of wrapping or
+   spilling out of the bubble. (The `prose` classes used before did nothing:
+   Tailwind Typography is not installed, so headings, bullets and rules
+   had no styling at all.) `sc-chat-markdown-user` is the user's bubble
+   (white on blue): everything inherits its colour.
+   --------------------------------------------------------------------------- */
+.sc-chat-markdown {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.55;
+  color: inherit;
+  min-width: 0;
+  max-width: 100%;
+}
+/* Robin's bubbles fill their column: a long code line must not widen the
+   page, so the width comes from the column, never from the content (the
+   <pre> scrolls instead). The sidebar's bubbles shrink to fit and keep
+   their intrinsic width (max-w-[85%] bounds them). */
+.sc-chat-bubble .sc-chat-markdown { contain: inline-size; }
+.sc-chat-markdown > :first-child { margin-top: 0; }
+.sc-chat-markdown > :last-child { margin-bottom: 0; }
+.sc-chat-markdown p { margin-top: 0; margin-bottom: 0.6em; }
+.sc-chat-markdown h1, .sc-chat-markdown h2, .sc-chat-markdown h3,
+.sc-chat-markdown h4, .sc-chat-markdown h5, .sc-chat-markdown h6 {
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+  padding-bottom: 0;
+  border-bottom: 0;
+  line-height: 1.3;
+  color: inherit;
+  font-weight: 600;
+}
+.sc-chat-markdown h1 { font-size: 1.3em; }
+.sc-chat-markdown h2 { font-size: 1.2em; }
+.sc-chat-markdown h3 { font-size: 1.1em; }
+.sc-chat-markdown h4, .sc-chat-markdown h5, .sc-chat-markdown h6 { font-size: 1em; }
+.sc-chat-markdown hr {
+  height: 1px;
+  margin: 0.9em 0;
+  background-color: var(--os-border);
+  border: 0;
+}
+.sc-chat-markdown ul, .sc-chat-markdown ol { margin-top: 0; margin-bottom: 0.6em; padding-left: 1.5em; }
+.sc-chat-markdown ul { list-style-type: disc; }
+.sc-chat-markdown ol { list-style-type: decimal; }
+.sc-chat-markdown ul ul { list-style-type: circle; }
+.sc-chat-markdown li { margin-top: 0.15em; margin-bottom: 0.15em; }
+.sc-chat-markdown li > p { margin-bottom: 0.3em; }
+.sc-chat-markdown code { font-size: 92%; padding: 0.1em 0.35em; }
+.sc-chat-markdown pre {
+  padding: 10px 12px;
+  margin: 0 0 0.7em;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre;            /* a long line scrolls sideways... */
+  overflow-x: auto;            /* ...inside the bubble, never past it */
+  overflow-y: hidden;
+  max-width: 100%;
+}
+.sc-chat-markdown pre code { white-space: pre; font-size: inherit; }
+.sc-chat-markdown table { display: block; max-width: 100%; overflow-x: auto; font-size: 92%; margin-bottom: 0.7em; }
+.sc-chat-markdown table th, .sc-chat-markdown table td { padding: 4px 8px; }
+.sc-chat-markdown blockquote { margin: 0 0 0.7em; padding: 0 0.8em; }
+.sc-chat-markdown .md-callout { margin: 0.5em 0 0.7em; padding: 0.5em 0.7em; }
+.sc-chat-markdown .md-callout-title { font-size: 1em; margin-bottom: 0.25em; }
+.sc-chat-markdown img { max-width: 100%; }
+/* the user's bubble: white on blue, so no fixed greys */
+.sc-chat-markdown-user, .sc-chat-markdown-user h1, .sc-chat-markdown-user h2, .sc-chat-markdown-user h3, .sc-chat-markdown-user p, .sc-chat-markdown-user li, .sc-chat-markdown-user a { color: inherit; }
+.sc-chat-markdown-user code { background-color: rgb(255 255 255 / 0.18); color: inherit; }
+.sc-chat-markdown-user pre, .dark .sc-chat-markdown-user pre { background-color: rgb(0 0 0 / 0.25); }
+.sc-chat-markdown-user hr { background-color: rgb(255 255 255 / 0.4); }
+
 /* Corner exceptions (see the radius scale in @theme): the tabs of a tab
    strip (open documents, workflows, boards, tasks, calendars, tools -
    src/components/features/documents/TabBar.jsx and its look-alikes carry

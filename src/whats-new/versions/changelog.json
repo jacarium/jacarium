@@ -1,5 +1,43 @@
 [
   {
+    "version": "3.3.2",
+    "date": "2026-10-21",
+    "features": [
+      {
+        "category": "DOCUMENTS",
+        "description": [
+          "Ask AI About This (right-click a selection) opens Quick AI with the highlighted text included, and the answer goes on its own line below it",
+          "Add as AI Context for a selection: right-click highlighted text to start a new AI chat about just that text"
+        ]
+      },
+      {
+        "category": "AI",
+        "description": [
+          "Add as AI Context opens a new chat with your default model and sends the document's real content, clearly marked as a document",
+          "The context window has a Document tab with exactly what the AI receives (editable) and a Privacy tab: switch hiding per type or per value, never-hide and always-hide lists, or turn it off for one chat",
+          "Hidden values look like [REDACTED_HOST_1], and public names such as ghcr.io, quay.io or github.com are no longer hidden",
+          "AI Chat and Robin show headings, lists, horizontal rules, tables, callouts and code blocks properly",
+          "The bin clears the conversation when it is the only one, and removes it from the list when there are several"
+        ]
+      },
+      {
+        "category": "UI",
+        "description": [
+          "Import from JSON on Kanban, Tasks and Workflows uses the same window as Documents: paste or upload, Dry Run, and merge newer copies into what you already have",
+          "Right-click the bell in the compact sidebar to clear all notifications",
+          "Selecting an item in a sidebar no longer makes its text shift",
+          "The mouse wheel scrolls the tab bar sideways when the tabs don't fit"
+        ]
+      },
+      {
+        "category": "SECURITY",
+        "description": [
+          "Updated vite and follow-redirects for newly published high-severity advisories"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.3.1",
     "date": "2026-10-20",
     "features": [

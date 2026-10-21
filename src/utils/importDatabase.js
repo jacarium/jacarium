@@ -223,7 +223,7 @@ export function createWriter(dryRun) {
  * counted as invalid with the error message instead of aborting the whole
  * import half-way through.
  */
-async function mergeDexieTable(table, importedRows, keyOf, timestampOf, options = {}) {
+export async function mergeDexieTable(table, importedRows, keyOf, timestampOf, options = {}) {
   const {
     localRows, prepare, findLocal, createDefaults = {}, timestampField, labelOf, track,
     writer = createWriter(false), invalidReason = 'record cannot be imported',

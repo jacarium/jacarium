@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useMobile } from '../../../contexts/MobileContext';
 import MobilePageHeader from '../../mobile/MobilePageHeader';
 import { useCloseDrawerOn } from '../../../hooks/useCloseDrawerOn';
+import useWheelScrollsStrip from '../../../hooks/useWheelScrollsStrip';
 
 /**
  * TabBar - Document tabs component
@@ -49,6 +50,8 @@ export default function TabBar({
   const [overflowing, setOverflowing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const stripRef = useRef(null);
+  // a plain mouse wheel scrolls the strip sideways (desktop strip only; the phone header has no strip)
+  useWheelScrollsStrip(stripRef, [isMobile]);
   const menuRef = useRef(null);
   const panelRef = useRef(null);
   // where the desktop panel goes: under the "N open" button, right-aligned to it

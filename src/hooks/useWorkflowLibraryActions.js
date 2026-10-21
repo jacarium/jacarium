@@ -3,6 +3,8 @@ import { cleanNodesForStorage } from '../components/workflow/workflowNodeUtils';
 import { getWorkflows, createWorkflow, updateWorkflow, deleteWorkflow, getWorkflow } from '../utils/workflows';
 import { downloadBlob } from '../utils/exportHelpers';
 import { serializeWorkflows, parseWorkflowsExport, workflowExportFileName } from '../utils/workflowTransfer';
+import { runWorkflowsImport } from '../utils/workflowsImport';
+import { jsonImportMessage } from '../utils/jsonImportMerge';
 import { useNotifications } from '../contexts/NotificationContext';
 
 /**
@@ -36,6 +38,7 @@ export default function useWorkflowLibraryActions(session) {
   const [workflowToDelete, setWorkflowToDelete] = useState(null);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [showBulkMoveModal, setShowBulkMoveModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false); // the list menu's "Import from JSON"
   const [showBase64Modal, setShowBase64Modal] = useState(false);
   const [base64Data, setBase64Data] = useState('');
   const [base64Mode, setBase64Mode] = useState('export'); // 'export' or 'import'
@@ -378,23 +381,25 @@ export default function useWorkflowLibraryActions(session) {
     return true;
   }
 
-  // Import workflows from a JSON file
+  // "Import from JSON" opens the shared ImportJsonModal (paste or file, Dry
+  // Run; WorkflowBuilder mounts it); the list it validates is imported as
+  // the old file picker's was
   function handleImport() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json';
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+    setShowImportModal(true);
+  }
 
-      try {
-        const text = await file.text();
-        await importWorkflowList(parseWorkflowsExport(text), 'Invalid workflow file format. Expected an array of workflows.');
-      } catch (error) {
-        notifyFailure('Import Failed', 'Failed to import workflows. Please check the file format.', error);
-      }
-    };
-    input.click();
+  async function confirmJsonImport(items, { mergeMode = false } = {}) {
+    try {
+      const result = await runWorkflowsImport(items, { mergeMode });
+      await loadWorkflows();
+      addNotification({
+        type: result.totals.invalid && !(result.totals.created + result.totals.updated + result.totals.filled) ? 'error' : 'success',
+        title: result.totals.invalid ? 'Import Finished With Errors' : 'Import Successful',
+        message: jsonImportMessage(result, { noun: 'workflow', plural: 'workflows' })
+      });
+    } catch (error) {
+      notifyFailure('Import Failed', 'Failed to import workflows. Please check the file format.', error);
+    }
   }
 
   // Export workflows as Base64 (all of them unless a subset is given)
@@ -463,6 +468,9 @@ export default function useWorkflowLibraryActions(session) {
     // transfer
     handleExportAll,
     handleImport,
+    showImportModal,
+    closeImportModal: () => setShowImportModal(false),
+    confirmJsonImport,
     handleExportBase64,
     handleImportBase64,
     showBase64Modal,

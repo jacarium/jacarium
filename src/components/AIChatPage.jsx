@@ -466,6 +466,10 @@ export default function AIChatPage() {
 
   function confirmDeleteConversation() {
     if (!conversationToDelete) return;
+    // a reply still streaming into the chat being deleted is abandoned first
+    // (handleStreamingResponse returns on the abort; nothing lands in the
+    // chat that replaces it)
+    if (conversationToDelete === currentConversationId && isLoading) handleStopGeneration();
 
     const filtered = conversations.filter(c => c.id !== conversationToDelete);
 
@@ -1039,7 +1043,7 @@ export default function AIChatPage() {
  conv.id === currentConversationId ?'text-os-blue':'text-os-text-muted'
  }`} />
                         <h3 className={`text-sm truncate cursor-pointer ${
- conv.id === currentConversationId ?'text-os-blue font-medium':'text-os-text-primary'
+ conv.id === currentConversationId ?'text-os-blue':'text-os-text-primary'
  }`}>
                           {conv.name}
                         </h3>
@@ -1426,7 +1430,7 @@ export default function AIChatPage() {
                               content={msg.content}
                               citations={msg.citations}
                               onCitationClick={handleCitationClick}
-                              className="prose prose-xs max-w-none text-xs dark:prose-invert [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:wrap-break-word"
+                              className="markdown-preview sc-chat-markdown text-xs overflow-hidden"
                             />
                           ) : msg.content && !msg.content.trim() ? (
                             /* Content exists but is only whitespace - show a message */

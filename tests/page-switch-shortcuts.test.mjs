@@ -66,7 +66,9 @@ const srcFiles = [];
 const shiftChords = [];
 for (const f of srcFiles) {
   const src = fs.readFileSync(f, 'utf8');
-  src.split('\n').forEach((line, i) => { if (/shiftKey/.test(line) && /(ctrlKey|metaKey)/.test(line) && !/^\s*(\/\/|\*)/.test(line)) shiftChords.push(`${path.relative(REPO, f)}:${i + 1}`); });
+  // a chord needs a key: a Shift+Ctrl/Meta test without a key/code comparison is not one
+  // (e.g. the tab strips leaving Shift/Ctrl+wheel to the browser, src/hooks/useWheelScrollsStrip.js)
+  src.split('\n').forEach((line, i) => { if (/shiftKey/.test(line) && /(ctrlKey|metaKey)/.test(line) && /\b(key|code)\b\s*(===|==|\.toLowerCase)|\.(key|code)\s*===/.test(line) && !/^\s*(\/\/|\*)/.test(line)) shiftChords.push(`${path.relative(REPO, f)}:${i + 1}`); });
 }
 check('no Ctrl/Cmd+Shift+<letter> chord is tested anywhere outside the shortcut registry (src/shortcuts): Find in Files and the canvas redo come from it', shiftChords.every((l) => /^src\/shortcuts\//.test(l)), shiftChords.join(' ; '));
 check('no renderer code switches pages on a key chord (no navigate/setCurrentPage next to a key handler)', !srcFiles.some((f) => { const s = fs.readFileSync(f, 'utf8'); return /(ctrlKey|metaKey)[^\n]*\n[^\n]*(setCurrentPage|navigate-to-page|onNavigate\()/.test(s); }));

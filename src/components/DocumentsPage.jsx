@@ -2595,12 +2595,10 @@ export default function DocumentsPage({
       }));
 
       // Add context after a short delay to ensure sidebar is mounted
-      setTimeout(() => {
+      setTimeout(async () => {
+        const { documentContextPayload } = await import('../utils/aiContext');
         window.dispatchEvent(new CustomEvent('addAIContext', {
-          detail: {
-            contextType: `Document: ${doc.title}`,
-            contextData: doc
-          }
+          detail: { contextData: documentContextPayload(doc) }
         }));
       }, 100);
     }

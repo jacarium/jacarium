@@ -165,6 +165,10 @@ export default function DocumentEditor({
   const [quickAICursorPos, setQuickAICursorPos] = useState(null);
   const [quickAIPopupPos, setQuickAIPopupPos] = useState({ x: 0, y: 0 });
   const [quickAISelectedText, setQuickAISelectedText] = useState('');
+  // "Ask AI About This" (the selection's context menu): the highlighted
+  // text, sent with the question as context, and where it sits in the
+  // document - the answer lands on a new line right below it
+  const [quickAIContext, setQuickAIContext] = useState(null);   // { text, start, end } | null
   const [isDraggingQuickAI, setIsDraggingQuickAI] = useState(false);
   const [backendStatus] = useState('online'); // Assume online for now
 
@@ -1726,6 +1730,10 @@ export default function DocumentEditor({
       return;
     }
 
+    // The highlighted text ("Ask AI About This") goes with the question as
+    // context, as highlighted - no sanitising, no trimming
+    const message = quickAIContext ? `Selected text:\n${quickAIContext.text}\n\nQuestion: ${quickAIInput}` : quickAIInput;
+
     // Call backend with concise prompt
     const systemPrompt = 'You are a code assistant. Respond ONLY with the requested code, command, or text. Do NOT include explanations, markdown formatting, or comments unless specifically requested. Be extremely concise.';
 
@@ -1735,7 +1743,7 @@ export default function DocumentEditor({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: quickAIInput,
+        message,
         systemPrompt: systemPrompt,
         provider: aiSettings.provider,
         model: aiSettings.model,
@@ -1774,20 +1782,39 @@ export default function DocumentEditor({
     // Get current content (from Yjs or local state)
     const currentContent = yjsEnabled && yjs.ytext ? yjs.ytext.toString() : content;
 
-    // Check if /ai is still at the cursor position and remove it
     let insertPos = quickAICursorPos;
     let baseContent = currentContent;
+    let inserted = textToInsert;
 
-    const textBeforeCursor = currentContent.substring(0, quickAICursorPos);
-    if (textBeforeCursor.endsWith('/ai')) {
-      // Remove /ai
-      baseContent = currentContent.substring(0, quickAICursorPos - 3) + currentContent.substring(quickAICursorPos);
-      insertPos = quickAICursorPos - 3;
+    if (quickAIContext) {
+      // "Ask AI About This": the answer starts on its own line directly
+      // below the highlighted text, which stays as it is. A selection that
+      // ends mid-line: the answer goes after that line, on a new one; a
+      // selection that already ends with a line break: the answer takes the
+      // line right below it (its own newline keeps what followed on its
+      // line), with no blank line in between.
+      const end = Math.min(quickAIContext.end, currentContent.length);
+      if (currentContent[end - 1] === '\n') {
+        insertPos = end;
+        inserted = textToInsert + '\n';
+      } else {
+        const lineEnd = currentContent.indexOf('\n', end);
+        insertPos = lineEnd === -1 ? currentContent.length : lineEnd;
+        inserted = '\n' + textToInsert;
+      }
+    } else {
+      // Check if /ai is still at the cursor position and remove it
+      const textBeforeCursor = currentContent.substring(0, quickAICursorPos);
+      if (textBeforeCursor.endsWith('/ai')) {
+        // Remove /ai
+        baseContent = currentContent.substring(0, quickAICursorPos - 3) + currentContent.substring(quickAICursorPos);
+        insertPos = quickAICursorPos - 3;
+      }
     }
 
     // Insert response at cursor position
-    const newContent = baseContent.substring(0, insertPos) + textToInsert + baseContent.substring(insertPos);
-    const newPos = insertPos + textToInsert.length;
+    const newContent = baseContent.substring(0, insertPos) + inserted + baseContent.substring(insertPos);
+    const newPos = insertPos + inserted.length;
 
     // Update content based on document type
     if (yjsEnabled && yjs.updateContent) {
@@ -1812,6 +1839,7 @@ export default function DocumentEditor({
     setQuickAIResponse('');
     setQuickAICursorPos(null);
     setQuickAISelectedText('');
+    setQuickAIContext(null);
   };
 
   const handleQuickAIResponseSelection = () => {
@@ -1828,6 +1856,7 @@ export default function DocumentEditor({
     setQuickAIResponse('');
     setQuickAICursorPos(null);
     setQuickAISelectedText('');
+    setQuickAIContext(null);
   };
 
   // Handle clicks in preview mode (for external links and interactive
@@ -2662,7 +2691,9 @@ export default function DocumentEditor({
         visible: true,
         x: e.clientX,
         y: e.clientY,
-        text: selectedText
+        text: selectedText,
+        start: textarea.selectionStart,
+        end: textarea.selectionEnd
       });
     }
   };
@@ -2775,28 +2806,38 @@ export default function DocumentEditor({
     return sanitized;
   };
 
-  // Add selection as AI Context
-  const handleAddSelectionAsContext = () => {
+  // "Add as AI Context": a new AI Chat with the highlighted passage attached
+  // (redacted, editable in the chip's eye dialog - src/utils/aiContext.js)
+  const handleAddSelectionAsAIContext = () => {
     if (!selectionMenu.text) return;
-
-    const sanitized = detectSensitiveData(selectionMenu.text);
-
-    // Open AI Chat sidebar first
-    window.dispatchEvent(new CustomEvent('aiChatSidebarStateChange', {
-      detail: { isOpen: true }
-    }));
-
-    // Add context after a short delay to ensure sidebar is mounted
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('addAIContext', {
-        detail: {
-          contextType: 'Text Selection',
-          contextData: { selectedText: sanitized }
-        }
-      }));
-    }, 100);
-
+    const text = selectionMenu.text;
     setSelectionMenu({ visible: false, x: 0, y: 0, text: '' });
+    window.dispatchEvent(new CustomEvent('aiChatSidebarStateChange', { detail: { isOpen: true } }));
+    setTimeout(async () => {
+      const { selectionContextPayload } = await import('../../../utils/aiContext');
+      window.dispatchEvent(new CustomEvent('addAIContext', { detail: { contextData: selectionContextPayload(document, text) } }));
+    }, 100);
+  };
+
+  // "Ask AI About This": open Quick AI (the same floating panel as "/ai")
+  // with the highlighted text, exactly as highlighted, as the question's
+  // context. The panel opens by the menu; the answer is inserted on a new
+  // line below the selection (handleAcceptAIResponse), never over it.
+  const handleAskQuickAIAboutSelection = () => {
+    if (!selectionMenu.text) return;
+    const { text, start, end, x, y } = selectionMenu;
+    setSelectionMenu({ visible: false, x: 0, y: 0, text: '' });
+    if (locked) return;
+    const popupWidth = 400;
+    const popupHeight = 500;
+    setQuickAIPopupPos({ x: Math.max(20, Math.min(x, window.innerWidth - popupWidth - 20)), y: Math.max(20, Math.min(y, window.innerHeight - popupHeight - 20)) });
+    setQuickAIContext({ text, start, end });
+    setQuickAICursorPos(end);
+    setQuickAIInput('');
+    setQuickAIResponse('');
+    setQuickAISelectedText('');
+    setShowQuickAI(true);
+    setTimeout(() => quickAIInputRef.current?.focus(), 100);
   };
 
   // Handle search in engine template
@@ -3506,6 +3547,13 @@ export default function DocumentEditor({
 
             {/* Body */}
             <div className="px-3 py-3 space-y-3">
+              {/* "Ask AI About This": the highlighted text travels with the question (a one-line preview) */}
+              {quickAIContext && (
+                <div data-testid="quick-ai-context-note">
+                  <p className="text-xs text-os-text-secondary">Your highlighted text is included with the question.</p>
+                  <p className="text-xs text-os-text-muted truncate font-mono" data-testid="quick-ai-context-preview">{quickAIContext.text.split('\n')[0].slice(0, 80)}{quickAIContext.text.length > 80 || quickAIContext.text.includes('\n') ? '\u2026' : ''}</p>
+                </div>
+              )}
               {/* Input */}
               <div>
                 <input
@@ -3702,7 +3750,8 @@ export default function DocumentEditor({
         x={selectionMenu.x}
         y={selectionMenu.y}
         selectedText={selectionMenu.text}
-        onAddAsContext={handleAddSelectionAsContext}
+        onAskAI={handleAskQuickAIAboutSelection}
+        onAddAsContext={handleAddSelectionAsAIContext}
         onSearchIn={handleSearchInEngine}
         engineTemplates={engineTemplates}
         onClose={() => setSelectionMenu({ visible: false, x: 0, y: 0, text: '' })}

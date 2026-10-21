@@ -56,6 +56,10 @@ import { isEditableTarget, shouldCopyNodesOnShortcut, nodePinEdges } from './wor
 import useWorkflowExecution from '../hooks/useWorkflowExecution';
 import useWorkflowSession from '../hooks/useWorkflowSession';
 import useWorkflowLibraryActions from '../hooks/useWorkflowLibraryActions';
+import ImportJsonModal from './common/ImportJsonModal';
+import JsonImportStats from './common/JsonImportStats';
+import { validateWorkflowsImport, runWorkflowsImport } from '../utils/workflowsImport';
+import { jsonMergeLabel, jsonMergeHint } from '../utils/jsonImportMerge';
 import useWorkflowCanvas, { FIT_VIEW_OPTIONS } from '../hooks/useWorkflowCanvas';
 import { getWorkflow } from '../utils/workflows';
 import { addWorkflowAsAIContext } from '../utils/workflowAIContext';
@@ -197,7 +201,7 @@ export default function WorkflowBuilder() {
     selectionMode, selectedWorkflows, toggleSelectionMode, toggleWorkflowSelection,
     handleBulkDelete, showBulkDeleteModal, closeBulkDelete, confirmBulkDelete,
     handleBulkMove, showBulkMoveModal, closeBulkMove, confirmBulkMove,
-    handleExportAll, handleImport, handleExportBase64, handleImportBase64,
+    handleExportAll, handleImport, showImportModal, closeImportModal, confirmJsonImport, handleExportBase64, handleImportBase64,
     showBase64Modal, base64Mode, base64Data, setBase64Data, closeBase64Modal, confirmBase64Import
   } = useWorkflowLibraryActions(session);
 
@@ -639,6 +643,24 @@ export default function WorkflowBuilder() {
           onImport={confirmBase64Import}
         />
       )}
+
+      {/* Import from JSON (the list menu) */}
+      <ImportJsonModal
+        isOpen={showImportModal}
+        onClose={closeImportModal}
+        title="Import Workflows"
+        description="Upload a JSON file or paste JSON data: an array of workflows, as the JSON exports write it. Dry Run checks the data and shows what would be imported without writing anything."
+        importLabel="Import Workflows"
+        validateFn={validateWorkflowsImport}
+        onDryRun={(items, { mergeMode }) => runWorkflowsImport(items, { dryRun: true, mergeMode })}
+        renderStats={(result) => <JsonImportStats result={result} noun="workflow" importLabel="Import Workflows" />}
+        onValidated={(items, { mergeMode }) => { confirmJsonImport(items, { mergeMode }); }}
+        mergeLabel={jsonMergeLabel('workflows')}
+        mergeHint={(checked) => jsonMergeHint(checked, { noun: 'workflow', plural: 'workflows', keyLabel: 'title and category' })}
+        exampleData={[
+          { title: 'Example Workflow', category: 'General', nodes: [{ id: 'n1', type: 'start', position: { x: 0, y: 0 }, data: { label: 'Start' } }], edges: [] },
+        ]}
+      />
 
       {/* Delete Workflow Confirmation Modal */}
       <ConfirmationModal

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { protectPlaceholdersForMarkdown } from '../../utils/aiContext';
 
 /**
  * Memoized markdown renderer for a single AI chat message.
@@ -66,12 +67,13 @@ const AIMessageMarkdown = React.memo(function AIMessageMarkdown({
           displayNumber: index + 1
         }));
 
-        return { html: DOMPurify.sanitize(marked(processedContent)), displayCitations: renumberedCitations };
+        return { html: DOMPurify.sanitize(marked(protectPlaceholdersForMarkdown(processedContent))), displayCitations: renumberedCitations };
       }
     }
 
     // No citations or none referenced - just show content
-    return { html: DOMPurify.sanitize(marked(content)), displayCitations: null };
+    // (a [REDACTED_...] placeholder stays literal text - see protectPlaceholdersForMarkdown)
+    return { html: DOMPurify.sanitize(marked(protectPlaceholdersForMarkdown(content))), displayCitations: null };
   }, [content, citations]);
 
   if (displayCitations) {

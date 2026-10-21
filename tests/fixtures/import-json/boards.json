@@ -1,0 +1,19 @@
+[
+  {
+    "title": "Release checklist",
+    "category": "Work",
+    "columns": [
+      { "id": "todo", "title": "To Do" },
+      { "id": "doing", "title": "In Progress" },
+      { "id": "done", "title": "Done" }
+    ]
+  },
+  {
+    "title": "Garden plan",
+    "category": "Home",
+    "columns": [
+      { "id": "ideas", "title": "Ideas" },
+      { "id": "planted", "title": "Planted" }
+    ]
+  }
+]

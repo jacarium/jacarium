@@ -614,11 +614,11 @@ export default function KanbanBoardList({
                       />
                       <span className={`text-sm truncate ${
  selectionMode && selectedBoards.includes(board.id)
- ?'text-os-text-primary font-medium'
+ ?'text-os-text-primary'
  : isCloudBoard && isActive
  ?'text-purple-700'
  : isActive
- ?'text-os-blue font-medium'
+ ?'text-os-blue'
  :'text-os-text-primary'
  }`}>
                         {board.title}
@@ -732,15 +732,10 @@ export default function KanbanBoardList({
                     }));
 
                     // Add context after a short delay to ensure sidebar is mounted
-                    setTimeout(() => {
+                    setTimeout(async () => {
+                      const { kanbanContextPayload } = await import('../../utils/aiContext');
                       window.dispatchEvent(new CustomEvent('addAIContext', {
-                        detail: {
-                          contextType: `Kanban: ${board.title}`,
-                          contextData: {
-                            ...board,
-                            cards
-                          }
-                        }
+                        detail: { contextData: kanbanContextPayload(board, cards) }
                       }));
                     }, 100);
                   }

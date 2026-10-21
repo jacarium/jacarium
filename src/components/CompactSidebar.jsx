@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Search, FileText, Activity, Workflow, FileText as NotesIcon, Bot, Brain, Bell, MessageSquare, Menu, Trello, CheckSquare, Calendar, Wrench, MoreHorizontal, ExternalLink, PanelLeft } from 'lucide-react';
+import { Search, FileText, Activity, Workflow, FileText as NotesIcon, Bot, Brain, Bell, MessageSquare, Menu, Trello, CheckSquare, Calendar, Wrench, MoreHorizontal, ExternalLink, PanelLeft, Trash2 } from 'lucide-react';
 import { isDesktopApp, openStandalonePage } from '../utils/platform';
 import BrandMark from '../brand/BrandMark';
 import { openAppSettings } from '../utils/openSettings';
@@ -53,7 +53,9 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
   const utilityMoreMenuRef = useRef(null);
   const utilityMoreButtonRef = useRef(null);
   const navContainerRef = useRef(null);
-  const { history, addNotification } = useNotifications();
+  const { history, addNotification, clearHistory } = useNotifications();
+  // the bell's right-click: Clear All Notifications, confirmed first
+  const [showClearNotificationsModal, setShowClearNotificationsModal] = useState(false);
   const { unreadMentions } = useChat();
   const { theme } = useTheme();
   // File > Database > Export runs under the shared Export Progress modal
@@ -532,6 +534,7 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
     openStandalonePage(standaloneMode);
   };
   const popOutLabel = isDesktopApp() ? 'Open in External Window' : 'Open in New Tab';
+  const clearNotificationsLabel = 'Clear All Notifications';
   const handleOpenToolsInNewWindow = () => openPopOut('openToolsWindow', 'tools', 'Tools');
 
   const handleOpenDiagnosticsInNewWindow = () => openPopOut('openDiagnosticsWindow', 'diagnostics', 'Diagnostics');
@@ -569,9 +572,11 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
     </button>
   );
 
-  const ActionButton = ({ icon: Icon, label, active, onClick, badge }) => (
+  const ActionButton = ({ icon: Icon, label, active, onClick, badge, onContextMenu, testId }) => (
     <button
       onClick={onClick}
+      onContextMenu={onContextMenu}
+      data-testid={testId}
       className={`relative flex items-center justify-center w-12 h-12 transition-all duration-200 group ${
         isGradientTheme
           ? active
@@ -622,7 +627,8 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
     { icon: Bot, label: 'AI Chat', onClick: handleToggleAIChat, active: isAIChatOpen },
     { icon: NotesIcon, label: 'Quick Notes', onClick: handleToggleDraft, active: isDraftSidebarOpen },
     { icon: MessageSquare, label: 'Team Chat', onClick: handleToggleChat, active: isChatSidebarOpen, badge: unreadMentions > 0 },
-    { icon: Bell, label: 'Notifications', onClick: handleToggleNotifications, active: isNotificationSidebarOpen, badge: history.length > 0 },
+    // the bell: right-click offers "Clear All Notifications" (the same rail menu as the page icons)
+    { icon: Bell, label: 'Notifications', onClick: handleToggleNotifications, active: isNotificationSidebarOpen, badge: history.length > 0, contextMenu: 'notifications', testId: 'rail-notifications' },
     { icon: PanelLeft, label: 'Toggle Sidebar', onClick: handleToggleInnerSidebar, active: innerSidebarVisible },
   ];
 
@@ -725,6 +731,8 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
               active={item.active}
               onClick={item.onClick}
               badge={item.badge}
+              testId={item.testId}
+              onContextMenu={item.contextMenu ? (e) => openContextMenu(e, item.contextMenu) : undefined}
             />
           ))}
           {collapsedUtilityItems.length > 0 && (
@@ -811,6 +819,7 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
                     item.onClick();
                     setShowUtilityMoreMenu(false);
                   }}
+                  onContextMenu={item.contextMenu ? (e) => { openContextMenu(e, item.contextMenu); setShowUtilityMoreMenu(false); } : undefined}
                   className={`w-full px-4 py-2 text-left text-sm hover:bg-os-card-secondary flex items-center gap-2 relative ${
                     item.active ? 'text-os-blue' : 'text-os-text-primary'
                   }`}
@@ -825,6 +834,41 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
             })}
           </div>
         )}
+
+        {/* Notifications (the bell) Context Menu: the same menu as the page icons' */}
+        {isContextMenuType('notifications') && (
+          <div
+            ref={contextMenuRef}
+            className="fixed bg-os-card border border-os-border rounded-lg shadow-xl z-50 py-1 min-w-[180px]"
+            style={{
+              left: `${contextMenu.x}px`,
+              top: `${contextMenu.y}px`
+            }}
+            data-testid="rail-notifications-menu"
+          >
+            <button
+              onClick={() => {
+                closeContextMenu();
+                setShowClearNotificationsModal(true);
+              }}
+              disabled={history.length === 0}
+              className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="rail-clear-notifications"
+            >
+              <Trash2 size={14} className="text-os-text-secondary" />
+              {clearNotificationsLabel}
+            </button>
+          </div>
+        )}
+        <ConfirmationModal
+          isOpen={showClearNotificationsModal}
+          type="danger"
+          title="Clear all notifications?"
+          message={`${history.length} notification${history.length === 1 ? '' : 's'} will be removed.`}
+          confirmLabel="Clear all"
+          onConfirm={() => { clearHistory(); setShowClearNotificationsModal(false); }}
+          onCancel={() => setShowClearNotificationsModal(false)}
+        />
 
         {/* Tools Context Menu */}
         {isContextMenuType('tools') && (
