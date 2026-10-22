@@ -184,15 +184,30 @@ def verify_sosreport(client, directory):
     disk12 = (d["sar_disk"] or {}).get("day_12", {}).get("vdb", [])
     check("SAR Disk: vdb await > 40ms during the spike (planted)", any(p.get("await", 0) > 40 for p in disk12))
 
-    traces = (d["kernel_stack_traces"] or {}).get("stack_traces", {}).get("traces", [])
-    check("Kernel Stack Traces: 1 WARNING from example_fastpath.c:412 on tainted kernel (planted)",
-          len(traces) == 1 and traces[0]["file"] == "drivers/example/example_fastpath.c:412" and traces[0]["comm"] == "example-worker" and len(traces[0]["call_trace"]) >= 5, str(traces[:1])[:300])
+    st = (d["kernel_stack_traces"] or {}).get("stack_traces", {})
+    traces = st.get("traces", [])
+    check("Kernel Stack Traces: 6 traces (2 WARNING, 1 BUG, 2 soft lockups, 1 RCU stall, planted), the WARNING from example_fastpath.c:412 on a tainted kernel",
+          len(traces) == 6 and [t for t in traces if t["file"] == "drivers/example/example_fastpath.c:412" and t["comm"] == "example-worker" and len(t["call_trace"]) >= 5]
+          and sorted(t["type"] for t in traces) == ["bug", "rcu_stall", "soft_lockup", "soft_lockup", "warning", "warning"], str([(t["type"], t["file"]) for t in traces])[:300])
+    check("Kernel Stack Traces: the two identical WARNINGs are one group of 2, four groups in all, every event seen in the journal AND dmesg (deduped)",
+          st.get("summary", {}).get("groups") == 4 and st["groups"][0]["count"] == 2 and st["groups"][0]["type_key"] == "warning"
+          and all("dmesg" in t["sources"] and "journal" in t["sources"] for t in traces), str([(g["type_key"], g["count"]) for g in st.get("groups", [])]))
     hung = (d["kernel_hung_task"] or {}).get("hung_tasks", [])
+    h4311 = [h for h in hung if h["details"]["pid"] == "4311"]
     check("Kernel Hung Tasks: example-worker:4311 blocked (122s and 245s, planted), pid/ppid from both the padded and the tight kernel line",
-          len(hung) == 2 and all(h["details"]["pid"] == "4311" and h["details"]["ppid"] == "4200" and h["details"]["state"] == "D" for h in hung)
-          and len(hung[0]["details"]["call_trace"]) >= 10, str([(h.get("task_line"), h["details"].get("ppid")) for h in hung]))
+          len(h4311) == 2 and all(h["details"]["ppid"] == "4200" and h["details"]["state"] == "D" for h in h4311)
+          and len(h4311[0]["details"]["call_trace"]) >= 10, str([(h.get("task_line"), h["details"].get("ppid")) for h in hung]))
+    hg = (d["kernel_hung_task"] or {}).get("hung_groups", [])
+    check("Kernel Hung Tasks: 4 reports of 3 tasks in 3 blocking functions (nfs, the RHEL 7 style xfs one blocked in xlog_wait, the RHEL 8 style jbd2 one)",
+          len(hung) == 4 and sorted(g["function"] for g in hg) == ["jbd2_log_wait_commit", "nfs_wait_on_request", "xlog_wait"]
+          and [t["ppid"] for g in hg if g["function"] == "xlog_wait" for t in g["tasks"]] == ["2"], str([(g["function"], g["module"], g["count"]) for g in hg]))
     oom = (d["kernel_oom_killer"] or {}).get("oom_killer", [])
-    check("Kernel OOM Killer: 2 OOM kills of example-worker (planted)", len(oom) == 2 and all("Killed process" in b and "example-worker" in b for b in oom), str(len(oom)))
+    check("Kernel OOM Killer: 4 OOM kills (3 global of example-worker incl. the one only in messages-20261005.gz, 1 cgroup-limit of payments-api)",
+          len(oom) == 4 and all("Killed process" in b for b in oom) and sum("example-worker" in b for b in oom) == 3 and sum("payments-api" in b for b in oom) == 1, str(len(oom)))
+    oe = (d["kernel_oom_killer"] or {}).get("oom_events", [])
+    check("Kernel OOM Killer: the cgroup kill carries CONSTRAINT_MEMCG with usage = limit 8.0 GB, the global ones CONSTRAINT_NONE",
+          sorted(e["constraint"]["name"] for e in oe) == ["CONSTRAINT_MEMCG", "CONSTRAINT_NONE", "CONSTRAINT_NONE", "CONSTRAINT_NONE"]
+          and [e["constraint"]["memcg_limit"] for e in oe if e["constraint"]["name"] == "CONSTRAINT_MEMCG"] == ["8.0 GB"], str([(e["victim"]["comm"], e["constraint"]["name"]) for e in oe]))
 
     lvd = d["log_viewer"] or {}
     logs = {l["name"]: l for l in lvd.get("available_logs", [])}

@@ -143,6 +143,11 @@ html[data-mobile="true"] .markdown-preview .md-callout { padding: 10px 12px; mar
 html[data-mobile="true"] .markdown-preview .md-callout-title { font-size: 15px; }
 html[data-mobile="true"] .markdown-preview .md-callout-icon { width: 18px; height: 18px; }
 html[data-mobile="true"] .markdown-preview pre { padding: 16px; border-radius: var(--radius-xs); font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
+/* the AI chat bubbles keep the chat size on the phone too: the preview rules above are for documents (src/index.css .sc-chat-markdown) */
+html[data-mobile="true"] .sc-chat-markdown { padding: 0; font-size: var(--sc-chat-font); line-height: var(--sc-chat-line); }
+html[data-mobile="true"] .sc-chat-markdown h1 { font-size: 1.15em; line-height: 1.25; margin: 0.6em 0 0.3em; padding-bottom: 0; }
+html[data-mobile="true"] .sc-chat-markdown h2 { font-size: 1.1em; line-height: 1.25; margin: 0.6em 0 0.3em; padding-bottom: 0; }
+html[data-mobile="true"] .sc-chat-markdown pre { padding: 10px 12px; font-size: 92%; }
 /* the editor: 13.5px mono on 24px lines, a 40px gutter */
 html[data-mobile="true"] .sc-editor-textarea, html[data-mobile="true"] .sc-editor-gutter { font-size: 13.5px; line-height: 24px; }
 

@@ -1,96 +1,114 @@
-import os
-import re
+"""Kernel Stack Traces: the WARNING / BUG / Oops / lockup / RCU stall /
+panic traces of a sosreport's kernel logs, grouped for the incident board.
+
+The scanning (every journal, dmesg and messages file, every timestamp
+format, dedupe across sources) is kernel_log.scan(); this module shapes
+its trace events for tabs/sosreport_kernel_stack_traces.html:
+
+  stack_traces.summary  counts by type, first/last, modules and processes,
+                        taint, the events-over-time buckets, the sources
+  stack_traces.groups   identical traces (same type, same reliable frames)
+                        as one row: count, occurrences, a representative
+  stack_traces.traces   the flat per-event list in the shape the earlier
+                        template and the tests read (kept as is)
+"""
+from collections import Counter
+
+from . import kernel_log as kl
 
 
 def parse(directory):
-    result = {}
+    scan = kl.scan(directory)
+    events = scan['traces']
+    groups = _groups(events)
+    summary = _summary(events, groups, scan)
+    legacy = [_legacy(e) for e in events]
+    return {'stack_traces': {'traces': legacy, 'summary': summary, 'groups': groups}}
 
-    def strip_syslog_prefix(line):
-        return re.sub(r'^\w{3}\s+\d+\s+\d{2}:\d{2}:\d{2}\s+\S+\s+kernel:\s+', '', line)
 
-    def extract_syslog_timestamp(line):
-        match = re.match(r'^(\w{3}\s+\d+\s+\d{2}:\d{2}:\d{2})\s+', line)
-        return match.group(1) if match else ''
+def _groups(events):
+    by_key = {}
+    order = []
+    for ev in events:
+        key = ev['group_key']
+        if key not in by_key:
+            by_key[key] = []
+            order.append(key)
+        by_key[key].append(ev)
+    groups = []
+    for key in order:
+        evs = by_key[key]
+        first, last = evs[0], evs[-1]
+        rep = first
+        groups.append({
+            'id': '',
+            'type_key': rep['type_key'], 'type_label': rep['type_label'], 'severity': rep['severity'],
+            'title': rep['title'], 'count': len(evs),
+            'first': kl.fmt_ts(first), 'last': kl.fmt_ts(last), 'ts': kl.sort_ts(last),
+            'occurrences': [{'ts': kl.fmt_ts(e), 'source': ', '.join(e['sources'])} for e in evs[:60]],
+            'event': {
+                'header': rep['header'], 'cpu': rep['cpu'], 'pid': rep['pid'], 'comm': rep['comm'], 'kernel': rep['kernel'],
+                'hardware': rep['hardware'], 'taint': rep['taint']['flags'], 'taint_text': rep['taint']['text'],
+                'file': rep['file'], 'line': rep['line'], 'function': rep['function'], 'modules': rep['modules'],
+                'rip': rep['rip'], 'workqueue': rep['workqueue'],
+                'frames': [{'text': f['text'], 'unreliable': f['unreliable'], 'fault': f['fault'], 'module': f['module']} for f in rep['frames']],
+                'code': rep['code'], 'registers': rep['registers'], 'raw': rep['raw'],
+            },
+        })
+    groups.sort(key=lambda g: (-g['count'], g['ts']), reverse=False)
+    groups.sort(key=lambda g: g['ts'], reverse=True)
+    groups.sort(key=lambda g: -g['count'])
+    for i, g in enumerate(groups, 1):
+        g['id'] = f"g{i}"
+    return groups
 
-    def parse_kernel_traces(path):
-        try:
-            with open(path, 'r') as f:
-                lines = f.readlines()
-        except Exception:
-            return []
 
-        traces = []
-        current_trace = []
-        current_timestamp = ''
-        in_trace = False
-
-        for line in lines:
-            if '------------[ cut here ]------------' in line:
-                if current_trace:
-                    traces.append(parse_trace(current_trace, current_timestamp))
-                    current_trace = []
-                current_timestamp = extract_syslog_timestamp(line)
-                in_trace = True
-                current_trace.append(strip_syslog_prefix(line))
-                continue
-
-            if in_trace:
-                current_trace.append(strip_syslog_prefix(line))
-                if '---[ end trace' in line:
-                    traces.append(parse_trace(current_trace, current_timestamp))
-                    current_trace = []
-                    in_trace = False
-
-        return traces
-
-    def parse_trace(lines, timestamp):
-        trace_data = {
-            'timestamp': timestamp,
-            'warning': '',
-            'cpu': '',
-            'pid': '',
-            'file': '',
-            'function': '',
-            'code': [],
-            'call_trace': [],
-            'comm': '',
-            'kernel_version': '',
-            'hardware': ''
-        }
-
-        for line in lines:
-            if 'WARNING: CPU:' in line:
-                match = re.search(r'WARNING: CPU: (\d+) PID: (\d+) at ([^:]+):(\d+) (\S+)', line)
-                if match:
-                    trace_data['cpu'] = match.group(1)
-                    trace_data['pid'] = match.group(2)
-                    trace_data['file'] = f"{match.group(3)}:{match.group(4)}"
-                    trace_data['function'] = match.group(5)
-                    trace_data['warning'] = line.strip()
-            elif line.strip().startswith('CPU:') and 'Comm:' in line:
-                comm_match = re.search(r'Comm:\s+(\S+)', line)
-                if comm_match:
-                    trace_data['comm'] = comm_match.group(1)
-                version_match = re.search(r'(\d+\.\d+\.\d+-[^ ]+)', line)
-                if version_match:
-                    trace_data['kernel_version'] = version_match.group(1)
-            elif 'Hardware name:' in line:
-                trace_data['hardware'] = line.strip().split('Hardware name:')[-1].strip()
-            elif line.strip().startswith('Code:'):
-                trace_data['code'].append(line.strip())
-            elif re.match(r'\s+<TASK>', line) or 'Call Trace:' in line:
-                continue
-            elif re.match(r'^\s*\??\s*\S+\+0x[0-9a-f]+(?:/\S+)?', line):
-                trace_data['call_trace'].append(line.strip())
-
-        return trace_data
-
-    entries = os.listdir(directory)
-    if len(entries) == 1:
-        inner = os.path.join(directory, entries[0])
-        if os.path.isdir(inner):
-            directory = inner
-    result['stack_traces'] = {
-        'traces': parse_kernel_traces(f"{directory}/sos_commands/logs/journalctl_--no-pager")
+def _summary(events, groups, scan):
+    if not events:
+        return {'total': 0, 'groups': 0, 'first': '', 'last': '', 'types': [], 'modules': [], 'comms': [],
+                'taint': {'flags': '', 'text': ''}, 'timeline': None, 'sources': scan['sources'], 'capped': scan['capped']}
+    types = Counter(e['type_key'] for e in events)
+    type_order = ['warning', 'bug', 'oops', 'soft_lockup', 'hard_lockup', 'rcu_stall', 'panic', 'mce', 'netdev_wait', 'other']
+    modules = Counter()
+    for e in events:
+        seen = set()
+        for f in e['frames']:
+            if f['module'] and f['module'] not in seen and not f['unreliable']:
+                seen.add(f['module'])
+                modules[f['module']] += 1
+        if e['rip'] and e['function'].endswith(']'):
+            mod = e['function'].rsplit('[', 1)[1].rstrip(']')
+            if mod not in seen:
+                modules[mod] += 1
+    comms = Counter(e['comm'] for e in events if e['comm'])
+    return {
+        'total': len(events), 'groups': len(groups),
+        'first': kl.fmt_ts(events[0]), 'last': kl.fmt_ts(events[-1]),
+        'types': [{'key': k, 'label': kl.TYPE_LABELS.get(k, k), 'count': types[k], 'severity': kl.TYPE_SEVERITY.get(k, 'info')}
+                  for k in type_order if types.get(k)],
+        'modules': kl.top(modules), 'comms': kl.top(comms),
+        'taint': kl.taint_summary(events),
+        'timeline': kl.timeline(events, 'Traces per day' if _span_days(events) > 2 else 'Traces per hour'),
+        'sources': scan['sources'], 'capped': scan['capped'],
     }
-    return result
+
+
+def _span_days(events):
+    stamps = [e['ts'] for e in events if e['ts']]
+    if len(stamps) < 2:
+        return 0
+    return (max(stamps) - min(stamps)).total_seconds() / 86400
+
+
+def _legacy(ev):
+    return {
+        'timestamp': kl.fmt_ts(ev),
+        'warning': ev['header'],
+        'cpu': ev['cpu'], 'pid': ev['pid'],
+        'file': f"{ev['file']}:{ev['line']}" if ev['file'] and ev['line'] else ev['file'],
+        'function': ev['function'],
+        'code': ['Code: ' + ' '.join(p['text'] for p in ev['code'])] if ev['code'] else [],
+        'call_trace': [f['text'].strip() for f in ev['frames']],
+        'comm': ev['comm'], 'kernel_version': ev['kernel'], 'hardware': ev['hardware'],
+        'type': ev['type_key'], 'sources': ev['sources'],
+    }

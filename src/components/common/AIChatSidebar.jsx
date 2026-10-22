@@ -1042,7 +1042,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
                          re-parse the message actually changing. */
                       <AIMessageMarkdown
                         content={msg.content}
-                        className={`markdown-preview sc-chat-markdown text-xs wrap-break-word overflow-hidden ${
+                        className={`markdown-preview sc-chat-markdown wrap-break-word overflow-hidden ${
  msg.role ==='user'?'sc-chat-markdown-user':''
  }`}
                         style={MESSAGE_MARKDOWN_STYLE}

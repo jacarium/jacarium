@@ -83,8 +83,11 @@ check_dependencies() {
         echo "✓ jsdom + fake-indexeddb + playwright-core present"
     else
         echo "⚠️  jsdom, fake-indexeddb and/or playwright-core missing (needed by the jsdom-based and browser tests)"
-        echo "   Installing now: npm install --no-save jsdom fake-indexeddb playwright-core"
-        if (cd "$REPO_ROOT" && npm install --no-save jsdom fake-indexeddb playwright-core > /dev/null 2>&1); then
+        # playwright-core is a devDependency: install the LOCKED version, or a
+        # bare --no-save install upgrades it past the Chromium build on disk
+        PW_SPEC=$(cd "$REPO_ROOT" && node -e "const v=(require('./package-lock.json').packages||{})['node_modules/playwright-core']?.version; process.stdout.write(v ? 'playwright-core@'+v : 'playwright-core')" 2>/dev/null || echo playwright-core)
+        echo "   Installing now: npm install --no-save jsdom fake-indexeddb $PW_SPEC"
+        if (cd "$REPO_ROOT" && npm install --no-save jsdom fake-indexeddb "$PW_SPEC" > /dev/null 2>&1); then
             echo "✓ installed"
         else
             echo "❌ install failed - run it yourself: npm install --no-save jsdom fake-indexeddb playwright-core"

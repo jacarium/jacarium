@@ -1,60 +1,93 @@
- <div class="panel rounded-lg shadow-sm">
- {% if data.stack_traces.traces %}
- {% for trace in data.stack_traces.traces %}
- <div class="bg-gray-50 p-3 mb-3 rounded-sm border border-gray-200">
- <div class="text-xs text-gray-600 mb-1">
- <i class="fas fa-clock mr-1"></i>
- <span class="font-medium">{{ trace.timestamp }}</span>
- </div>
- <div class="mb-2 text-sm text-gray-900 font-medium whitespace-pre-wrap">{{ trace.warning }}</div>
- <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm mb-2">
- <div><span class="font-semibold">CPU:</span> {{ trace.cpu }}</div>
- <div><span class="font-semibold">PID:</span> {{ trace.pid }}</div>
- <div><span class="font-semibold">Comm:</span> {{ trace.comm }}</div>
- <div><span class="font-semibold">Function:</span> {{ trace.function }}</div>
- {% set file_parts = trace.file.split(':') %}
- {% set file_path = file_parts[0] %}
- {% set line = file_parts[1] if file_parts|length > 1 else None %}
+{% from "tabs/_kernel_diag_macros.html" import icon, tag, stat, timeline, chips, stack, code_line, raw_block, copy_button, filters, empty %}
+{#
+  Kernel Stack Traces: an incident board of the WARNING / BUG / Oops / lockup
+  / RCU stall traces found in the report's kernel logs. Identical traces
+  (same type, same frames) are one row with a count and their occurrences.
 
- {% set version_parts = trace.kernel_version.split('.') %}
- {% set major_minor = version_parts[0] + '.' + version_parts[1] %}
- {% set tag ="v" + major_minor %}
+  data.stack_traces.summary = {total, groups, first, last, types: [{key,
+    label, count, severity}], modules: [{name, count}], comms: [{name,
+    count}], taint: {flags, text}, timeline: {label, buckets, max, first,
+    last}, sources: [..], capped}
+  data.stack_traces.groups = [{id, type_key, type_label, severity, title,
+    count, first, last, ts, occurrences: [{ts, source}], event: {header,
+    cpu, pid, comm, kernel, hardware, taint, taint_text, file, line,
+    function, modules: [{name, flags}], rip, frames: [{text, unreliable,
+    fault, module}], code: [{text, fault}], registers: [..], raw: [..]}}]
+  data.stack_traces.traces is the flat legacy list the tests read.
+#}
+{% set st = data.stack_traces or {} %}
+{% set summary = st.summary or {} %}
+{% set groups = st.groups or [] %}
+<div class="panel rounded-lg shadow-sm kd" id="kernel-stack-traces">
+{% if groups %}
+  <div class="kd-strip">
+    <div class="kd-stats">
+      {{ stat('Traces', summary.total, (summary.groups ~ ' distinct') if summary.groups else '') }}
+      {% for t in summary.types or [] %}
+      <div class="kd-stat"><span class="kd-stat-label">{{ t.label }}</span><span class="kd-stat-value">{{ t.count }} {{ tag(t.severity, t.label) }}</span></div>
+      {% endfor %}
+      {{ stat('First', summary.first, mono=True) }}
+      {{ stat('Last', summary.last, mono=True) }}
+      {% if summary.taint and summary.taint.flags %}{{ stat('Tainted', summary.taint.flags, summary.taint.text, mono=True) }}{% endif %}
+    </div>
+    {{ timeline(summary.timeline) }}
+    {{ chips('Modules', summary.modules, mono=True) }}
+    {{ chips('Processes', summary.comms, mono=True) }}
+  </div>
 
- {% set repo_url ="https://github.com/torvalds/linux/blob/" + tag +"/" %}
+  {{ filters('Search function, file, module, process', summary.types) }}
 
- <div>
- <span class="font-semibold">File:</span>
- <a href="{{ repo_url }}{{ file_path }}{% if line %}#L{{ line }}{% endif %}"
- target="_blank"
- rel="noopener noreferrer"
- class="underline text-blue-600 hover:text-blue-800">
- {{ trace.file }}
- </a>
- </div>
-
- <div><span class="font-semibold">Kernel:</span> {{ trace.kernel_version }}</div>
- <div class="col-span-2"><span class="font-semibold">Hardware:</span> {{ trace.hardware }}</div>
- </div>
- {% if trace.code %}
- <div class="text-sm text-gray-900 bg-gray-100 p-2 rounded-sm mb-2">
- <div class="whitespace-pre-wrap">{{ trace.code | join("\n") }}</div>
- </div>
- {% endif %}
- {% if trace.call_trace %}
- <div class="text-sm bg-gray-100 p-2 rounded-sm">
- <div class="font-semibold mb-1">Call Trace:</div>
- <div class="whitespace-pre-wrap">{{ trace.call_trace | join("\n") }}</div>
- </div>
- {% endif %}
- </div>
- {% endfor %}
- {% else %}
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No kernel stack traces found in this report</div>
- </div>
- {% endif %}
- </div>
+  <div class="kd-list">
+  {% for g in groups %}
+    {% set ev = g.event %}
+    <details class="kd-row kd-sev-{{ g.severity }}" data-type="{{ g.type_key }}" data-count="{{ g.count }}" data-ts="{{ g.ts }}" id="trace-{{ g.id }}">
+      <summary>
+        {{ icon('chevron', 'kd-chev') }}
+        <div class="kd-row-main">
+          <div class="kd-row-title">{{ tag(g.severity, g.type_label) }}<span class="kd-mono">{{ g.title }}</span></div>
+          <div class="kd-row-meta">
+            {% if ev.file %}<span class="kd-mono">{{ ev.file }}{% if ev.line %}:{{ ev.line }}{% endif %}</span>{% endif %}
+            {% if ev.comm %}<span>{{ ev.comm }}{% if ev.pid %} (pid {{ ev.pid }}){% endif %}</span>{% endif %}
+            {% if ev.cpu is not none and ev.cpu != '' %}<span>CPU {{ ev.cpu }}</span>{% endif %}
+            {% for m in (ev.modules or [])[:3] if m.name %}<span class="kd-mono">[{{ m.name }}]</span>{% endfor %}
+          </div>
+        </div>
+        <div class="kd-row-side">
+          <span class="kd-xn">&times;{{ g.count }}</span>
+          <span class="kd-mono">{{ g.last }}</span>
+        </div>
+      </summary>
+      <div class="kd-row-body">
+        <dl class="kd-facts">
+          <div><dt>Time</dt><dd class="kd-mono">{{ g.first }}{% if g.count > 1 %} &rarr; {{ g.last }}{% endif %}</dd></div>
+          {% if ev.cpu is not none and ev.cpu != '' or ev.pid %}<div><dt>CPU / PID</dt><dd>{{ ev.cpu }}{% if ev.pid %} / {{ ev.pid }}{% endif %}</dd></div>{% endif %}
+          {% if ev.comm %}<div><dt>Process</dt><dd class="kd-mono">{{ ev.comm }}</dd></div>{% endif %}
+          {% if ev.function %}<div><dt>Function</dt><dd class="kd-mono">{{ ev.function }}</dd></div>{% endif %}
+          {% if ev.file %}<div><dt>File</dt><dd class="kd-mono">{{ ev.file }}{% if ev.line %}:{{ ev.line }}{% endif %}</dd></div>{% endif %}
+          {% if ev.kernel %}<div><dt>Kernel</dt><dd class="kd-mono">{{ ev.kernel }}</dd></div>{% endif %}
+          {% if ev.taint %}<div><dt>Tainted</dt><dd><span class="kd-mono">{{ ev.taint }}</span>{% if ev.taint_text %} <span class="kd-stat-sub">{{ ev.taint_text }}</span>{% endif %}</dd></div>{% endif %}
+          {% if ev.hardware %}<div><dt>Hardware</dt><dd>{{ ev.hardware }}</dd></div>{% endif %}
+          {% if ev.header %}<div class="kd-wide"><dt>Kernel message</dt><dd class="kd-mono">{{ ev.header }}</dd></div>{% endif %}
+        </dl>
+        {% if ev.modules %}{{ chips('Modules linked in', ev.modules, mono=True, max=12) }}{% endif %}
+        {% if ev.frames %}
+        <div class="kd-section-title">Call trace
+          <span class="kd-actions">{{ copy_button('trace-raw-' ~ g.id) }}</span>
+        </div>
+        {{ stack(ev.frames) }}
+        {% endif %}
+        {% if ev.code %}{{ code_line(ev.code) }}{% endif %}
+        {% if g.occurrences and g.count > 1 %}
+        <div class="kd-section-title">Occurrences</div>
+        <div class="kd-chips">{% for o in g.occurrences %}<span class="kd-chip kd-chip-mono"><span>{{ o.ts }}</span>{% if o.source %}<span class="kd-count">{{ o.source }}</span>{% endif %}</span>{% endfor %}</div>
+        {% endif %}
+        {% if ev.raw %}{{ raw_block(ev.raw, 'trace-raw-' ~ g.id) }}{% endif %}
+      </div>
+    </details>
+  {% endfor %}
+  </div>
+{% else %}
+  {{ empty('No kernel stack traces', 'No WARNING, BUG, Oops, lockup or RCU stall was found in the kernel logs of this report.', summary.sources) }}
+{% endif %}
+{% include "tabs/_kernel_diag.html" %}
+</div>

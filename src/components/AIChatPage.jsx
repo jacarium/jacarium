@@ -1388,7 +1388,13 @@ export default function AIChatPage() {
                       {showRawMarkdown ? (
                         <div className="text-xs whitespace-pre-wrap wrap-break-word font-mono text-os-text-primary p-4">{msg.content}</div>
                       ) : msg.role === 'user' ? (
-                        <div className="text-xs whitespace-pre-wrap wrap-break-word text-os-text-primary p-4">{msg.content}</div>
+                        /* the user's own message: the same Markdown renderer and chat size as a reply (and as the sidebar's user bubble) */
+                        <div className="p-4">
+                          <AIMessageMarkdown
+                            content={msg.content}
+                            className="markdown-preview sc-chat-markdown wrap-break-word overflow-hidden"
+                          />
+                        </div>
                       ) : (
                         <>
                           {/* Tabs for assistant messages with thinking (the app's tab bar, src/components/ui/primitives.jsx; Thinking in yellow) */}
@@ -1430,7 +1436,7 @@ export default function AIChatPage() {
                               content={msg.content}
                               citations={msg.citations}
                               onCitationClick={handleCitationClick}
-                              className="markdown-preview sc-chat-markdown text-xs overflow-hidden"
+                              className="markdown-preview sc-chat-markdown overflow-hidden"
                             />
                           ) : msg.content && !msg.content.trim() ? (
                             /* Content exists but is only whitespace - show a message */

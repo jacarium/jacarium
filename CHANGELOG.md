@@ -4,6 +4,34 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.3.4
+
+_2026-10-22_
+
+### [DIAGNOSTICS]
+
+Stack Traces, Hung Tasks and OOM Killer are redesigned: a summary with counts, a timeline and top modules or processes, identical events grouped (×N), and each event's details, stack and raw log lines one click away
+
+Stack Traces now finds BUG, Oops, general protection faults, soft and hard lockups, RCU stalls and panics as well as warnings; the faulting frame is marked and unreliable frames are dimmed
+
+Hung Tasks are grouped by where the tasks were blocked, with how long each was stuck
+
+OOM Killer shows who was killed, how much memory it used, why (the whole machine or a cgroup limit) and the top memory users at that moment
+
+The kernel tabs read the journal, dmesg and var/log/messages including rotated .gz files, on RHEL 7 to 10, without duplicates
+
+Log Viewer now sits under Log Collection
+
+New Sos Report > Blame: where the sos report's own collection time went, with charts of plugin run time, return codes and a timeline, and each plugin's commands
+
+Charts keep working after switching between dark and light
+
+### [AI]
+
+AI Chat and Robin use the app's normal text size; headings in messages are only slightly larger
+
+Robin formats your own messages the same way as the AI Chat sidebar
+
 ## What's New in v3.3.3
 
 _2026-10-21_

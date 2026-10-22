@@ -118,8 +118,10 @@ try {
   await clickNav('Diagnostics');
   const opened = await app.waitFor(`(() => { const b = Array.from(document.querySelectorAll('button')).find((el) => el.textContent.includes(${JSON.stringify(FIXTURE_REPORT)})); if (!b) return false; b.click(); return true; })()`, 20000);
   check('the synthetic report opens in Diagnostics', opened);
+  // the Log Viewer sits under the "Log Collection" group: expand it with its chevron (the label opens the group page)
+  await app.waitFor(`(() => { const g = Array.from(document.querySelectorAll('div.cursor-pointer span')).find((el) => el.textContent.trim() === 'Log Collection'); if (!g) return null; if (!Array.from(document.querySelectorAll('div.cursor-pointer span')).some((el) => el.textContent.trim() === 'Log Viewer')) g.closest('div.cursor-pointer').parentElement.querySelector('button[title="Expand"]')?.click(); return true; })()`, 20000);
   const listed = await app.waitFor(`(() => { const l = Array.from(document.querySelectorAll('div.cursor-pointer span')).map((s) => s.textContent.trim()); return l.includes('Log Viewer') ? true : null; })()`, 20000);
-  check('the Log Viewer tab is listed', listed);
+  check('the Log Viewer tab is listed', listed, await ev(`Array.from(document.querySelectorAll('div.cursor-pointer span')).map((s) => s.textContent.trim()).join(' / ')`));
   await ev(`(() => { const s = Array.from(document.querySelectorAll('div.cursor-pointer span')).find((el) => el.textContent.trim() === 'Log Viewer'); s && s.closest('div.cursor-pointer').click(); })()`);
 
   // the sandboxed srcdoc frame is an out-of-process frame: its own CDP target on the browser's /json

@@ -1,0 +1,365 @@
+{#
+  Sos Report / Blame: where the sos report's own collection time went.
+
+  data.blame = {available, reason, node, node_label, version, cmdline,
+    policy, preset, hostname, kernel, start, end, total_seconds, total,
+    summary: {plugins, commands, failed, not_found, timeouts, timeout_names,
+    slowest, slowest_time, slowest_share, plugin_time, top3_share,
+    rc_histogram}, plugins: [{rank, name, seconds, time, share, cumulative,
+    commands_count, failed, ok, timeout, timeout_hit, rc: [{rc, count}],
+    rc_text, start, end, offset_start, offset_end, no_commands, commands:
+    [{exec, rc, rc_label, seconds, time, filepath, failed, start, end}]}],
+    rc_codes, gantt, notes}  (parsers/sosreport/blame.py)
+
+  Own bl-* rules on the app's tokens (the diagnostics frame has only the
+  app's compiled Tailwind, so no utility class of this template's own),
+  inline SVG icons, the charts on the Chart.js the frame already loads for
+  the Processes and SAR tabs (window.Chart, themed through
+  diagnosticsThemeColor). The table and the command lists are rendered by
+  Jinja (every string escaped); the script only draws charts from the
+  data (tojson), sorts and shows/hides rows. Coloured left accents (the
+  timeout rows, the cmdline block) are square on the accent side; cards,
+  chips and buttons keep the token radius.
+#}
+{% set b = data.blame or {} %}
+{% set s = b.summary or {} %}
+{% set TOP = 12 %}
+{% set TOP_CMDS = 15 %}
+<div class="panel rounded-lg shadow-sm bl" id="sos-blame">
+<style>
+.bl { font-size: 13px; line-height: 1.45; color: var(--os-text-primary, #151515); }
+.bl *, .bl *::before, .bl *::after { box-sizing: border-box; }
+.bl .bl-mono, .bl code, .bl pre { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); }
+.bl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 10px; }
+.bl-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.bl-head .bl-sub { color: var(--os-text-secondary, #6a6e73); font-size: 12px; overflow-wrap: anywhere; }
+.bl-strip { display: flex; flex-wrap: wrap; gap: 8px 22px; padding: 12px 14px; margin-bottom: 12px; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-sm, 8px); background: var(--os-card-secondary, #f0f0f0); }
+.bl-stat { min-width: 0; }
+.bl-stat-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); white-space: nowrap; }
+.bl-stat-value { display: block; font-size: 20px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.bl-stat-value.bl-mono { font-size: 14px; line-height: 1.7; }
+.bl-stat-sub { font-size: 11px; color: var(--os-text-secondary, #6a6e73); overflow-wrap: anywhere; }
+.bl-stat-value.bl-bad { color: #dc2626; }
+.bl-stat-value.bl-warn { color: #d97706; }
+.dark .bl-stat-value.bl-warn { color: #f59e0b; }
+.bl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.bl-card { min-width: 0; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-sm, 8px); background: var(--os-card, #fff); padding: 10px 12px; display: flex; flex-direction: column; }
+.bl-card-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); margin-bottom: 6px; }
+.bl-card-title .bl-actions { margin-left: auto; display: flex; gap: 6px; }
+.bl-chart { position: relative; width: 100%; min-width: 0; }
+.bl-chart canvas { width: 100% !important; }
+.bl-empty-chart { color: var(--os-text-secondary, #6a6e73); font-size: 12px; padding: 12px 0; }
+.bl-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--os-text-secondary, #6a6e73); margin-top: 4px; }
+.bl-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; background: var(--swatch); }
+.bl-cmdline { margin: 0 0 12px; padding: 8px 10px; border: 1px solid var(--os-border, #d2d2d2); border-left: 3px solid var(--os-blue, #0066cc); border-radius: 0 var(--radius-xs, 6px) var(--radius-xs, 6px) 0; background: var(--os-code-bg, #f6f8fa); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bl-btn { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-control, 8px); background: var(--os-card, #fff); color: var(--os-text-primary, #151515); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.bl-btn:hover { background: var(--os-card-secondary, #f0f0f0); }
+.bl-btn.bl-on { border-color: var(--os-blue, #0066cc); color: var(--os-blue, #0066cc); }
+.bl-link { background: none; border: 0; padding: 0; color: var(--os-blue, #0066cc); font: inherit; font-size: 12px; cursor: pointer; }
+.bl-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.bl-field { position: relative; display: flex; align-items: center; flex: 1 1 220px; min-width: 0; }
+.bl-field > svg { position: absolute; left: 9px; width: 14px; height: 14px; color: var(--os-text-secondary, #6a6e73); pointer-events: none; }
+.bl .bl-input, #diagnostics-content .bl .bl-input { height: 32px; width: 100%; padding: 0 10px 0 30px !important; border: 1px solid var(--os-input-border, var(--os-border, #d2d2d2)) !important; border-radius: var(--radius-control, 8px) !important; background: var(--os-input-bg, var(--os-card, #fff)); color: var(--os-text-primary, #151515); font: inherit; font-size: 13px !important; line-height: 30px !important; }
+.bl-check { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.bl-shown { margin-left: auto; font-size: 12px; color: var(--os-text-secondary, #6a6e73); white-space: nowrap; }
+.bl-table-wrap { overflow-x: auto; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-sm, 8px); }
+.bl-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.bl-table th, .bl-table td { padding: 5px 8px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--os-border, #d2d2d2); vertical-align: top; }
+.bl-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); font-weight: 600; cursor: pointer; user-select: none; background: var(--os-card-secondary, #f0f0f0); }
+.bl-table th.bl-sorted::after { content: " \25BE"; }
+.bl-table th.bl-sorted.bl-asc::after { content: " \25B4"; }
+.bl-table .bl-num { text-align: right; font-variant-numeric: tabular-nums; }
+.bl-table tr.bl-row > td:first-child { box-shadow: inset 3px 0 0 transparent; }
+.bl-table tr.bl-row.bl-timeout > td:first-child { box-shadow: inset 3px 0 0 #dc2626; }
+.bl-table tr.bl-row.bl-has-failed > td:first-child { box-shadow: inset 3px 0 0 #f59e0b; }
+.bl-table tr.bl-row.bl-timeout.bl-has-failed > td:first-child { box-shadow: inset 3px 0 0 #dc2626; }
+.bl-table tr.bl-row[hidden], .bl-table tr.bl-cmds[hidden] { display: none; }
+.bl-table tr.bl-row:hover td { background: var(--os-card-secondary, #f0f0f0); }
+.bl-table td.bl-name { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); }
+.bl-toggle { background: none; border: 0; padding: 0 4px 0 0; cursor: pointer; color: var(--os-text-secondary, #6a6e73); vertical-align: middle; }
+.bl-toggle svg { width: 14px; height: 14px; transition: transform 0.12s; }
+.bl-row.bl-open .bl-toggle svg { transform: rotate(90deg); }
+.bl-bar { display: inline-block; height: 8px; border-radius: 2px; background: var(--os-blue, #0066cc); vertical-align: middle; margin-left: 6px; }
+.bl-tag { display: inline-flex; align-items: center; padding: 0 6px; border-radius: var(--radius-chip, 6px); font-size: 11px; font-weight: 600; border: 1px solid transparent; white-space: nowrap; }
+.bl-tag-bad { background: rgba(220, 38, 38, 0.15); color: #dc2626; border-color: rgba(220, 38, 38, 0.3); }
+.bl-tag-warn { background: rgba(245, 158, 11, 0.15); color: #d97706; border-color: rgba(245, 158, 11, 0.35); }
+.dark .bl-tag-warn { color: #f59e0b; }
+.bl-tag-ok { background: rgba(59, 130, 246, 0.12); color: #2563eb; border-color: rgba(59, 130, 246, 0.3); }
+.dark .bl-tag-ok { color: #60a5fa; }
+.bl-tag-muted { background: rgba(107, 114, 128, 0.15); color: var(--os-text-secondary, #6b7280); border-color: rgba(107, 114, 128, 0.3); }
+.bl-rc { display: inline-flex; flex-wrap: wrap; gap: 3px; }
+.bl-cmds > td { padding: 0 0 0 0; background: var(--os-card-secondary, #f0f0f0); white-space: normal; }
+.bl-cmds-inner { padding: 8px 10px 8px 28px; }
+.bl-cmds-note { font-size: 12px; color: var(--os-text-secondary, #6a6e73); margin-bottom: 4px; }
+.bl-cmd-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.bl-cmd-table td { padding: 2px 8px 2px 0; border: 0; white-space: nowrap; vertical-align: top; }
+.bl-cmd-table td.bl-exec { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); width: 100%; }
+.bl-cmd-table tr[hidden] { display: none; }
+.bl-notes { font-size: 12px; color: var(--os-text-secondary, #6a6e73); margin-top: 8px; }
+.bl-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 36px 12px; text-align: center; color: var(--os-text-secondary, #6a6e73); }
+.bl-empty svg { width: 36px; height: 36px; opacity: 0.6; }
+.bl-empty-title { font-weight: 600; color: var(--os-text-primary, #151515); }
+@media (max-width: 520px) { .bl-stat-value { font-size: 17px; } .bl-cmds-inner { padding-left: 10px; } }
+</style>
+{% macro icon(name) -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if name == 'chevron' %}<path d="m9 18 6-6-6-6"/>
+{%- elif name == 'search' %}<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+{%- elif name == 'empty' %}<path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+{% if b.available and b.plugins %}
+  <div class="bl-head">
+    <h2>{{ b.hostname or b.node_label }}</h2>
+    <span class="bl-sub">sos {{ b.version }}{% if b.policy %} &middot; {{ b.policy }}{% endif %}{% if b.preset and b.preset != 'none' %} &middot; preset {{ b.preset }}{% endif %}{% if b.start %} &middot; ran {{ b.start }} &rarr; {{ b.end }}{% endif %}</span>
+  </div>
+
+  <div class="bl-strip">
+    <div class="bl-stat"><span class="bl-stat-label">Total run time</span><span class="bl-stat-value">{{ b.total }}</span><span class="bl-stat-sub">plugins add up to {{ s.plugin_time }}</span></div>
+    <div class="bl-stat"><span class="bl-stat-label">Plugins</span><span class="bl-stat-value">{{ s.plugins }}</span><span class="bl-stat-sub">top 3 = {{ s.top3_share }}% of the run</span></div>
+    <div class="bl-stat"><span class="bl-stat-label">Commands</span><span class="bl-stat-value">{{ s.commands }}</span></div>
+    <div class="bl-stat"><span class="bl-stat-label">Failed commands</span><span class="bl-stat-value{% if s.failed %} bl-warn{% endif %}">{{ s.failed }}</span>{% if s.not_found %}<span class="bl-stat-sub">{{ s.not_found }} not found (rc 127)</span>{% endif %}</div>
+    <div class="bl-stat"><span class="bl-stat-label">Timeouts</span><span class="bl-stat-value{% if s.timeouts %} bl-bad{% endif %}">{{ s.timeouts }}</span>{% if s.timeout_names %}<span class="bl-stat-sub bl-mono">{{ s.timeout_names|join(', ') }}</span>{% endif %}</div>
+    <div class="bl-stat"><span class="bl-stat-label">Slowest plugin</span><span class="bl-stat-value bl-mono">{{ s.slowest }}</span><span class="bl-stat-sub">{{ s.slowest_time }} &middot; {{ s.slowest_share }}% of the run</span></div>
+  </div>
+
+  {% if b.cmdline %}<pre class="bl-cmdline" id="blame-cmdline">{{ b.cmdline }}</pre>{% endif %}
+
+  <div class="bl-grid">
+    <div class="bl-card">
+      <div class="bl-card-title">Plugin run time <span class="bl-actions"><button type="button" class="bl-btn" id="blame-bars-all" data-all="Show all {{ b.plugins|length }}" data-top="Top {{ TOP }}">Show all {{ b.plugins|length }}</button></span></div>
+      <div class="bl-chart" id="blame-bars-box" style="height: {{ [b.plugins|length, TOP]|min * 24 + 30 }}px"><canvas id="blame-bars"></canvas></div>
+    </div>
+    <div class="bl-card">
+      <div class="bl-card-title">Cumulative share of the run <span class="bl-stat-sub">plugins in rank order</span></div>
+      <div class="bl-chart" style="height: {{ [b.plugins|length, TOP]|min * 24 + 30 }}px"><canvas id="blame-cumulative"></canvas></div>
+    </div>
+    <div class="bl-card">
+      <div class="bl-card-title">Return codes per plugin <span class="bl-stat-sub">the {{ TOP }} plugins with most commands</span></div>
+      <div class="bl-chart" style="height: {{ [b.plugins|length, TOP]|min * 24 + 30 }}px"><canvas id="blame-rc"></canvas></div>
+      <div class="bl-legend"><span style="--swatch: var(--os-blue, #0066cc)">rc 0</span><span style="--swatch: #f59e0b">127 not found</span><span style="--swatch: #dc2626">other non-zero</span><span style="--swatch: #9ca3af">no return code</span></div>
+    </div>
+    <div class="bl-card">
+      <div class="bl-card-title">Timeline <span class="bl-stat-sub">{% if b.gantt %}plugins over the run, seconds from start{% else %}not recorded by this sos version{% endif %}</span></div>
+      {% if b.gantt %}<div class="bl-chart" style="height: {{ [b.plugins|length, 20]|min * 22 + 30 }}px"><canvas id="blame-gantt"></canvas></div>
+      {% else %}<div class="bl-empty-chart">This manifest has no per-plugin or per-command start and end times (sos 4.6 and later record them), so the plugins cannot be laid out over the run.</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="bl-filters">
+    <label class="bl-field">{{ icon('search') }}<input type="search" id="blame-filter" class="bl-input" placeholder="Filter plugins and commands" autocomplete="off" spellcheck="false" aria-label="Filter plugins and commands"></label>
+    <label class="bl-check"><input type="checkbox" id="blame-only-failed"> only failed commands</label>
+    <label class="bl-check"><input type="checkbox" id="blame-only-timeouts"> only timeouts</label>
+    <button type="button" class="bl-btn" id="blame-expand-all">Expand all</button>
+    <button type="button" class="bl-btn" id="blame-collapse-all">Collapse all</button>
+    <span class="bl-shown" id="blame-shown"></span>
+  </div>
+
+  <div class="bl-table-wrap">
+  <table class="bl-table" id="blame-table">
+    <thead><tr>
+      <th class="bl-num" data-key="rank">#</th>
+      <th data-key="name">Plugin</th>
+      <th class="bl-num bl-sorted" data-key="seconds" data-dir="desc">Run time</th>
+      <th class="bl-num" data-key="share">Share</th>
+      <th class="bl-num" data-key="commands">Commands</th>
+      <th class="bl-num" data-key="failed">Failed</th>
+      <th data-key="timeout">Timeout</th>
+      <th data-key="rc">Return codes</th>
+    </tr></thead>
+    <tbody>
+    {% for p in b.plugins %}
+      <tr class="bl-row{% if p.timeout_hit %} bl-timeout{% endif %}{% if p.failed %} bl-has-failed{% endif %}" id="blame-plugin-{{ loop.index }}"
+          data-rank="{{ p.rank }}" data-name="{{ p.name }}" data-seconds="{{ p.seconds }}" data-share="{{ p.share }}" data-commands="{{ p.commands_count }}" data-failed="{{ p.failed }}" data-timeout="{{ 1 if p.timeout_hit else 0 }}" data-rc="{{ p.rc_text }}">
+        <td class="bl-num">{{ p.rank }}</td>
+        <td class="bl-name"><button type="button" class="bl-toggle" aria-label="Show the commands of {{ p.name }}">{{ icon('chevron') }}</button>{{ p.name }}</td>
+        <td class="bl-num">{{ p.time }}<span class="bl-bar" style="width: {{ (60 * p.seconds / b.plugins[0].seconds)|round|int if b.plugins[0].seconds else 0 }}px"></span></td>
+        <td class="bl-num">{{ p.share }}%</td>
+        <td class="bl-num">{{ p.commands_count }}</td>
+        <td class="bl-num">{% if p.failed %}<span class="bl-tag bl-tag-warn">{{ p.failed }}</span>{% else %}0{% endif %}</td>
+        <td>{% if p.timeout_hit %}<span class="bl-tag bl-tag-bad">timed out{% if p.timeout %} at {{ p.timeout }} s{% endif %}</span>{% elif p.timeout %}<span class="bl-stat-sub">{{ p.timeout }} s</span>{% endif %}</td>
+        <td><span class="bl-rc">{% for r in p.rc[:6] %}<span class="bl-tag {% if r.rc == '0' %}bl-tag-ok{% elif r.rc == '127' %}bl-tag-warn{% elif r.rc == 'none' %}bl-tag-muted{% else %}bl-tag-bad{% endif %}" title="return code {{ r.rc }}">{{ r.rc }}: {{ r.count }}</span>{% endfor %}{% if p.rc|length > 6 %}<span class="bl-tag bl-tag-muted">+{{ p.rc|length - 6 }}</span>{% endif %}</span></td>
+      </tr>
+      <tr class="bl-cmds" hidden>
+        <td colspan="8"><div class="bl-cmds-inner">
+          {% if p.no_commands %}
+          <div class="bl-cmds-note">No individual command recorded: the time went into the plugin's own code and file copies{% if p.files_count %} ({{ p.files_count }} file spec{{ 's' if p.files_count != 1 else '' }}){% endif %}.</div>
+          {% else %}
+          <div class="bl-cmds-note">{{ p.commands|length }} command{{ 's' if p.commands|length != 1 else '' }} by run time{% if p.commands|length > TOP_CMDS %} &middot; <button type="button" class="bl-link bl-cmds-all" data-all="show all {{ p.commands|length }}" data-top="show the top {{ TOP_CMDS }}">show all {{ p.commands|length }}</button>{% endif %}</div>
+          <table class="bl-cmd-table">
+            {% for c in p.commands %}
+            <tr class="bl-cmd{% if c.failed %} bl-cmd-failed{% endif %}"{% if loop.index > TOP_CMDS %} hidden data-extra="1"{% endif %}>
+              <td class="bl-num bl-mono">{{ c.time }}</td>
+              <td><span class="bl-tag {% if c.rc_label == '0' %}bl-tag-ok{% elif c.rc_label == '127' %}bl-tag-warn{% elif c.rc_label == 'none' %}bl-tag-muted{% else %}bl-tag-bad{% endif %}">rc {{ c.rc_label }}</span></td>
+              <td class="bl-exec">{{ c.exec }}</td>
+            </tr>
+            {% endfor %}
+          </table>
+          {% endif %}
+        </div></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if b.notes %}<div class="bl-notes">{% for n in b.notes %}{{ n }} {% endfor %}</div>{% endif %}
+
+<script>
+(() => {
+  const B = {{ b | tojson }};
+  const TOP = {{ TOP }};
+  const root = document.getElementById('sos-blame');
+  const css = (name, fallback) => (getComputedStyle(document.documentElement).getPropertyValue(name) || '').trim() || fallback;
+  const theme = (role, fallback) => (typeof diagnosticsThemeColor === 'function' ? diagnosticsThemeColor(role) : fallback);
+  const ACCENT = css('--os-blue', '#0066cc');
+  const AMBER = '#f59e0b', RED = '#dc2626', GREY = '#9ca3af';
+  const text = () => theme('text', '#333');
+  const grid = () => theme('grid', '#ddd');
+  const tooltip = () => ({ backgroundColor: theme('tooltip', '#fff'), titleColor: text(), bodyColor: text(), borderColor: grid(), borderWidth: 1 });
+  const fmt = (s) => s < 1 ? `${Math.round(s * 1000)} ms` : s < 60 ? `${s.toFixed(1)} s` : `${Math.floor(s / 60)} min ${(s % 60).toFixed(1)} s`;
+  // Every scale gets its ticks/grid and every legend its labels object here
+  // (even hidden legends): the frame's theme bridge assigns into them on a
+  // theme change, and an object missing from the config would be a Chart.js
+  // defaults proxy written back into the options (a recursion).
+  const charts = {};
+  const canvas = (id) => document.getElementById(id);
+  const hasChart = typeof Chart === 'function';
+
+  // 1. Plugin run time: horizontal bars, top N or all
+  function drawBars(all) {
+    if (!hasChart || !canvas('blame-bars')) return;
+    const rows = all ? B.plugins : B.plugins.slice(0, TOP);
+    document.getElementById('blame-bars-box').style.height = `${rows.length * 24 + 30}px`;
+    if (charts.bars) charts.bars.destroy();
+    charts.bars = new Chart(canvas('blame-bars').getContext('2d'), {
+      type: 'bar',
+      data: { labels: rows.map((p) => p.name), datasets: [{ label: 'run time', data: rows.map((p) => p.seconds), backgroundColor: rows.map((p) => p.timeout_hit ? RED : ACCENT), borderRadius: 4, borderSkipped: 'start', maxBarThickness: 18 }] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false, labels: { color: text() } }, tooltip: { ...tooltip(), callbacks: { label: (c) => { const p = rows[c.dataIndex]; return ` ${fmt(p.seconds)} (${p.share}% of the run, ${p.commands_count} commands${p.timeout_hit ? ', TIMED OUT' : ''})`; } } } },
+        scales: { x: { beginAtZero: true, grid: { color: grid() }, ticks: { color: text(), font: { size: 11 }, callback: (v) => fmt(v) } }, y: { grid: { display: false }, ticks: { color: text(), font: { size: 11, family: css('--font-mono', 'monospace') } } } } },
+    });
+  }
+  drawBars(false);
+  const barsAll = document.getElementById('blame-bars-all');
+  if (barsAll && B.plugins.length <= TOP) barsAll.hidden = true;
+  let showingAll = false;
+  if (barsAll) barsAll.addEventListener('click', () => { showingAll = !showingAll; drawBars(showingAll); barsAll.textContent = showingAll ? barsAll.dataset.top : barsAll.dataset.all; });
+
+  // 2. Cumulative share: a line over the plugin ranks, the 80% mark drawn as a dashed guide
+  if (hasChart && canvas('blame-cumulative')) {
+    const rows = B.plugins;
+    const eighty = rows.findIndex((p) => p.cumulative >= 80);
+    charts.cumulative = new Chart(canvas('blame-cumulative').getContext('2d'), {
+      type: 'line',
+      data: { labels: rows.map((p) => p.rank), datasets: [
+        { label: 'cumulative % of the run', data: rows.map((p) => p.cumulative), borderColor: ACCENT, backgroundColor: ACCENT + '1a', fill: true, borderWidth: 2, pointRadius: rows.length > 60 ? 0 : 3, pointHoverRadius: 5, tension: 0.2 },
+        { label: '80%', data: rows.map(() => 80), borderColor: GREY, borderDash: [4, 4], borderWidth: 1, pointRadius: 0, pointHoverRadius: 0, fill: false },
+      ] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false, labels: { color: text() } }, tooltip: { ...tooltip(), filter: (i) => i.datasetIndex === 0, callbacks: { title: (items) => { const p = rows[items[0].dataIndex]; return `#${p.rank} ${p.name}`; }, label: (c) => ` ${rows[c.dataIndex].cumulative}% after this plugin (${fmt(rows[c.dataIndex].seconds)})` } } },
+        scales: { x: { title: { display: true, text: eighty >= 0 ? `plugin rank (80% reached at #${eighty + 1})` : 'plugin rank', color: text(), font: { size: 11 } }, grid: { color: grid() }, ticks: { color: text(), font: { size: 11 }, maxTicksLimit: 12 } }, y: { min: 0, max: 100, grid: { color: grid() }, ticks: { color: text(), font: { size: 11 }, callback: (v) => `${v}%` } } } },
+    });
+  }
+
+  // 3. Return codes per plugin: stacked, rc 0 / 127 / other non-zero / none
+  if (hasChart && canvas('blame-rc')) {
+    const rows = B.plugins.slice().sort((a, b) => b.commands_count - a.commands_count).slice(0, TOP).filter((p) => p.commands_count > 0);
+    const count = (p, pick) => p.rc.filter(pick).reduce((n, r) => n + r.count, 0);
+    charts.rc = new Chart(canvas('blame-rc').getContext('2d'), {
+      type: 'bar',
+      data: { labels: rows.map((p) => p.name), datasets: [
+        { label: 'rc 0', data: rows.map((p) => count(p, (r) => r.rc === '0')), backgroundColor: ACCENT, maxBarThickness: 18 },
+        { label: '127 not found', data: rows.map((p) => count(p, (r) => r.rc === '127')), backgroundColor: AMBER, maxBarThickness: 18 },
+        { label: 'other non-zero', data: rows.map((p) => count(p, (r) => r.rc !== '0' && r.rc !== '127' && r.rc !== 'none')), backgroundColor: RED, maxBarThickness: 18 },
+        { label: 'no return code', data: rows.map((p) => count(p, (r) => r.rc === 'none')), backgroundColor: GREY, maxBarThickness: 18 },
+      ] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false, labels: { color: text() } }, tooltip: { ...tooltip(), mode: 'index', callbacks: { label: (c) => c.raw ? ` ${c.dataset.label}: ${c.raw}` : null } } },
+        scales: { x: { stacked: true, beginAtZero: true, grid: { color: grid() }, ticks: { color: text(), font: { size: 11 } } }, y: { stacked: true, grid: { display: false }, ticks: { color: text(), font: { size: 11, family: css('--font-mono', 'monospace') } } } } },
+    });
+  }
+
+  // 4. Timeline: floating bars [start, end] in seconds from the run start, the 20 longest plugins in start order
+  if (hasChart && canvas('blame-gantt')) {
+    const rows = B.plugins.filter((p) => p.offset_start !== null && p.offset_end !== null).slice(0, 20).sort((a, b) => a.offset_start - b.offset_start);
+    charts.gantt = new Chart(canvas('blame-gantt').getContext('2d'), {
+      type: 'bar',
+      data: { labels: rows.map((p) => p.name), datasets: [{ label: 'plugin', data: rows.map((p) => [p.offset_start, Math.max(p.offset_end, p.offset_start + 0.2)]), backgroundColor: rows.map((p) => p.timeout_hit ? RED : ACCENT), borderRadius: 3, maxBarThickness: 14 }] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false, labels: { color: text() } }, tooltip: { ...tooltip(), callbacks: { label: (c) => { const p = rows[c.dataIndex]; return ` ${p.start} → ${p.end} (${fmt(p.seconds)})`; } } } },
+        scales: { x: { min: 0, max: Math.ceil(B.total_seconds || Math.max(...rows.map((p) => p.offset_end))), grid: { color: grid() }, ticks: { color: text(), font: { size: 11 }, callback: (v) => `${v}s` } }, y: { grid: { display: false }, ticks: { color: text(), font: { size: 11, family: css('--font-mono', 'monospace') } } } } },
+    });
+  }
+
+  // The table: expand, filter, sort. Rows are Jinja-rendered; this only shows, hides and reorders them.
+  const tbody = root.querySelector('#blame-table tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr.bl-row'));
+  const pairs = rows.map((row) => ({ row, cmds: row.nextElementSibling, text: (row.textContent + ' ' + row.nextElementSibling.textContent).replace(/\s+/g, ' ').toLowerCase() }));
+  const filter = document.getElementById('blame-filter');
+  const onlyFailed = document.getElementById('blame-only-failed');
+  const onlyTimeouts = document.getElementById('blame-only-timeouts');
+  const shown = document.getElementById('blame-shown');
+  function setOpen(pair, open) { pair.row.classList.toggle('bl-open', open); pair.cmds.hidden = !open; }
+  pairs.forEach((pair) => {
+    pair.row.querySelector('.bl-toggle').addEventListener('click', () => setOpen(pair, pair.cmds.hidden));
+    pair.row.addEventListener('click', (e) => { if (e.target.closest('.bl-toggle') || e.target.closest('a, button')) return; setOpen(pair, pair.cmds.hidden); });
+    const more = pair.cmds.querySelector('.bl-cmds-all');
+    if (more) more.addEventListener('click', () => { const extra = pair.cmds.querySelectorAll('tr[data-extra]'); const showAll = more.textContent.startsWith('show all'); extra.forEach((tr) => { tr.hidden = !showAll && !pair.cmds.classList.contains('bl-failed-only') ? true : showAll ? false : tr.hidden; }); more.textContent = showAll ? more.dataset.top : more.dataset.all; applyCmdFilter(pair); });
+  });
+  function applyCmdFilter(pair) {
+    const failedOnly = onlyFailed.checked;
+    pair.cmds.classList.toggle('bl-failed-only', failedOnly);
+    pair.cmds.querySelectorAll('tr.bl-cmd').forEach((tr) => {
+      if (failedOnly) tr.hidden = !tr.classList.contains('bl-cmd-failed');
+      else if (tr.dataset.extra) { const more = pair.cmds.querySelector('.bl-cmds-all'); tr.hidden = !(more && more.textContent.startsWith('show the top')); }
+      else tr.hidden = false;
+    });
+  }
+  function applyFilters() {
+    const q = filter.value.trim().toLowerCase();
+    const terms = q ? q.split(/\s+/) : [];
+    let visible = 0;
+    pairs.forEach((pair) => {
+      const ok = terms.every((t) => pair.text.includes(t)) && (!onlyFailed.checked || Number(pair.row.dataset.failed) > 0) && (!onlyTimeouts.checked || pair.row.dataset.timeout === '1');
+      pair.row.hidden = !ok;
+      if (!ok) pair.cmds.hidden = true; else if (pair.row.classList.contains('bl-open')) pair.cmds.hidden = false;
+      if (ok) visible++;
+      applyCmdFilter(pair);
+    });
+    shown.textContent = visible === pairs.length ? `${pairs.length} plugins` : `${visible} of ${pairs.length} plugins`;
+  }
+  let timer = null;
+  filter.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(applyFilters, 120); });
+  onlyFailed.addEventListener('change', applyFilters);
+  onlyTimeouts.addEventListener('change', applyFilters);
+  document.getElementById('blame-expand-all').addEventListener('click', () => pairs.forEach((p) => { if (!p.row.hidden) setOpen(p, true); }));
+  document.getElementById('blame-collapse-all').addEventListener('click', () => pairs.forEach((p) => setOpen(p, false)));
+  applyFilters();
+  root.querySelectorAll('#blame-table th').forEach((th) => th.addEventListener('click', () => {
+    const key = th.dataset.key;
+    const numeric = th.classList.contains('bl-num');
+    const asc = th.classList.contains('bl-sorted') ? th.dataset.dir !== 'asc' : !numeric;
+    root.querySelectorAll('#blame-table th').forEach((h) => { h.classList.remove('bl-sorted', 'bl-asc'); delete h.dataset.dir; });
+    th.classList.add('bl-sorted'); th.classList.toggle('bl-asc', asc); th.dataset.dir = asc ? 'asc' : 'desc';
+    const sorted = pairs.slice().sort((a, b) => {
+      const va = numeric ? Number(a.row.dataset[key]) : String(a.row.dataset[key] || '');
+      const vb = numeric ? Number(b.row.dataset[key]) : String(b.row.dataset[key] || '');
+      const r = va < vb ? -1 : va > vb ? 1 : 0;
+      return asc ? r : -r;
+    });
+    sorted.forEach((p) => { tbody.appendChild(p.row); tbody.appendChild(p.cmds); });
+  }));
+  window.__blameCharts = charts;
+})();
+</script>
+{% else %}
+  <div class="bl-empty">
+    {{ icon('empty') }}
+    <div class="bl-empty-title">No plugin timings in this report</div>
+    <div>{{ b.reason or 'The sos manifest holds no per-plugin run times.' }}</div>
+    {% if b.version %}<div class="bl-stat-sub">sos {{ b.version }}{% if b.start %} &middot; ran {{ b.start }} &rarr; {{ b.end }}{% if b.total %} ({{ b.total }}){% endif %}{% endif %}</div>{% endif %}
+    {% if b.cmdline %}<pre class="bl-cmdline" style="margin-top: 10px; text-align: left">{{ b.cmdline }}</pre>{% endif %}
+  </div>
+{% endif %}
+</div>

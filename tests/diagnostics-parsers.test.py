@@ -148,9 +148,9 @@ def main():
           len(got) >= 1 and got[0] == ("example-worker", "4311", "4200", "D", "0x00004080"), str(got))
     check("hung task: tight legacy line parsed too",
           len(got) == 2 and got[1] == ("legacy-worker", "4312", "4201", "D", "0x00004080"), str(got))
-    mock_hung = kernel_hung_task.parse(sos).get("hung_tasks", [])
-    check("hung task: the mock sosreport (real + legacy line) gives pid/ppid for both events",
-          len(mock_hung) == 2 and all(h["details"]["pid"] == "4311" and h["details"]["ppid"] == "4200" for h in mock_hung),
+    mock_hung = [h for h in kernel_hung_task.parse(sos).get("hung_tasks", []) if h["details"]["pid"] == "4311"]
+    check("hung task: the mock sosreport (real + legacy line) gives pid/ppid for both example-worker:4311 events",
+          len(mock_hung) == 2 and all(h["details"]["ppid"] == "4200" for h in mock_hung),
           str([(h["details"].get("pid"), h["details"].get("ppid")) for h in mock_hung]))
 
     # 5. C-state order: state10 must sort after state9, whatever listdir says

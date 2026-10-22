@@ -1,0 +1,245 @@
+{#
+  The kernel diagnostics tabs (Stack Traces, Hung Tasks, OOM Killer) share
+  one "incident board" look: a summary strip (stat tiles, a tiny events-over-
+  time bar strip, offender chips), a filter row, and a list of collapsible
+  rows, each with a facts list, a monospace stack block and the raw lines.
+
+  Everything is styled by the kd-* rules below, written on the app's tokens
+  (with fallbacks for the standalone Flask page). The diagnostics frame only
+  has the APP's compiled Tailwind, so a utility class used by a template alone
+  (a four-column grid, a grey background...) does not exist there: that is
+  how the old tabs ended up with overlapping columns. Icons are inline SVG.
+
+  Severity colours are the Log Viewer's fixed badge colours (red / amber /
+  blue): status colours stay semantic in both themes and always come with a
+  label, never colour alone.
+
+  Report content is untrusted: the templates render it through Jinja's
+  autoescaping only (nothing marked safe), and the script below never builds HTML from
+  it (it toggles, filters by textContent, copies textContent).
+#}
+<style>
+/* --- Layout ---------------------------------------------------------- */
+.kd { font-size: 13px; line-height: 1.45; color: var(--os-text-primary, #151515); }
+.kd *, .kd *::before, .kd *::after { box-sizing: border-box; }
+.kd .kd-mono, .kd code, .kd pre { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); }
+
+/* Summary strip */
+.kd-strip { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; padding: 12px; margin-bottom: 12px; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-sm, 8px); background: var(--os-card-secondary, #f0f0f0); }
+.kd-stats { display: flex; flex-wrap: wrap; gap: 6px 18px; align-content: flex-start; flex: 1 1 260px; min-width: 0; }
+.kd-stat { min-width: 0; }
+.kd-stat-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); white-space: nowrap; }
+.kd-stat-value { display: block; font-size: 18px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.kd-stat-value.kd-mono { font-size: 13px; font-weight: 600; line-height: 1.6; }
+.kd-stat-sub { font-size: 11px; color: var(--os-text-secondary, #6a6e73); }
+.kd-stat-value .kd-tag { vertical-align: 2px; }
+
+/* The events-over-time strip: one series (count per bucket) in the accent,
+   thin bars with a 2px surface gap, rounded data-ends, a title per bar. */
+.kd-timeline { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; }
+.kd-tl-bars { display: flex; align-items: flex-end; justify-content: space-between; gap: 2px; height: 40px; margin-top: 4px; padding-bottom: 1px; border-bottom: 1px solid var(--os-border, #d2d2d2); }
+.kd-tl-bar { flex: 1 1 0; min-width: 2px; max-width: 24px; min-height: 2px; background: var(--os-border, #d2d2d2); border-radius: 3px 3px 0 0; }
+.kd-tl-bar.kd-tl-hit { background: var(--os-blue, #0066cc); }
+.kd-tl-labels { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--os-text-secondary, #6a6e73); margin-top: 3px; }
+.kd-tl-labels span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Chip rows (types, modules, processes, cgroups) */
+.kd-chips { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; min-width: 0; }
+.kd-chips-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); margin-right: 2px; }
+.kd-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 1px 8px; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-chip, 6px); background: var(--os-card, #fff); font-size: 12px; min-width: 0; }
+.kd-chip > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kd-chip .kd-count { color: var(--os-text-secondary, #6a6e73); font-variant-numeric: tabular-nums; }
+.kd-chip.kd-chip-mono { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); font-size: 11.5px; }
+.kd-chip-muted { opacity: 0.6; }
+
+/* Type badge: fixed severity colours + a label (never colour alone) */
+.kd-tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: var(--radius-chip, 6px); font-size: 11px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; border: 1px solid transparent; }
+.kd-tag svg { width: 12px; height: 12px; }
+.kd-sev-critical { background: rgba(220, 38, 38, 0.15); color: #dc2626; border-color: rgba(220, 38, 38, 0.3); }
+.kd-sev-warning { background: rgba(245, 158, 11, 0.15); color: #d97706; border-color: rgba(245, 158, 11, 0.35); }
+.dark .kd-sev-warning { color: #f59e0b; }
+.kd-sev-info { background: rgba(59, 130, 246, 0.15); color: #2563eb; border-color: rgba(59, 130, 246, 0.3); }
+.dark .kd-sev-info { color: #60a5fa; }
+.kd-sev-neutral { background: rgba(107, 114, 128, 0.15); color: var(--os-text-secondary, #6b7280); border-color: rgba(107, 114, 128, 0.3); }
+
+/* Filter row */
+.kd-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.kd-field { position: relative; display: flex; align-items: center; min-width: 0; }
+.kd-field.kd-grow { flex: 1 1 200px; }
+.kd-field > svg { position: absolute; left: 9px; width: 14px; height: 14px; color: var(--os-text-secondary, #6a6e73); pointer-events: none; }
+/* (the frame's styles.css pins every input's padding and radius with
+   !important at id+attribute specificity; these id+class+class rules win) */
+.kd .kd-input, .kd .kd-select, #diagnostics-content .kd .kd-input, #diagnostics-content .kd .kd-select { height: 32px; width: 100%; padding: 0 10px 0 30px !important; border: 1px solid var(--os-input-border, var(--os-border, #d2d2d2)) !important; border-radius: var(--radius-control, 8px) !important; background: var(--os-input-bg, var(--os-card, #fff)); color: var(--os-text-primary, #151515); font: inherit; font-size: 13px !important; line-height: 30px !important; }
+.kd .kd-select, #diagnostics-content .kd .kd-select { padding: 0 26px 0 10px !important; appearance: none; -webkit-appearance: none; width: auto; cursor: pointer; background-image: none !important; } /* the frame's select arrow (styles.css) would double the kd chevron */
+.kd-select-wrap > svg { left: auto; right: 8px; }
+.kd-input:focus, .kd-select:focus { outline: 2px solid var(--os-blue, #0066cc); outline-offset: -1px; }
+.kd-shown { font-size: 12px; color: var(--os-text-secondary, #6a6e73); white-space: nowrap; margin-left: auto; }
+.kd-btn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-control, 8px); background: var(--os-card, #fff); color: var(--os-text-primary, #151515); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.kd-btn:hover { background: var(--os-card-secondary, #f0f0f0); }
+.kd-btn svg { width: 13px; height: 13px; }
+.kd-btn.kd-done { color: var(--os-blue, #0066cc); border-color: var(--os-blue, #0066cc); }
+.kd-link { background: none; border: 0; padding: 0; color: var(--os-blue, #0066cc); font: inherit; font-size: 12px; cursor: pointer; }
+
+/* Rows: a <details> each; the summary is the one-line incident. The
+   coloured left edge is SQUARE (no radius on the accent side); the right
+   side keeps the token radius, like every other card. */
+.kd-list { display: flex; flex-direction: column; gap: 6px; }
+.kd-row { border: 1px solid var(--os-border, #d2d2d2); border-left-width: 3px; border-radius: 0 var(--radius-sm, 8px) var(--radius-sm, 8px) 0; background: var(--os-card, #fff); min-width: 0; }
+.kd-row.kd-sev-critical, .kd-row.kd-sev-warning, .kd-row.kd-sev-info, .kd-row.kd-sev-neutral { background: var(--os-card, #fff); color: inherit; }
+.kd-row.kd-sev-critical { border-left-color: #dc2626; }
+.kd-row.kd-sev-warning { border-left-color: #f59e0b; }
+.kd-row.kd-sev-info { border-left-color: #3b82f6; }
+.kd-row.kd-sev-neutral { border-left-color: var(--os-text-muted, #8a8d93); }
+.kd-row[hidden] { display: none; }
+.kd-row > summary { list-style: none; cursor: pointer; display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; min-width: 0; }
+.kd-row > summary::-webkit-details-marker { display: none; }
+.kd-row > summary:hover { background: var(--os-card-secondary, #f0f0f0); border-radius: 0 var(--radius-sm, 8px) var(--radius-sm, 8px) 0; }
+.kd-row[open] > summary { border-bottom: 1px solid var(--os-border, #d2d2d2); border-radius: 0 var(--radius-sm, 8px) 0 0; }
+.kd-chev { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 2px; color: var(--os-text-secondary, #6a6e73); transition: transform 0.12s; }
+.kd-row[open] > summary .kd-chev { transform: rotate(90deg); }
+.kd-row-main { flex: 1 1 0; min-width: 0; }
+.kd-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.kd-row-title .kd-mono { font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
+.kd-row-meta { margin-top: 2px; font-size: 12px; color: var(--os-text-secondary, #6a6e73); display: flex; flex-wrap: wrap; gap: 2px 10px; min-width: 0; }
+.kd-row-meta span { overflow-wrap: anywhere; }
+.kd-row-side { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 12px; color: var(--os-text-secondary, #6a6e73); white-space: nowrap; }
+.kd-xn { display: inline-block; padding: 0 7px; border-radius: 999px; background: var(--os-card-secondary, #f0f0f0); border: 1px solid var(--os-border, #d2d2d2); color: var(--os-text-primary, #151515); font-weight: 600; font-variant-numeric: tabular-nums; }
+.kd-row-body { padding: 10px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+/* Facts: label over value, columns that wrap, nothing fixed-width */
+.kd-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px 14px; margin: 0; min-width: 0; }
+.kd-facts > div { min-width: 0; }
+.kd-facts dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); }
+.kd-facts dd { margin: 0; overflow-wrap: anywhere; }
+.kd-facts dd.kd-mono { font-size: 12px; }
+.kd-facts .kd-wide { grid-column: 1 / -1; }
+.kd-section-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); }
+.kd-section-title .kd-actions { margin-left: auto; display: flex; gap: 6px; }
+.kd-note { font-size: 12.5px; padding: 6px 10px; border-left: 3px solid var(--os-blue, #0066cc); background: var(--os-card-secondary, #f0f0f0); border-radius: 0 var(--radius-xs, 6px) var(--radius-xs, 6px) 0; overflow-wrap: anywhere; }  /* square on the accent side too */
+
+/* The stack: a real monospace block that scrolls sideways, never wraps a symbol */
+.kd-stack { margin: 0; padding: 8px 10px; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-xs, 6px); background: var(--os-code-bg, #f6f8fa); font-size: 12px; line-height: 1.5; overflow-x: auto; white-space: pre; tab-size: 4; }
+.kd-stack .kd-frame { display: block; }
+.kd-frame-unreliable { opacity: 0.5; }
+.kd-frame-fault { font-weight: 700; color: #dc2626; }
+.kd-frame-mark { color: #dc2626; font-weight: 700; }
+.kd-frame-mod { color: var(--os-code-title, #6639ba); }
+.kd-code-fault { font-weight: 700; color: #dc2626; background: rgba(220, 38, 38, 0.15); border-radius: 3px; padding: 0 2px; }
+.kd-raw { max-height: 360px; overflow: auto; }
+.kd-code { white-space: pre-wrap; overflow-wrap: anywhere; }  /* bytes, not symbols: wrap so the faulting byte stays in view */
+
+/* Top-N table (OOM task dump) */
+.kd-table-wrap { overflow-x: auto; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-xs, 6px); }
+.kd-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.kd-table th, .kd-table td { padding: 4px 8px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--os-border, #d2d2d2); }
+.kd-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); font-weight: 600; cursor: pointer; user-select: none; background: var(--os-card-secondary, #f0f0f0); }
+.kd-table th.kd-sorted::after { content: " \25BE"; }
+.kd-table td.kd-num, .kd-table th.kd-num { text-align: right; font-variant-numeric: tabular-nums; }
+.kd-table tbody tr:last-child td { border-bottom: 0; }
+.kd-table tr.kd-killed td { font-weight: 600; }
+.kd-table tr.kd-killed td:first-child { box-shadow: inset 3px 0 0 #dc2626; }
+.kd-table td.kd-name { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); }  /* names stay whole; the table scrolls sideways when narrow */
+
+/* Empty state */
+.kd-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 36px 12px; text-align: center; color: var(--os-text-secondary, #6a6e73); }
+.kd-empty svg { width: 36px; height: 36px; opacity: 0.6; }
+.kd-empty-title { font-weight: 600; color: var(--os-text-primary, #151515); }
+.kd-empty-sources { font-size: 12px; }
+
+@media (max-width: 480px) {
+  .kd-row-side { align-items: flex-start; }
+  .kd-row > summary { flex-wrap: wrap; }
+  .kd-row-side { flex-basis: 100%; flex-direction: row; gap: 10px; padding-left: 24px; }
+}
+</style>
+
+<script>
+(() => {
+  // One behaviour set for the three kernel tabs. The DOM is rendered by
+  // Jinja; this only shows/hides rows, re-orders them, sorts the task table
+  // and copies text. Nothing here turns report text into HTML.
+  const script = document.currentScript;
+  const root = (script && script.closest('.kd')) || document.querySelector('.kd');
+  if (!root) return;
+  const rows = Array.from(root.querySelectorAll('.kd-row'));
+  const list = root.querySelector('.kd-list');
+  const search = root.querySelector('.kd-search');
+  const typeSelect = root.querySelector('.kd-type');
+  const sortSelect = root.querySelector('.kd-sort');
+  const shown = root.querySelector('.kd-shown');
+  rows.forEach((row) => { row.dataset.text = row.textContent.replace(/\s+/g, ' ').toLowerCase(); });
+
+  function applyFilters() {
+    const q = (search ? search.value : '').trim().toLowerCase();
+    const terms = q ? q.split(/\s+/) : [];
+    const type = typeSelect ? typeSelect.value : '';
+    let visible = 0;
+    rows.forEach((row) => {
+      const typeOk = !type || row.dataset.type === type;
+      const textOk = terms.every((t) => row.dataset.text.includes(t));
+      row.hidden = !(typeOk && textOk);
+      if (!row.hidden) visible++;
+    });
+    if (shown) shown.textContent = visible === rows.length ? `${rows.length} shown` : `${visible} of ${rows.length} shown`;
+  }
+  function applySort() {
+    if (!sortSelect || !list) return;
+    const key = sortSelect.value;
+    const sorted = rows.slice().sort((a, b) => {
+      if (key === 'count') return (Number(b.dataset.count) || 0) - (Number(a.dataset.count) || 0) || (b.dataset.ts || '').localeCompare(a.dataset.ts || '');
+      if (key === 'oldest') return (a.dataset.ts || '').localeCompare(b.dataset.ts || '');
+      return (b.dataset.ts || '').localeCompare(a.dataset.ts || '');
+    });
+    sorted.forEach((row) => list.appendChild(row));
+  }
+  let timer = null;
+  if (search) search.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(applyFilters, 120); });
+  if (typeSelect) typeSelect.addEventListener('change', applyFilters);
+  if (sortSelect) sortSelect.addEventListener('change', applySort);
+  applyFilters();
+
+  root.querySelectorAll('.kd-expand-all').forEach((b) => b.addEventListener('click', () => rows.forEach((r) => { if (!r.hidden) r.open = true; })));
+  root.querySelectorAll('.kd-collapse-all').forEach((b) => b.addEventListener('click', () => rows.forEach((r) => { r.open = false; })));
+
+  // Copy: the text of the element the button names (a hidden raw <pre>)
+  root.querySelectorAll('.kd-copy').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.target ? root.querySelector('#' + btn.dataset.target) : null;
+      const text = target ? target.textContent : '';
+      const done = () => { const label = btn.querySelector('span'); const was = label.textContent; btn.classList.add('kd-done'); label.textContent = 'Copied'; setTimeout(() => { btn.classList.remove('kd-done'); label.textContent = was; }, 1500); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => fallback(text, done));
+      else fallback(text, done);
+    });
+  });
+  function fallback(text, done) {
+    const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { /* the frame may not allow it */ }
+    document.body.removeChild(ta);
+  }
+
+  // Sortable task tables (OOM): click a header; numeric columns via data-v
+  root.querySelectorAll('.kd-table').forEach((table) => {
+    const headers = Array.from(table.querySelectorAll('th'));
+    const body = table.querySelector('tbody');
+    headers.forEach((th, idx) => th.addEventListener('click', () => {
+      const numeric = th.classList.contains('kd-num');
+      const desc = !(th.dataset.dir === 'desc');
+      headers.forEach((h) => { h.classList.remove('kd-sorted'); delete h.dataset.dir; });
+      th.classList.add('kd-sorted'); th.dataset.dir = desc ? 'desc' : 'asc';
+      const trs = Array.from(body.querySelectorAll('tr'));
+      trs.sort((a, b) => {
+        const ca = a.children[idx], cb = b.children[idx];
+        const va = numeric ? Number(ca.dataset.v || ca.textContent) : ca.textContent.trim().toLowerCase();
+        const vb = numeric ? Number(cb.dataset.v || cb.textContent) : cb.textContent.trim().toLowerCase();
+        const r = va < vb ? -1 : va > vb ? 1 : 0;
+        return desc ? -r : r;
+      });
+      trs.forEach((tr) => body.appendChild(tr));
+    }));
+    // "show all rows" toggles the rows beyond the top N
+    const more = table.closest('.kd-table-block') && table.closest('.kd-table-block').querySelector('.kd-show-all');
+    if (more) more.addEventListener('click', () => { table.querySelectorAll('tr.kd-extra').forEach((tr) => { tr.hidden = !tr.hidden; }); more.textContent = more.textContent.startsWith('Show all') ? more.dataset.less : more.dataset.all; });
+  });
+})();
+</script>

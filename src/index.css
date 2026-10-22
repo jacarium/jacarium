@@ -2124,22 +2124,32 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
    interactiveMarkdown.js: highlighted code, callouts, heading ids), and
    carries `markdown-preview sc-chat-markdown`, so every preview rule
    applies - headings, lists, code, tables, blockquotes, callouts, hr - and
-   these overrides scale it for a bubble: the bubble's text size, headings a
-   step or two up rather than the preview's 2em, tighter margins, a thin
-   hr in the border token, code that scrolls sideways instead of wrapping or
-   spilling out of the bubble. (The `prose` classes used before did nothing:
-   Tailwind Typography is not installed, so headings, bullets and rules
-   had no styling at all.) `sc-chat-markdown-user` is the user's bubble
-   (white on blue): everything inherits its colour.
+   these overrides scale it for a bubble: the CHAT text size (--sc-chat-font,
+   14px / 20px - Team Chat's, Quick Notes' and the sidebar lists' text-sm;
+   the preview's 16px / 1.7 reading size is for documents, and `font-size:
+   inherit` once let it through, the 3.3.3 bubbles were 16px), headings a
+   step up rather than the preview's 2em (h1 1.15em, h2 1.1em, h3 1.05em,
+   bold), lists, tables and blockquotes at the chat size, code a little
+   smaller, tighter margins, a thin hr in the border token, code that
+   scrolls sideways instead of wrapping or spilling out of the bubble. (The
+   `prose` classes used before did nothing: Tailwind Typography is not
+   installed, so headings, bullets and rules had no styling at all.)
+   `sc-chat-markdown-user` is the user's bubble (white on blue): everything
+   inherits its colour, and its Markdown renders like a reply's, so a
+   heading in it (a sentence over "---") is a 1.1em line, not a title.
+   Robin's user bubble is the same renderer in the card's own colours.
    --------------------------------------------------------------------------- */
+:root { --sc-chat-font: 0.875rem; --sc-chat-line: 1.25rem; }
 .sc-chat-markdown {
   font-family: inherit;
-  font-size: inherit;
-  line-height: 1.55;
+  font-size: var(--sc-chat-font);
+  line-height: var(--sc-chat-line);
+  letter-spacing: inherit;
   color: inherit;
   min-width: 0;
   max-width: 100%;
 }
+.sc-chat-markdown p, .sc-chat-markdown li, .sc-chat-markdown td, .sc-chat-markdown th, .sc-chat-markdown blockquote { line-height: var(--sc-chat-line); }
 /* Robin's bubbles fill their column: a long code line must not widen the
    page, so the width comes from the column, never from the content (the
    <pre> scrolls instead). The sidebar's bubbles shrink to fit and keep
@@ -2158,9 +2168,9 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   color: inherit;
   font-weight: 600;
 }
-.sc-chat-markdown h1 { font-size: 1.3em; }
-.sc-chat-markdown h2 { font-size: 1.2em; }
-.sc-chat-markdown h3 { font-size: 1.1em; }
+.sc-chat-markdown h1 { font-size: 1.15em; }
+.sc-chat-markdown h2 { font-size: 1.1em; }
+.sc-chat-markdown h3 { font-size: 1.05em; }
 .sc-chat-markdown h4, .sc-chat-markdown h5, .sc-chat-markdown h6 { font-size: 1em; }
 .sc-chat-markdown hr {
   height: 1px;
@@ -2186,7 +2196,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   max-width: 100%;
 }
 .sc-chat-markdown pre code { white-space: pre; font-size: inherit; }
-.sc-chat-markdown table { display: block; max-width: 100%; overflow-x: auto; font-size: 92%; margin-bottom: 0.7em; }
+.sc-chat-markdown table { display: block; max-width: 100%; overflow-x: auto; font-size: 1em; margin-bottom: 0.7em; }
 .sc-chat-markdown table th, .sc-chat-markdown table td { padding: 4px 8px; }
 .sc-chat-markdown blockquote { margin: 0 0 0.7em; padding: 0 0.8em; }
 .sc-chat-markdown .md-callout { margin: 0.5em 0 0.7em; padding: 0.5em 0.7em; }

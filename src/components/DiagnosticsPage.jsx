@@ -181,25 +181,33 @@ ${getDiagnosticsChartScriptTag()}
     Chart.defaults.color = muted;
     Chart.defaults.borderColor = grid;
     var instances = Chart.instances ? Object.values(Chart.instances) : [];
+    // chart.options is Chart.js's resolver proxy: reading a missing
+    // sub-object returns a proxy over the defaults, and writing that proxy
+    // back ("s.ticks = s.ticks || {}") stores a proxy inside the options,
+    // which recurses on the next resolve (a stack overflow here, swallowed,
+    // and "Recursion detected" / "startsWith is not a function" at the
+    // chart's next update, resize or tooltip). So only leaf colours are
+    // written, and a sub-object is created only when it truly is absent.
+    var sub = function (obj, key) { var v = obj[key]; if (!v) { obj[key] = {}; v = obj[key]; } return v; };
     instances.forEach(function (chart) {
       try {
         var o = chart.options || {};
         if (o.scales) Object.keys(o.scales).forEach(function (k) {
           var s = o.scales[k]; if (!s) return;
-          s.ticks = s.ticks || {}; s.ticks.color = muted;
-          s.grid = s.grid || {}; s.grid.color = grid;
+          sub(s, 'ticks').color = muted;
+          sub(s, 'grid').color = grid;
           if (s.title) s.title.color = muted;
           if (s.pointLabels) s.pointLabels.color = muted;
           if (s.angleLines) s.angleLines.color = grid;
         });
-        var p = o.plugins || (o.plugins = {});
-        p.legend = p.legend || {}; p.legend.labels = p.legend.labels || {}; p.legend.labels.color = muted;
+        var p = sub(o, 'plugins');
+        sub(sub(p, 'legend'), 'labels').color = muted;
         if (p.title) p.title.color = muted;
-        p.tooltip = p.tooltip || {};
-        p.tooltip.backgroundColor = window.diagnosticsThemeColor('tooltip');
-        p.tooltip.titleColor = window.diagnosticsThemeColor('text');
-        p.tooltip.bodyColor = window.diagnosticsThemeColor('text');
-        p.tooltip.borderColor = grid;
+        var t = sub(p, 'tooltip');
+        t.backgroundColor = window.diagnosticsThemeColor('tooltip');
+        t.titleColor = window.diagnosticsThemeColor('text');
+        t.bodyColor = window.diagnosticsThemeColor('text');
+        t.borderColor = grid;
         chart.update('none');
       } catch (e) { /* a chart mid-destroy: leave it */ }
     });
@@ -531,9 +539,15 @@ export default function DiagnosticsPage() {
       if (type === 'open-tab') {
         // Navigation only: the target must be a tab the backend offered for
         // this report, so a fragment cannot request arbitrary parsers.
-        const tab = typeof d.tab === 'string' ? d.tab : '';
-        const subTab = typeof d.subTab === 'string' ? d.subTab : null;
-        const known = (tabsRef.current || []).find(t => t.tab_name === tab);
+        let tab = typeof d.tab === 'string' ? d.tab : '';
+        let subTab = typeof d.subTab === 'string' ? d.subTab : null;
+        let known = (tabsRef.current || []).find(t => t.tab_name === tab);
+        if (!known && !subTab) {
+          // a sub-tab asked for by its own id (the Log Viewer, since it
+          // moved under Log Collection): resolve it to its group
+          const group = (tabsRef.current || []).find(t => (t.sub_tabs || []).some(st => st.tab_name === tab));
+          if (group) { known = group; subTab = tab; tab = group.tab_name; }
+        }
         if (!known) return;
         if (subTab && !(known.sub_tabs || []).some(st => st.tab_name === subTab)) return;
         setExpandedTabs(prev => (prev.includes(tab) ? prev : [...prev, tab]));

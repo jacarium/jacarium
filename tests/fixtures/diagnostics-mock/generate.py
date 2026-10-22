@@ -28,10 +28,13 @@ import tarfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import mock_manifests
 import mock_mustgather  # noqa: E402
 import mock_sosreport  # noqa: E402
 
 SOS_NAME = "sosreport-web-01-2026-10-13-abcdef"
+OCP_NAME = "sosreport-ip-10-0-42-46-master-cluster-7bffs-master-2026-10-01-asqizwl"
+OLD_NAME = "sosreport-old-01-2026-10-01-oldfmt"
 SOS_LARGE_NAME = "sosreport-web-02-2026-10-13-bigjrnl"
 MG_NAME = "must-gather.local.1234567890"
 # Fixed mtime for every archive member: 2026-10-13 00:00:00 UTC
@@ -104,6 +107,24 @@ def main(argv=None):
     if not args.no_archives:
         archive_xz(sos_dir, sos_dir + ".tar.xz")
         built.append(sos_dir + ".tar.xz")
+
+    # Two manifest-only sosreport trees for the Sos Report / Blame tab: an
+    # OpenShift master-like run (many plugins, failing ebpf commands, a
+    # timeout) and an older sos without per-plugin timings
+    for name, manifest in ((OCP_NAME, mock_manifests.ocp_master_manifest()), (OLD_NAME, mock_manifests.old_manifest())):
+        d = os.path.join(out, name)
+        _reset(d)
+        os.makedirs(os.path.join(d, "sos_reports"))
+        with open(os.path.join(d, "sos_reports", "manifest.json"), "w") as f:
+            f.write(mock_manifests.dump(manifest))
+        host = manifest["components"]["report"]["sysinfo"]["hostname"]
+        with open(os.path.join(d, "hostname"), "w") as f:
+            f.write(host + "\n")
+        with open(os.path.join(d, "version.txt"), "w") as f:
+            f.write(f"sosreport: {manifest['version']}\n")
+        with open(os.path.join(d, "date"), "w") as f:
+            f.write("Thu Oct  1 04:21:40 UTC 2026\n")
+        built.append(d)
 
     mg_dir = os.path.join(out, MG_NAME)
     _reset(mg_dir)

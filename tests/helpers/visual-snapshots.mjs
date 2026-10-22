@@ -55,10 +55,11 @@ const FIXTURE_REPORT = 'sosreport-synthetic-2026';
 const FLASK_TABS = [
   ['system', null], ['processes', 'system'], ['services', 'system'], ['dmidecode', 'system'],
   ['cgroups', null], ['cgroups_cpu', 'cgroups'], ['cgroups_memory', 'cgroups'],
-  ['kernel', null], ['kernel_oom_killer', 'kernel'], ['log_viewer', null],
+  ['kernel', null], ['kernel_oom_killer', 'kernel'], ['log_collection', null], ['log_viewer', 'log_collection'],
+  ['sos_report', null], ['blame', 'sos_report'],
 ];
 /** In-app Diagnostics sidebar labels to capture (first match wins). */
-const DIAG_LABELS = ['System', 'Processes', 'Services', 'Cgroups', 'CPU', 'Memory', 'Kernel', 'OOM Killer', 'Log Viewer'];
+const DIAG_LABELS = ['System', 'Processes', 'Services', 'Cgroups', 'CPU', 'Memory', 'Kernel', 'OOM Killer', 'Log Collection', 'Log Viewer', 'Sos Report', 'Blame'];
 
 export const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 

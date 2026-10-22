@@ -366,11 +366,13 @@ try {
       const opened = await app.waitFor(`(() => { const b = Array.from(document.querySelectorAll('button')).find((el) => el.textContent.includes(${JSON.stringify(path.basename(MOCK))})); if (!b) return false; b.click(); return true; })()`, 20000);
       if (!opened) throw new Error('the synthetic sosreport is not listed');
       await app.waitFor(`document.querySelectorAll('div.cursor-pointer span').length > 0`, 20000);
-      const openTab = async (label) => { await ev(`(() => { const s = Array.from(document.querySelectorAll('div.cursor-pointer span')).find((el) => el.textContent.trim() === ${JSON.stringify(label)}); s && s.closest('div.cursor-pointer').click(); })()`); await sleep(5000); };
+      // a tab inside a collapsed group (Log Viewer under Log Collection) needs its group's chevron first
+      const expandGroup = (group) => ev(`(() => { const g = Array.from(document.querySelectorAll('div.cursor-pointer span')).find((el) => el.textContent.trim() === ${JSON.stringify(group)}); g && g.closest('div.cursor-pointer').parentElement.querySelector('button[title="Expand"]')?.click(); })()`);
+      const openTab = async (label, group) => { if (group) { await expandGroup(group); await sleep(500); } await ev(`(() => { const s = Array.from(document.querySelectorAll('div.cursor-pointer span')).find((el) => el.textContent.trim() === ${JSON.stringify(label)}); s && s.closest('div.cursor-pointer').click(); })()`); await sleep(5000); };
       if (wanted('diagnostics')) { await openTab('Processes'); await shot(`08-diagnostics-processes${sfx}`); }
       if (wanted('log-viewer')) {
         await ev(`window.__shotsAutoLoadLogs = true`);
-        await openTab('Log Viewer');
+        await openTab('Log Viewer', 'Log Collection');
         await sleep(9000); // the frame presses "Load Logs" itself; the journal streams in
         await ev(`window.__shotsAutoLoadLogs = false`);
         await shot(`08-diagnostics-log-viewer${sfx}`);

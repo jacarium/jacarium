@@ -1,0 +1,59 @@
+{#
+  Sos Report: the group page (parsers/sosreport/sos_report.py): what sos
+  wrote about its own run, and the way to the Blame sub-tab. Own sr-*
+  rules on the app's tokens, inline SVG, every value escaped by Jinja.
+#}
+{% set r = data.sos_report or {} %}
+<div class="panel rounded-lg shadow-sm sr" id="sos-report-overview">
+<style>
+.sr { font-size: 13px; line-height: 1.45; color: var(--os-text-primary, #151515); }
+.sr *, .sr *::before, .sr *::after { box-sizing: border-box; }
+.sr .sr-mono { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); }
+.sr-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.sr-head h2 { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.sr-head .sr-actions { margin-left: auto; display: flex; gap: 6px; }
+.sr-btn { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border: 1px solid var(--os-blue, #0066cc); border-radius: var(--radius-control, 8px); background: var(--os-blue, #0066cc); color: #fff; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.sr-btn:hover { background: var(--os-blue-hover, #004c99); }
+.sr-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 16px; margin: 0 0 12px; }
+.sr-facts > div { min-width: 0; }
+.sr-facts dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); }
+.sr-facts dd { margin: 0; overflow-wrap: anywhere; }
+.sr-cmdline { margin: 0 0 12px; padding: 8px 10px; border: 1px solid var(--os-border, #d2d2d2); border-left: 3px solid var(--os-blue, #0066cc); border-radius: 0 var(--radius-xs, 6px) var(--radius-xs, 6px) 0; background: var(--os-code-bg, #f6f8fa); font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.sr-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); margin: 0 0 4px; }
+.sr-list { margin: 0 0 12px; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.sr-chip { display: inline-flex; gap: 6px; padding: 1px 8px; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-chip, 6px); background: var(--os-card-secondary, #f0f0f0); font-size: 12px; font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); }
+.sr-chip .sr-dim { color: var(--os-text-secondary, #6a6e73); font-family: inherit; }
+.sr-note { font-size: 12.5px; padding: 6px 10px; border-left: 3px solid #f59e0b; background: var(--os-card-secondary, #f0f0f0); border-radius: 0 var(--radius-xs, 6px) var(--radius-xs, 6px) 0; overflow-wrap: anywhere; margin-bottom: 12px; }
+.sr-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 36px 12px; text-align: center; color: var(--os-text-secondary, #6a6e73); }
+.sr-empty svg { width: 36px; height: 36px; opacity: 0.6; }
+.sr-empty-title { font-weight: 600; color: var(--os-text-primary, #151515); }
+</style>
+{% if r.available %}
+  <div class="sr-head">
+    <h2>{{ r.hostname or r.node_label }}</h2>
+    <span class="sr-mono" style="color: var(--os-text-secondary, #6a6e73); font-size: 12px">{{ r.node }}</span>
+    <span class="sr-actions"><button type="button" class="sr-btn" id="sos-report-open-blame" onclick="if (window.diagnosticsOpenTab) { window.diagnosticsOpenTab('sos_report', 'blame'); } else if (window.switchTab) { window.switchTab('blame', 'sos_report'); }">Open Blame</button></span>
+  </div>
+  <dl class="sr-facts">
+    <div><dt>sos version</dt><dd>{{ r.version or r.version_txt or 'unknown' }}</dd></div>
+    <div><dt>Ran</dt><dd class="sr-mono">{{ r.start }}{% if r.end %} &rarr; {{ r.end }}{% endif %}{% if r.total %} ({{ r.total }}){% endif %}</dd></div>
+    {% if r.policy %}<div><dt>Policy</dt><dd>{{ r.policy }}{% if r.preset and r.preset != 'none' %} &middot; preset {{ r.preset }}{% endif %}</dd></div>{% endif %}
+    {% if r.kernel %}<div><dt>Kernel</dt><dd class="sr-mono">{{ r.kernel }}</dd></div>{% endif %}
+    <div><dt>Plugins</dt><dd>{{ r.plugins }}{% if r.components %} <span style="color: var(--os-text-secondary, #6a6e73)">&middot; components: {{ r.components|join(', ') }}</span>{% endif %}</dd></div>
+    {% if r.compression or r.tmpdir %}<div><dt>Archive</dt><dd>{% if r.compression %}{{ r.compression }} compression{% endif %}{% if r.tmpdir %} &middot; built in {{ r.tmpdir }}{% endif %}</dd></div>{% endif %}
+  </dl>
+  {% if r.cmdline %}<div class="sr-title">Command line</div><pre class="sr-cmdline">{{ r.cmdline }}</pre>{% endif %}
+  {% if not r.blame_available %}<div class="sr-note">{{ r.blame_reason }}</div>{% endif %}
+  {% if r.files %}
+  <div class="sr-title">sos_reports/</div>
+  <ul class="sr-list">{% for f in r.files %}<li class="sr-chip">{{ f.name }}{% if f.is_dir %}/{% else %}<span class="sr-dim">{{ (f.size / 1024)|round(1) }} KiB</span>{% endif %}</li>{% endfor %}</ul>
+  {% endif %}
+{% else %}
+  <div class="sr-empty">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg>
+    <div class="sr-empty-title">No sos manifest</div>
+    <div>{{ r.reason or 'This report has no sos_reports/manifest.json.' }}</div>
+    {% if r.version_txt %}<div class="sr-mono" style="font-size: 12px">{{ r.version_txt }}</div>{% endif %}
+  </div>
+{% endif %}
+</div>

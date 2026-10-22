@@ -1,38 +1,83 @@
- <div class="panel rounded-lg shadow-sm">
- {% if data.hung_tasks %}
- {% for task in data.hung_tasks %}
- <div class="bg-gray-50 p-3 mb-3 rounded-sm border border-gray-200">
- <div class="text-xs text-gray-600 mb-1">
- <i class="fas fa-clock mr-1"></i>
- <span class="font-medium">{{ task.timestamp }}</span>
- </div>
+{% from "tabs/_kernel_diag_macros.html" import icon, tag, stat, timeline, chips, stack, raw_block, copy_button, filters, empty %}
+{#
+  Kernel Hung Tasks: "INFO: task X:N blocked for more than N seconds"
+  reports, grouped by the function the tasks are blocked in (the first
+  frame after the scheduler), because the question is "stuck in NFS, XFS,
+  jbd2, a driver?". A task the kernel re-reports every timeout is one line
+  with its growing duration.
 
- <div class="mb-2 text-sm text-gray-900 font-medium whitespace-pre-wrap">{{ task.task_line }}</div>
+  data.hung_summary = {reports, tasks, groups, threshold, longest, first,
+    last, blocked_in: [{name, count}], comms: [{name, count}], states:
+    [{name, count}], timeline, sources, capped}
+  data.hung_groups = [{id, function, module, severity, count, tasks: [{comm,
+    pid, ppid, state, state_text, durations: [..], duration_min,
+    duration_max, first, last, ts, flags, stack_ptr, kernel, taint,
+    taint_text, frames: [{text, unreliable, blocked, module}], raw: [..]}],
+    first, last, ts}]
+  data.hung_tasks is the flat legacy list the tests read.
+#}
+{% set summary = data.hung_summary or {} %}
+{% set groups = data.hung_groups or [] %}
+<div class="panel rounded-lg shadow-sm kd" id="kernel-hung-tasks">
+{% if groups %}
+  <div class="kd-strip">
+    <div class="kd-stats">
+      {{ stat('Reports', summary.reports, (summary.tasks ~ ' task' ~ ('s' if summary.tasks != 1 else '')) if summary.tasks else '') }}
+      {{ stat('Longest', (summary.longest ~ ' s') if summary.longest else '', ('threshold ' ~ summary.threshold ~ ' s') if summary.threshold else '') }}
+      {{ stat('First', summary.first, mono=True) }}
+      {{ stat('Last', summary.last, mono=True) }}
+      {% if summary.taint and summary.taint.flags %}{{ stat('Tainted', summary.taint.flags, summary.taint.text, mono=True) }}{% endif %}
+    </div>
+    {{ timeline(summary.timeline) }}
+    {{ chips('Blocked in', summary.blocked_in, mono=True) }}
+    {{ chips('Processes', summary.comms, mono=True) }}
+  </div>
 
- <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm mb-2">
- <div><span class="font-semibold">Task:</span> {{ task.details.task }}</div>
- <div><span class="font-semibold">PID:</span> {{ task.details.pid }}</div>
- <div><span class="font-semibold">PPID:</span> {{ task.details.ppid }}</div>
- <div><span class="font-semibold">State:</span> {{ task.details.state }}</div>
- <div><span class="font-semibold">Flags:</span> {{ task.details.flags }}</div>
- <div class="col-span-2"><span class="font-semibold">Kernel:</span> {{ task.details.kernel }}</div>
- </div>
+  {{ filters('Search task, pid, function, module') }}
 
- {% if task.details.call_trace %}
- <div class="text-sm bg-gray-100 p-2 rounded-sm mb-2">
- <div class="font-semibold mb-1">Call Trace:</div>
- <div class="whitespace-pre-wrap">{{ task.details.call_trace | join("\n") }}</div>
- </div>
- {% endif %}
- </div>
- {% endfor %}
- {% else %}
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No hung tasks found in this report</div>
- </div>
- {% endif %}
- </div>
+  <div class="kd-list">
+  {% for g in groups %}
+    <details class="kd-row kd-sev-{{ g.severity or 'warning' }}" data-type="{{ g.module or 'kernel' }}" data-count="{{ g.count }}" data-ts="{{ g.ts }}" id="hung-{{ g.id }}">
+      <summary>
+        {{ icon('chevron', 'kd-chev') }}
+        <div class="kd-row-main">
+          <div class="kd-row-title">{{ tag(g.severity or 'warning', 'blocked in') }}<span class="kd-mono">{{ g.function }}{% if g.module %} [{{ g.module }}]{% endif %}</span></div>
+          <div class="kd-row-meta">
+            <span>{{ g.tasks|length }} task{{ 's' if g.tasks|length != 1 else '' }}</span>
+            {% for t in g.tasks[:3] %}<span class="kd-mono">{{ t.comm }}:{{ t.pid }} {{ t.state }} {{ t.duration_max }} s</span>{% endfor %}
+            {% if g.tasks|length > 3 %}<span>+{{ g.tasks|length - 3 }} more</span>{% endif %}
+          </div>
+        </div>
+        <div class="kd-row-side">
+          <span class="kd-xn">&times;{{ g.count }}</span>
+          <span class="kd-mono">{{ g.last }}</span>
+        </div>
+      </summary>
+      <div class="kd-row-body">
+        {% for t in g.tasks %}
+        <dl class="kd-facts">
+          <div><dt>Task</dt><dd class="kd-mono">{{ t.comm }} <span class="kd-stat-sub">pid {{ t.pid }}{% if t.ppid %} &middot; ppid {{ t.ppid }}{% endif %}</span></dd></div>
+          <div><dt>State</dt><dd><span class="kd-mono">{{ t.state }}</span>{% if t.state_text %} <span class="kd-stat-sub">{{ t.state_text }}</span>{% endif %}</dd></div>
+          <div><dt>Blocked for</dt><dd>{% if t.duration_min and t.duration_max and t.duration_min != t.duration_max %}{{ t.duration_min }} s &rarr; {{ t.duration_max }} s{% else %}{{ t.duration_max }} s{% endif %}{% if t.durations and t.durations|length > 1 %} <span class="kd-stat-sub">({{ t.durations|length }} reports)</span>{% endif %}</dd></div>
+          <div><dt>Reported</dt><dd class="kd-mono">{{ t.first }}{% if t.last and t.last != t.first %} &rarr; {{ t.last }}{% endif %}</dd></div>
+          {% if t.flags %}<div><dt>Flags</dt><dd class="kd-mono">{{ t.flags }}{% if t.stack_ptr %} <span class="kd-stat-sub">stack {{ t.stack_ptr }}</span>{% endif %}</dd></div>{% endif %}
+          {% if t.kernel %}<div><dt>Kernel</dt><dd class="kd-mono">{{ t.kernel }}</dd></div>{% endif %}
+          {% if t.taint %}<div><dt>Tainted</dt><dd><span class="kd-mono">{{ t.taint }}</span>{% if t.taint_text %} <span class="kd-stat-sub">{{ t.taint_text }}</span>{% endif %}</dd></div>{% endif %}
+        </dl>
+        {% if t.frames %}
+        <div class="kd-section-title">Stack{% if g.tasks|length > 1 %} of {{ t.comm }}:{{ t.pid }}{% endif %}
+          <span class="kd-actions">{{ copy_button('hung-raw-' ~ g.id ~ '-' ~ loop.index) }}</span>
+        </div>
+        {{ stack(t.frames) }}
+        {% endif %}
+        {% if t.raw %}{{ raw_block(t.raw, 'hung-raw-' ~ g.id ~ '-' ~ loop.index) }}{% endif %}
+        {% endfor %}
+      </div>
+    </details>
+  {% endfor %}
+  </div>
+{% else %}
+  {{ empty('No hung tasks', 'No "blocked for more than N seconds" report was found in the kernel logs of this report.', summary.sources) }}
+{% endif %}
+{% include "tabs/_kernel_diag.html" %}
+</div>

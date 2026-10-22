@@ -169,10 +169,31 @@ PARSERS = {
                 },
             }
         },
-        'log_viewer': {
-            'module': 'parsers.sosreport.log_viewer',
-            'icon': 'fas fa-file-alt',
-            'label': 'Log Viewer'
+        'log_collection': {
+            'module': 'parsers.sosreport.log_collection',
+            'icon': 'fas fa-folder-open',
+            'label': 'Log Collection',
+            'sub_tabs': {
+                # The Log Viewer keeps its id: /load_tab and /get_tab_data
+                # accept {"tab": "log_viewer"} as before (see _resolve_tab)
+                'log_viewer': {
+                    'module': 'parsers.sosreport.log_viewer',
+                    'icon': 'fas fa-file-alt',
+                    'label': 'Log Viewer'
+                },
+            }
+        },
+        'sos_report': {
+            'module': 'parsers.sosreport.sos_report',
+            'icon': 'fas fa-box',
+            'label': 'Sos Report',
+            'sub_tabs': {
+                'blame': {
+                    'module': 'parsers.sosreport.blame',
+                    'icon': 'fas fa-chart-bar',
+                    'label': 'Blame'
+                },
+            }
         },
     },
     'mustgather': {
@@ -441,11 +462,24 @@ def get_tabs():
     })
 
 
+def _resolve_tab(report_type, tab, sub_tab):
+    """A sub-tab asked for by its own id ({"tab": "log_viewer"}, the way
+    deep links and older callers address the Log Viewer since it moved
+    under Log Collection) resolves to its group: (group, sub_tab).
+    Anything else comes back unchanged."""
+    groups = PARSERS.get(report_type) or {}
+    if tab in groups or sub_tab or not tab:
+        return tab, sub_tab
+    for group, info in groups.items():
+        if tab in (info.get('sub_tabs') or {}):
+            return group, tab
+    return tab, sub_tab
+
+
 @log_viewer.route("/load_tab", methods=["POST"])
 def load_tab():
     report_type = request.json.get("report_type")
-    tab = request.json.get("tab")
-    sub_tab = request.json.get("sub_tab")
+    tab, sub_tab = _resolve_tab(report_type, request.json.get("tab"), request.json.get("sub_tab"))
     uploaded_dir = request.json.get("directory")
 
     uploaded_dir, refusal = _report_directory(uploaded_dir)
@@ -484,8 +518,7 @@ def load_tab():
 def get_tab_data():
     """Get raw JSON data for a tab (for AI context)"""
     report_type = request.json.get("report_type")
-    tab = request.json.get("tab")
-    sub_tab = request.json.get("sub_tab")
+    tab, sub_tab = _resolve_tab(report_type, request.json.get("tab"), request.json.get("sub_tab"))
     uploaded_dir = request.json.get("directory")
 
     uploaded_dir, refusal = _report_directory(uploaded_dir)

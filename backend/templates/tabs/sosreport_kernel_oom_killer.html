@@ -1,77 +1,133 @@
- <div class="panel rounded-lg shadow-sm">
- <div class="mb-4">
- <label class="block text-xs font-semibold mb-1">Search All</label>
- <input
- type="text"
- id="oom-filter"
- placeholder="Filter OOM events..."
- class="w-full px-3 py-2 text-sm border focus:outline-hidden focus:ring-2"
- autocomplete="off"
- />
- </div>
+{% from "tabs/_kernel_diag_macros.html" import icon, tag, stat, timeline, chips, stack, raw_block, copy_button, filters, empty %}
+{#
+  Kernel OOM Killer: one row per kill, with the victim, the trigger, the
+  memory state, why the kernel chose to kill (the constraint line in plain
+  words) and the top memory users from the task dump.
 
- {% if data.oom_killer and data.oom_killer | length > 0 %}
- <div id="oom-blocks">
- {% for block in data.oom_killer %}
- {% set lines = block.splitlines() %}
- {% set summary_lines = lines[:3] + ['...'] + lines[-1:] if lines | length > 4 else lines %}
- <details class="oom-entry rounded-lg p-3 mb-3 shadow-md bg-gray-50 border border-gray-200 text-sm" data-full="{{ block | escape }}">
- <summary class="cursor-pointer rounded-t-md flex items-center justify-between">
- <span class="whitespace-pre-wrap text-xs text-left text-gray-900">{{ summary_lines | join('\n') }}</span>
- <i class="fas fa-caret-down ml-2 text-gray-600"></i>
- </summary>
- <div class="mt-3 text-xs space-y-4 rounded-lg">
- <pre class="bg-gray-100 p-2 rounded-sm whitespace-pre-wrap text-gray-900">{{ block }}</pre>
- </div>
- </details>
- {% endfor %}
- </div>
- {% else %}
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No OOM killer events found in this report</div>
- </div>
- {% endif %}
- </div>
+  data.oom_summary = {kills, first, last, largest, victims: [{name, count}],
+    cgroups: [{name, count}], constraints: [{name, count, text}], timeline,
+    sources, capped}
+  data.oom_events = [{id, ts, ts_sort, severity, victim: {comm, pid, uid,
+    total_vm, anon_rss, file_rss, shmem_rss, pgtables, oom_score_adj},
+    trigger: {comm, pid, cpu, gfp_mask, gfp_flags, order, oom_score_adj},
+    constraint: {name, text, cgroup, cpuset, mems, memcg_usage, memcg_limit,
+    oom_group}, mem: {ram, free, swap_free, swap_total, active_anon,
+    inactive_anon, file, slab, shmem}, tasks: [{pid, uid, name, rss, rss_kb,
+    total_vm, total_vm_kb, swap, swap_kb, oom_score_adj, killed}],
+    tasks_total, frames, raw}]
+  data.oom_killer is the legacy list of raw blocks the tests read.
+  The ids oom-filter / oom-blocks / oom-entry are kept for the drivers.
+#}
+{% set summary = data.oom_summary or {} %}
+{% set events = data.oom_events or [] %}
+{% set TOP = 12 %}
+<div class="panel rounded-lg shadow-sm kd" id="kernel-oom-killer">
+{% if events %}
+  <div class="kd-strip">
+    <div class="kd-stats">
+      {{ stat('OOM kills', summary.kills) }}
+      {{ stat('Largest victim', summary.largest, 'anon rss') }}
+      {{ stat('First', summary.first, mono=True) }}
+      {{ stat('Last', summary.last, mono=True) }}
+    </div>
+    {{ timeline(summary.timeline) }}
+    {{ chips('Victims', summary.victims, mono=True) }}
+    {{ chips('Cgroups', summary.cgroups, mono=True) }}
+    {{ chips('Constraint', summary.constraints, mono=True) }}
+  </div>
+
+  <div class="kd-filters">
+    <label class="kd-field kd-grow">{{ icon('search') }}<input type="search" id="oom-filter" class="kd-input kd-search" placeholder="Search victim, cgroup, invoker" autocomplete="off" spellcheck="false" aria-label="Search OOM events"></label>
+    <label class="kd-field kd-select-wrap"><select class="kd-select kd-sort" aria-label="Sort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select>{{ icon('select') }}</label>
+    <button type="button" class="kd-btn kd-expand-all"><span>Expand all</span></button>
+    <button type="button" class="kd-btn kd-collapse-all"><span>Collapse all</span></button>
+    <span class="kd-shown"></span>
+  </div>
+
+  <div class="kd-list" id="oom-blocks">
+  {% for ev in events %}
+    {% set v = ev.victim or {} %}
+    {% set tr = ev.trigger or {} %}
+    {% set c = ev.constraint or {} %}
+    {% set m = ev.mem or {} %}
+    <details class="kd-row oom-entry kd-sev-{{ ev.severity or 'critical' }}" data-type="{{ c.name }}" data-count="1" data-ts="{{ ev.ts_sort }}" id="oom-{{ ev.id }}">
+      <summary>
+        {{ icon('chevron', 'kd-chev') }}
+        <div class="kd-row-main">
+          <div class="kd-row-title">{% if ev.no_kill %}{{ tag('warning', 'no kill') }}<span class="kd-mono">oom-killer invoked, no process killed</span>{% else %}{{ tag(ev.severity or 'critical', 'killed') }}<span class="kd-mono">{{ v.comm }}{% if v.pid %} (pid {{ v.pid }}){% endif %}</span>{% if v.anon_rss %}<span class="kd-stat-sub">{{ v.anon_rss }} anon rss</span>{% endif %}{% endif %}</div>
+          <div class="kd-row-meta">
+            {% if c.name %}<span class="kd-mono">{{ c.name }}</span>{% endif %}
+            {% if c.cgroup %}<span class="kd-mono">{{ c.cgroup }}</span>{% endif %}
+            {% if tr.comm %}<span>invoked by {{ tr.comm }}{% if tr.pid %} (pid {{ tr.pid }}){% endif %}</span>{% endif %}
+          </div>
+        </div>
+        <div class="kd-row-side">
+          <span class="kd-mono">{{ ev.ts }}</span>
+        </div>
+      </summary>
+      <div class="kd-row-body">
+        {% if c.text %}<div class="kd-note">{{ c.text }}</div>{% endif %}
+        {% if not ev.no_kill %}
+        <div class="kd-section-title">Victim</div>
+        <dl class="kd-facts">
+          <div><dt>Process</dt><dd class="kd-mono">{{ v.comm }} <span class="kd-stat-sub">pid {{ v.pid }}{% if v.uid is not none and v.uid != '' %} &middot; uid {{ v.uid }}{% endif %}</span></dd></div>
+          {% if v.anon_rss %}<div><dt>Anon rss</dt><dd>{{ v.anon_rss }}</dd></div>{% endif %}
+          {% if v.file_rss %}<div><dt>File rss</dt><dd>{{ v.file_rss }}{% if v.shmem_rss %} <span class="kd-stat-sub">shmem {{ v.shmem_rss }}</span>{% endif %}</dd></div>{% endif %}
+          {% if v.total_vm %}<div><dt>Total vm</dt><dd>{{ v.total_vm }}{% if v.pgtables %} <span class="kd-stat-sub">page tables {{ v.pgtables }}</span>{% endif %}</dd></div>{% endif %}
+          {% if v.oom_score_adj is not none and v.oom_score_adj != '' %}<div><dt>oom_score_adj</dt><dd>{{ v.oom_score_adj }}</dd></div>{% endif %}
+          {% if c.cgroup %}<div class="kd-wide"><dt>Memory cgroup</dt><dd class="kd-mono">{{ c.cgroup }}{% if c.memcg_usage %} <span class="kd-stat-sub">usage {{ c.memcg_usage }}{% if c.memcg_limit %} of {{ c.memcg_limit }} limit{% endif %}</span>{% endif %}</dd></div>{% endif %}
+        </dl>
+        {% endif %}
+        <div class="kd-section-title">Trigger and memory state</div>
+        <dl class="kd-facts">
+          {% if tr.comm %}<div><dt>Invoked by</dt><dd class="kd-mono">{{ tr.comm }}{% if tr.pid %} <span class="kd-stat-sub">pid {{ tr.pid }}{% if tr.cpu is not none and tr.cpu != '' %} &middot; CPU {{ tr.cpu }}{% endif %}</span>{% endif %}</dd></div>{% endif %}
+          {% if tr.gfp_mask %}<div><dt>Allocation</dt><dd class="kd-mono">{{ tr.gfp_mask }}{% if tr.gfp_flags %} <span class="kd-stat-sub">{{ tr.gfp_flags }}</span>{% endif %}{% if tr.order is not none and tr.order != '' %} <span class="kd-stat-sub">order {{ tr.order }}</span>{% endif %}</dd></div>{% endif %}
+          {% if c.name %}<div><dt>Constraint</dt><dd class="kd-mono">{{ c.name }}{% if c.oom_group %} <span class="kd-stat-sub">oom_group</span>{% endif %}</dd></div>{% endif %}
+          {% if m.ram %}<div><dt>RAM</dt><dd>{{ m.ram }}{% if m.free %} <span class="kd-stat-sub">free {{ m.free }}</span>{% endif %}</dd></div>{% endif %}
+          {% if m.swap_total %}<div><dt>Swap</dt><dd>{{ m.swap_free }} free <span class="kd-stat-sub">of {{ m.swap_total }}</span></dd></div>{% endif %}
+          {% if m.active_anon %}<div><dt>Anonymous</dt><dd>{{ m.active_anon }} <span class="kd-stat-sub">active</span>{% if m.inactive_anon %} &middot; {{ m.inactive_anon }} <span class="kd-stat-sub">inactive</span>{% endif %}</dd></div>{% endif %}
+          {% if m.file %}<div><dt>File cache</dt><dd>{{ m.file }}{% if m.shmem %} <span class="kd-stat-sub">shmem {{ m.shmem }}</span>{% endif %}</dd></div>{% endif %}
+          {% if m.slab %}<div><dt>Slab</dt><dd>{{ m.slab }}</dd></div>{% endif %}
+        </dl>
+        {% if ev.tasks %}
+        <div class="kd-table-block">
+          <div class="kd-section-title">Top memory users <span class="kd-stat-sub">{{ ev.tasks|length }} of {{ ev.tasks_total or ev.tasks|length }} tasks in the dump, by rss</span>
+            <span class="kd-actions">{{ copy_button('oom-raw-' ~ ev.id) }}</span>
+          </div>
+          <div class="kd-table-wrap">
+          <table class="kd-table">
+            <thead><tr><th class="kd-num">pid</th><th>name</th><th class="kd-num kd-sorted" data-dir="desc">rss</th><th class="kd-num">total vm</th><th class="kd-num">swap</th><th class="kd-num">adj</th><th class="kd-num">uid</th></tr></thead>
+            <tbody>
+            {% for t in ev.tasks %}
+              <tr class="{% if t.killed %}kd-killed{% endif %}{% if loop.index > TOP %} kd-extra{% endif %}"{% if loop.index > TOP %} hidden{% endif %}>
+                <td class="kd-num" data-v="{{ t.pid }}">{{ t.pid }}</td>
+                <td class="kd-name">{{ t.name }}{% if t.killed %} <span class="kd-tag kd-sev-critical">killed</span>{% endif %}</td>
+                <td class="kd-num" data-v="{{ t.rss_kb }}">{{ t.rss }}</td>
+                <td class="kd-num" data-v="{{ t.total_vm_kb }}">{{ t.total_vm }}</td>
+                <td class="kd-num" data-v="{{ t.swap_kb }}">{{ t.swap }}</td>
+                <td class="kd-num" data-v="{{ t.oom_score_adj }}">{{ t.oom_score_adj }}</td>
+                <td class="kd-num" data-v="{{ t.uid }}">{{ t.uid }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          </div>
+          {% if ev.tasks|length > TOP %}<button type="button" class="kd-link kd-show-all" data-all="Show all {{ ev.tasks|length }} tasks" data-less="Show the top {{ TOP }}">Show all {{ ev.tasks|length }} tasks</button>{% endif %}
+        </div>
+        {% endif %}
+        {% if ev.frames %}
+        <details>
+          <summary class="kd-link">Call trace of the allocation that triggered the kill</summary>
+          {{ stack(ev.frames) }}
+        </details>
+        {% endif %}
+        {% if ev.raw %}{{ raw_block(ev.raw, 'oom-raw-' ~ ev.id) }}{% endif %}
+      </div>
+    </details>
+  {% endfor %}
+  </div>
+{% else %}
+  {{ empty('No OOM kills', 'The OOM killer did not run in the kernel logs of this report.', summary.sources) }}
+{% endif %}
+{% include "tabs/_kernel_diag.html" %}
 </div>
-
-<script>
- (() => {
- document.querySelectorAll('.oom-entry').forEach(details => {
- const summary = details.querySelector('summary');
- const icon = summary.querySelector('i');
-
- details.addEventListener('toggle', () => {
- icon.classList.toggle('fa-caret-down');
- icon.classList.toggle('fa-caret-up');
- });
- });
-
- const filterInput = document.getElementById('oom-filter');
- const entries = document.querySelectorAll('.oom-entry');
-
- filterInput.addEventListener('input', () => {
- const query = filterInput.value.trim().toLowerCase();
- let regex = null;
-
- if (query.length > 0) {
- try {
- regex = new RegExp(query, 'i');
- } catch {
- regex = null;
- }
- }
-
- entries.forEach(entry => {
- const fullText = entry.dataset.full.toLowerCase();
- const matches = regex
- ? regex.test(fullText)
- : fullText.includes(query);
-
- entry.style.display = matches ? '' : 'none';
- });
- });
- })();

@@ -9,9 +9,12 @@ backend/parsers/sosreport/* read.
 
 Used by generate.py; see README.md for the planted findings.
 """
+import gzip
 import os
 import random
 from datetime import datetime, timedelta
+
+import mock_manifests
 
 HOST = "web-01"
 FQDN = "web-01.example.test"
@@ -36,6 +39,13 @@ class Tree:
         path = os.path.join(self.base, rel)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:
+            fh.write(content)
+
+    def write_gz(self, rel, content):
+        """A rotated, gzip-compressed log (var/log/messages-YYYYMMDD.gz)."""
+        path = os.path.join(self.base, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with gzip.open(path, "wt", encoding="utf-8") as fh:
             fh.write(content)
 
 
@@ -165,10 +175,9 @@ def write_system_facts(t):
             "repo id                                     repo name\n"
             "rhel-9-for-x86_64-appstream-rpms            Red Hat Enterprise Linux 9 for x86_64 - AppStream (RPMs)\n"
             "rhel-9-for-x86_64-baseos-rpms               Red Hat Enterprise Linux 9 for x86_64 - BaseOS (RPMs)\n")
-    t.write("sos_reports/manifest.json",
-            '{\n  "version": "4.7.0",\n  "cmdline": "sosreport --batch --case-id=EXAMPLE-0001",\n'
-            '  "start_time": "2026-10-12 14:28:10",\n  "end_time": "2026-10-12 14:30:03",\n'
-            '  "components": {"report": {"sysinfo": {"hostname": "' + FQDN + '", "kernel": "' + KERNEL + '"}}}\n}\n')
+    # The sos manifest (sos 4.7 layout: plugins, their commands, return codes
+    # and run times; the Sos Report / Blame tab reads it)
+    t.write("sos_reports/manifest.json", mock_manifests.dump(mock_manifests.rhel_manifest(FQDN, KERNEL)))
 
 
 PACKAGES = [
@@ -813,11 +822,157 @@ def kernel_hung_task(dt):
         f"{k}task:example-worker  state:D stack:0 pid: 4311 ppid:  4200 flags:0x00004080",
         f"{k}Call Trace:", f"{k} <TASK>",
         f"{k} __schedule+0x2d1/0x870", f"{k} schedule+0x55/0xf0", f"{k} rpc_wait_bit_killable+0x24/0xa0 [sunrpc]",
-        f"{k} __wait_on_bit+0x4a/0x120", f"{k} out_of_line_wait_on_bit+0x92/0xb0", f"{k} nfs_wait_on_request+0x5a/0x70 [nfs]",
+        f"{k} ? __pfx_rpc_wait_bit_killable+0x10/0x10 [sunrpc]", f"{k} __wait_on_bit+0x4a/0x120", f"{k} out_of_line_wait_on_bit+0x92/0xb0", f"{k} nfs_wait_on_request+0x5a/0x70 [nfs]",
         f"{k} nfs_lock_and_join_requests+0x1e3/0x360 [nfs]", f"{k} nfs_updatepage+0x1d9/0x980 [nfs]", f"{k} nfs_write_end+0x6a/0x2c0 [nfs]",
         f"{k} generic_perform_write+0x10c/0x1f0", f"{k} nfs_file_write+0xf2/0x2e0 [nfs]", f"{k} vfs_write+0x2cf/0x3f0",
         f"{k} ksys_write+0x5f/0xe0", f"{k} do_syscall_64+0x5c/0x90", f"{k} entry_SYSCALL_64_after_hwframe+0x72/0xdc",
         f"{k} </TASK>",
+    ]
+
+
+def kernel_bug_trace(dt):
+    """A BUG: NULL pointer dereference in the out-of-tree driver's rx path
+    (an Oops with the #PF lines, <IRQ> markers and an 'end trace')."""
+    k = f"{syslog_ts(dt)} {HOST} kernel: "
+    return [
+        f"{k}BUG: kernel NULL pointer dereference, address: 0000000000000010",
+        f"{k}#PF: supervisor read access in kernel mode",
+        f"{k}#PF: error_code(0x0000) - not-present page",
+        f"{k}PGD 0 P4D 0",
+        f"{k}Oops: 0000 [#1] PREEMPT SMP NOPTI",
+        f"{k}CPU: 1 PID: 5123 Comm: example-cgi Tainted: G           OE     -------  ---  {KERNEL} #1",
+        f"{k}Hardware name: Example Systems ExampleServer X1/EX-MB-100, BIOS 2.1.7 03/14/2026",
+        f"{k}RIP: 0010:example_fastpath_rx+0x3c/0x1b0 [example_fastpath]",
+        f"{k}Code: 0f 1f 44 00 00 55 48 89 e5 41 56 41 55 41 54 53 48 8b 47 10 <48> 8b 50 10 48 85 d2 74 2e 48 8b 42 18 48 85 c0 74 25 8b 70 0c",
+        f"{k}RSP: 0018:ffffb3c1c0003e38 EFLAGS: 00010a46",
+        f"{k}RAX: 0000000000000000 RBX: ffff9a2c41d9e000 RCX: 0000000000000000",
+        f"{k}CR2: 0000000000000010 CR3: 000000010a3c6000 CR4: 00000000003506e0",
+        f"{k}Call Trace:", f"{k} <IRQ>",
+        f"{k} example_fastpath_rx+0x3c/0x1b0 [example_fastpath]",
+        f"{k} ? __pfx_example_fastpath_rx+0x10/0x10 [example_fastpath]",
+        f"{k} example_fastpath_napi_poll+0x9d/0x240 [example_fastpath]",
+        f"{k} __napi_poll+0x2b/0x1b0", f"{k} net_rx_action+0x2a4/0x380", f"{k} __do_softirq+0xd6/0x2e8",
+        f"{k} ? __irq_exit_rcu+0x81/0xd0", f"{k} irq_exit_rcu+0x12/0x20", f"{k} common_interrupt+0x82/0xa0",
+        f"{k} </IRQ>",
+        f"{k}Modules linked in: example_fastpath(OE) xfs libcrc32c virtio_net net_failover failover virtio_blk dm_mod",
+        f"{k}---[ end trace 0000000000000000 ]---",
+    ]
+
+
+def kernel_soft_lockup(dt, secs):
+    k = f"{syslog_ts(dt)} {HOST} kernel: "
+    return [
+        f"{k}watchdog: BUG: soft lockup - CPU#5 stuck for {secs}s! [kworker/5:1:38412]",
+        f"{k}Modules linked in: example_fastpath(OE) xfs libcrc32c virtio_net net_failover failover virtio_blk dm_mod",
+        f"{k}CPU: 5 PID: 38412 Comm: kworker/5:1 Tainted: G           OE     -------  ---  {KERNEL} #1",
+        f"{k}Hardware name: Example Systems ExampleServer X1/EX-MB-100, BIOS 2.1.7 03/14/2026",
+        f"{k}Workqueue: events example_fastpath_reset_work [example_fastpath]",
+        f"{k}RIP: 0010:example_fastpath_drain_ring+0x11e/0x2a0 [example_fastpath]",
+        f"{k}Code: 48 8b 03 48 85 c0 74 1b 48 8b 40 08 48 85 c0 74 12 f3 90 <8b> 43 10 85 c0 75 f1 48 8b 03 48 85 c0 75 e5 5b 5d 41 5c c3 cc cc",
+        f"{k}RSP: 0018:ffffb3c1c1b8fd80 EFLAGS: 00000a46",
+        f"{k}Call Trace:", f"{k} <TASK>",
+        f"{k} example_fastpath_drain_ring+0x11e/0x2a0 [example_fastpath]",
+        f"{k} example_fastpath_reset_work+0x4f/0x120 [example_fastpath]",
+        f"{k} process_one_work+0x1e2/0x3b0", f"{k} worker_thread+0x50/0x3a0", f"{k} ? __pfx_worker_thread+0x10/0x10",
+        f"{k} kthread+0xdd/0x100", f"{k} ? __pfx_kthread+0x10/0x10", f"{k} ret_from_fork+0x29/0x50",
+        f"{k} </TASK>",
+    ]
+
+
+def kernel_rcu_stall(dt):
+    k = f"{syslog_ts(dt)} {HOST} kernel: "
+    return [
+        f"{k}rcu: INFO: rcu_sched self-detected stall on CPU",
+        f"{k}rcu: \t5-....: (60002 ticks this GP) idle=4e2/1/0x4000000000000000 softirq=812345/812345 fqs=29998",
+        f"{k}\t(t=60002 jiffies g=1234567 q=4201)",
+        f"{k}NMI backtrace for cpu 5",
+        f"{k}CPU: 5 PID: 38412 Comm: kworker/5:1 Tainted: G           OE     -------  ---  {KERNEL} #1",
+        f"{k}Hardware name: Example Systems ExampleServer X1/EX-MB-100, BIOS 2.1.7 03/14/2026",
+        f"{k}Call Trace:", f"{k} <IRQ>",
+        f"{k} dump_stack_lvl+0x34/0x48", f"{k} nmi_cpu_backtrace.cold+0x30/0x70", f"{k} nmi_trigger_cpumask_backtrace+0xf3/0x110",
+        f"{k} rcu_dump_cpu_stacks+0xc4/0x100", f"{k} rcu_sched_clock_irq+0x3a4/0x9f0", f"{k} update_process_times+0x5c/0x90",
+        f"{k} tick_sched_handle+0x22/0x60", f"{k} tick_sched_timer+0x6f/0x80", f"{k} __hrtimer_run_queues+0x112/0x2b0",
+        f"{k} hrtimer_interrupt+0xfc/0x210", f"{k} __sysvec_apic_timer_interrupt+0x5f/0x110", f"{k} sysvec_apic_timer_interrupt+0x6d/0x90",
+        f"{k} </IRQ>", f"{k} <TASK>", f"{k} asm_sysvec_apic_timer_interrupt+0x16/0x20",
+        f"{k} ? example_fastpath_drain_ring+0x11e/0x2a0 [example_fastpath]",
+        f"{k} </TASK>",
+    ]
+
+
+def kernel_hung_task_rhel7_style(dt):
+    """A hung task in the form RHEL 7 kernels print it (the 'comm D addr 0
+    pid ppid flags' line, [<addr>] frames, a hex dump): a format sample for
+    the parser; the report itself is a RHEL 9 one."""
+    k = f"{syslog_ts(dt)} {HOST} kernel: "
+    return [
+        f"{k}INFO: task kworker/u16:3:8821 blocked for more than 120 seconds.",
+        f"{k}      Tainted: G           OE     -------  ---  {KERNEL} #1",
+        f"{k}\"echo 0 > /proc/sys/kernel/hung_task_timeout_secs\" disables this message.",
+        f"{k}kworker/u16:3   D ffff88085fc13140     0  8821      2 0x00000080",
+        f"{k}Workqueue: xfs-log/dm-2 xfs_log_worker [xfs]",
+        f"{k} ffff8808546b3bd0 0000000000000046 ffff880855dd1f60 ffff8808546b3fd8",
+        f"{k} ffff8808546b3fd8 ffff8808546b3fd8 ffff880855dd1f60 ffff88085fc13140",
+        f"{k}Call Trace:",
+        f"{k} [<ffffffff8168c7a9>] schedule+0x29/0x70",
+        f"{k} [<ffffffffa0315afd>] xlog_wait+0x5d/0x60 [xfs]",
+        f"{k} [<ffffffff810c4fe0>] ? wake_up_state+0x20/0x20",
+        f"{k} [<ffffffffa0315b5e>] xfs_log_force+0x1a9/0x2d0 [xfs]",
+        f"{k} [<ffffffffa0315c3b>] xfs_log_worker+0x3b/0xd0 [xfs]",
+        f"{k} [<ffffffff810a881a>] process_one_work+0x17a/0x440",
+        f"{k} [<ffffffff810a94e6>] worker_thread+0x126/0x3c0",
+        f"{k} [<ffffffff810b098f>] kthread+0xcf/0xe0",
+        f"{k} [<ffffffff81697c18>] ret_from_fork+0x58/0x90",
+    ]
+
+
+def kernel_hung_task_no_task_markers(dt):
+    """RHEL 8 style: the padded task: line, a Call Trace without <TASK> markers."""
+    k = f"{syslog_ts(dt)} {HOST} kernel: "
+    return [
+        f"{k}INFO: task example-backup:31844 blocked for more than 120 seconds.",
+        f"{k}      Not tainted 4.18.0-553.el8_10.x86_64 #1",
+        f"{k}\"echo 0 > /proc/sys/kernel/hung_task_timeout_secs\" disables this message.",
+        f"{k}task:example-backup  state:D stack:    0 pid:31844 ppid:     1 flags:0x00004080",
+        f"{k}Call Trace:",
+        f"{k} __schedule+0x2d1/0x870", f"{k} schedule+0x55/0xf0",
+        f"{k} jbd2_log_wait_commit+0xa6/0x120 [jbd2]", f"{k} ? finish_wait+0x80/0x80",
+        f"{k} jbd2_complete_transaction+0x5c/0xa0 [jbd2]", f"{k} ext4_sync_file+0x2b5/0x3b0 [ext4]",
+        f"{k} do_fsync+0x38/0x70", f"{k} __x64_sys_fsync+0x10/0x20", f"{k} do_syscall_64+0x5b/0x1a0",
+        f"{k} entry_SYSCALL_64_after_hwframe+0x65/0xca",
+    ]
+
+
+MEMCG_PATH = ("/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod0a0a0a0a_0a0a_0a0a_0a0a_0a0a0a0a0a0a.slice/"
+              "crio-6464646464646464646464646464646464646464646464646464646464646464.scope")
+
+
+def kernel_memcg_oom_block(dt):
+    """A cgroup-limit OOM (CONSTRAINT_MEMCG): a container hit its memory limit."""
+    k = f"{syslog_ts(dt)} {HOST} kernel: "
+    return [
+        f"{k}payments-api invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=999",
+        f"{k}CPU: 7 PID: 28841 Comm: payments-api Tainted: G           OE     -------  ---  {KERNEL} #1",
+        f"{k}Hardware name: Example Systems ExampleServer X1/EX-MB-100, BIOS 2.1.7 03/14/2026",
+        f"{k}Call Trace:", f"{k} <TASK>", f"{k} dump_stack_lvl+0x34/0x48", f"{k} dump_header+0x4a/0x201", f"{k} oom_kill_process.cold+0xb/0x10",
+        f"{k} out_of_memory+0xed/0x2e0", f"{k} mem_cgroup_out_of_memory+0x13a/0x150", f"{k} try_charge_memcg+0x6d2/0x7a0",
+        f"{k} charge_memcg+0x39/0xf0", f"{k} __mem_cgroup_charge+0x28/0x80", f"{k} do_anonymous_page+0x1e4/0x3f0",
+        f"{k} __handle_mm_fault+0x3c4/0x6d0", f"{k} handle_mm_fault+0xc5/0x2a0", f"{k} do_user_addr_fault+0x1b4/0x6a0",
+        f"{k} exc_page_fault+0x62/0x150", f"{k} asm_exc_page_fault+0x22/0x30", f"{k} </TASK>",
+        f"{k}memory: usage 8388608kB, limit 8388608kB, failcnt 418",
+        f"{k}swap: usage 0kB, limit 9007199254740988kB, failcnt 0",
+        f"{k}Memory cgroup stats for {MEMCG_PATH}:",
+        f"{k}anon 8583872512",
+        f"{k}file 1835008",
+        f"{k}kernel_stack 294912",
+        f"{k}slab 8781824",
+        f"{k}Tasks state (memory values in pages):",
+        f"{k}[  pid  ]   uid  tgid total_vm      rss pgtables_bytes swapents oom_score_adj name",
+        f"{k}[  28701]     0 28701    20500      775    61440        0          -999 conmon",
+        f"{k}[  28790]  1000 28790   300000    79600  1228800        0           999 payments-api",
+        f"{k}[  28841]  1000 28841  2450000  1978075 20971520        0           999 payments-api",
+        f"{k}[  28855]  1000 28855      575      225    40960        0           999 sh",
+        f"{k}oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=/,mems_allowed=0,oom_memcg={MEMCG_PATH},task_memcg={MEMCG_PATH},task=payments-api,pid=28841,uid=1000",
+        f"{k}Memory cgroup out of memory: Killed process 28841 (payments-api) total-vm:9800000kB, anon-rss:7912300kB, file-rss:2048kB, shmem-rss:0kB, UID:1000 pgtables:20480kB oom_score_adj:999",
     ]
 
 
@@ -859,6 +1014,18 @@ def write_journal(t, rnd, n_lines, var_log_lines):
         f"{syslog_ts(datetime(2026, 10, 12, 2, 0, 7))} {HOST} systemd[1]: example-backup.service: Failed with result 'exit-code'.",
         f"{syslog_ts(datetime(2026, 10, 12, 2, 0, 7))} {HOST} systemd[1]: Failed to start Example nightly backup."])
     put(datetime(2026, 10, 12, 9, 31, 55), kernel_hung_task(datetime(2026, 10, 12, 9, 31, 55)))
+    # The kernel tabs' other event kinds: a BUG (NULL dereference), two soft
+    # lockups and an RCU stall on the same CPU, the WARNING again (the same
+    # trace twice groups into one row), a cgroup-limit OOM, and two hung
+    # tasks in the older line formats (RHEL 7 and RHEL 8 style samples)
+    put(datetime(2026, 10, 12, 3, 40, 12), kernel_bug_trace(datetime(2026, 10, 12, 3, 40, 12)))
+    put(datetime(2026, 10, 12, 9, 33, 40), kernel_soft_lockup(datetime(2026, 10, 12, 9, 33, 40), 22))
+    put(datetime(2026, 10, 12, 9, 34, 8), kernel_soft_lockup(datetime(2026, 10, 12, 9, 34, 8), 48))
+    put(datetime(2026, 10, 12, 9, 34, 30), kernel_rcu_stall(datetime(2026, 10, 12, 9, 34, 30)))
+    put(datetime(2026, 10, 12, 14, 1, 55), kernel_warning_trace(datetime(2026, 10, 12, 14, 1, 55)))
+    put(datetime(2026, 10, 12, 6, 3, 14), kernel_memcg_oom_block(datetime(2026, 10, 12, 6, 3, 14)))
+    put(datetime(2026, 10, 12, 2, 0, 41), kernel_hung_task_rhel7_style(datetime(2026, 10, 12, 2, 0, 41)))
+    put(datetime(2026, 10, 12, 2, 0, 50), kernel_hung_task_no_task_markers(datetime(2026, 10, 12, 2, 0, 50)))
     put(datetime(2026, 10, 12, 9, 34, 0), [
         f"{syslog_ts(datetime(2026, 10, 12, 9, 34, 0))} {HOST} kernel: INFO: task example-worker:4311 blocked for more than 245 seconds.",
         f"{syslog_ts(datetime(2026, 10, 12, 9, 34, 0))} {HOST} kernel:       Tainted: G           OE     -------  ---  {KERNEL} #1",
@@ -953,6 +1120,13 @@ def write_journal(t, rnd, n_lines, var_log_lines):
     t.write("var/log/example-app/app.log", "\n".join(app) + "\n")
     t.write("var/log/httpd/error_log", f"[Mon Oct 12 11:02:17.123456 2026] [core:notice] [pid 2301:tid 2301] AH00052: child pid 5123 exit signal Segmentation fault (11)\n")
     t.write("var/log/messages", "\n".join(l for _, l in events if " kernel: " not in l)[:20000] + "\n")
+    # A rotated, compressed messages file from before the journal's range,
+    # with an OOM kill that exists nowhere else (the kernel tabs read it)
+    old = datetime(2026, 10, 5, 3, 0, 0)
+    rotated = [f"{syslog_ts(old - timedelta(minutes=1))} {HOST} systemd[1]: Started Example nightly report.",
+               *kernel_oom_block(old, 4100, "example-worker", 28_001_000),
+               f"{syslog_ts(old + timedelta(minutes=1))} {HOST} systemd[1]: example-worker.service: Scheduled restart job, restart counter is at 1."]
+    t.write_gz("var/log/messages-20261005.gz", "\n".join(rotated) + "\n")
     t.write("var/log/secure", "\n".join(l for _, l in events if " sshd[" in l) + "\n")
 
 

@@ -196,7 +196,7 @@ try {
     await context.close();
   }
   const css = fs.readFileSync(path.join(REPO, 'src', 'index.css'), 'utf8');
-  check('index.css: the sc-chat-markdown rules exist (headings, hr in the border token, pre overflow-x auto / white-space pre, lists)', /\.sc-chat-markdown h1 \{ font-size: 1\.3em; \}/.test(css) && /\.sc-chat-markdown hr \{[^}]*background-color: var\(--os-border\)/.test(css) && /\.sc-chat-markdown pre \{[^}]*white-space: pre;[^}]*overflow-x: auto;/.test(css) && /\.sc-chat-markdown ul \{ list-style-type: disc; \}/.test(css));
+  check('index.css: the sc-chat-markdown rules exist (headings, hr in the border token, pre overflow-x auto / white-space pre, lists)', /\.sc-chat-markdown h1 \{ font-size: 1\.15em; \}/.test(css) && /\.sc-chat-markdown hr \{[^}]*background-color: var\(--os-border\)/.test(css) && /\.sc-chat-markdown pre \{[^}]*white-space: pre;[^}]*overflow-x: auto;/.test(css) && /\.sc-chat-markdown ul \{ list-style-type: disc; \}/.test(css));
   const src = (p) => fs.readFileSync(path.join(REPO, p), 'utf8');
   check('the bubbles carry markdown-preview + sc-chat-markdown and no prose class (Tailwind Typography is not installed)', /markdown-preview sc-chat-markdown/.test(src('src/components/AIChatPage.jsx')) && /markdown-preview sc-chat-markdown/.test(src('src/components/common/AIChatSidebar.jsx')) && !/\bprose\b/.test(src('src/components/AIChatPage.jsx')) && !/\bprose\b/.test(src('src/components/common/AIChatSidebar.jsx')) && !/typography/.test(src('package.json')));
 } finally {

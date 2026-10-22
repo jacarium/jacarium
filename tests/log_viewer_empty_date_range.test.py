@@ -374,7 +374,7 @@ try:
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
         oom = oom_mod.parse(report)
     check('kernel_oom_killer.parse() without a journal -> empty result, no "Failed to read"',
-          oom == {'oom_killer': []} and 'Failed to read' not in buf.getvalue() and 'No such file' not in buf.getvalue(),
+          oom.get('oom_killer') == [] and oom.get('oom_events') == [] and 'Failed to read' not in buf.getvalue() and 'No such file' not in buf.getvalue(),
           buf.getvalue().strip()[-120:])
 
     # ------------------------------------------------------------------

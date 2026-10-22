@@ -1,121 +1,181 @@
+"""Kernel Hung Tasks: the "INFO: task X:N blocked for more than N seconds"
+reports of a sosreport's kernel logs, grouped by the function the tasks
+are blocked in, for the incident board.
+
+kernel_log.scan() finds the reports in every kernel log of the report
+(RHEL 7's "comm D ffff... pid ppid flags" line, RHEL 8/9's padded
+"task:X state:D stack:0 pid: N ppid:  N flags:0x..", the tight legacy
+form and 6.x's "pid:N tgid:N ppid:N", stacks with or without <TASK>).
+This module shapes them for tabs/sosreport_kernel_hung_task.html:
+
+  hung_summary  reports, distinct tasks, threshold, the longest block,
+                first/last, "blocked in" and process counts, the timeline
+  hung_groups   one row per blocking function (nfs_wait_on_request [nfs],
+                xfs_log_force [xfs], ...) with its tasks; a task the
+                kernel re-reports every timeout is one entry with its
+                growing durations
+  hung_tasks    the flat per-report list in the shape the earlier template
+                and the tests read (kept as is)
+"""
 import os
 import re
+from collections import Counter
+
+from . import kernel_log as kl
+
+RE_THRESHOLD = re.compile(r'^kernel\.hung_task_timeout_secs\s*=\s*(\d+)', re.M)
 
 
 def parse(directory):
-    result = {}
+    scan = kl.scan(directory)
+    events = scan['hung']
+    tasks = _tasks(events)
+    groups = _groups(tasks)
+    summary = _summary(events, tasks, groups, scan, _threshold(kl.report_root(directory), events))
+    legacy = [_legacy(e) for e in events]
+    return {'hung_tasks': legacy, 'hung_summary': summary, 'hung_groups': groups}
 
-    def strip_syslog_prefix(line):
-        return re.sub(r'^\w{3}\s+\d+\s+\d{2}:\d{2}:\d{2}\s+\S+\s+kernel:\s+', '', line)
 
-    def extract_syslog_timestamp(line):
-        match = re.match(r'^(\w{3}\s+\d+\s+\d{2}:\d{2}:\d{2})\s+', line)
-        return match.group(1) if match else ''
-
-    def parse_hung_tasks(path):
+def _threshold(directory, events):
+    """kernel.hung_task_timeout_secs from the captured sysctl, else the
+    smallest reported duration (the kernel reports at the timeout)."""
+    for rel in ('sos_commands/kernel/sysctl_-a', 'proc/sys/kernel/hung_task_timeout_secs'):
+        path = os.path.join(directory, rel)
+        if not os.path.isfile(path):
+            continue
         try:
-            with open(path, 'r') as f:
-                lines = f.readlines()
-        except Exception:
-            return []
+            with open(path, 'r', encoding='utf-8', errors='replace') as f:
+                for n, line in enumerate(f):
+                    if n > 200000:
+                        break
+                    if rel.endswith('hung_task_timeout_secs') and line.strip().isdigit():
+                        return int(line.strip())
+                    m = RE_THRESHOLD.match(line)
+                    if m:
+                        return int(m.group(1))
+        except OSError:
+            continue
+    durations = [e['duration'] for e in events if e['duration']]
+    return min(durations) if durations else 0
 
-        hung_tasks = []
-        for i, line in enumerate(lines):
-            if 'blocked for more than' in line:
-                task_info = {
-                    'timestamp': extract_syslog_timestamp(line),
-                    'task_line': strip_syslog_prefix(line).strip(),
-                    'details': {
-                        'task': None,
-                        'pid': None,
-                        'ppid': None,
-                        'state': None,
-                        'stack': None,
-                        'flags': None,
-                        'kernel': None,
-                        'call_trace': [],
-                        'raw': []
-                    }
-                }
 
-                match = re.search(r'task (\S+):(\d+) blocked for more than (\d+) seconds', line)
-                if match:
-                    task_info['details']['task'] = match.group(1)
-                    task_info['details']['pid'] = match.group(2)
-                    task_info['details']['duration'] = match.group(3)
+def _tasks(events):
+    """Reports -> one task per (comm, pid), with every report's duration
+    and the stack from the first report that carried one."""
+    by_key = {}
+    order = []
+    for ev in events:
+        key = (ev['comm'], ev['pid'])
+        if key not in by_key:
+            order.append(key)
+            by_key[key] = {'comm': ev['comm'], 'pid': ev['pid'], 'ppid': ev['ppid'], 'state': ev['state'], 'flags': ev['flags'],
+                           'stack_ptr': ev['stack_ptr'], 'kernel': ev['kernel'], 'taint': ev['taint'], 'frames': [], 'blocked_in': None,
+                           'raw': ev['raw'], 'reports': [], 'sources': []}
+        t = by_key[key]
+        t['reports'].append(ev)
+        for field in ('ppid', 'flags', 'stack_ptr', 'kernel', 'state'):
+            if not t[field] and ev[field]:
+                t[field] = ev[field]
+        if not t['taint']['flags'] and ev['taint']['flags']:
+            t['taint'] = ev['taint']
+        if not t['frames'] and ev['frames']:
+            t['frames'] = ev['frames']
+            t['blocked_in'] = ev['blocked_in']
+            t['raw'] = ev['raw']
+        for s in ev['sources']:
+            if s not in t['sources']:
+                t['sources'].append(s)
+    tasks = []
+    for key in order:
+        t = by_key[key]
+        reports = sorted(t['reports'], key=lambda e: (e['ts'] or kl.datetime.min, e['duration']))
+        durations = [e['duration'] for e in reports]
+        t.update({
+            'durations': durations, 'duration_min': min(durations), 'duration_max': max(durations),
+            'first': kl.fmt_ts(reports[0]), 'last': kl.fmt_ts(reports[-1]), 'ts': kl.sort_ts(reports[-1]),
+            'state_text': STATE_TEXT.get(t['state'], ''),
+            'taint_text': t['taint']['text'], 'taint_flags': t['taint']['flags'],
+        })
+        tasks.append(t)
+    return tasks
 
-                context_lines = lines[i:i+50]
-                in_call_trace = False
-                in_task_flag = False
-                kernel_lines = []
 
-                for idx, context_line in enumerate(context_lines):
-                    clean_line = strip_syslog_prefix(context_line).rstrip('\n')
-                    stripped_line = clean_line.strip()
+STATE_TEXT = {'D': 'uninterruptible sleep', 'R': 'running', 'S': 'sleeping', 'T': 'stopped', 'Z': 'zombie', 'I': 'idle'}
 
-                    if stripped_line:
-                        task_info['details']['raw'].append(stripped_line)
 
-                    if stripped_line.startswith("task:"):
-                        meta_match = re.search(
-                            # RHEL 8/9 kernels pad the numbers ("pid: 4311 ppid:  4200");
-                            # older ones print them tight ("pid:4311 ppid:4200").
-                            r'task:(\S+)\s+state:(\S+)\s+stack:\s*(\S+)\s+pid:\s*(\d+)\s+ppid:\s*(\d+)\s+flags:\s*(0x[0-9a-fA-F]+)',
-                            stripped_line
-                        )
-                        if meta_match:
-                            task_info['details']['task'] = meta_match.group(1)
-                            task_info['details']['state'] = meta_match.group(2)
-                            task_info['details']['stack'] = meta_match.group(3)
-                            task_info['details']['pid'] = meta_match.group(4)
-                            task_info['details']['ppid'] = meta_match.group(5)
-                            task_info['details']['flags'] = meta_match.group(6)
-                        continue
+def _groups(tasks):
+    by_key = {}
+    order = []
+    for t in tasks:
+        b = t['blocked_in']
+        key = (b['symbol'], b['module']) if b else ('', '')
+        if key not in by_key:
+            order.append(key)
+            by_key[key] = {'function': b['symbol'] if b else 'no stack captured', 'module': b['module'] if b else '', 'tasks': []}
+        by_key[key]['tasks'].append(t)
+    groups = []
+    for key in order:
+        g = by_key[key]
+        count = sum(len(t['reports']) for t in g['tasks'])
+        longest = max(t['duration_max'] for t in g['tasks'])
+        stamps = [t['ts'] for t in g['tasks'] if t['ts']]
+        firsts = [t['first'] for t in g['tasks']]
+        groups.append({
+            'id': '', 'function': g['function'], 'module': g['module'],
+            'severity': 'critical' if longest >= 600 else 'warning',
+            'count': count, 'first': min(firsts) if firsts else '', 'last': max(t['last'] for t in g['tasks']),
+            'ts': max(stamps) if stamps else '',
+            'tasks': [{
+                'comm': t['comm'], 'pid': t['pid'], 'ppid': t['ppid'], 'state': t['state'], 'state_text': t['state_text'],
+                'durations': t['durations'], 'duration_min': t['duration_min'], 'duration_max': t['duration_max'],
+                'first': t['first'], 'last': t['last'], 'ts': t['ts'], 'flags': t['flags'], 'stack_ptr': t['stack_ptr'],
+                'kernel': t['kernel'], 'taint': t['taint_flags'], 'taint_text': t['taint_text'],
+                'frames': [{'text': f['text'], 'unreliable': f['unreliable'], 'blocked': f['blocked'], 'module': f['module']} for f in t['frames']],
+                'raw': t['raw'], 'sources': t['sources'],
+            } for t in sorted(g['tasks'], key=lambda t: -t['duration_max'])],
+        })
+    groups.sort(key=lambda g: g['ts'], reverse=True)
+    groups.sort(key=lambda g: -g['count'])
+    for i, g in enumerate(groups, 1):
+        g['id'] = f"h{i}"
+    return groups
 
-                    if stripped_line.startswith('Tainted:') or stripped_line.startswith('Linux version'):
-                        kernel_lines = [stripped_line]
-                        for cont_line in context_lines[idx+1:]:
-                            cont_clean = strip_syslog_prefix(cont_line).strip()
-                            if cont_clean.startswith('#') or cont_clean.startswith(' ') or cont_clean == '':
-                                kernel_lines.append(cont_clean)
-                            else:
-                                break
-                        task_info['details']['kernel'] = "\n".join(kernel_lines).strip()
-                        continue
 
-                    if 'Call Trace:' in stripped_line:
-                        in_call_trace = True
-                        continue
+def _summary(events, tasks, groups, scan, threshold):
+    if not events:
+        return {'reports': 0, 'tasks': 0, 'groups': 0, 'threshold': threshold, 'longest': 0, 'first': '', 'last': '',
+                'blocked_in': [], 'comms': [], 'states': [], 'taint': {'flags': '', 'text': ''}, 'timeline': None,
+                'sources': scan['sources'], 'capped': scan['capped']}
+    blocked = Counter()
+    for t in tasks:
+        name = (t['blocked_in']['text'] if t['blocked_in'] else 'no stack captured')
+        blocked[name] += len(t['reports'])
+    comms = Counter()
+    for e in events:
+        comms[e['comm']] += 1
+    states = Counter(e['state'] for e in events)
+    span = [e['ts'] for e in events if e['ts']]
+    per_day = span and (max(span) - min(span)).total_seconds() > 2 * 86400
+    return {
+        'reports': len(events), 'tasks': len(tasks), 'groups': len(groups), 'threshold': threshold,
+        'longest': max(e['duration'] for e in events),
+        'first': kl.fmt_ts(events[0]), 'last': kl.fmt_ts(events[-1]),
+        'blocked_in': kl.top(blocked), 'comms': kl.top(comms),
+        'states': [{'name': k, 'count': v} for k, v in states.most_common()],
+        'taint': kl.taint_summary(events),
+        'timeline': kl.timeline(events, 'Reports per day' if per_day else 'Reports per hour'),
+        'sources': scan['sources'], 'capped': scan['capped'],
+    }
 
-                    if in_call_trace:
-                        if (stripped_line.startswith("task:") or
-                                stripped_line.startswith('Tainted:') or
-                                stripped_line.startswith('Linux version') or
-                                'blocked for more than' in stripped_line):
-                            in_call_trace = False
-                        else:
-                            if stripped_line.startswith('<TASK>'):
-                                in_task_flag = True
-                                continue
-                            elif stripped_line.startswith('</TASK>'):
-                                in_task_flag = False
-                                break
 
-                            if in_task_flag:
-                                task_info['details']['call_trace'].append(stripped_line)
-                                continue
-
-                hung_tasks.append(task_info)
-
-        return hung_tasks
-
-    entries = os.listdir(directory)
-    if len(entries) == 1:
-        inner = os.path.join(directory, entries[0])
-        if os.path.isdir(inner):
-            directory = inner
-
-    journal_path = f"{directory}/sos_commands/logs/journalctl_--no-pager"
-    result['hung_tasks'] = parse_hung_tasks(journal_path)
-
-    return result
+def _legacy(ev):
+    return {
+        'timestamp': kl.fmt_ts(ev),
+        'task_line': f"INFO: task {ev['comm']}:{ev['pid']} blocked for more than {ev['duration']} seconds.",
+        'details': {
+            'task': ev['comm'], 'pid': ev['pid'], 'ppid': ev['ppid'] or None, 'state': ev['state'], 'stack': ev['stack_ptr'] or None,
+            'flags': ev['flags'] or None, 'kernel': ev['kernel'], 'duration': str(ev['duration']),
+            'call_trace': [f['text'].strip() for f in ev['frames']],
+            'raw': ev['raw'], 'blocked_in': ev['blocked_in']['text'] if ev['blocked_in'] else None, 'sources': ev['sources'],
+        },
+    }
