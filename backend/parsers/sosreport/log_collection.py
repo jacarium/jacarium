@@ -43,6 +43,11 @@ def human(size):
     return f"{size / 1024 ** 3:.2f} GiB"
 
 
+def sort_key(f):
+    """(unknown size last, largest first, then by name)."""
+    return (f['size'] is None, -(f['size'] or 0), f['name'])
+
+
 def parse(directory):
     root = _report_root(directory)
     groups = [
@@ -84,10 +89,34 @@ def parse(directory):
                 add(key, rel, os.path.join(dirpath, name))
             if count >= MAX_FILES:
                 break
+    # Largest first within each section, so the files that matter (the
+    # journal, a bloated messages) sit on top; sizes compare as bytes (the
+    # formatted text is for display only), unknown sizes go last, ties by name.
+    for g in groups:
+        g['files'].sort(key=sort_key)
     total = sum(f['size'] or 0 for g in groups for f in g['files'])
+    # The page's one table: every file with its section, largest first across
+    # sections; the size bar is relative to the largest file. The band: the
+    # split of the total across the sections (a fixed colour per section).
+    sections = []
+    rows = []
+    largest = None
+    for color, g in enumerate(g for g in groups if g['files']):
+        g_total = sum(f['size'] or 0 for f in g['files'])
+        sections.append({'key': g['key'], 'label': g['label'], 'hint': g['hint'], 'count': len(g['files']), 'total': g_total, 'total_text': human(g_total),
+                         'pct': round(100.0 * g_total / total, 1) if total else 0.0, 'color': color})
+        for f in g['files']:
+            rows.append(dict(f, section=g['key'], section_label=g['label'], color=color, segments=None, detail='', is_dir=False, files=0, extra=False, bar_pct=0.0))
+            if f['size'] is not None and (largest is None or f['size'] > largest['size']):
+                largest = {'name': f['name'], 'size': f['size'], 'size_text': f['size_text'], 'section_label': g['label']}
+    rows.sort(key=sort_key)
+    max_size = max((r['size'] or 0 for r in rows), default=0)
+    for r in rows:
+        r['bar_pct'] = round(100.0 * r['size'] / max_size, 1) if max_size and r['size'] else 0.0
     return {'log_collection': {
         'groups': [g for g in groups if g['files']],
+        'sections': sections, 'bar': sections, 'rows': rows, 'largest': largest, 'max_size': max_size, 'top': 0, 'extra_count': 0,
         'total_files': count, 'total_size': total, 'total_size_text': human(total),
-        'capped': count >= MAX_FILES,
+        'capped': count >= MAX_FILES, 'unreadable': sum(1 for r in rows if r['unreadable']),
         'journal_present': bool(by_key['journal']['files']),
     }}

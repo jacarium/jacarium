@@ -4,6 +4,22 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.3.5
+
+_2026-10-23_
+
+### [DIAGNOSTICS]
+
+Log Collection pages for sosreport and must-gather: a size summary with the split by section or directory, the largest file, and one full-width table with a size bar on every row
+
+Log files are sorted largest first, with Name and Size headers to re-sort, section chips and a search box
+
+New must-gather Log Collection page (last in the sidebar): top-level directories, namespaces, container logs (namespace / pod / container), host service, audit and network logs by size
+
+### [SECURITY]
+
+Updated DOMPurify for a newly published critical advisory, and Electron for a moderate one
+
 ## What's New in v3.3.4
 
 _2026-10-22_

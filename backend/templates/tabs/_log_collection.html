@@ -1,0 +1,243 @@
+{#
+  The Log Collection pages (sosreport: tabs/sosreport_log_collection.html,
+  must-gather: tabs/mustgather_log_collection.html) share this file: the
+  lc-* styles, the macros for the summary band (totals, the stacked size
+  bar, the largest file), the controls (search, section chips, show all),
+  the one full-width table (section, name, a proportional size bar) and
+  the script (sort, filter, search, show all). Imported with
+  {% import "tabs/_log_collection.html" as lcm %}.
+
+  Data contract (both parsers): lc.total_files, lc.total_size_text,
+  lc.sections [{key, label, hint, count, total_text, pct, color}],
+  lc.bar [{key, label, total_text, pct, color}], lc.largest {name,
+  size_text, section_label} | None, lc.rows [{section, section_label,
+  color, name, segments | None, detail, size, size_text, bar_pct, is_dir,
+  files, rotated, unreadable, extra}], lc.top, lc.extra_count.
+
+  Own rules on the app's tokens (the diagnostics frame has only the app's
+  compiled Tailwind), inline SVG, every name escaped by Jinja; the script
+  never builds HTML from report text. The section colours are a fixed
+  categorical set (eight hues, assigned in section order, never cycled
+  past "other"); every coloured mark comes with its label.
+#}
+{% macro styles() -%}
+<style>
+.lc { font-size: 13px; line-height: 1.45; color: var(--os-text-primary, #151515); --lc-c0: #3b82f6; --lc-c1: #8b5cf6; --lc-c2: #14b8a6; --lc-c3: #f59e0b; --lc-c4: #ec4899; --lc-c5: #22c55e; --lc-c6: #f97316; --lc-c7: #64748b; }
+.lc *, .lc *::before, .lc *::after { box-sizing: border-box; }
+.lc .lc-mono { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); }
+.lc-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 10px; }
+.lc-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.lc-head .lc-sub { color: var(--os-text-secondary, #6a6e73); font-size: 12px; overflow-wrap: anywhere; }
+.lc-head .lc-actions { margin-left: auto; display: flex; gap: 6px; }
+.lc-btn { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border: 1px solid var(--os-blue, #0066cc); border-radius: var(--radius-control, 8px); background: var(--os-blue, #0066cc); color: #fff; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.lc-btn:hover { background: var(--os-blue-hover, #004c99); }
+.lc-btn-quiet { background: var(--os-card, #fff); color: var(--os-text-primary, #151515); border-color: var(--os-border, #d2d2d2); }
+.lc-btn-quiet:hover { background: var(--os-card-secondary, #f0f0f0); }
+.lc-btn-quiet.lc-on { border-color: var(--os-blue, #0066cc); color: var(--os-blue, #0066cc); }
+
+/* The summary band: stat tiles, the stacked size bar with its legend */
+.lc-band { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: stretch; padding: 12px 14px; margin-bottom: 12px; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-sm, 8px); background: var(--os-card-secondary, #f0f0f0); }
+.lc-stats { display: flex; flex-wrap: wrap; gap: 6px 22px; flex: 0 1 auto; min-width: 0; }
+.lc-stat { min-width: 0; }
+.lc-stat-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); white-space: nowrap; }
+.lc-stat-value { display: block; font-size: 20px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.lc-stat-value.lc-mono { font-size: 13px; line-height: 1.6; }
+.lc-stat-sub { display: block; font-size: 11px; color: var(--os-text-secondary, #6a6e73); overflow-wrap: anywhere; }
+.lc-split { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.lc-stack { display: flex; height: 18px; border-radius: 4px; overflow: hidden; background: var(--os-border, #d2d2d2); }
+.lc-stack span { display: block; height: 100%; min-width: 2px; border-right: 2px solid var(--os-card-secondary, #f0f0f0); }
+.lc-stack span:last-child { border-right: 0; }
+.lc-legend { display: flex; flex-wrap: wrap; gap: 3px 14px; font-size: 11.5px; color: var(--os-text-secondary, #6a6e73); }
+.lc-legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; background: var(--swatch); }
+.lc-legend b { color: var(--os-text-primary, #151515); font-weight: 600; }
+.lc-c0 { --swatch: var(--lc-c0); background: var(--lc-c0); } .lc-c1 { --swatch: var(--lc-c1); background: var(--lc-c1); } .lc-c2 { --swatch: var(--lc-c2); background: var(--lc-c2); } .lc-c3 { --swatch: var(--lc-c3); background: var(--lc-c3); }
+.lc-c4 { --swatch: var(--lc-c4); background: var(--lc-c4); } .lc-c5 { --swatch: var(--lc-c5); background: var(--lc-c5); } .lc-c6 { --swatch: var(--lc-c6); background: var(--lc-c6); } .lc-c7 { --swatch: var(--lc-c7); background: var(--lc-c7); }
+.lc-legend .lc-c0, .lc-legend .lc-c1, .lc-legend .lc-c2, .lc-legend .lc-c3, .lc-legend .lc-c4, .lc-legend .lc-c5, .lc-legend .lc-c6, .lc-legend .lc-c7 { background: none; }
+
+/* Controls: search, section chips, show all */
+.lc-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.lc-field { position: relative; display: flex; align-items: center; flex: 1 1 220px; max-width: 360px; min-width: 0; }
+.lc-field > svg { position: absolute; left: 9px; width: 14px; height: 14px; color: var(--os-text-secondary, #6a6e73); pointer-events: none; }
+.lc .lc-input, #diagnostics-content .lc .lc-input { height: 30px; width: 100%; padding: 0 10px 0 30px !important; border: 1px solid var(--os-input-border, var(--os-border, #d2d2d2)) !important; border-radius: var(--radius-control, 8px) !important; background: var(--os-input-bg, var(--os-card, #fff)); color: var(--os-text-primary, #151515); font: inherit; font-size: 13px !important; line-height: 28px !important; }
+.lc-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.lc-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 1px solid var(--os-border, #d2d2d2); border-radius: 999px; background: var(--os-card, #fff); color: var(--os-text-primary, #151515); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.lc-chip:hover { background: var(--os-card-secondary, #f0f0f0); }
+.lc-chip.lc-on { border-color: var(--os-blue, #0066cc); color: var(--os-blue, #0066cc); }
+.lc-chip .lc-dot { width: 8px; height: 8px; border-radius: 2px; }
+.lc-chip .lc-count { color: var(--os-text-secondary, #6a6e73); }
+.lc-shown { margin-left: auto; font-size: 12px; color: var(--os-text-secondary, #6a6e73); white-space: nowrap; }
+
+/* The table: section, name (ellipsis + title), size with a proportional bar */
+.lc-table-wrap { border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-sm, 8px); overflow: hidden; }
+.lc-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12.5px; }
+.lc-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); font-weight: 600; text-align: left; padding: 6px 10px; background: var(--os-card-secondary, #f0f0f0); border-bottom: 1px solid var(--os-border, #d2d2d2); white-space: nowrap; }
+.lc-table th.lc-th-sec { width: 170px; }
+.lc-table th.lc-th-size { width: 230px; text-align: right; }
+.lc-sort { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+.lc-sort:hover { color: var(--os-text-primary, #151515); }
+.lc-sort.lc-sorted { color: var(--os-text-primary, #151515); }
+.lc-sort.lc-sorted::after { content: " \25BE"; }
+.lc-sort.lc-sorted.lc-asc::after { content: " \25B4"; }
+.lc-table td { padding: 4px 10px; border-bottom: 1px solid var(--os-border, #d2d2d2); vertical-align: middle; min-width: 0; }
+.lc-table tr:last-child td { border-bottom: 0; }
+.lc-table tr.lc-row:hover td { background: var(--os-card-secondary, #f0f0f0); }
+.lc-table tr.lc-row[hidden] { display: none; }
+.lc-td-sec { color: var(--os-text-secondary, #6a6e73); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-td-sec .lc-dot, .lc-sec-inline .lc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+.lc-sec-inline { display: none; font-size: 11px; color: var(--os-text-secondary, #6a6e73); margin-right: 6px; }
+.lc-td-name { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-td-name .lc-seg-sep { color: var(--os-text-muted, #8a8d93); padding: 0 3px; }
+.lc-td-name .lc-seg-muted { color: var(--os-text-secondary, #6a6e73); }
+.lc-td-name .lc-detail { color: var(--os-text-secondary, #6a6e73); font-size: 11.5px; margin-left: 6px; }
+.lc-tag { display: inline-flex; padding: 0 6px; margin-left: 6px; border-radius: var(--radius-chip, 6px); font-size: 10.5px; font-weight: 600; border: 1px solid rgba(107, 114, 128, 0.3); background: rgba(107, 114, 128, 0.15); color: var(--os-text-secondary, #6a6e73); white-space: nowrap; vertical-align: 1px; font-family: inherit; }
+.lc-tag-bad { background: rgba(220, 38, 38, 0.15); color: #dc2626; border-color: rgba(220, 38, 38, 0.3); }
+.lc-td-size { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lc-bar { display: inline-block; width: 120px; height: 8px; margin-right: 10px; border-radius: 2px; background: var(--os-border, #d2d2d2); vertical-align: 1px; overflow: hidden; }
+.lc-bar i { display: block; height: 100%; border-radius: 2px 0 0 2px; background: var(--os-blue, #0066cc); }
+.lc-bar.lc-bar-dir i { background: var(--os-text-muted, #8a8d93); }
+.lc-size-text { display: inline-block; min-width: 64px; }
+.lc-more { margin-top: 8px; display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--os-text-secondary, #6a6e73); }
+.lc-link { background: none; border: 0; padding: 0; color: var(--os-blue, #0066cc); font: inherit; font-size: 12px; cursor: pointer; }
+.lc-note { font-size: 12.5px; padding: 6px 10px; border-left: 3px solid #f59e0b; background: var(--os-card-secondary, #f0f0f0); border-radius: 0 var(--radius-xs, 6px) var(--radius-xs, 6px) 0; margin-bottom: 12px; }
+.lc-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 36px 12px; text-align: center; color: var(--os-text-secondary, #6a6e73); }
+.lc-empty svg { width: 36px; height: 36px; opacity: 0.6; }
+.lc-empty-title { font-weight: 600; color: var(--os-text-primary, #151515); }
+@media (max-width: 640px) {
+  /* the table turns into flex rows: the section moves inline before the
+     name, the name keeps its ellipsis, the size column stays whole */
+  .lc-table, .lc-table thead, .lc-table tbody { display: block; width: 100%; }
+  .lc-table thead tr, .lc-table tr.lc-row { display: flex; align-items: center; gap: 6px; }
+  .lc-table th, .lc-table td { display: block; }
+  .lc-table th.lc-th-sec, .lc-table .lc-td-sec { display: none; }  /* (.lc-table .x outranks the block rule above) */
+  .lc-table th:not(.lc-th-sec):not(.lc-th-size), .lc-table .lc-td-name { flex: 1 1 auto; min-width: 0; }
+  .lc-table th.lc-th-size, .lc-table .lc-td-size { flex: 0 0 auto; width: auto; padding-left: 0; }
+  .lc-sec-inline { display: inline; }
+  .lc-bar { width: 48px; margin-right: 6px; }
+  .lc-size-text { min-width: 58px; }
+  .lc-stat-value { font-size: 17px; }
+  .lc-field { max-width: none; }
+}
+</style>
+{%- endmacro %}
+
+{% macro icon(name) -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if name == 'search' %}<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+{%- elif name == 'empty' %}<path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{# The summary band: files, size, the largest file; the stacked size bar + legend #}
+{% macro band(lc, bar_label) -%}
+<div class="lc-band" id="lc-band">
+  <div class="lc-stats">
+    <div class="lc-stat"><span class="lc-stat-label">Files</span><span class="lc-stat-value">{{ "{:,}".format(lc.total_files or 0) }}</span>{% if lc.unreadable %}<span class="lc-stat-sub">{{ lc.unreadable }} unreadable</span>{% endif %}</div>
+    <div class="lc-stat"><span class="lc-stat-label">Total size</span><span class="lc-stat-value">{{ lc.total_size_text or '0 B' }}</span>{% if lc.capped %}<span class="lc-stat-sub">a lower bound: the walk was capped</span>{% endif %}</div>
+    {% if lc.largest %}<div class="lc-stat" id="lc-largest"><span class="lc-stat-label">Largest file</span><span class="lc-stat-value lc-mono" title="{{ lc.largest.name }}">{{ lc.largest.name }}</span><span class="lc-stat-sub">{{ lc.largest.size_text }} &middot; {{ lc.largest.section_label }}</span></div>{% endif %}
+  </div>
+  {% if lc.bar %}
+  <div class="lc-split">
+    <span class="lc-stat-label">{{ bar_label }}</span>
+    <div class="lc-stack" id="lc-stack" role="img" aria-label="{{ bar_label }}">{% for s in lc.bar %}<span class="lc-c{{ s.color }}" style="width: {{ s.pct }}%" title="{{ s.label }}: {{ s.total_text }} ({{ s.pct }}%)"></span>{% endfor %}</div>
+    <div class="lc-legend">{% for s in lc.bar %}<span class="lc-c{{ s.color }}"><b>{{ s.label }}</b> {{ s.total_text }} &middot; {{ s.pct }}%</span>{% endfor %}</div>
+  </div>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{# Search, section chips, show all #}
+{% macro controls(lc) -%}
+<div class="lc-controls">
+  <label class="lc-field">{{ icon('search') }}<input type="search" id="lc-search" class="lc-input" placeholder="Search names" autocomplete="off" spellcheck="false" aria-label="Search names"></label>
+  <div class="lc-chips" id="lc-chips">
+    <button type="button" class="lc-chip lc-on" data-section="">All <span class="lc-count">{{ lc.rows|length }}</span></button>
+    {% for s in lc.sections %}<button type="button" class="lc-chip" data-section="{{ s.key }}"><span class="lc-dot lc-c{{ s.color }}"></span>{{ s.label }} <span class="lc-count">{{ s.count }}</span></button>{% endfor %}
+  </div>
+  {% if lc.extra_count %}<button type="button" class="lc-btn lc-btn-quiet" id="lc-show-all" data-all="Show all {{ lc.rows|length }}" data-top="Show the top {{ lc.top }} per section">Show all {{ lc.rows|length }}</button>{% endif %}
+  <span class="lc-shown" id="lc-shown"></span>
+</div>
+{%- endmacro %}
+
+{# The one table #}
+{% macro table(lc) -%}
+<div class="lc-table-wrap">
+<table class="lc-table" id="lc-table">
+  <thead><tr>
+    <th class="lc-th-sec">Section</th>
+    <th><button type="button" class="lc-sort" data-key="name">Name</button></th>
+    <th class="lc-th-size"><button type="button" class="lc-sort lc-sorted" data-key="size">Size</button></th>
+  </tr></thead>
+  <tbody>
+  {% for r in lc.rows %}
+    <tr class="lc-row" data-section="{{ r.section }}" data-name="{{ r.name }}" data-size="{{ r.size if r.size is not none else -1 }}"{% if r.extra %} data-extra="1" hidden{% endif %}>
+      <td class="lc-td-sec" title="{{ r.section_label }}"><span class="lc-dot lc-c{{ r.color }}"></span>{{ r.section_label }}</td>
+      <td class="lc-td-name" title="{{ r.name }}"><span class="lc-sec-inline"><span class="lc-dot lc-c{{ r.color }}"></span>{{ r.section_label }}</span>{% if r.segments %}{% for seg in r.segments %}{% if not loop.first %}<span class="lc-seg-sep">/</span>{% endif %}<span class="{% if not loop.last %}lc-seg-muted{% endif %}">{{ seg }}</span>{% endfor %}{% else %}{{ r.name }}{% endif %}{% if r.detail %}<span class="lc-detail">{{ r.detail }}</span>{% endif %}{% if r.is_dir and r.files %}<span class="lc-tag">{{ "{:,}".format(r.files) }} file{{ 's' if r.files != 1 else '' }}</span>{% endif %}{% if r.rotated %}<span class="lc-tag">rotated</span>{% endif %}{% if r.unreadable %}<span class="lc-tag lc-tag-bad">unreadable</span>{% endif %}</td>
+      <td class="lc-td-size"><span class="lc-bar{% if r.is_dir %} lc-bar-dir{% endif %}" title="{{ r.bar_pct }}% of the largest {{ 'directory' if r.is_dir else 'file' }}"><i style="width: {{ r.bar_pct }}%"></i></span><span class="lc-size-text">{{ r.size_text }}</span></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{%- endmacro %}
+
+{% macro empty(title, text) -%}
+<div class="lc-empty">{{ icon('empty') }}<div class="lc-empty-title">{{ title }}</div><div>{{ text }}</div></div>
+{%- endmacro %}
+
+{% macro script() -%}
+<script>
+(() => {
+  // Sort (name / size by bytes from data-size, an unknown size is -1 and
+  // stays last), filter by section chip and search, and show the rows
+  // beyond the top N per section. The rows are Jinja-rendered; this only
+  // reorders, shows and hides them.
+  const root = document.getElementById('log-collection-overview');
+  const tbody = root.querySelector('#lc-table tbody');
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll('tr.lc-row'));
+  rows.forEach((tr) => { tr.dataset.text = (tr.dataset.name + ' ' + tr.querySelector('.lc-td-sec').textContent).toLowerCase(); });
+  const chips = Array.from(root.querySelectorAll('.lc-chip'));
+  const search = root.querySelector('#lc-search');
+  const showAll = root.querySelector('#lc-show-all');
+  const shown = root.querySelector('#lc-shown');
+  const headers = Array.from(root.querySelectorAll('.lc-sort'));
+  let section = '', key = 'size', asc = false, expanded = false;
+  const compare = (a, b) => {
+    if (key === 'size') {
+      const sa = Number(a.dataset.size), sb = Number(b.dataset.size);
+      if (sa < 0 || sb < 0) { const r = (sa < 0) - (sb < 0); return r || a.dataset.name.localeCompare(b.dataset.name); }
+      const r = sa - sb;
+      if (r === 0) return a.dataset.name.localeCompare(b.dataset.name);
+      return asc ? r : -r;
+    }
+    const r = a.dataset.name.localeCompare(b.dataset.name);
+    return asc ? r : -r;
+  };
+  function apply() {
+    const terms = (search ? search.value : '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+    let visible = 0;
+    rows.slice().sort(compare).forEach((tr) => {
+      const ok = (!section || tr.dataset.section === section) && terms.every((t) => tr.dataset.text.includes(t)) && (expanded || !!section || terms.length > 0 || !tr.dataset.extra);
+      tr.hidden = !ok;
+      if (ok) visible++;
+      tbody.appendChild(tr);
+    });
+    if (shown) shown.textContent = visible === rows.length ? `${rows.length} rows` : `${visible} of ${rows.length} rows`;
+  }
+  chips.forEach((chip) => chip.addEventListener('click', () => { section = chip.dataset.section; chips.forEach((c) => c.classList.toggle('lc-on', c === chip)); apply(); }));
+  let timer = null;
+  if (search) search.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(apply, 120); });
+  if (showAll) showAll.addEventListener('click', () => { expanded = !expanded; showAll.classList.toggle('lc-on', expanded); showAll.textContent = expanded ? showAll.dataset.top : showAll.dataset.all; apply(); });
+  headers.forEach((h) => h.addEventListener('click', () => {
+    const next = h.dataset.key;
+    asc = key === next ? !asc : next === 'name';
+    key = next;
+    headers.forEach((o) => o.classList.remove('lc-sorted', 'lc-asc'));
+    h.classList.add('lc-sorted'); h.classList.toggle('lc-asc', asc);
+    apply();
+  }));
+  apply();
+})();
+</script>
+{%- endmacro %}

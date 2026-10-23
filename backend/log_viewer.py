@@ -285,6 +285,12 @@ PARSERS = {
                 },
             }
         },
+        # Last on purpose: the sizes of what the must-gather holds
+        'log_collection': {
+            'module': 'parsers.mustgather.log_collection',
+            'icon': 'fas fa-folder-open',
+            'label': 'Log Collection'
+        },
     }
 }
 def _report_directory(raw):

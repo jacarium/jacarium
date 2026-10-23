@@ -140,6 +140,55 @@ const expandGroup = (page, label) => page.evaluate((label) => {
 }, label);
 const sidebarLabels = (page) => page.evaluate(() => Array.from(document.querySelectorAll('div.cursor-pointer span')).map((s) => s.textContent.trim()));
 
+
+// The Log Collection page's live checks (shared by the sosreport and the
+// must-gather frame tests): the one table largest first, the bars
+// proportional to the bytes, the chips, the search, the Name / Size sort,
+// nothing overflowing at the current width.
+async function probeLogCollection(frame) {
+  return frame.evaluate(() => {
+    const rows = () => Array.from(document.querySelectorAll('tr.lc-row'));
+    const visible = () => rows().filter((r) => !r.hidden);
+    const sizes = (list) => list.map((r) => Number(r.dataset.size));
+    const descending = (list) => { const s = list.filter((n) => n >= 0); return s.every((n, i) => i === 0 || s[i - 1] >= n); };
+    const all = rows();
+    const maxFile = Math.max(...all.filter((r) => !r.querySelector('.lc-bar-dir')).map((r) => Number(r.dataset.size)));
+    const barsOk = all.filter((r) => !r.querySelector('.lc-bar-dir') && Number(r.dataset.size) > 0).every((r) => { const w = parseFloat(r.querySelector('.lc-bar i').style.width); return Math.abs(w - 100 * Number(r.dataset.size) / maxFile) < 0.06; });
+    const barPx = all.slice(0, 2).map((r) => r.querySelector('.lc-bar i').getBoundingClientRect().width);
+    const chips = Array.from(document.querySelectorAll('.lc-chip'));
+    const sections = chips.filter((c) => c.dataset.section).map((c) => c.dataset.section);
+    const initialDesc = descending(sizes(visible()));
+    // a section chip filters the rows to that section
+    chips.find((c) => c.dataset.section === sections[0]).click();
+    const chipOk = visible().every((r) => r.dataset.section === sections[0]) && visible().length > 0;
+    chips.find((c) => !c.dataset.section).click();
+    // the search narrows by name
+    const search = document.getElementById('lc-search');
+    const first = all[0].dataset.name;
+    search.value = first; search.dispatchEvent(new Event('input', { bubbles: true }));
+    return new Promise((resolve) => setTimeout(() => {
+      const searchOk = visible().length >= 1 && visible().every((r) => r.dataset.name.toLowerCase().includes(first.toLowerCase()));
+      const shownText = document.getElementById('lc-shown').textContent;
+      search.value = ''; search.dispatchEvent(new Event('input', { bubbles: true }));
+      setTimeout(() => {
+        // Name sorts by name, Size back to largest first
+        document.querySelector('.lc-sort[data-key="name"]').click();
+        const byName = visible().map((r) => r.dataset.name);
+        const nameOk = byName.join() === byName.slice().sort((a, b) => a.localeCompare(b)).join();
+        document.querySelector('.lc-sort[data-key="size"]').click();
+        const sizeOk = descending(sizes(visible())) && document.querySelector('.lc-sort[data-key="size"]').classList.contains('lc-sorted');
+        const w = document.documentElement.clientWidth;
+        const over = [];
+        document.querySelectorAll('.lc-band, .lc-controls, .lc-table-wrap, .lc-table, .lc-head').forEach((el) => { const r = el.getBoundingClientRect(); if (r.right > w + 1 || el.scrollWidth > el.clientWidth + 1) over.push(el.className.split(' ')[0] + ':' + Math.round(r.right) + '/' + el.scrollWidth + '>' + el.clientWidth); });
+        const sizeCells = all.slice(0, 3).map((r) => r.querySelector('.lc-td-size')).map((td) => ({ w: td.getBoundingClientRect().width, right: Math.round(td.getBoundingClientRect().right), text: td.textContent.trim() }));
+        const legend = Array.from(document.querySelectorAll('.lc-legend span')).map((s) => s.textContent);
+        const stack = Array.from(document.querySelectorAll('#lc-stack span')).map((s) => parseFloat(s.style.width));
+        resolve({ rows: all.length, initialDesc, barsOk, barPx, sections, chipOk, searchOk, shownText, nameOk, sizeOk, over, w, pageOver: document.documentElement.scrollWidth > w + 1, sizeCells, legend, stackSum: stack.reduce((a, b) => a + b, 0), largest: (document.getElementById('lc-largest') || {}).textContent });
+      }, 250);
+    }, 250));
+  });
+}
+
 async function diagnosticsFrame(page, marker) {
   for (let i = 0; i < 60; i++) {
     for (const f of page.frames()) {
@@ -178,9 +227,31 @@ try {
     await shotPage('sos-report');
     check(`${theme}: Log Collection group page opens`, await clickSidebarSpan(page, 'Log Collection'));
     frame = await diagnosticsFrame(page, '#log-collection-overview');
-    check(`${theme}: Log Collection renders the file groups and the Open Log Viewer button`, !!frame && await frame.evaluate(() => document.querySelectorAll('.lc-group').length >= 3 && !!document.getElementById('log-collection-open-viewer')));
+    check(`${theme}: Log Collection renders the band, the table and the Open Log Viewer button`, !!frame && await frame.evaluate(() => !!document.getElementById('lc-band') && !!document.getElementById('lc-table') && !!document.getElementById('log-collection-open-viewer')));
+    const lc = await probeLogCollection(frame);
+    check(`${theme}: Log Collection: one table of every file largest first (bytes), the bars proportional to the bytes, the four section chips filter, the search narrows, Name sorts by name and Size back to largest first`,
+      lc.rows === 17 && lc.initialDesc && lc.barsOk && lc.barPx[0] > lc.barPx[1] && lc.sections.length === 4 && lc.chipOk && lc.searchOk && /of 17 rows/.test(lc.shownText) && lc.nameOk && lc.sizeOk, JSON.stringify(lc));
+    check(`${theme}: Log Collection: the band shows the split (legend sums to ~100%) and the largest file (the journal)`, Math.abs(lc.stackSum - 100) < 0.5 && lc.legend.length === 4 && /journalctl_--no-pager/.test(lc.largest), JSON.stringify({ sum: lc.stackSum, legend: lc.legend, largest: lc.largest }));
+    check(`${theme}: Log Collection: nothing overflows at ${lc.w}px`, lc.over.length === 0 && !lc.pageOver, lc.over.join(', '));
     await sleep(600);
     await shotPage('log-collection');
+    // wide (1920) and narrow (420 px frame): no overflow, the size column whole
+    await page.setViewportSize({ width: 1920, height: 1000 }); await sleep(700);
+    const lcWide = await probeLogCollection(frame);
+    check(`${theme}: Log Collection at ${lcWide.w}px: the table fills the width, nothing overflows`, lcWide.over.length === 0 && !lcWide.pageOver && lcWide.w > 1300, JSON.stringify({ w: lcWide.w, over: lcWide.over }));
+    await page.screenshot({ path: path.join(OUT, `log-collection-wide-1920-${theme}.png`) }); console.log(`  screenshot: ${path.join(OUT, `log-collection-wide-1920-${theme}.png`)}`);
+    await page.setViewportSize({ width: 1360, height: 900 }); await sleep(400);
+    await page.evaluate(() => { const f = document.querySelector('iframe[title="Diagnostics content"]'); f.dataset.w = f.style.width; f.style.width = '420px'; }); await sleep(900);
+    const lcNarrow = await probeLogCollection(frame);
+    check(`${theme}: Log Collection at ${lcNarrow.w}px: no horizontal scroll, the size cells whole and inside the frame, sorting still works`, lcNarrow.over.length === 0 && !lcNarrow.pageOver && lcNarrow.w <= 430 && lcNarrow.sizeCells.every((c) => c.right <= lcNarrow.w && c.w > 60 && /KiB|MiB|B/.test(c.text)) && lcNarrow.nameOk && lcNarrow.sizeOk, JSON.stringify({ w: lcNarrow.w, over: lcNarrow.over, cells: lcNarrow.sizeCells }));
+    {
+      const h = await frame.evaluate(() => document.body.scrollHeight);
+      await page.setViewportSize({ width: 1360, height: Math.min(6000, h + 140) }); await sleep(500);
+      const iframeEl = await page.$('iframe[title="Diagnostics content"]');
+      await iframeEl.screenshot({ path: path.join(OUT, `log-collection-narrow-420-${theme}.png`) }); console.log(`  screenshot: ${path.join(OUT, `log-collection-narrow-420-${theme}.png`)}`);
+      await page.setViewportSize({ width: 1360, height: 900 });
+    }
+    await page.evaluate(() => { const f = document.querySelector('iframe[title="Diagnostics content"]'); f.style.width = f.dataset.w || ''; }); await sleep(300);
 
     // Blame
     check(`${theme}: Blame sub-tab clicked`, await clickSidebarSpan(page, 'Blame'));

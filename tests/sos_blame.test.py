@@ -18,6 +18,7 @@ backend/venv/bin/python tests/sos_blame.test.py
 """
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -161,6 +162,21 @@ def main():
           [g["key"] for g in l["groups"]] == ["journal", "kernel", "syslog", "app"] and l["journal_present"] and l["total_files"] > 8 and all(f["size"] is not None for g in l["groups"] for f in g["files"]), str([(g["key"], len(g["files"])) for g in l["groups"]]))
     l = log_collection.parse(tree("no-logs"))["log_collection"]
     check("Log Collection on a report without logs: empty groups", l["groups"] == [] and l["total_files"] == 0)
+    # the order: largest first within each section, bytes not formatted text, unknown last, ties by name
+    sized = tree("sized", extra={
+        "sos_commands/logs/journalctl_--no-pager": "x" * 12 * 1024 * 1024, "sos_commands/logs/journalctl_--no-pager_--boot": "x" * 9 * 1024,
+        "sos_commands/logs/journalctl_--disk-usage": "x" * 100,
+        "sos_commands/kernel/dmesg": "x" * 2048, "sos_commands/kernel/dmesg_-T": "x" * 2048,
+        "var/log/messages": "x" * 500, "var/log/secure": "x" * 700, "var/log/messages-20261005.gz": "x" * 700,
+        "var/log/example-app/app.log": "x" * 300, "var/log/dnf.log": "x" * 3000, "var/log/audit/audit.log": "x" * 3000,
+    })
+    os.symlink("/nonexistent-target-for-the-test", os.path.join(sized, "var", "log", "dangling.log"))
+    l = log_collection.parse(sized)["log_collection"]
+    order = {g["key"]: [f["name"] for f in g["files"]] for g in l["groups"]}
+    check("Log Collection order: journal captures largest first by bytes (12 MiB before 9 KiB before 100 B)", order["journal"] == ["journalctl_--no-pager", "journalctl_--no-pager_--boot", "journalctl_--disk-usage"], str(order))
+    check("Log Collection order: ties by name (dmesg before dmesg_-T at 2 KiB each), system logs 700 B ties by name, then 500 B", order["kernel"] == ["dmesg", "dmesg_-T"] and order["syslog"] == ["messages-20261005.gz", "secure", "messages"], str(order))
+    check("Log Collection order: application logs by size, the unreadable (dangling symlink, unknown size) last", order["app"] == ["audit/audit.log", "dnf.log", "example-app/app.log", "dangling.log"] and l["groups"][-1]["files"][-1]["unreadable"], str(order))
+    check("sort_key compares bytes: 12 MiB sorts before 9 KiB although '9' > '1' as text", log_collection.sort_key({"size": 12 * 1024 * 1024, "name": "b"}) < log_collection.sort_key({"size": 9 * 1024, "name": "a"}))
 
     print("\n--- 5. the registry and the Flask routes ---")
     sos = lv.PARSERS["sosreport"]
@@ -182,6 +198,23 @@ def main():
     check("... and as Log Collection -> Log Viewer", d.status_code == 200 and h.status_code == 200 and 'id="date-slider-container"' in (h.get_json() or {}).get("html", ""))
     d, h = tab(web, "log_collection")
     check("Log Collection group page renders its file list and the Open Log Viewer button", h.status_code == 200 and "log-collection-open-viewer" in (h.get_json() or {}).get("html", "") and "journalctl_--no-pager" in (h.get_json() or {}).get("html", ""))
+    d, h = tab(sized, "log_collection")
+    html = (h.get_json() or {}).get("html", "")
+    rendered = re.findall(r'<tr class="lc-row" data-section="([^"]+)" data-name="([^"]+)" data-size="(-?\d+)"', html)
+    sizes = [int(s) for _, _, s in rendered]
+    check("Log Collection render: one table, every file largest first across the sections (the 12 MiB journal, the 9 KiB boot journal, then the 3000 B logs), the dangling log (unknown size) last, byte sizes in data-size",
+          rendered[0][1:] == ("journalctl_--no-pager", str(12 * 1024 * 1024)) and rendered[1][1:] == ("journalctl_--no-pager_--boot", "9216") and rendered[2][1] in ("audit/audit.log", "dnf.log") and rendered[-1][1:] == ("dangling.log", "-1")
+          and [s for s in sizes if s >= 0] == sorted([s for s in sizes if s >= 0], reverse=True) and len(rendered) == 12, str(rendered))
+    bars = [float(w) for w in re.findall(r'<i style="width: ([\d.]+)%"></i>', html)]
+    check("Log Collection render: every row's size bar is proportional to its bytes (100% for the largest, 0.1% for 9 KiB vs 12 MiB, 0 for unknown)",
+          len(bars) == len(rendered) and bars[0] == 100.0 and all(abs(b - round(100.0 * max(s, 0) / sizes[0], 1)) < 0.051 for b, s in zip(bars, sizes)), str(list(zip(bars, sizes))[:6]))
+    check("Log Collection render: one Name / Size header pair (Size selected), the section chips with counts, the search box, the band with the split and the largest file",
+          html.count('class="lc-sort lc-sorted" data-key="size"') == 1 and html.count('data-key="name"') == 1 and html.count('class="lc-chip" data-section=') == 4 and 'id="lc-search"' in html
+          and 'id="lc-stack"' in html and 'id="lc-largest"' in html and "journalctl_--no-pager" in html.split('id="lc-largest"')[1][:400], str(html.count('class="lc-chip" data-section=')))
+    l = log_collection.parse(sized)["log_collection"]
+    check("Log Collection data: the band's split sums to 100% across the four sections, the largest file is the 12 MiB journal, the journal section holds 12 MiB + 9 KiB + 100 B",
+          abs(sum(s["pct"] for s in l["bar"]) - 100.0) < 0.3 and l["largest"]["name"] == "journalctl_--no-pager" and l["largest"]["section_label"] == "Journal captures"
+          and next(s for s in l["sections"] if s["key"] == "journal")["total"] == 12 * 1024 * 1024 + 9 * 1024 + 100, str(l["bar"]))
     d, h = tab(web, "sos_report")
     check("Sos Report group page renders the facts and the Open Blame button", h.status_code == 200 and "sos-report-open-blame" in (h.get_json() or {}).get("html", "") and "4.7.0" in (h.get_json() or {}).get("html", ""))
     d, h = tab(web, "sos_report", "blame")

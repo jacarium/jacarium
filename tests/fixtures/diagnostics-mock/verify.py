@@ -278,6 +278,16 @@ def verify_mustgather(client, directory):
     check_tabs("mustgather", res)
     d = {k: v["data"] for k, v in res.items()}
 
+    lc = (d.get("log_collection") or {}).get("log_collection") or {}
+    sections = {s["key"]: s for s in lc.get("sections", [])}
+    check("Log Collection: last tab; sections for the top-level dirs, namespaces, container logs, host service, audit and network logs",
+          list(res)[-1] == "log_collection" and list(sections) == ["top", "namespaces", "pod_logs", "host", "audit", "network"], str(list(sections)))
+    check("Log Collection: every section largest first, the workers' kubelet log the largest host service log, master-0 the largest audit log",
+          all([i["size"] for i in s["rows"]] == sorted([i["size"] for i in s["rows"]], reverse=True) for s in sections.values())
+          and sections["host"]["rows"][0]["name"] == "workers/kubelet_service.log" and sections["audit"]["rows"][0]["name"].startswith("kube-apiserver/master-0"),
+          str([(k, s["rows"][0]["name"]) for k, s in sections.items()]))
+    check("Log Collection: the top-level totals add up to the whole must-gather", sum(i["size"] for i in sections["top"]["rows"]) == lc.get("total_size") and lc.get("total_files", 0) > 100, str(lc.get("total_size")))
+
     sysd = d["system"] or {}
     check("Cluster: version 4.16.12 on channel stable-4.16", sysd.get("cluster_version", {}).get("version") == "4.16.12" and sysd.get("cluster_version", {}).get("channel") == "stable-4.16", str(sysd.get("cluster_version")))
     check("Cluster: kubelet v1.29.8, OVNKubernetes, BareMetal, UPI", (sysd.get("kubernetes_version"), sysd.get("network_type"), sysd.get("platform"), sysd.get("install_method")) == ("v1.29.8+f10c92d", "OVNKubernetes", "BareMetal", "UPI"), str(sysd)[:300])
