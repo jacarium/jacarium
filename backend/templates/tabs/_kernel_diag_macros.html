@@ -29,7 +29,7 @@
 
 {# A severity tag: colour + icon + label #}
 {% macro tag(severity, label) -%}
-<span class="kd-tag kd-sev-{{ severity }}">{{ icon(severity if severity in ('warning', 'critical', 'info') else 'info') }}{{ label }}</span>
+<span class="ui-badge ui-badge-{{ {'critical': 'bad', 'warning': 'warn', 'info': 'info'}.get(severity, 'muted') }} kd-tag kd-sev-{{ severity }}">{{ icon(severity if severity in ('warning', 'critical', 'info') else 'info') }}{{ label }}</span>
 {%- endmacro %}
 
 {% macro stat(label, value, sub='', mono=False) -%}
@@ -57,9 +57,9 @@
 {% if items %}
 <div class="kd-chips"><span class="kd-chips-label">{{ label }}</span>
   {%- for it in items[:max] -%}
-  <span class="kd-chip{% if mono %} kd-chip-mono{% endif %}" title="{{ it.name }}{% if it.flags %} ({{ it.flags }}){% endif %}"><span>{{ it.name }}{% if it.flags %} <span class="kd-count">{{ it.flags }}</span>{% endif %}</span>{% if it.count is defined and it.count is not none %}<span class="kd-count">&times;{{ it.count }}</span>{% endif %}</span>
+  <span class="ui-chip ui-static kd-chip{% if mono %} kd-chip-mono{% endif %}" title="{{ it.name }}{% if it.flags %} ({{ it.flags }}){% endif %}"><span>{{ it.name }}{% if it.flags %} <span class="kd-count">{{ it.flags }}</span>{% endif %}</span>{% if it.count is defined and it.count is not none %}<span class="kd-count">&times;{{ it.count }}</span>{% endif %}</span>
   {%- endfor -%}
-  {%- if items|length > max %}<span class="kd-chip kd-chip-muted">+{{ items|length - max }} more</span>{% endif -%}
+  {%- if items|length > max %}<span class="ui-chip ui-static kd-chip kd-chip-muted">+{{ items|length - max }} more</span>{% endif -%}
 </div>
 {% endif %}
 {%- endmacro %}
@@ -81,36 +81,30 @@
 {# Raw lines, collapsed, plus the Copy button that reads them #}
 {% macro raw_block(lines, id, label='raw log lines') -%}
 <details class="kd-rawbox">
-  <summary class="kd-link">Show {{ lines|length }} {{ label }}</summary>
+  <summary class="ui-link kd-link">Show {{ lines|length }} {{ label }}</summary>
   <pre class="kd-stack kd-raw" id="{{ id }}">{% for l in lines %}{{ l }}
 {% endfor %}</pre>
 </details>
 {%- endmacro %}
 
 {% macro copy_button(target) -%}
-<button type="button" class="kd-btn kd-copy" data-target="{{ target }}"><span>Copy</span></button>
+<button type="button" class="btn btn-secondary btn-sm kd-btn kd-copy" data-target="{{ target }}"><span>Copy</span></button>
 {%- endmacro %}
 
 {% macro filters(placeholder, types=None, sort=True) -%}
 <div class="kd-filters">
-  <label class="kd-field kd-grow">{{ icon('search') }}<input type="search" class="kd-input kd-search" placeholder="{{ placeholder }}" autocomplete="off" spellcheck="false" aria-label="{{ placeholder }}"></label>
+  <label class="ui-field kd-field kd-grow">{{ icon('search') }}<input type="search" data-ui-search class="ui-input kd-input kd-search" placeholder="{{ placeholder }}" autocomplete="off" spellcheck="false" aria-label="{{ placeholder }}"></label>
   {%- if types %}
-  <label class="kd-field kd-select-wrap"><select class="kd-select kd-type" aria-label="Type"><option value="">All types</option>{% for t in types %}<option value="{{ t.key }}">{{ t.label }} ({{ t.count }})</option>{% endfor %}</select>{{ icon('select') }}</label>
+  <label class="ui-select-wrap kd-field kd-select-wrap"><select class="ui-select kd-select kd-type" aria-label="Type"><option value="">All types</option>{% for t in types %}<option value="{{ t.key }}">{{ t.label }} ({{ t.count }})</option>{% endfor %}</select>{{ icon('select') }}</label>
   {%- endif %}
   {%- if sort %}
-  <label class="kd-field kd-select-wrap"><select class="kd-select kd-sort" aria-label="Sort"><option value="count">Most frequent first</option><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select>{{ icon('select') }}</label>
+  <label class="ui-select-wrap kd-field kd-select-wrap"><select class="ui-select kd-select kd-sort" aria-label="Sort"><option value="count">Most frequent first</option><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select>{{ icon('select') }}</label>
   {%- endif %}
-  <button type="button" class="kd-btn kd-expand-all"><span>Expand all</span></button>
-  <button type="button" class="kd-btn kd-collapse-all"><span>Collapse all</span></button>
+  <button type="button" class="btn btn-secondary btn-sm kd-btn kd-expand-all"><span>Expand all</span></button>
+  <button type="button" class="btn btn-secondary btn-sm kd-btn kd-collapse-all"><span>Collapse all</span></button>
   <span class="kd-shown"></span>
 </div>
 {%- endmacro %}
 
 {% macro empty(title, text, sources) -%}
-<div class="kd-empty">
-  {{ icon('empty') }}
-  <div class="kd-empty-title">{{ title }}</div>
-  <div>{{ text }}</div>
-  {% if sources %}<div class="kd-empty-sources">Scanned: {{ sources|join(', ') }}</div>{% endif %}
-</div>
 {%- endmacro %}

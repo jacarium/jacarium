@@ -1,22 +1,17 @@
 {% set keys = data.keys() | reject("equalto","free_memory") | list %}
 {% set first_key = keys[0] if keys else None %}
 {% set dataset = data[first_key] %}
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 
 <div class="grid grid-cols-1 gap-4">
- <div class="panel rounded-lg shadow-sm">
+ <div class="panel rounded-lg shadow-sm" data-chart-card>
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-memory mr-2"></i> Total Memory Usage
  </h3>
  {% if dataset and 'cgroup_data' in dataset %}
  <canvas id="totalMemoryUsageChart" height="50"></canvas>
  {% else %}
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No memory usage data found in this report</div>
- </div>
  {% endif %}
  </div>
 
@@ -24,44 +19,32 @@
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-tachometer-alt mr-2"></i> Memory Accounting
  </h3>
- <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
- <div>
- <label for="datasetSelect" class="block text-xs font-semibold mb-1">File</label>
- <select id="datasetSelect" class="w-full px-3 py-2 text-sm border focus:outline-hidden focus:ring-2" onchange="updateDataset()">
+ {% call ui.filter_bar() %}
+    <label class="ui-field">{{ ui.icon('search') }}<input autocomplete="off" aria-label="Filter processes" type="search" id="processFilter" data-ui-search oninput="window.diagBusy ? window.diagBusy.filter(this, function () { filterCgroups(); }) : filterCgroups()" placeholder="Filter processes..."
+ class="ui-input"></label>
+    <label class="ui-rows">File<span class="ui-select-wrap"><select aria-label="File" id="datasetSelect" class="ui-select" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { updateDataset(); }) : updateDataset()">
  {% for datasetKey in data.keys() if datasetKey != 'free_memory' %}
  <option value="{{ datasetKey }}" {% if datasetKey == first_key %}selected{% endif %}>{{ datasetKey }}</option>
  {% endfor %}
- </select>
- </div>
- <div class="md:col-span-7">
- <label class="block text-xs font-semibold mb-1">Search All</label>
- <input type="text" id="processFilter" oninput="filterCgroups()" placeholder="Filter processes..."
- class="w-full px-3 py-2 text-sm border">
- </div>
- </div>
+ </select>{{ ui.icon('chevron') }}</span></label>
+  {% endcall %}
 
  <div class="overflow-x-auto">
- <div class="flex justify-between items-center mb-2">
- <div id="filteredCount" class="text-sm">Showing all processes</div>
- <div class="flex items-center gap-2">
- <label class="text-xs">Rows per page:</label>
- <select id="cgroupsMemoryPageSize" onchange="changeCgroupsMemoryPageSize()" class="px-2 py-1 text-white text-xs rounded-md">
+ <div class="ui-pagebar"><span class="ui-status" id="filteredCount" aria-live="polite">Showing all processes</span><div class="ui-pagebar-right"><label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select aria-label="Rows per page" id="cgroupsMemoryPageSize" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { changeCgroupsMemoryPageSize(); }) : changeCgroupsMemoryPageSize()" class="ui-select">
  <option value="50">50</option>
  <option value="100" selected>100</option>
  <option value="250">250</option>
  <option value="-1">All</option>
- </select>
- </div>
- </div>
- <table id="cgroupTable" class="min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
+ </select>{{ ui.icon('chevron') }}</span></label></div></div>
+ <table id="cgroupTable" class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(0, true)">PID <i id="indicator-0" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(1, true)">%MEM <i id="indicator-1" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(2)">Command <i id="indicator-2" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(3, true)">Usage (MB) <i id="indicator-3" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(4, true)">Limit (MB) <i id="indicator-4" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(5)">Cgroup Name <i id="indicator-5" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortTable(0, true)">PID <i id="indicator-0" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortTable(1, true)">%MEM <i id="indicator-1" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortTable(2)">Command <i id="indicator-2" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortTable(3, true)">Usage (MB) <i id="indicator-3" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortTable(4, true)">Limit (MB) <i id="indicator-4" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortTable(5)">Cgroup Name <i id="indicator-5" class="fas text-sm ml-1"></i></th>
  </tr>
  </thead>
  <tbody>
@@ -75,7 +58,7 @@
  is nothing to show. -->
  </tbody>
  </table>
- <div id="cgroupsMemoryPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ <nav id="cgroupsMemoryPaginationControls" class="ui-pager" aria-label="Pages" hidden></nav>
  </div>
  </div>
 </div>
@@ -98,13 +81,6 @@
 
  if (!dataset || !dataset.cgroup_data) {
  tbody.innerHTML = `<tr><td colspan="6">
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No memory accounting data found</div>
- </div>
  </td></tr>`;
  document.getElementById('cgroupsMemoryPaginationControls').innerHTML = '';
  updateTotalMemoryUsage();
@@ -123,12 +99,12 @@
  const row = document.createElement('tr');
  row.className = "border-b hover:bg-gray-50";
  row.innerHTML =
- `<td class="px-4 py-2" data-bytes="${proc.proc_pid}">${proc.proc_pid}</td>
- <td class="px-4 py-2" data-bytes="${proc.proc_mem.toFixed(2)}">${proc.proc_mem.toFixed(2)}</td>
- <td class="px-4 py-2 whitespace-normal wrap-break-word max-w-lg">${escapeHtml(proc.proc_cmd)}</td>
- <td class="px-4 py-2" data-bytes="${(usage / 1048576).toFixed(2)}">${(usage / 1048576).toFixed(2)}</td>
- <td class="px-4 py-2">${(limit === 0 || limit > 1e15) ? '<span data-bytes="-1">Unlimited</span>' : (limit / 1048576).toFixed(2)}</td>
- <td class="px-4 py-2 whitespace-normal wrap-break-word max-w-lg">${escapeHtml(proc.cgroup_name)}</td>`;
+ `<td data-bytes="${proc.proc_pid}">${proc.proc_pid}</td>
+ <td data-bytes="${proc.proc_mem.toFixed(2)}">${proc.proc_mem.toFixed(2)}</td>
+ <td class="whitespace-normal wrap-break-word max-w-lg">${escapeHtml(proc.proc_cmd)}</td>
+ <td data-bytes="${(usage / 1048576).toFixed(2)}">${(usage / 1048576).toFixed(2)}</td>
+ <td>${(limit === 0 || limit > 1e15) ? '<span data-bytes="-1">Unlimited</span>' : (limit / 1048576).toFixed(2)}</td>
+ <td class="whitespace-normal wrap-break-word max-w-lg">${escapeHtml(proc.cgroup_name)}</td>`;
  tbody.appendChild(row);
  });
  }
@@ -143,8 +119,8 @@
  applyCgroupsMemoryView();
  }
 
- var ctx = document.getElementById('totalMemoryUsageChart').getContext('2d');
- var totalMemoryUsageChart = new Chart(ctx, {
+ var ctx = document.getElementById('totalMemoryUsageChart');
+ var totalMemoryUsageChart = window.diagChart.make(ctx, {
  type: 'bar',
  data: {
  labels: ['Cgroup Used', 'Total', 'Used', 'Free', 'Available', 'Buff/Cache', 'Shared'],
@@ -230,6 +206,7 @@
  }
  });
 
+ if (!totalMemoryUsageChart) return;   // no chart without data
  totalMemoryUsageChart.data.datasets[0].data = [
  parseFloat(cgroupTotal.toFixed(2)),
  mem.total || 0,
@@ -327,51 +304,8 @@
  }
 
  function updateCgroupsMemoryPagination(totalCount) {
- const controls = document.getElementById('cgroupsMemoryPaginationControls');
-
- if (cgroupsMemoryPageSize === -1 || totalCount <= cgroupsMemoryPageSize) {
- controls.innerHTML = '';
- return;
- }
-
- const totalPages = Math.ceil(totalCount / cgroupsMemoryPageSize);
- let html = '';
-
- html += `<button onclick="goToCgroupsMemoryPage(1)" ${cgroupsMemoryCurrentPage === 1 ? 'disabled' : ''}
- class="px-3 py-1 text-sm rounded-sm ${cgroupsMemoryCurrentPage === 1 ? 'bg-gray-600 text-gray-400' : ' text-white '}">
- First</button>`;
-
- html += `<button onclick="goToCgroupsMemoryPage(${cgroupsMemoryCurrentPage - 1})" ${cgroupsMemoryCurrentPage === 1 ? 'disabled' : ''}
- class="px-3 py-1 text-sm rounded-sm ${cgroupsMemoryCurrentPage === 1 ? 'bg-gray-600 text-gray-400' : ' text-white '}">
- Prev</button>`;
-
- const maxButtons = 5;
- let startPage = Math.max(1, cgroupsMemoryCurrentPage - Math.floor(maxButtons / 2));
- let endPage = Math.min(totalPages, startPage + maxButtons - 1);
-
- if (endPage - startPage < maxButtons - 1) {
- startPage = Math.max(1, endPage - maxButtons + 1);
- }
-
- if (startPage > 1) html += '<span class="px-2">...</span>';
-
- for (let i = startPage; i <= endPage; i++) {
- html += `<button onclick="goToCgroupsMemoryPage(${i})"
- class="px-3 py-1 text-sm rounded-sm ${i === cgroupsMemoryCurrentPage ? ' text-white current-page' : ' text-white '}">
- ${i}</button>`;
- }
-
- if (endPage < totalPages) html += '<span class="px-2">...</span>';
-
- html += `<button onclick="goToCgroupsMemoryPage(${cgroupsMemoryCurrentPage + 1})" ${cgroupsMemoryCurrentPage === totalPages ? 'disabled' : ''}
- class="px-3 py-1 text-sm rounded-sm ${cgroupsMemoryCurrentPage === totalPages ? 'bg-gray-600 text-gray-400' : ' text-white '}">
- Next</button>`;
-
- html += `<button onclick="goToCgroupsMemoryPage(${totalPages})" ${cgroupsMemoryCurrentPage === totalPages ? 'disabled' : ''}
- class="px-3 py-1 text-sm rounded-sm ${cgroupsMemoryCurrentPage === totalPages ? 'bg-gray-600 text-gray-400' : ' text-white '}">
- Last</button>`;
-
- controls.innerHTML = html;
+   // the shared pager (diagPager): one page -> nothing drawn
+   window.diagPager.render(document.getElementById('cgroupsMemoryPaginationControls'), { total: totalCount, page: cgroupsMemoryCurrentPage, pageSize: cgroupsMemoryPageSize, go: function (p) { goToCgroupsMemoryPage(p); } });
  }
 
  function goToCgroupsMemoryPage(page) {
@@ -418,6 +352,7 @@
 
  function updateSortIndicator(colIndex, ascending) {
  const indicator = document.getElementById(`indicator-${colIndex}`);
+ window.diagTables.markSort(indicator, ascending);
  if (indicator) {
  indicator.classList.toggle('fa-caret-up', ascending);
  indicator.classList.toggle('fa-caret-down', !ascending);
@@ -444,8 +379,8 @@
  totalMemoryUsageChart.destroy();
  }
 
- const ctx = document.getElementById('totalMemoryUsageChart').getContext('2d');
- totalMemoryUsageChart = new Chart(ctx, {
+ const ctx = document.getElementById('totalMemoryUsageChart');
+ totalMemoryUsageChart = window.diagChart.make(ctx, {
  type: 'bar',
  data: currentData || {
  labels: ['Cgroup Used', 'Total', 'Used', 'Free', 'Available', 'Buff/Cache', 'Shared'],
@@ -517,4 +452,7 @@
  attributes: true,
  attributeFilter: ['class']
  });
+
+ // the default order: by usage, largest first (the marker follows through diagTables.markSort)
+ if (document.getElementById('cgroupTable') && typeof sortTable === 'function') { sortTable(1, true); sortTable(1, true); }
 </script>

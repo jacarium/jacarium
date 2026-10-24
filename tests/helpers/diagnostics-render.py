@@ -50,8 +50,10 @@ def main(argv=None):
         for tab in args.tabs:
             group, sub = log_viewer._resolve_tab(args.report_type, tab, None)
             module_path = registry[group]["sub_tabs"][sub]["module"] if sub else registry[group]["module"]
-            data = importlib.import_module(module_path).parse(args.fixture)
-            html = render_template(f"tabs/{args.report_type}_{sub or group}.html", data=data, directory=args.fixture)
+            module = importlib.import_module(module_path)
+            data = module.parse(args.fixture)
+            findings = module.findings(args.fixture) if hasattr(module, 'findings') else (data.get('findings', []) if isinstance(data, dict) else [])
+            html = render_template(f"tabs/{args.report_type}_{sub or group}.html", data=data, directory=args.fixture, findings=findings)
             with open(os.path.join(args.out, f"{tab}.html"), "w") as f:
                 f.write(html)
             print(f"{tab}: {len(html)} bytes")

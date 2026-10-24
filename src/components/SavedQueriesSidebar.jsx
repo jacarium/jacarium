@@ -128,7 +128,7 @@ export default function SavedQueriesSidebar({ isOpen, onClose, onLoad }) {
 
                     <button
                       onClick={(e) => handleDelete(query.id, e)}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded-sm transition-all"
+                      className="btn btn-danger-ghost opacity-0 group-hover:opacity-100 p-1"
                       title="Delete"
                     >
                       <Trash2 size={14} className="text-red-600" />

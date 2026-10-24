@@ -3093,8 +3093,8 @@ export default function DocumentEditor({
               onClick={isAutoTyping ? handleStopAutoTyper : handleStartAutoTyper}
               className={`p-1.5 transition-colors ${
  isAutoTyping
- ?'bg-red-600 text-white hover:bg-red-700'
- :'bg-green-600 text-white hover:bg-green-700'
+ ?'btn btn-danger-solid'
+ :'btn btn-success'
  }`}
               title={isAutoTyping ? 'Stop Auto-Typer' : 'Start Auto-Typer (Lorem Ipsum)'}
             >
@@ -3117,7 +3117,7 @@ export default function DocumentEditor({
  previewAllDocuments
  ?'bg-orange-500 text-white'
  : previewMode
- ?'bg-os-blue text-white'
+ ?'btn-selected'
  :'hover:bg-os-card-secondary'
  }`}
           title={
@@ -3548,7 +3548,7 @@ export default function DocumentEditor({
                       setQuickAISelectedText('');
                       setTimeout(() => quickAIInputRef.current?.focus(), 0);
                     }}
-                    className="p-1 hover:bg-purple-200 dark:hover:bg-purple-800/30 rounded-sm transition-colors"
+                    className="btn btn-brand-ghost p-1"
                     title="Clear response"
                   >
                     <Trash2 size={14} className="text-purple-700 dark:text-purple-300" />
@@ -3556,7 +3556,7 @@ export default function DocumentEditor({
                 )}
                 <button
                   onClick={handleCancelQuickAI}
-                  className="p-1 hover:bg-purple-200 dark:hover:bg-purple-800/30 rounded-sm transition-colors"
+                  className="btn btn-brand-ghost p-1"
                   title="Close"
                 >
                   <X size={14} className="text-purple-700 dark:text-purple-300" />
@@ -3628,7 +3628,7 @@ export default function DocumentEditor({
                 <button
                   onClick={handleQuickAISubmit}
                   disabled={!quickAIInput.trim() || quickAILoading || backendStatus === 'offline'}
-                  className="flex-1 px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-sm transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn btn-brand flex-1 px-3 py-1.5 text-xs flex items-center justify-center gap-1.5"
                   title={backendStatus === 'offline' ? 'Backend service is not running' : 'Generate (Enter)'}
                 >
                   {quickAILoading ? 'Generating...' : 'Generate'}
@@ -3638,7 +3638,7 @@ export default function DocumentEditor({
                   <button
                     onClick={() => handleAcceptAIResponse(true)}
                     disabled={!quickAISelectedText}
-                    className="flex-1 px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded-sm transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="btn btn-success flex-1 px-3 py-1.5 text-xs flex items-center justify-center gap-1.5"
                     title={quickAISelectedText ? 'Insert selected text' : 'Select text in the response to insert'}
                   >
                     <Check size={14} />
@@ -3933,7 +3933,7 @@ export default function DocumentEditor({
                   (document?.inCloud && !isOnline) ||
                   serverCopyUnavailable
                 }
-                className="flex-1 px-3 py-1.5 text-xs bg-os-blue hover:bg-os-blue/90 text-white rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn btn-primary flex-1 px-3 py-1.5 text-xs"
                 title={
                   locked
                     ? 'Document is locked'

@@ -2,13 +2,14 @@ import os
 import glob
 import yaml
 
-from parsers.mustgather._common import resolve_data_dir
+from parsers.findings import finding, recall, remember, sort_findings
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
 
 
 def load_yaml(path):
     try:
         with open(path, 'r') as f:
-            return yaml.safe_load(f)
+            return safe_load(f)
     except Exception:
         return {}
 
@@ -59,7 +60,8 @@ def parse(directory):
     def get_network_type():
         path = os.path.join(directory, "cluster-scoped-resources", "config.openshift.io", "networks.yaml")
         data = load_yaml(path)
-        network_type = data.get("items", [{}])[0].get("spec", {}).get("networkType")
+        items = data.get("items") or [{}]
+        network_type = (items[0] or {}).get("spec", {}).get("networkType")
         return network_type
 
     def get_install_method():
@@ -113,5 +115,39 @@ def parse(directory):
 
     result["cluster_operators"] = get_full_operator_data()
     result["proxy_config"] = get_proxy_config()
+    result["findings"] = findings_for(result)
 
     return result
+
+def _cond(obj, kind):
+    for c in (obj.get("status") or {}).get("conditions") or []:
+        if c.get("type") == kind:
+            return c
+    return {}
+
+
+def findings_for(result):
+    """The Findings strip: cluster operators Degraded (bad) or Progressing / Unavailable (warn) with their message, an
+    update in progress, overrides on the ClusterVersion, a proxy, the version line when nothing is wrong."""
+    out = []
+    ops = result.get("cluster_operators") or []
+    for op in ops:
+        name = (op.get("metadata") or {}).get("name", "?")
+        deg, prog, avail = _cond(op, "Degraded"), _cond(op, "Progressing"), _cond(op, "Available")
+        if deg.get("status") == "True":
+            out.append(finding("bad", f"Cluster operator {name} is Degraded", (deg.get("message") or deg.get("reason") or "")[:300] + (f" (since {deg.get('lastTransitionTime')})" if deg.get("lastTransitionTime") else ""), tab="workloads", sub_tab="pod", query=name))
+        elif avail.get("status") == "False":
+            out.append(finding("bad", f"Cluster operator {name} is Unavailable", (avail.get("message") or avail.get("reason") or "")[:300], tab="workloads", sub_tab="pod", query=name))
+        elif prog.get("status") == "True":
+            out.append(finding("warn", f"Cluster operator {name} is Progressing", (prog.get("message") or prog.get("reason") or "")[:300] + (f" (since {prog.get('lastTransitionTime')})" if prog.get("lastTransitionTime") else "")))
+    cv = result.get("cluster_version") or {}
+    if cv.get("overrides"):
+        out.append(finding("warn", f"{len(cv['overrides'])} ClusterVersion override{'s' if len(cv['overrides']) != 1 else ''}", "an unmanaged operator: the CVO does not reconcile it, upgrades are blocked"))
+    proxy = result.get("proxy_config") or {}
+    if proxy.get("configured"):
+        out.append(finding("info", "A cluster-wide proxy is configured", f"{proxy.get('http_proxy') or proxy.get('https_proxy')}" + (f", trusted CA {proxy['trusted_ca']}" if proxy.get("trusted_ca") else "")))
+    if not ops:
+        out.append(finding("info", "No cluster operators in this must-gather", "cluster-scoped-resources/config.openshift.io/clusteroperators is missing"))
+    if ops and not any(f["severity"] in ("bad", "warn") for f in out):
+        out.append(finding("good", f"{len(ops)} cluster operators available and not degraded" + (f", version {cv['version']}" if cv.get("version") else "")))
+    return sort_findings(out)

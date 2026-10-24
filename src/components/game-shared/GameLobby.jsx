@@ -151,7 +151,7 @@ export default function GameLobby({
           <button
             onClick={onStart}
             disabled={!canStart || activePlayerCount < 1}
-            className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-os-card-secondary disabled:text-os-text-muted text-white rounded-sm text-sm flex items-center justify-center gap-2 transition-colors"
+            className="btn btn-primary w-full px-4 py-2.5 text-sm flex items-center justify-center gap-2"
           >
             <Play size={16} />
             {startButtonText}

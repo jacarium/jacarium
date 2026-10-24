@@ -139,7 +139,7 @@ export default function VariableInputModal({ isOpen, onClose, onApply, variables
             </button>
             <button
               onClick={handleApply}
-              className="px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors shadow-xs"
+              className="btn btn-primary px-4 py-2 text-sm"
             >
               Apply Template
             </button>

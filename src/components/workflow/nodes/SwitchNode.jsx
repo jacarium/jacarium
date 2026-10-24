@@ -57,7 +57,7 @@ function SwitchNode({ data, isConnectable }) {
             {cases.length > 1 && !isReadOnly && (
               <button
                 onClick={() => handleRemoveCase(index)}
-                className="nodrag p-1 hover:bg-red-50 rounded-sm text-red-600"
+                className="btn btn-danger-ghost nodrag p-1"
                 title="Remove case"
               >
                 <Trash2 size={12} />
@@ -70,7 +70,7 @@ function SwitchNode({ data, isConnectable }) {
         {!isReadOnly && (
           <button
             onClick={handleAddCase}
-            className="nodrag w-full px-2 py-1 text-xs text-purple-600 hover:bg-purple-50 rounded-sm border border-purple-300 flex items-center justify-center gap-1"
+            className="btn btn-brand-ghost nodrag w-full px-2 py-1 text-xs flex items-center justify-center gap-1"
           >
             Add Case
           </button>

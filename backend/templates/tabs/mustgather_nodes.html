@@ -1,63 +1,55 @@
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 <div id="nodePanel" class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm w-full">
- <div class="mb-4">
- <label for="nodeSearchInput" class="block text-xs font-semibold mb-1">Search All</label>
- <input id="nodeSearchInput" type="text" placeholder="Search nodes..."
- class="w-full px-3 py-2 text-sm border"/>
- </div>
- <div class="flex justify-between items-center mb-2">
- <div id="filteredNodeCount" class="text-sm">Showing all nodes</div>
- <div class="flex items-center gap-2">
- <label class="text-xs font-semibold">Per Page:</label>
- <select id="nodePageSizeSelect" onchange="window.changeNodePageSize()" class="px-3 py-1 text-sm border">
+ {% call ui.filter_bar() %}<label class="ui-field">{{ ui.icon('search') }}<input id="nodeSearchInput" type="search" data-ui-search placeholder="Search nodes" aria-label="Search nodes" autocomplete="off" class="ui-input"></label>{% endcall %}
+ <div class="ui-pagebar"><span class="ui-status" id="filteredNodeCount" aria-live="polite">Showing all nodes</span><div class="ui-pagebar-right"><label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select aria-label="Rows per page" id="nodePageSizeSelect" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { window.changeNodePageSize(); }) : window.changeNodePageSize()" class="ui-select">
  <option value="25">25</option>
  <option value="50" selected>50</option>
  <option value="100">100</option>
  <option value="-1">All</option>
- </select>
- </div>
- </div>
- <table class="w-full min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
+ </select>{{ ui.icon('chevron') }}</span></label></div></div>
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('name')">
+ <th class="cursor-pointer" onclick="window.sortNodesBy('name')">
  Name <i id="node-indicator-name" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('ip')">
+ <th class="cursor-pointer" onclick="window.sortNodesBy('ip')">
  IP <i id="node-indicator-ip" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('cpu')">
+ <th class="cursor-pointer" onclick="window.sortNodesBy('cpu')">
  CPU <i id="node-indicator-cpu" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('memory')">
+ <th class="cursor-pointer" onclick="window.sortNodesBy('memory')">
  Memory <i id="node-indicator-memory" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('kubelet')">
+ <th class="cursor-pointer" onclick="window.sortNodesBy('kubelet')">
  Kubelet <i id="node-indicator-kubelet" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('osImage')">
+ <th class="cursor-pointer" onclick="window.sortNodesBy('osImage')">
  OS Image <i id="node-indicator-osImage" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('arch')">
+ <th class="cursor-pointer" onclick="window.sortNodesBy('arch')">
  Arch <i id="node-indicator-arch" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('ready')">
+ <th class="cursor-pointer" onclick="window.sortNodesBy('ready')">
  Ready <i id="node-indicator-ready" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortNodesBy('schedulable')">
+ <th class="cursor-pointer" onclick="window.sortNodesBy('schedulable')">
  Schedule <i id="node-indicator-schedulable" class="ml-1 fas text-sm"></i>
  </tr>
  </thead>
  <tbody id="nodeTableBody"></tbody>
  </table>
- <div id="nodePaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ <nav id="nodePaginationControls" class="ui-pager" aria-label="Pages" hidden></nav>
  </div>
 </div>
 
 <div id="nodeDetailsPanel" style="display: none;">
  <div class="space-y-4">
  <div class="mb-4">
- <button onclick="window.backFromNodeModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ <button onclick="window.backFromNodeModal()" class="btn btn-secondary flex items-center gap-2">
  Back
  </button>
  </div>
@@ -67,7 +59,7 @@
  <i class="fas fa-info-circle mr-2"></i> Node Details
  </h3>
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm" id="nodeDetailsTable"></table>
+ <table class="ui-table" id="nodeDetailsTable"></table>
  </div>
  </div>
 
@@ -87,7 +79,7 @@
  id="nodeYamlFilter"
  type="text"
  placeholder="Filter YAML lines..."
- class="w-full px-3 py-2 text-sm border"
+ class="ui-input w-full"
  />
  </div>
  <div id="nodeJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
@@ -154,7 +146,7 @@
  nodeTableBody.innerHTML ="";
  if (nodes.length === 0) {
  filteredNodeCount.textContent ="No nodes found.";
- nodeTableBody.innerHTML = `<tr><td colspan="9" class="text-center py-4">No matching nodes found</td></tr>`;
+ nodeTableBody.innerHTML = `<tr><td colspan="9" class="text-center">No matching nodes found</td></tr>`;
  updateNodePagination(0);
  return;
  }
@@ -173,15 +165,15 @@
  const tr = document.createElement("tr");
  tr.className = "cursor-pointer border-b hover:bg-gray-50 dark:hover:bg-gray-800";
  tr.innerHTML = `
- <td class="px-4 py-2">${n.name}</td>
- <td class="px-4 py-2">${n.ip}</td>
- <td class="px-4 py-2">${n.cpu}</td>
- <td class="px-4 py-2">${n.memory}</td>
- <td class="px-4 py-2">${n.kubelet}</td>
- <td class="px-4 py-2">${n.osImage}</td>
- <td class="px-4 py-2">${n.arch}</td>
- <td class="px-4 py-2">${n.ready}</td>
- <td class="px-4 py-2">${n.schedulable}</td>
+ <td>${n.name}</td>
+ <td>${n.ip}</td>
+ <td>${n.cpu}</td>
+ <td>${n.memory}</td>
+ <td>${n.kubelet}</td>
+ <td>${n.osImage}</td>
+ <td>${n.arch}</td>
+ <td>${n.ready}</td>
+ <td>${n.schedulable}</td>
  `;
  tr.onclick = () => {
  lastClickedRow = tr;
@@ -194,35 +186,8 @@
  }
 
  function updateNodePagination(totalCount) {
- const container = document.getElementById("nodePaginationControls");
- if (!container) return;
-
- if (nodePageSize === -1 || totalCount <= nodePageSize) {
- container.innerHTML ="";
- return;
- }
-
- const totalPages = Math.ceil(totalCount / nodePageSize);
- let html ="";
-
- html += `<button onclick="window.goToNodePage(1)" ${nodeCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${nodeCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">First</button>`;
- html += `<button onclick="window.goToNodePage(${nodeCurrentPage - 1})" ${nodeCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${nodeCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Prev</button>`;
-
- const startPage = Math.max(1, nodeCurrentPage - 2);
- const endPage = Math.min(totalPages, nodeCurrentPage + 2);
-
- for (let i = startPage; i <= endPage; i++) {
- if (i === nodeCurrentPage) {
- html += `<button class="px-3 py-1 text-sm bg-blue-700 text-white font-bold current-page">${i}</button>`;
- } else {
- html += `<button onclick="window.goToNodePage(${i})" class="px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700">${i}</button>`;
- }
- }
-
- html += `<button onclick="window.goToNodePage(${nodeCurrentPage + 1})" ${nodeCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${nodeCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Next</button>`;
- html += `<button onclick="window.goToNodePage(${totalPages})" ${nodeCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${nodeCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Last</button>`;
-
- container.innerHTML = html;
+   // the shared pager (diagPager): one page -> nothing drawn
+   window.diagPager.render(document.getElementById('nodePaginationControls'), { total: totalCount, page: nodeCurrentPage, pageSize: nodePageSize, go: function (p) { window.goToNodePage(p); } });
  }
 
  window.goToNodePage = function(page) {
@@ -255,6 +220,7 @@
  const el = document.getElementById("node-indicator-" + k);
  if (!el) return;
  el.className ="ml-1 fas text-sm" + (k === currentSort.key ? (currentSort.direction > 0 ?" fa-sort-up" :" fa-sort-down") :"");
+ if (k === currentSort.key) window.diagTables.markSort(el, currentSort.direction > 0);
  });
  }
 
@@ -325,16 +291,16 @@
 
  const detailsTable = document.getElementById("nodeDetailsTable");
  detailsTable.innerHTML = `
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Name:</td><td class="py-2">${node.name}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">IP:</td><td class="py-2">${node.ip}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Hostname:</td><td class="py-2">${node.hostname}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">CPU:</td><td class="py-2">${node.cpu}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Memory:</td><td class="py-2">${node.memory}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Kubelet Version:</td><td class="py-2">${node.kubelet}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">OS Image:</td><td class="py-2">${node.osImage}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Arch:</td><td class="py-2">${node.arch}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Ready:</td><td class="py-2">${node.ready}</td></tr>
- <tr><td class="py-2 pr-4 font-semibold">Schedulable:</td><td class="py-2">${node.schedulable}</td></tr>
+ <tr><td>Name:</td><td>${node.name}</td></tr>
+ <tr><td>IP:</td><td>${node.ip}</td></tr>
+ <tr><td>Hostname:</td><td>${node.hostname}</td></tr>
+ <tr><td>CPU:</td><td>${node.cpu}</td></tr>
+ <tr><td>Memory:</td><td>${node.memory}</td></tr>
+ <tr><td>Kubelet Version:</td><td>${node.kubelet}</td></tr>
+ <tr><td>OS Image:</td><td>${node.osImage}</td></tr>
+ <tr><td>Arch:</td><td>${node.arch}</td></tr>
+ <tr><td>Ready:</td><td>${node.ready}</td></tr>
+ <tr><td>Schedulable:</td><td>${node.schedulable}</td></tr>
  `;
 
  const conditions = node.raw?.status?.conditions || [];
@@ -348,27 +314,27 @@
  } else {
  let tableHTML =
  `<div class="text-sm mb-2">Showing ${conditions.length} condition(s)</div>` +
- '<table class="w-full min-w-full text-sm rounded-lg shadow-md">' +
- '<thead class="border-b">' +
+ '<table class="ui-table">' +
+ '<thead>' +
  '<tr>' +
- '<th class="px-4 py-2 text-left">Type</th>' +
- '<th class="px-4 py-2 text-left">Status</th>' +
- '<th class="px-4 py-2 text-left">Reason</th>' +
- '<th class="px-4 py-2 text-left">Message</th>' +
- '<th class="px-4 py-2 text-left">Last Heartbeat</th>' +
- '<th class="px-4 py-2 text-left">Last Transition</th>' +
+ '<th>Type</th>' +
+ '<th>Status</th>' +
+ '<th>Reason</th>' +
+ '<th>Message</th>' +
+ '<th>Last Heartbeat</th>' +
+ '<th>Last Transition</th>' +
  '</tr>' +
  '</thead>' +
  '<tbody>';
 
  for (const cond of conditions) {
  tableHTML +=
- '<tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-800">' +
- `<td class="px-4 py-2">${cond.type}</td>` +
- `<td class="px-4 py-2">${cond.status}</td>` +
- `<td class="px-4 py-2">${cond.reason}</td>` +
- `<td class="px-4 py-2 break-all">${cond.message}</td>` +
- `<td class="px-4 py-2">${new Date(cond.lastHeartbeatTime).toLocaleString('en-US', {
+ '<tr>' +
+ `<td>${cond.type}</td>` +
+ `<td>${cond.status}</td>` +
+ `<td>${cond.reason}</td>` +
+ `<td class="break-all">${cond.message}</td>` +
+ `<td>${new Date(cond.lastHeartbeatTime).toLocaleString('en-US', {
      month: 'short',
      day: '2-digit',
      year: 'numeric',
@@ -377,7 +343,7 @@
      timeZone: 'UTC',
      timeZoneName: 'short'
    })}</td>` +
- `<td class="px-4 py-2">${new Date(cond.lastTransitionTime).toLocaleString('en-US', {
+ `<td>${new Date(cond.lastTransitionTime).toLocaleString('en-US', {
      month: 'short',
      day: '2-digit',
      year: 'numeric',

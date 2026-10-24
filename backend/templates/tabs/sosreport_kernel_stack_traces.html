@@ -1,4 +1,6 @@
 {% from "tabs/_kernel_diag_macros.html" import icon, tag, stat, timeline, chips, stack, code_line, raw_block, copy_button, filters, empty %}
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 {#
   Kernel Stack Traces: an incident board of the WARNING / BUG / Oops / lockup
   / RCU stall traces found in the report's kernel logs. Identical traces
@@ -79,7 +81,7 @@
         {% if ev.code %}{{ code_line(ev.code) }}{% endif %}
         {% if g.occurrences and g.count > 1 %}
         <div class="kd-section-title">Occurrences</div>
-        <div class="kd-chips">{% for o in g.occurrences %}<span class="kd-chip kd-chip-mono"><span>{{ o.ts }}</span>{% if o.source %}<span class="kd-count">{{ o.source }}</span>{% endif %}</span>{% endfor %}</div>
+        <div class="kd-chips">{% for o in g.occurrences %}<span class="ui-chip ui-static kd-chip kd-chip-mono"><span>{{ o.ts }}</span>{% if o.source %}<span class="kd-count">{{ o.source }}</span>{% endif %}</span>{% endfor %}</div>
         {% endif %}
         {% if ev.raw %}{{ raw_block(ev.raw, 'trace-raw-' ~ g.id) }}{% endif %}
       </div>
@@ -87,7 +89,6 @@
   {% endfor %}
   </div>
 {% else %}
-  {{ empty('No kernel stack traces', 'No WARNING, BUG, Oops, lockup or RCU stall was found in the kernel logs of this report.', summary.sources) }}
 {% endif %}
 {% include "tabs/_kernel_diag.html" %}
 </div>

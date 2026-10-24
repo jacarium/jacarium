@@ -9,6 +9,8 @@ Viewer does the parsing when it is opened.
 """
 import os
 
+from parsers.findings import finding, sort_findings
+
 MAX_FILES = 400
 
 
@@ -113,10 +115,31 @@ def parse(directory):
     max_size = max((r['size'] or 0 for r in rows), default=0)
     for r in rows:
         r['bar_pct'] = round(100.0 * r['size'] / max_size, 1) if max_size and r['size'] else 0.0
-    return {'log_collection': {
+    lc = {
         'groups': [g for g in groups if g['files']],
         'sections': sections, 'bar': sections, 'rows': rows, 'largest': largest, 'max_size': max_size, 'top': 0, 'extra_count': 0,
         'total_files': count, 'total_size': total, 'total_size_text': human(total),
         'capped': count >= MAX_FILES, 'unreadable': sum(1 for r in rows if r['unreadable']),
         'journal_present': bool(by_key['journal']['files']),
-    }}
+    }
+    return {'log_collection': lc, 'findings': findings_for(lc)}
+
+
+def findings_for(lc):
+    """The Findings strip: no journal capture (info), unreadable files (warn), a file over 1 GiB (info: the Log Viewer
+    streams it, but it takes a while), the listing capped (info), the totals when nothing is wrong."""
+    out = []
+    if not lc['rows']:
+        return [finding('info', 'No logs in this report', 'neither a journal capture, a dmesg nor a var/log file was found')]
+    if not lc['journal_present']:
+        out.append(finding('info', 'No journal capture', 'sos_commands/logs/journalctl* is missing: the Log Viewer works from var/log alone', tab='log_collection', sub_tab='log_viewer'))
+    if lc['unreadable']:
+        out.append(finding('warn', f"{lc['unreadable']} log file{'s' if lc['unreadable'] != 1 else ''} unreadable", 'the size could not be read: a broken symlink or a permission problem in the report', count=lc['unreadable']))
+    big = [r for r in lc['rows'] if (r['size'] or 0) >= 1024 ** 3]
+    if big:
+        out.append(finding('info', f"{len(big)} log file{'s' if len(big) != 1 else ''} over 1 GiB", ', '.join(f"{r['name']} ({r['size_text']})" for r in big[:4]) + (' …' if len(big) > 4 else '') + ': the Log Viewer streams them, a date range narrows the read', tab='log_collection', sub_tab='log_viewer', count=len(big)))
+    if lc['capped']:
+        out.append(finding('info', f"Only the first {len(lc['rows'])} files are listed", 'the report holds more under var/log'))
+    if not any(f['severity'] in ('bad', 'warn') for f in out):
+        out.append(finding('good', f"{lc['total_files']} log files, {lc['total_size_text']}" + (', the journal captured' if lc['journal_present'] else '')))
+    return sort_findings(out)

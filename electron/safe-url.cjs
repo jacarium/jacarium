@@ -32,6 +32,7 @@ const dns = require('dns').promises;
 const http = require('http');
 const https = require('https');
 const net = require('net');
+const { checkServerIdentity } = require('./cert-distrust.cjs');
 
 const MAX_REDIRECTS = 5;
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
@@ -210,8 +211,9 @@ function performRequest(url, address, family, options, maxBytes, timeoutMs) {
       path: `${url.pathname}${url.search}`,
       method: (options.method || 'GET').toUpperCase(),
       headers,
-      // SNI + certificate hostname check still use the real hostname.
-      ...(isHttps ? { servername: url.hostname.replace(/^\[|\]$/g, '') } : {}),
+      // SNI + certificate hostname check still use the real hostname; the
+      // chain goes through the distrust list too (electron/cert-distrust.cjs).
+      ...(isHttps ? { servername: url.hostname.replace(/^\[|\]$/g, ''), checkServerIdentity } : {}),
       // Never reuse pooled sockets bound to another (pinned) address.
       agent: false
     };

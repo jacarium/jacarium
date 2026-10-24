@@ -224,7 +224,7 @@ export default function DatePicker({ value, onChange, onCancel, placeholder = 'S
  p-2 text-xs transition-colors
  ${!day.isCurrentMonth ?'text-os-text-muted opacity-40':'text-os-text-primary'}
  ${day.isSelected
- ?'bg-os-blue text-white'
+ ?'btn-selected'
  : day.isToday
  ?'bg-os-card-secondary'
  :'hover:bg-os-card-secondary'
@@ -251,7 +251,7 @@ export default function DatePicker({ value, onChange, onCancel, placeholder = 'S
                 onChange(null);
                 closeMenu();
               }}
-              className="flex-1 px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-sm transition-colors"
+              className="btn btn-danger-ghost flex-1 px-3 py-1.5 text-xs"
             >
               Clear
             </button>

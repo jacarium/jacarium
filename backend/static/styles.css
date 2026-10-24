@@ -1,309 +1,498 @@
-/* ===================================
-   DIAGNOSTICS TEMPLATE STYLES
-   Scoped to #diagnostics-content to match main app styles
-   =================================== */
+/* ===================================================================
+   THE DIAGNOSTICS FRAME STYLESHEET
+   One design for every plugin's controls, tables, cards, badges, chips,
+   empty states and busy state (sosreport and must-gather alike), on the
+   app's theme tokens: --os-* (surfaces, text, borders), --btn-* (the
+   button roles, src/index.css "Buttons: change the button colours here")
+   and --radius-* (the corner scale). The app's stylesheet is inlined into
+   the frame and the theme attributes mirrored onto its <html>, so a theme
+   change restyles every plugin live; the standalone Flask dashboard links
+   this file too. Every rule is scoped to #diagnostics-content.
 
-/* Text Inputs - match main app */
+   The ui-* classes are the shared vocabulary (the markup macros of
+   backend/templates/tabs/_ui.html emit them; the busy state and the
+   charts are backend/static/diagnostics-ui.js). The generic element rules
+   give a plain <input>, <select>, <button>, <table> of an older template
+   the same look without a class. tests/diagnostics-ui-consistency.test.mjs
+   checks every tab against these values:
+     fields   30px high, 8px radius (--radius-control), 1px --os-input-border,
+              --os-input-bg, 13px, a 14px icon on the left (.ui-field),
+              the accent border on focus, no ring
+     selects  the same, appearance none, ONE chevron: the wrapper's inline
+              SVG (.ui-select-wrap) or the background image of a bare select
+     checks   16px, 5px radius (--radius-check), the accent colour
+     buttons  the .btn roles; a plain <button> is a secondary button
+     tables   the header of _table_head.html (12px uppercase 600, muted,
+              --os-card-secondary, a border under it), 4px 10px cells with a
+              border under each, hover on the row, numbers right-aligned
+              (.ui-num), aria-sort markers, stacked rows under 640px
+              (.ui-table-stack)
+     cards    .panel (the tab's own card, --radius-card) and .ui-card (a
+              compact card inside the page, --radius-sm); one card level
+   =================================================================== */
+#diagnostics-content { font-size: 13px; line-height: 1.45; color: var(--os-text-primary); }
+#diagnostics-content *, #diagnostics-content *::before, #diagnostics-content *::after { box-sizing: border-box; }
+#diagnostics-content .ui-mono, #diagnostics-content code, #diagnostics-content pre { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); }
+
+/* ---- Fields: text, search, number, date ... and .ui-input ---- */
 #diagnostics-content input[type="text"],
-#diagnostics-content input[type="number"],
 #diagnostics-content input[type="search"],
+#diagnostics-content input[type="number"],
 #diagnostics-content input[type="email"],
 #diagnostics-content input[type="password"],
 #diagnostics-content input[type="tel"],
-#diagnostics-content input[type="url"] {
-    background-color: var(--os-input-bg) !important;
-    color: var(--os-text-primary) !important;
-    border: 1px solid var(--os-input-border) !important;
-    border-radius: 0 !important;
-    padding: 0.5rem 0.75rem !important;
-    font-size: 0.875rem !important;
-    line-height: 1.25rem !important;
-    transition: all 0.2s ease !important;
-    outline: none !important;
+#diagnostics-content input[type="url"],
+#diagnostics-content input[type="date"],
+#diagnostics-content input[type="datetime-local"],
+#diagnostics-content input:not([type]),
+#diagnostics-content .ui-input {
+    height: 30px;
+    width: auto;
+    min-width: 0;
+    padding: 0 10px;
+    border: 1px solid var(--os-input-border);
+    border-radius: var(--radius-control, 8px);
+    background-color: var(--os-input-bg);
+    color: var(--os-text-primary);
+    font: inherit;
+    font-size: 13px;
+    line-height: 28px;
+    outline: none;
+    box-shadow: none;
+    transition: border-color 0.15s;
+}
+#diagnostics-content input:focus,
+#diagnostics-content .ui-input:focus { border-color: var(--os-blue); box-shadow: none; outline: none; }
+#diagnostics-content input::placeholder { color: var(--os-text-muted); opacity: 1; }
+#diagnostics-content input[disabled], #diagnostics-content select[disabled], #diagnostics-content textarea[disabled] { opacity: 0.5; cursor: not-allowed; }
+#diagnostics-content input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+#diagnostics-content input::-webkit-calendar-picker-indicator { display: none; }   /* a datalist's own arrow: one look for every field */
+#diagnostics-content textarea { padding: 6px 10px; border: 1px solid var(--os-input-border); border-radius: var(--radius-control, 8px); background-color: var(--os-input-bg); color: var(--os-text-primary); font: inherit; font-size: 13px; line-height: 1.45; outline: none; resize: vertical; }
+#diagnostics-content textarea:focus { border-color: var(--os-blue); box-shadow: none; }
+/* the field with its icon on the left */
+#diagnostics-content .ui-field { position: relative; display: flex; align-items: center; min-width: 0; }
+#diagnostics-content .ui-field > svg { position: absolute; left: 9px; width: 14px; height: 14px; color: var(--os-text-secondary); pointer-events: none; }
+#diagnostics-content .ui-field > input, #diagnostics-content .ui-field > .ui-input { width: 100%; padding-left: 30px; }
+#diagnostics-content .ui-field.ui-no-icon > input, #diagnostics-content .ui-field.ui-no-icon > .ui-input { padding-left: 10px; }
+
+/* ---- Selects: appearance none, one chevron ---- */
+#diagnostics-content select,
+#diagnostics-content .ui-select {
+    height: 30px;
+    min-width: 0;
+    padding: 0 28px 0 10px;
+    border: 1px solid var(--os-input-border);
+    border-radius: var(--radius-control, 8px);
+    background-color: var(--os-input-bg);
+    color: var(--os-text-primary);
+    font: inherit;
+    font-size: 13px;
+    line-height: 28px;
+    outline: none;
+    box-shadow: none;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236A6E73' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='m6 9 6 6 6-6'/%3e%3c/svg%3e");
+    background-position: right 8px center;
+    background-repeat: no-repeat;
+    background-size: 14px 14px;
+    transition: border-color 0.15s;
+}
+#diagnostics-content select:focus, #diagnostics-content .ui-select:focus { border-color: var(--os-blue); box-shadow: none; }
+#diagnostics-content select[multiple] { height: auto; padding: 4px; background-image: none; }
+/* the wrapped select: the inline SVG chevron is the one chevron */
+#diagnostics-content .ui-select-wrap { position: relative; display: inline-flex; align-items: center; min-width: 0; }
+#diagnostics-content .ui-select-wrap > select, #diagnostics-content .ui-select-wrap > .ui-select { width: 100%; background-image: none; }
+#diagnostics-content .ui-select-wrap > svg { position: absolute; right: 8px; width: 14px; height: 14px; color: var(--os-text-secondary); pointer-events: none; }
+
+/* ---- Checkboxes and radios: drawn here (a native box ignores the radius), the tick an inline SVG, the accent when on ---- */
+#diagnostics-content input[type="checkbox"], #diagnostics-content input[type="radio"], #diagnostics-content .ui-check {
+    appearance: none; -webkit-appearance: none; display: inline-block; flex: none;
+    width: 16px; height: 16px; margin: 0; padding: 0; vertical-align: -3px;
+    border: 1px solid var(--os-input-border); border-radius: var(--radius-check, 5px); background-color: var(--os-input-bg);
+    cursor: pointer; outline: none; box-shadow: none; transition: background-color 0.15s, border-color 0.15s;
+    background-position: center; background-repeat: no-repeat; background-size: 12px 12px;
+}
+#diagnostics-content input[type="checkbox"]:checked, #diagnostics-content .ui-check:checked {
+    background-color: var(--btn-selected-bg); border-color: var(--btn-selected-bg);
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M20 6 9 17l-5-5'/%3e%3c/svg%3e");
+}
+#diagnostics-content input[type="radio"] { border-radius: 50%; }
+#diagnostics-content input[type="radio"]:checked { border: 5px solid var(--btn-selected-bg); background-color: var(--os-input-bg); }
+#diagnostics-content input[type="checkbox"]:disabled, #diagnostics-content input[type="radio"]:disabled { opacity: 0.5; cursor: not-allowed; }
+#diagnostics-content input[type="checkbox"]:focus-visible, #diagnostics-content input[type="radio"]:focus-visible { outline: 2px solid var(--os-blue); outline-offset: 2px; }
+#diagnostics-content .ui-check-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; white-space: nowrap; color: var(--os-text-primary); }
+
+/* ---- Labels ---- */
+#diagnostics-content label { color: var(--os-text-primary); font-size: 12px; font-weight: 400; }
+#diagnostics-content .ui-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); white-space: nowrap; }
+
+/* ---- Buttons: the .btn roles of the app; a plain <button> of an older template is a secondary button, a text-white / px-3.py-1 page button a primary one ---- */
+#diagnostics-content button:not(.btn):not(.lc-sort):not(.ui-link):not(.ui-icon-btn):not(.ui-chip):not(.ui-xrow-btn):not([class*="-link"]) {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: 28px; padding: 0 10px;
+    border: 1px solid var(--btn-secondary-border); border-radius: var(--radius-control, 8px);
+    background-color: var(--btn-secondary-bg); color: var(--btn-secondary-fg);
+    font: inherit; font-size: 12px; line-height: 1; white-space: nowrap; cursor: pointer;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+#diagnostics-content button:not(.btn):not(.lc-sort):not(.ui-link):not(.ui-icon-btn):not(.ui-chip):not(.ui-xrow-btn):not([class*="-link"]):hover:not(:disabled) { background-color: var(--btn-secondary-bg-hover); }
+#diagnostics-content button:not(.btn):not(.lc-sort):not(.ui-link):not(.ui-icon-btn):not(.ui-chip):not(.ui-xrow-btn):not([class*="-link"]):disabled { background-color: var(--btn-secondary-disabled-bg); color: var(--btn-secondary-disabled-fg); cursor: not-allowed; }
+#diagnostics-content button.px-3.py-1:not(.btn), #diagnostics-content button.px-4.py-2:not(.btn), #diagnostics-content button.text-white:not(.btn) {
+    background-color: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-border);
+}
+#diagnostics-content button.px-3.py-1:not(.btn):hover:not(:disabled), #diagnostics-content button.px-4.py-2:not(.btn):hover:not(:disabled), #diagnostics-content button.text-white:not(.btn):hover:not(:disabled) { background-color: var(--btn-primary-bg-hover); }
+#diagnostics-content button.px-3.py-1:not(.btn):disabled, #diagnostics-content button.px-4.py-2:not(.btn):disabled { background-color: var(--btn-primary-disabled-bg); color: var(--btn-primary-disabled-fg); }
+#diagnostics-content .ui-legacy-current-page-removed, #diagnostics-content button.px-3.py-1.current-page:not(.btn), #diagnostics-content .btn.current-page { background-color: transparent; border: 2px solid var(--btn-primary-bg); color: var(--btn-primary-bg); }
+#diagnostics-content .btn.btn-sm { height: 30px; padding: 0 10px; font-size: 12px; }   /* the frame's small button: the fields' height, so a toolbar lines up */
+#diagnostics-content .btn:not(.btn-sm):not(.btn-md):not(.btn-lg) { height: 30px; padding: 0 12px; font-size: 12px; }   /* a .btn without a size class (the detail pages' Back, the Log Viewer's actions) gets the control size, never a bare label */
+#diagnostics-content .ui-link { background: none; border: 0; padding: 0; color: var(--os-blue); font: inherit; font-size: 12px; cursor: pointer; }
+#diagnostics-content .ui-link:hover { text-decoration: underline; }
+#diagnostics-content .ui-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: var(--radius-control, 8px); background: none; color: var(--os-text-secondary); cursor: pointer; }
+#diagnostics-content .ui-icon-btn:hover { background: var(--os-card-secondary); color: var(--os-text-primary); }
+#diagnostics-content .ui-icon-btn svg { width: 14px; height: 14px; }
+
+/* ---- Chips: a removable filter value, a section toggle ---- */
+#diagnostics-content .ui-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; align-items: center; }
+#diagnostics-content .ui-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; max-width: 100%; padding: 0 10px; border: 1px solid var(--os-border); border-radius: 999px; background: var(--os-card-secondary); color: var(--os-text-primary); font: inherit; font-size: 12px; cursor: pointer; min-width: 0; white-space: nowrap; }
+#diagnostics-content .ui-chip:hover { background: var(--os-card-secondary); border-color: var(--os-text-secondary); }
+/* the active chip is the selected role (the shared button tokens), its dot keeps the category colour */
+#diagnostics-content .ui-chip.ui-on, #diagnostics-content .ui-chip.au-on, #diagnostics-content .ui-chip.lc-on { background: var(--btn-selected-bg); border-color: var(--btn-selected-bg); color: var(--btn-selected-fg); }
+#diagnostics-content .ui-chip.ui-on:hover, #diagnostics-content .ui-chip.au-on:hover, #diagnostics-content .ui-chip.lc-on:hover { background: var(--btn-selected-bg-hover, var(--btn-selected-bg)); }
+#diagnostics-content .ui-chip .ui-chip-count, #diagnostics-content .ui-chip .lc-count, #diagnostics-content .ui-chip .au-count { color: var(--os-text-secondary); font-weight: 500; font-variant-numeric: tabular-nums; }
+#diagnostics-content .ui-chip.ui-on .ui-chip-count, #diagnostics-content .ui-chip.lc-on .lc-count, #diagnostics-content .ui-chip.au-on .au-count { color: inherit; opacity: 1; }   /* the count on a selected chip at full strength: 0.85 fell under 4.5:1 on the dark theme's blue */
+#diagnostics-content .ui-chip .ui-dot, #diagnostics-content .ui-chip .lc-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 2px; background: var(--swatch, var(--os-text-secondary)); }
+#diagnostics-content .ui-chips, #diagnostics-content .lc-chips, #diagnostics-content .au-chips, #diagnostics-content .kd-chips { display: flex; flex-wrap: wrap; gap: var(--ui-gap, 8px); align-items: center; min-width: 0; }
+#diagnostics-content .ui-chip[disabled] { opacity: 0.45; cursor: not-allowed; }
+#diagnostics-content .ui-chip.ui-static, #diagnostics-content .ui-chip.ui-static:hover { cursor: default; background: var(--os-card); }   /* a summary chip, not a toggle */
+#diagnostics-content .ui-chip .ui-chip-x { font-weight: 600; opacity: 0.7; }
+#diagnostics-content table td .ui-chip { height: 22px; padding: 0 8px; font-size: 11px; }   /* a chip inside a row keeps the row's height */
+#diagnostics-content .ui-chip .ui-chip-key, #diagnostics-content .ui-chip .ui-chip-count { color: var(--os-text-secondary); }
+/* the selected chip (an active filter such as "verb: get ×"): its key, value and × all carry the selected text colour */
+#diagnostics-content .ui-chip.ui-on .ui-chip-key, #diagnostics-content .ui-chip.ui-on .ui-chip-text, #diagnostics-content .ui-chip.ui-on .ui-chip-x, #diagnostics-content .ui-chip.ui-on .ui-chip-count { color: inherit; opacity: 1; }
+#diagnostics-content .ui-chip .ui-chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#diagnostics-content .ui-chip .ui-dot { width: 8px; height: 8px; border-radius: 2px; background: var(--swatch, var(--os-text-muted)); }
+
+/* ---- Badges: a status tag; the colours are fixed and always next to their label ---- */
+#diagnostics-content .ui-badge { display: inline-flex; align-items: center; padding: 0 6px; border-radius: var(--radius-chip, 6px); font-size: 10.5px; font-weight: 600; line-height: 1.6; border: 1px solid rgba(107, 114, 128, 0.3); background: rgba(107, 114, 128, 0.15); color: var(--os-text-secondary); white-space: nowrap; vertical-align: 1px; }
+/* the roles' tints and text colours come from the button tokens (--btn-<role>-text reads on a tint in every theme) */
+#diagnostics-content .ui-badge-ok, #diagnostics-content .ui-badge-info { background: color-mix(in srgb, var(--os-blue) 12%, transparent); color: var(--btn-selected-text); border-color: color-mix(in srgb, var(--os-blue) 30%, transparent); }
+#diagnostics-content .ui-badge-good { background: var(--btn-success-tint); color: var(--btn-success-text); border-color: color-mix(in srgb, var(--chart-good) 45%, transparent); }
+#diagnostics-content .ui-badge-warn { background: var(--btn-warning-tint); color: var(--btn-warning-text); border-color: color-mix(in srgb, var(--chart-warn) 45%, transparent); }   /* the border: the chart's warn role, so a warn bar and the WARN badge are one amber */
+#diagnostics-content .ui-badge-bad { background: var(--btn-danger-bg-hover); color: var(--btn-danger-fg); border-color: color-mix(in srgb, var(--chart-bad) 45%, transparent); }
+#diagnostics-content .ui-badge-muted { background: rgba(107, 114, 128, 0.15); color: var(--os-text-secondary); border-color: rgba(107, 114, 128, 0.3); }
+#diagnostics-content .ui-count { display: inline-block; padding: 0 7px; border-radius: 999px; background: var(--os-card-secondary); border: 1px solid var(--os-border); color: var(--os-text-primary); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 12px; }
+
+/* ---- Cards: the tab's own card (.panel) and a compact card inside the page (.ui-card); one card level ---- */
+#diagnostics-content .panel { padding: 1rem; overflow: hidden; border: 1px solid var(--os-border); border-radius: var(--radius-card, 14px); background: var(--os-card); color: var(--os-text-primary); }
+/* one card level: a card inside the tab's card is a plain section (its title line stays) */
+#diagnostics-content .panel .panel, #diagnostics-content .panel .ui-card { border: 0 !important; border-radius: 0; background: transparent !important; box-shadow: none; padding: 0 !important; }
+#diagnostics-content .panel .panel { margin-bottom: 12px; }
+#diagnostics-content .ui-card { min-width: 0; border: 1px solid var(--os-border); border-radius: var(--radius-sm, 8px); background: var(--os-card); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+#diagnostics-content .ui-card-title, #diagnostics-content .ui-section-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); }
+#diagnostics-content .ui-card-title .ui-count-text { color: var(--os-text-primary); font-weight: 600; text-transform: none; letter-spacing: 0; font-size: 13px; }
+#diagnostics-content .ui-card-title .ui-actions, #diagnostics-content .ui-section-title .ui-actions { margin-left: auto; display: flex; gap: 6px; }
+#diagnostics-content .ui-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; min-width: 0; }
+#diagnostics-content .ui-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 10px; }
+#diagnostics-content .ui-head h2, #diagnostics-content .ui-head h3 { margin: 0; font-size: 15px; font-weight: 600; }
+#diagnostics-content .ui-head .ui-sub { color: var(--os-text-secondary); font-size: 12px; overflow-wrap: anywhere; }
+#diagnostics-content .ui-note { font-size: 12.5px; padding: 6px 10px; border-left: 3px solid var(--os-blue); background: var(--os-card-secondary); border-radius: 0 var(--radius-xs, 6px) var(--radius-xs, 6px) 0; overflow-wrap: anywhere; }
+#diagnostics-content .ui-muted { color: var(--os-text-secondary); font-size: 12px; }   /* a secondary line: a hint under a value, a note after a figure */
+#diagnostics-content .ui-note-warn { border-left-color: var(--chart-warn); }
+#diagnostics-content .ui-note-bad { border-left-color: var(--chart-bad); }
+#diagnostics-content .ui-stat-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); white-space: nowrap; }
+#diagnostics-content .ui-stat-value { display: block; font-size: 20px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+#diagnostics-content .ui-stat-sub { display: block; font-size: 11px; color: var(--os-text-secondary); overflow-wrap: anywhere; }
+#diagnostics-content .ui-bad { color: var(--btn-danger-fg); }
+#diagnostics-content .ui-warn { color: var(--btn-warning-text); }
+#diagnostics-content .ui-good { color: var(--btn-success-text); }
+
+/* ---- The toolbar: a row of fields, chips, buttons and the count ---- */
+#diagnostics-content .ui-toolbar { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; min-width: 0; margin-bottom: 8px; }
+#diagnostics-content .ui-toolbar .ui-field { flex: 1 1 180px; max-width: 320px; }
+#diagnostics-content .ui-toolbar .ui-field.ui-wide { flex: 2 1 240px; max-width: 460px; }
+#diagnostics-content .ui-toolbar .ui-field.ui-narrow { flex: 1 1 120px; max-width: 190px; }
+#diagnostics-content .ui-toolbar .ui-select-wrap { flex: 0 1 auto; }
+#diagnostics-content .ui-toolbar .ui-shown { margin-left: auto; font-size: 12px; color: var(--os-text-secondary); white-space: nowrap; }
+#diagnostics-content .ui-status { font-size: 12px; color: var(--os-text-secondary); overflow-wrap: anywhere; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; min-width: 0; }
+#diagnostics-content .ui-status b { color: var(--os-text-primary); font-weight: 600; }
+@media (max-width: 720px) {
+  #diagnostics-content .ui-toolbar .ui-field, #diagnostics-content .ui-toolbar .ui-field.ui-wide, #diagnostics-content .ui-toolbar .ui-field.ui-narrow { max-width: none; flex-basis: 100%; }
 }
 
-#diagnostics-content input[type="text"]:focus,
-#diagnostics-content input[type="number"]:focus,
-#diagnostics-content input[type="search"]:focus,
-#diagnostics-content input[type="email"]:focus,
-#diagnostics-content input[type="password"]:focus,
-#diagnostics-content input[type="tel"]:focus,
-#diagnostics-content input[type="url"]:focus {
-    border-color: var(--os-blue) !important;
-    box-shadow: 0 0 0 2px var(--os-blue) !important;
-}
+/* ---- Empty state ---- */
+#diagnostics-content .ui-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 36px 12px; text-align: center; color: var(--os-text-secondary); }
+#diagnostics-content .ui-empty svg { width: 36px; height: 36px; opacity: 0.6; }
+#diagnostics-content .ui-empty-title { font-weight: 600; color: var(--os-text-primary); }
 
-#diagnostics-content input::placeholder {
-    color: var(--os-text-secondary) !important;
-    opacity: 1 !important;
-}
-
-/* Select Dropdowns - match main app */
-#diagnostics-content select {
-    background-color: var(--os-input-bg) !important;
-    color: var(--os-text-primary) !important;
-    border: 1px solid var(--os-input-border) !important;
-    border-radius: 0 !important;
-    padding: 0.5rem 2.5rem 0.5rem 0.75rem !important;
-    font-size: 0.875rem !important;
-    line-height: 1.25rem !important;
-    transition: all 0.2s ease !important;
-    outline: none !important;
-    cursor: pointer !important;
-    appearance: none !important;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236A6E73' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e") !important;
-    background-position: right 0.5rem center !important;
-    background-repeat: no-repeat !important;
-    background-size: 1.5em 1.5em !important;
-}
-
-#diagnostics-content select:focus {
-    border-color: var(--os-blue) !important;
-    box-shadow: 0 0 0 2px var(--os-blue) !important;
-}
-
-/* Textareas - match main app */
-#diagnostics-content textarea {
-    background-color: var(--os-input-bg) !important;
-    color: var(--os-text-primary) !important;
-    border: 1px solid var(--os-input-border) !important;
-    border-radius: 0 !important;
-    padding: 0.5rem 0.75rem !important;
-    font-size: 0.875rem !important;
-    line-height: 1.5rem !important;
-    transition: all 0.2s ease !important;
-    outline: none !important;
-    resize: vertical !important;
-}
-
-#diagnostics-content textarea:focus {
-    border-color: var(--os-blue) !important;
-    box-shadow: 0 0 0 2px var(--os-blue) !important;
-}
-
-/* Checkboxes - match main app */
-#diagnostics-content input[type="checkbox"] {
-    width: 1rem !important;
-    height: 1rem !important;
-    border: 1px solid var(--os-input-border) !important;
-    border-radius: 0 !important;
-    background-color: var(--os-input-bg) !important;
-    cursor: pointer !important;
-    accent-color: var(--os-blue) !important;
-    margin: 0 !important;
-    transition: all 0.15s ease !important;
-}
-
-#diagnostics-content input[type="checkbox"]:focus {
-    outline: none !important;
-    box-shadow: 0 0 0 2px var(--os-blue) !important;
-}
-
-#diagnostics-content input[type="checkbox"]:checked {
-    background-color: var(--os-blue) !important;
-    border-color: var(--os-blue) !important;
-}
-
-/* Labels - match main app */
-#diagnostics-content label {
-    color: var(--os-text-primary) !important;
-    font-size: 0.875rem !important;
-    font-weight: 500 !important;
-}
-
-/* Pagination Buttons - match main app */
-#diagnostics-content button.px-3.py-1,
-#diagnostics-content button.px-3.py-1.rounded,
-#diagnostics-content button.px-4.py-2 {
-    background-color: var(--os-blue) !important;
-    color: white !important;
-    border: 1px solid var(--os-blue) !important;
-    font-size: 0.875rem !important;
-    font-weight: 500 !important;
-    transition: all 0.2s ease !important;
-    cursor: pointer !important;
-}
-
-#diagnostics-content button.px-3.py-1:hover:not(:disabled),
-#diagnostics-content button.px-3.py-1.rounded:hover:not(:disabled),
-#diagnostics-content button.px-4.py-2:hover:not(:disabled) {
-    background-color: var(--os-blue-hover) !important;
-    border-color: var(--os-blue-hover) !important;
-}
-
-#diagnostics-content button.px-3.py-1:disabled,
-#diagnostics-content button.px-3.py-1.rounded:disabled,
-#diagnostics-content button.px-4.py-2:disabled {
-    background-color: var(--os-card-secondary) !important;
-    color: var(--os-text-secondary) !important;
-    border-color: var(--os-border) !important;
-    cursor: not-allowed !important;
-}
-
-/* Current page button */
-#diagnostics-content button.border-2,
-#diagnostics-content button.font-bold.border-2 {
-    background-color: var(--os-blue-hover) !important;
-    border: 2px solid var(--os-blue-hover) !important;
-    color: white !important;
-    font-weight: 700 !important;
-}
-
-/* Override any bg-gray-300 on enabled pagination buttons */
-#diagnostics-content button:not(:disabled).bg-gray-300 {
-    background-color: var(--os-blue) !important;
-    border-color: var(--os-blue) !important;
-    color: white !important;
-}
-
-/* Ensure text-white class buttons get proper background */
-#diagnostics-content button.text-white {
-    background-color: var(--os-blue) !important;
-    border: 1px solid var(--os-blue) !important;
-}
-
-#diagnostics-content button.text-white:hover:not(:disabled) {
-    background-color: var(--os-blue-hover) !important;
-    border-color: var(--os-blue-hover) !important;
-}
-
-/* ===================================
-   PANEL STYLES - Add padding back
-   =================================== */
-
-#diagnostics-content .panel {
-    padding: 1rem !important;
-    overflow: hidden !important;
-}
-
-/* Ensure grid layouts don't overflow */
-#diagnostics-content .grid {
-    max-width: 100% !important;
-}
-
-#diagnostics-content .grid > * {
-    min-width: 0 !important;
-}
-
-/* ===================================
-   LIST STYLES - Prevent overflow
-   =================================== */
-
-#diagnostics-content ul {
-    list-style: none !important;
-    padding-left: 0 !important;
-}
-
-#diagnostics-content ul li {
-    word-wrap: break-word !important;
-    word-break: break-word !important;
-    overflow-wrap: break-word !important;
-}
-
-/* Prevent long text in list items from overflowing */
-#diagnostics-content ul li strong {
-    display: inline-block !important;
-}
-
-/* Handle break-all class specifically */
-#diagnostics-content .break-all {
-    word-break: break-all !important;
-    overflow-wrap: anywhere !important;
-}
-
-/* ===================================
-   TABLE STYLES - Prevent overflow
-   =================================== */
-
-/* Make table containers scrollable */
-#diagnostics-content .overflow-x-auto {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-}
-
-/* Ensure tables fill container width and don't overflow */
-#diagnostics-content table {
-    width: 100% !important;
-    max-width: 100% !important;
-    table-layout: auto !important;
-}
-
-/* Make table cells wrap text instead of expanding */
-#diagnostics-content table td,
+/* ---- Tables ---- */
+/* the table box: one bordered, rounded container (--radius-table) on the card colour; overflow: auto clips the
+   header and the last row to the corners and still lets a sticky header stick inside it */
+#diagnostics-content .ui-table-wrap { border: 1px solid var(--os-border); border-radius: var(--radius-table, 10px); overflow: auto; min-width: 0; background: var(--os-card); }
+#diagnostics-content .ui-table-wrap + .ui-pagebar, #diagnostics-content .ui-table-wrap + .ui-pager { margin-top: 8px; }
+#diagnostics-content table { width: 100%; max-width: 100%; border-collapse: collapse; font-size: 12.5px; table-layout: auto; }
+#diagnostics-content table.ui-table { table-layout: auto; }   /* the marked tables (the migrated templates); the generic rules above style every table the same */
 #diagnostics-content table th {
-    word-wrap: break-word !important;
-    word-break: break-word !important;
-    max-width: 300px !important;
+    font-size: 12px; line-height: 1.45; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); font-weight: 600;
+    text-align: left; padding: 6px 10px; background: var(--os-card-secondary); border-bottom: 1px solid var(--os-border); white-space: nowrap;
+}
+#diagnostics-content table td { padding: 5px 10px; height: 32px; line-height: 1.4; border-bottom: 1px solid var(--os-border); vertical-align: middle; font-size: 12.5px; overflow-wrap: anywhere; }
+#diagnostics-content table tr:last-child td { border-bottom: 0; }
+#diagnostics-content table tbody tr:nth-child(even):not(.ui-row-warn):not(.ui-row-bad):not(.ui-open):not(.ui-xrow-panel) td { background-color: color-mix(in srgb, var(--os-card-secondary) 45%, transparent); }
+#diagnostics-content table tbody tr:hover:not(.ui-row-warn):not(.ui-row-bad):not(.ui-xrow-panel) td { background-color: var(--os-card-secondary); }
+#diagnostics-content table td.ui-match-none { text-align: center; color: var(--os-text-secondary); padding: 14px 10px; }
+#diagnostics-content table td.ui-nowrap { white-space: nowrap; }   /* a cell of chips or short facts that stays on its row */
+#diagnostics-content table td.ui-nowrap .ui-chips { flex-wrap: nowrap; gap: 6px; }
+#diagnostics-content table tbody tr.cursor-pointer { cursor: pointer; }
+#diagnostics-content table .ui-num, #diagnostics-content table th.ui-num, #diagnostics-content table td.ui-num { text-align: right; font-variant-numeric: tabular-nums; }
+#diagnostics-content table th[onclick], #diagnostics-content table th.cursor-pointer, #diagnostics-content [aria-sort] { cursor: pointer; user-select: none; }
+/* the active column (aria-sort on the header cell: a <th> of any table or a grid header cell such as the Audit events table's)
+   reads in the primary colour and carries the marker; a cell whose sort button is the shared include's (.lc-sort draws its own) gets none from the cell */
+#diagnostics-content table th[aria-sort="descending"]:not(:has(.lc-sort))::after { content: " \25BE"; }
+#diagnostics-content table th[aria-sort="ascending"]:not(:has(.lc-sort))::after { content: " \25B4"; }
+#diagnostics-content [aria-sort] { color: var(--os-text-primary); }
+#diagnostics-content [aria-sort] .lc-sort { color: inherit; }
+#diagnostics-content table th i.fas { display: none; }   /* the older templates' sort arrows: aria-sort draws the marker */
+#diagnostics-content table td.whitespace-pre-wrap, #diagnostics-content table td.break-all { white-space: pre-wrap; word-break: break-all; }
+#diagnostics-content .overflow-x-auto { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* a wide table scrolls sideways inside its wrapper (the script wraps every table that has none) */
+#diagnostics-content .ui-table-wrap > table, #diagnostics-content .overflow-x-auto > table { width: max-content; min-width: 100%; }
+@media (max-width: 640px) {
+  /* every table stacks: each row a block, each cell a line with its header's text in front (data-label, filled by the script) */
+  #diagnostics-content table.ui-table, #diagnostics-content table.ui-table tbody, #diagnostics-content table.ui-table tr, #diagnostics-content table.ui-table td { display: block; width: 100%; min-width: 0; max-width: none; }
+  #diagnostics-content table.ui-table thead { display: none; }
+  #diagnostics-content table.ui-table tr { border-bottom: 1px solid var(--os-border); padding: 4px 0; }
+  #diagnostics-content table.ui-table tr:last-child { border-bottom: 0; }
+  #diagnostics-content table.ui-table td { border: 0; padding: 2px 10px; text-align: left; }
+  #diagnostics-content table.ui-table td:empty { display: none; }
+  #diagnostics-content table.ui-table td[data-label]::before { content: attr(data-label); display: inline-block; min-width: 110px; margin-right: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); }
+  #diagnostics-content table.ui-table.ui-table-flat tr { display: flex; flex-wrap: wrap; gap: 0 10px; }
+}
+/* the count lines (Showing N of N) */
+#diagnostics-content [id$="-count"], #diagnostics-content [id*="Count"] { font-size: 12px; color: var(--os-text-secondary); }
+
+/* ---- Charts ---- */
+/* the chart box: diagChart.make wraps every canvas in one and sets its height and max-height in pixels (the default
+   280px, 22px per row for category bars within 180..480px, or the template's own fixed wrapper), so the canvas never
+   follows the frame's height; position: relative is what Chart.js wants around a responsive canvas */
+#diagnostics-content .ui-chart { position: relative; width: 100%; min-width: 0; overflow: hidden; }
+#diagnostics-content .ui-chart canvas { width: 100% !important; max-height: 100% !important; }
+#diagnostics-content .ui-chart[hidden], #diagnostics-content [data-chart-card][hidden] { display: none; }
+#diagnostics-content .ui-chart-note { position: absolute; top: 2px; right: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); pointer-events: none; }
+/* several chart cards side by side: three columns on a wide pane, two on a medium one, one under 720px; equal heights */
+#diagnostics-content .ui-grid-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: stretch; min-width: 0; margin-bottom: 12px; }
+#diagnostics-content .ui-grid-charts > * { min-width: 0; margin: 0; display: flex; flex-direction: column; }
+#diagnostics-content .ui-grid-charts > * > .ui-chart { flex: 1 1 auto; }
+/* a per-item chart with many categories (one bar per CPU, node, device) spans the whole grid: data-wide on the card, set by the
+   template or by diagChart from 25 categories up (the bars thin out and the labels show every Nth from 64) */
+#diagnostics-content .ui-grid-charts > [data-wide] { grid-column: 1 / -1; }
+@media (min-width: 1360px) { #diagnostics-content .ui-grid-charts { grid-template-columns: repeat(3, minmax(0, 1fr)); } #diagnostics-content .ui-grid-charts.ui-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px) { #diagnostics-content .ui-grid-charts { grid-template-columns: minmax(0, 1fr); } }
+#diagnostics-content .ui-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); }
+#diagnostics-content .ui-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; background: var(--swatch); }
+#diagnostics-content .ui-bar { display: inline-block; height: 8px; border-radius: 2px; background: var(--os-border); overflow: hidden; vertical-align: 1px; }
+#diagnostics-content .ui-bar i { display: block; height: 100%; border-radius: 2px 0 0 2px; background: var(--os-blue); }
+
+/* ---- The busy state (diagnostics-ui.js: diagBusy) ---- */
+#diagnostics-content .ui-loading::after, #diagnostics-content .ui-status.ui-busy::before, #diagnostics-content .btn.ui-loading::before, #diagnostics-content .ui-busy-pill.ui-busy .ui-busy-pill-text::before,
+.ui-busy-pill.ui-busy .ui-busy-pill-text::before {
+    content: ""; display: inline-block; flex: none; width: 9px; height: 9px; border: 2px solid var(--os-border); border-top-color: var(--os-blue); border-radius: 50%; animation: ui-spin 0.8s linear infinite; vertical-align: -1px;
+}
+#diagnostics-content .ui-loading::after { margin-left: 5px; }
+#diagnostics-content .btn.ui-loading::after { content: none; }
+#diagnostics-content .btn.ui-loading::before { margin-right: 6px; }
+#diagnostics-content .btn.ui-loading, #diagnostics-content button.ui-loading { pointer-events: none; }
+#diagnostics-content .ui-status.ui-busy::before { width: 10px; height: 10px; }
+.ui-busy-pill.ui-busy .ui-busy-pill-text::before { width: 11px; height: 11px; }
+#diagnostics-content .ui-busy-table, #diagnostics-content [aria-busy="true"] { opacity: 0.5; pointer-events: none; transition: opacity 0.15s; }
+#diagnostics-content .ui-progress { position: relative; }
+#diagnostics-content .ui-progress::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; pointer-events: none; z-index: 3; background: linear-gradient(90deg, transparent, var(--os-blue) 50%, transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: ui-slide 1.2s linear infinite; }
+.ui-busy-pill { position: fixed; left: 50%; top: calc(var(--frame-view-bottom, 100vh) - 52px); transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 10px; max-width: calc(100% - 32px); min-width: 0; padding: 6px 8px 6px 12px; border: 1px solid var(--os-border); border-left: 3px solid var(--os-blue); border-radius: var(--radius-control, 8px); background: var(--os-card); color: var(--os-text-primary); font-size: 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18); }
+.ui-busy-pill[hidden] { display: none; }
+.ui-busy-pill.ui-error { border-left-color: var(--chart-bad); }
+.ui-busy-pill-text { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.ui-busy-pill.ui-busy .ui-busy-pill-text { white-space: nowrap; }
+.ui-busy-pill .btn { height: 24px; flex: none; }
+.ui-busy-pill .ui-busy-pill-close { padding: 0 6px; font-size: 14px; line-height: 1; }
+.ui-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+@keyframes ui-spin { to { transform: rotate(360deg); } }
+@keyframes ui-slide { from { background-position: -66.7% 0; } to { background-position: 166.7% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  #diagnostics-content .ui-loading::after, #diagnostics-content .ui-status.ui-busy::before, #diagnostics-content .btn.ui-loading::before, .ui-busy-pill.ui-busy .ui-busy-pill-text::before { animation: none; }
+  #diagnostics-content .ui-progress::before { animation: none; background: var(--os-blue); }   /* a still bar instead of the sliding one */
+  #diagnostics-content .ui-busy-table, #diagnostics-content [aria-busy="true"] { transition: none; }
 }
 
-/* Allow pre-wrap cells to wrap properly */
-#diagnostics-content table td.whitespace-pre-wrap,
-#diagnostics-content table td.break-all {
-    white-space: pre-wrap !important;
-    word-break: break-all !important;
+/* ---- The Findings strip (tabs/_ui.html findings(), parsers/findings.py): worst first, a square left accent per severity ---- */
+#diagnostics-content .ui-findings { margin-bottom: 12px; border: 1px solid var(--os-border); border-radius: var(--radius-sm, 8px); background: var(--os-card); min-width: 0; overflow: hidden; }
+#diagnostics-content .ui-findings-head { padding: 6px 10px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); background: var(--os-card-secondary); border-bottom: 1px solid var(--os-border); }
+#diagnostics-content .ui-findings-list { list-style: none; margin: 0; padding: 0; }
+#diagnostics-content .ui-finding { display: flex; align-items: flex-start; gap: 10px; padding: 6px 10px 6px 7px; border-left: 3px solid var(--os-border); border-bottom: 1px solid var(--os-divider); font-size: 12.5px; min-width: 0; }
+#diagnostics-content .ui-finding:last-child { border-bottom: 0; }
+#diagnostics-content .ui-finding-bad { border-left-color: var(--chart-bad); }
+#diagnostics-content .ui-finding-warn { border-left-color: var(--chart-warn); }
+#diagnostics-content .ui-finding-info { border-left-color: var(--chart-info); }
+#diagnostics-content .ui-finding-good { border-left-color: var(--chart-good); }
+#diagnostics-content .ui-finding .ui-badge { flex: 0 0 auto; margin-top: 1px; min-width: 46px; justify-content: center; }
+#diagnostics-content .ui-finding-body { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; }
+#diagnostics-content .ui-finding-title { font-weight: 600; color: var(--os-text-primary); overflow-wrap: anywhere; }
+#diagnostics-content .ui-finding-detail { color: var(--os-text-secondary); overflow-wrap: anywhere; }
+#diagnostics-content .ui-finding-link { flex: 0 0 auto; align-self: center; }
+
+/* a table row that carries a finding (a unit at its task limit, a filesystem over 90%): the role's tint under its cells */
+#diagnostics-content table tr.ui-row-warn td { background-color: var(--btn-warning-tint); }
+#diagnostics-content table tr.ui-row-bad td { background-color: var(--btn-danger-bg-hover); }
+/* a reference block folded away (a legend): the summary reads like a card title */
+#diagnostics-content details.ui-details > summary { cursor: pointer; list-style: none; display: block; user-select: none; }
+#diagnostics-content details.ui-details > summary:focus-visible { outline: 2px solid var(--os-blue); outline-offset: 2px; border-radius: 4px; }
+#diagnostics-content details.ui-details > summary > * { display: inline; }
+#diagnostics-content details.ui-details > summary::before { content: "\25B8"; display: inline-block; width: 14px; color: var(--os-text-secondary); }
+#diagnostics-content details.ui-details[open] > summary::before { content: "\25BE"; }
+#diagnostics-content details.ui-details > summary::-webkit-details-marker { display: none; }
+
+/* ---- The pager (diagnostics-ui.js: diagPager) and the page bar around it ---- */
+#diagnostics-content .ui-pager { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+#diagnostics-content .ui-pager[hidden] { display: none; }
+#diagnostics-content .ui-pager .ui-pager-btn { height: 30px; min-width: 32px; padding: 0 8px; }
+#diagnostics-content .ui-pager .ui-pager-btn svg { width: 14px; height: 14px; }
+#diagnostics-content .ui-pager .ui-pager-numbers { display: inline-flex; align-items: center; gap: 4px; }
+#diagnostics-content .ui-pager .ui-pager-gap { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 30px; color: var(--os-text-secondary); font-size: 12px; }
+#diagnostics-content .ui-pager .ui-pager-compact { display: none; font-size: 12px; color: var(--os-text-secondary); padding: 0 6px; white-space: nowrap; }
+#diagnostics-content .ui-pager .ui-pager-goto .ui-input { width: 72px; height: 30px; }
+@media (max-width: 640px) {
+  #diagnostics-content .ui-pager .ui-pager-numbers, #diagnostics-content .ui-pager .ui-pager-first, #diagnostics-content .ui-pager .ui-pager-last, #diagnostics-content .ui-pager .ui-pager-goto { display: none; }
+  #diagnostics-content .ui-pager .ui-pager-compact { display: inline-flex; }
+}
+/* the row around a paged table: the status on the left, rows-per-page and the pager on the right, wrapping cleanly */
+#diagnostics-content .ui-pagebar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; min-width: 0; margin: 8px 0; }
+#diagnostics-content .ui-pagebar .ui-status { margin: 0; }
+#diagnostics-content .ui-pagebar-right { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-left: auto; }
+#diagnostics-content .ui-pagebar-right .ui-rows { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--os-text-secondary); white-space: nowrap; }
+#diagnostics-content .ui-toolbar .ui-status { margin-left: auto; }
+/* a one-line cell (a command line): cut with an ellipsis, the whole text in the title and in the expand row */
+/* a one-line cell (a command, a unit, a namespace): cut with an ellipsis between 16 and 48 characters, the whole value in its title */
+#diagnostics-content table td.ui-cmd { max-width: 48ch; min-width: 16ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono, monospace); font-size: 12px; }
+#diagnostics-content table tr.ui-expandable { cursor: pointer; }
+#diagnostics-content table tr.ui-expand-row td { padding: 0; border-bottom: 1px solid var(--os-border); }
+#diagnostics-content .ui-expand-body { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; background: var(--os-card-secondary); }
+#diagnostics-content .ui-expand-body pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono, monospace); font-size: 12px; }
+#diagnostics-content .ui-expand-body .ui-expand-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--os-text-secondary); }
+/* a small menu (a details element) with checkboxes, e.g. the columns to show */
+#diagnostics-content details.ui-menu { position: relative; display: inline-block; }
+#diagnostics-content details.ui-menu > summary { list-style: none; cursor: pointer; }
+#diagnostics-content details.ui-menu > summary::-webkit-details-marker { display: none; }
+#diagnostics-content details.ui-menu > .ui-menu-body { position: absolute; right: 0; z-index: 5; min-width: 180px; margin-top: 4px; padding: 8px 10px; border: 1px solid var(--os-border); border-radius: var(--radius-sm, 8px); background: var(--os-card); box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.15)); display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+#diagnostics-content details.ui-menu > .ui-menu-body label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
+/* ---- Layout helpers the older templates rely on ---- */
+#diagnostics-content .grid { max-width: 100%; }
+#diagnostics-content .grid > * { min-width: 0; }
+#diagnostics-content ul { list-style: none; padding-left: 0; }
+#diagnostics-content ul li { overflow-wrap: anywhere; }
+#diagnostics-content ul li strong { display: inline-block; }
+#diagnostics-content .break-all { word-break: break-all; overflow-wrap: anywhere; }
+#diagnostics-content .ui-scroll { overflow: auto; }
+
+/* ---- Charts and SVG: text and grid follow the tokens (the series keep their own colours) ---- */
+#diagnostics-content svg text { fill: var(--os-text-secondary); }
+#diagnostics-content .chart-grid line, #diagnostics-content .grid line { stroke: var(--os-border); stroke-opacity: 0.5; }
+
+/* ---- Older templates' hand-coloured markup: the tokens win ---- */
+#diagnostics-content .bg-white, #diagnostics-content .bg-gray-50, #diagnostics-content .bg-gray-100, #diagnostics-content .bg-gray-200, #diagnostics-content .bg-gray-300, #diagnostics-content .bg-gray-600, #diagnostics-content .bg-gray-700, #diagnostics-content .bg-gray-800, #diagnostics-content .bg-gray-900 { background-color: var(--os-card-secondary); color: var(--os-text-primary); }
+#diagnostics-content .text-gray-500, #diagnostics-content .text-gray-600, #diagnostics-content .text-gray-700, #diagnostics-content .text-gray-400 { color: var(--os-text-secondary); }
+#diagnostics-content .text-gray-900, #diagnostics-content .text-gray-800, #diagnostics-content .text-gray-100, #diagnostics-content .text-gray-200, #diagnostics-content .text-gray-300 { color: var(--os-text-primary); }
+#diagnostics-content .border-gray-200, #diagnostics-content .border-gray-300, #diagnostics-content .border-gray-600, #diagnostics-content .border-gray-700, #diagnostics-content .border-b, #diagnostics-content .border-t, #diagnostics-content .border { border-color: var(--os-border); }
+#diagnostics-content .shadow-md, #diagnostics-content .shadow-lg, #diagnostics-content .shadow-sm { box-shadow: none; }
+
+/* ---- The tokens of the shared components (the app's --radius-* scale, one spacing step) ---- */
+#diagnostics-content { --ui-gap: 8px; --radius-table: var(--radius-md, 10px);
+  /* the categorical palette (src/index.css per theme) under the names the pages use: --lc-c0..7 (Log Collection), .ui-cat-1..8 */
+  --lc-c0: var(--chart-cat-1); --lc-c1: var(--chart-cat-2); --lc-c2: var(--chart-cat-3); --lc-c3: var(--chart-cat-4);
+  --lc-c4: var(--chart-cat-5); --lc-c5: var(--chart-cat-6); --lc-c6: var(--chart-cat-7); --lc-c7: var(--chart-cat-8); }
+#diagnostics-content .ui-cat-1 { --swatch: var(--chart-cat-1); }
+#diagnostics-content .ui-cat-2 { --swatch: var(--chart-cat-2); }
+#diagnostics-content .ui-cat-3 { --swatch: var(--chart-cat-3); }
+#diagnostics-content .ui-cat-4 { --swatch: var(--chart-cat-4); }
+#diagnostics-content .ui-cat-5 { --swatch: var(--chart-cat-5); }
+#diagnostics-content .ui-cat-6 { --swatch: var(--chart-cat-6); }
+#diagnostics-content .ui-cat-7 { --swatch: var(--chart-cat-7); }
+#diagnostics-content .ui-cat-8 { --swatch: var(--chart-cat-8); }
+
+
+/* ---- The filter bar: one wrapping row; the search first (220..360px), selects sized to their content (140..260px),
+   number fields 90px wide with their label in front, checkboxes inline, the status and the rows-per-page at the end.
+   Every gap is --ui-gap; a label never sits above its control. ---- */
+#diagnostics-content .ui-filterbar, #diagnostics-content .ui-toolbar { display: flex; flex-wrap: wrap; gap: var(--ui-gap); align-items: center; min-width: 0; margin-bottom: 8px; }
+#diagnostics-content .ui-filterbar .ui-field, #diagnostics-content .ui-toolbar .ui-field { flex: 1 1 220px; min-width: 220px; max-width: 360px; }
+#diagnostics-content .ui-filterbar .ui-field.ui-wide { flex-basis: 260px; max-width: 360px; }
+#diagnostics-content .ui-filterbar .ui-field.ui-narrow { flex: 0 1 160px; min-width: 120px; max-width: 220px; }
+#diagnostics-content .ui-filterbar .ui-select-wrap, #diagnostics-content .ui-toolbar .ui-select-wrap { flex: 0 0 auto; width: auto; min-width: 140px; max-width: 260px; }
+#diagnostics-content .ui-filterbar .ui-select-wrap.ui-narrow { min-width: 96px; }
+#diagnostics-content .ui-filterbar .ui-select-wrap > select { width: 100%; padding-right: 26px; text-overflow: ellipsis; }
+#diagnostics-content .ui-filterbar .ui-rows, #diagnostics-content .ui-filterbar .ui-numfield, #diagnostics-content .ui-filterbar .ui-check-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--os-text-secondary); white-space: nowrap; }
+#diagnostics-content .ui-filterbar .ui-rows .ui-select-wrap { min-width: 72px; }
+#diagnostics-content .ui-filterbar .ui-numfield .ui-input { width: 90px; }
+#diagnostics-content .ui-filterbar .ui-end { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--ui-gap); margin-left: auto; min-width: 0; }
+#diagnostics-content .ui-filterbar .ui-status { margin-left: auto; }
+#diagnostics-content .ui-filterbar .ui-end .ui-status { margin-left: 0; }
+#diagnostics-content .ui-filterbar .ui-chips { gap: 6px; }
+@media (max-width: 640px) {
+  #diagnostics-content .ui-filterbar .ui-field, #diagnostics-content .ui-filterbar .ui-field.ui-wide, #diagnostics-content .ui-filterbar .ui-field.ui-narrow { flex-basis: 100%; max-width: none; min-width: 0; }
+  #diagnostics-content .ui-filterbar .ui-select-wrap { max-width: 100%; }
+  #diagnostics-content .ui-filterbar .ui-end { margin-left: 0; }
 }
 
-/* Smaller font size for tables to fit more content */
-#diagnostics-content table {
-    font-size: 0.75rem !important;
-}
+/* ---- The meter: a percentage bar whose fill colour is its role (the Findings thresholds: ok = the accent, warn,
+   bad, muted), the track a tint that contrasts with a plain and a tinted row; the value after it ---- */
+#diagnostics-content .ui-meter { display: inline-flex; align-items: center; gap: 8px; width: 100%; min-width: 120px; max-width: 220px; }
+#diagnostics-content .ui-meter-track { position: relative; z-index: 1; flex: 1 1 auto; height: 10px; min-width: 60px; border-radius: 2px; overflow: hidden; background: color-mix(in srgb, var(--os-text-secondary) 24%, transparent); }
+#diagnostics-content .ui-meter-fill { display: block; height: 100%; min-width: 0; background: var(--chart-ok); }
+#diagnostics-content .ui-meter[data-role="good"] .ui-meter-fill { background: var(--chart-good); }
+#diagnostics-content .ui-meter[data-role="warn"] .ui-meter-fill { background: var(--chart-warn); }
+#diagnostics-content .ui-meter[data-role="bad"] .ui-meter-fill { background: var(--chart-bad); }
+#diagnostics-content .ui-meter[data-role="muted"] .ui-meter-fill { background: var(--chart-muted); }
+#diagnostics-content .ui-meter-value { flex: 0 0 auto; min-width: 3.2em; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--os-text-primary); }
 
-#diagnostics-content table th {
-    font-size: 0.75rem !important;
-    font-weight: 600 !important;
-}
-
-#diagnostics-content table td {
-    font-size: 0.75rem !important;
-}
-
-/* Table row hover effect */
-#diagnostics-content table tbody tr {
-    transition: background-color 0.15s ease !important;
-}
-
-#diagnostics-content table tbody tr:hover {
-    background-color: var(--os-card-secondary) !important;
-}
-
-/* Cursor pointer for clickable rows */
-#diagnostics-content table tbody tr.cursor-pointer {
-    cursor: pointer !important;
-}
-
-/* Count displays (Showing N of N entries) */
-#diagnostics-content [id$="-count"],
-#diagnostics-content [id*="Count"] {
-    font-size: 0.75rem !important;
-    color: var(--os-text-secondary) !important;
-}
-
-/* ===================================
-   DARK MODE
-   Every colour above is an os-* token (src/index.css defines them for the
-   light theme, the Jacaranda dark, the neutral dark and the gradient themes),
-   so there are no dark-mode colour overrides: the frame mirrors the app's
-   theme attributes onto its <html> and the tokens follow.
-   =================================== */
-
-/* ===================================
-   SELECTED PAGINATION PAGE
-   Outlined style (transparent background + blue border) so the current page is
-   clearly distinguished from the solid-blue page buttons - in BOTH light and
-   dark themes, and independent of :hover (a plain darker background reads as a
-   hover state, and the class-based approaches get flattened by the button rules
-   above). High-specificity selectors so this wins over
-   #...button.px-3.py-1.rounded (which would otherwise force one solid blue).
-   Templates mark the active page button with class="... current-page".
-   =================================== */
-#diagnostics-content button.current-page,
-#diagnostics-content button.px-3.py-1.current-page,
-#diagnostics-content button.px-3.py-1.rounded.current-page,
-#diagnostics-content button.current-page:hover:not(:disabled),
-#diagnostics-content button.px-3.py-1.rounded.current-page:hover:not(:disabled) {
-    background-color: transparent !important;
-    border: 2px solid var(--os-blue) !important;
-    color: var(--os-blue) !important;
-    font-weight: 500 !important;
-    box-shadow: none !important;
+/* ---- Expandable rows: the chevron cell, the whole row clickable, the open row selected with a square accent,
+   the panel row flush with the table's content on the secondary card colour ---- */
+#diagnostics-content table th.ui-xrow-th, #diagnostics-content table td.ui-xrow-cell { width: 30px; min-width: 30px; padding-left: 6px; padding-right: 0; }
+#diagnostics-content table tr.ui-xrow { cursor: pointer; }
+#diagnostics-content table tr.ui-xrow:focus-visible { outline: 2px solid var(--os-blue); outline-offset: -2px; }
+#diagnostics-content .ui-xrow-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: var(--radius-xs, 6px); background: transparent; color: var(--os-text-secondary); cursor: pointer; }
+#diagnostics-content .ui-xrow-btn svg { width: 14px; height: 14px; transition: transform 0.15s ease; }
+#diagnostics-content .ui-xrow-btn:hover { color: var(--os-text-primary); background: var(--os-card-secondary); }
+#diagnostics-content .ui-xrow-btn:focus-visible { outline: 2px solid var(--os-blue); outline-offset: 1px; }
+#diagnostics-content table tr.ui-xrow.ui-open td { background-color: color-mix(in srgb, var(--os-blue) 9%, transparent); border-bottom-color: transparent; }
+#diagnostics-content table tr.ui-xrow.ui-open td:first-child { box-shadow: inset 3px 0 0 var(--os-blue); }
+#diagnostics-content table tr.ui-xrow.ui-open.ui-row-warn td:first-child { box-shadow: inset 3px 0 0 var(--chart-warn); }
+#diagnostics-content table tr.ui-xrow.ui-open.ui-row-bad td:first-child { box-shadow: inset 3px 0 0 var(--chart-bad); }
+#diagnostics-content table tr.ui-xrow.ui-open .ui-xrow-btn svg { transform: rotate(90deg); }
+#diagnostics-content table tr.ui-xrow-panel > td { padding: 0; height: auto; background: var(--os-card-secondary); }
+#diagnostics-content table tr.ui-xrow-panel:hover > td { background: var(--os-card-secondary); }
+#diagnostics-content .ui-xrow-body { margin-left: 30px; padding: 10px 12px 12px 10px; border-left: 1px solid var(--os-border); font-size: 12.5px; }
+#diagnostics-content .ui-xrow-body > * + * { margin-top: 10px; }
+#diagnostics-content .ui-xrow-actions { display: flex; flex-wrap: wrap; gap: var(--ui-gap); align-items: center; }
+/* the key/value grid of a panel: the label column like a table header, the values in the body font */
+#diagnostics-content .ui-kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px 20px; margin: 0; }
+#diagnostics-content .ui-kv > div { display: grid; grid-template-columns: minmax(96px, 128px) 1fr; gap: 8px; align-items: baseline; min-width: 0; }
+#diagnostics-content .ui-kv dt { font-size: 11px; line-height: 1.5; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); font-weight: 600; margin: 0; }
+#diagnostics-content .ui-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; color: var(--os-text-primary); }
+#diagnostics-content .ui-kv-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); font-weight: 600; margin: 0 0 4px; }
+#diagnostics-content .ui-mono, #diagnostics-content .ui-kv dd.ui-mono, #diagnostics-content .ui-xrow-body pre { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; }
+#diagnostics-content .ui-xrow-body pre { margin: 0; padding: 8px 10px; border: 1px solid var(--os-border); border-radius: var(--radius-sm, 8px); background: var(--os-card); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; }
+#diagnostics-content .ui-copy { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; margin-left: 6px; font-size: 11px; vertical-align: middle; }
+#diagnostics-content .ui-copy.ui-copied { color: var(--btn-success-text); }
+#diagnostics-content .ui-files { margin: 0; padding: 0; list-style: none; }
+#diagnostics-content .ui-files li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* flag chips (lspci's Control / Status lines): on = set, bad = an error flag that is set */
+#diagnostics-content .ui-flags { display: flex; flex-wrap: wrap; gap: 4px; }
+#diagnostics-content .ui-flag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border: 1px solid var(--os-border); border-radius: 999px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; color: var(--os-text-secondary); background: var(--os-card); }
+#diagnostics-content .ui-flag.ui-flag-on { color: var(--os-text-primary); border-color: color-mix(in srgb, var(--os-blue) 40%, transparent); background: color-mix(in srgb, var(--os-blue) 10%, transparent); }
+#diagnostics-content .ui-flag.ui-flag-bad { color: var(--btn-danger-fg); border-color: color-mix(in srgb, var(--chart-bad) 50%, transparent); background: var(--btn-danger-bg-hover); font-weight: 600; }
+@media (max-width: 640px) {
+  #diagnostics-content table.ui-table td.ui-xrow-cell { display: inline-block; width: auto; padding: 2px 6px; }
+  #diagnostics-content table.ui-table tr.ui-xrow-panel > td { padding: 0; }
+  #diagnostics-content .ui-xrow-body { margin-left: 0; border-left: 0; }
+  #diagnostics-content .ui-kv > div { grid-template-columns: 96px 1fr; }
 }

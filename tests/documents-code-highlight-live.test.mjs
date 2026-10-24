@@ -52,6 +52,7 @@ import { launchElectronDocumentsApp } from './helpers/electron-app.mjs';
 import {
   createNewDocument, setEditorContent, clickPreviewButton, exportDocumentPdf, sleep,
 } from './helpers/live-documents-app.mjs';
+import { luminance, parseCssColor } from './helpers/color.mjs';
 
 
 const results = [];
@@ -60,12 +61,10 @@ function check(name, cond, detail) {
   console.log(`${cond ? 'PASS' : 'FAIL'}: ${name}${detail ? ' | ' + detail : ''}`);
 }
 
-// Relative luminance of an "rgb(r, g, b)" string (for the dark-background check).
-function lum(rgb) {
-  const m = rgb.match(/(\d+),\s*(\d+),\s*(\d+)/);
-  if (!m) return 1;
-  const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
-  return 0.2126 * f(+m[1]) + 0.7152 * f(+m[2]) + 0.0722 * f(+m[3]);
+// Relative luminance of a computed colour string, any syntax (for the dark-background check).
+function lum(css) {
+  const c = parseCssColor(css);
+  return c ? luminance(c) : 1;
 }
 
 // ---------- synthetic document ----------

@@ -50,7 +50,7 @@ export default function SSHCommandVariablesModal({ command, values, onChange, on
             <button
               onClick={onSubmit}
               disabled={Object.values(values).some(v => !v.trim())}
-              className="px-3 py-1.5 bg-os-blue hover:bg-blue-600 text-white rounded-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs"
+              className="btn btn-primary px-3 py-1.5 text-xs"
             >
               Insert Command
             </button>

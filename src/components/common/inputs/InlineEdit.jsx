@@ -159,7 +159,7 @@ export default function InlineEdit({
           <button
             type="button"
             onClick={handleSave}
-            className="p-1 hover:bg-green-100 rounded-sm text-green-600 transition-colors"
+            className="btn btn-success-ghost p-1"
             title="Save (Enter)"
           >
             <Check size={16} />
@@ -167,7 +167,7 @@ export default function InlineEdit({
           <button
             type="button"
             onClick={handleCancel}
-            className="p-1 hover:bg-red-100 rounded-sm text-red-600 transition-colors"
+            className="btn btn-danger-ghost p-1"
             title="Cancel (Esc)"
           >
             <X size={16} />

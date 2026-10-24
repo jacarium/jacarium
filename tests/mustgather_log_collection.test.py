@@ -151,7 +151,7 @@ def main():
     check("the size bars: files relative to the largest file (the 12 MiB log = 100%, a 9 KiB log 0.1%), directories relative to the largest directory (namespaces/ = 100%, audit_logs/ 16.7%)",
           bars["demo-app/demo-web-1/web (previous.log)"] == 100.0 and bars["demo-app/demo-web-1/web (current.log)"] == 0.1 and bars["namespaces/"] == 100.0 and abs(bars["audit_logs/"] - round(100.0 * (2 * 1024 * 1024 + 64 * K) / (40 * K + 9 * K + 12 * 1024 * 1024 + 9 * K + 200 + 300 * K), 1)) < 0.051, str({k: bars[k] for k in list(bars)[:6]}))
     check("one Name / Size header pair (Size selected), six section chips, the search box, the band with the top-level split and the largest file (the 12 MiB previous log), no Open Log Viewer button, the header line",
-          html.count('class="lc-sort lc-sorted" data-key="size"') == 1 and html.count('class="lc-chip" data-section=') == 6 and 'id="lc-search"' in html and 'id="lc-stack"' in html
+          html.count('class="lc-sort lc-sorted" data-key="size"') == 1 and html.count('class="ui-chip lc-chip" data-section=') == 6 and 'id="lc-search"' in html and 'id="lc-stack"' in html
           and "demo-app/demo-web-1/web (previous.log)" in html.split('id="lc-largest"')[1][:400] and "log-collection-open-viewer" not in html and "19 files" in html and "26.1 MiB" in html, html[:300])
     lcd = mg.parse(root)["log_collection"]
     check("the band's split: the top-level entries by size with their share, summing to 100%", [b["label"] for b in lcd["bar"]][:3] == ["namespaces/", "host_service_logs/", "audit_logs/"] and abs(sum(b["pct"] for b in lcd["bar"]) - 100.0) < 0.3 and lcd["largest"]["name"] == "demo-app/demo-web-1/web (previous.log)", str(lcd["bar"]))
@@ -165,7 +165,7 @@ def main():
     check("file and namespace names are escaped", "<script>alert(1)" not in html and "<img src=x" not in html and "&lt;script&gt;" in html and "&lt;img" in html, html[-400:])
     d, h = tab(empty)
     html = (h.get_json() or {}).get("html", "")
-    check("the empty state", h.status_code == 200 and "Nothing to size" in html and 'class="lc-row"' not in html, html[-300:])
+    check("no logs: the Findings say so, no rows, no empty-state block", h.status_code == 200 and "No logs in this must-gather" in html and 'class="lc-row"' not in html and "Nothing to size" not in html, html[-300:])
     src = open(os.path.join(BACKEND, "templates", "tabs", "mustgather_log_collection.html")).read()
     check("the template: no marked-safe output, no Font Awesome, no &nbsp;, no utility grid/colour classes, no innerHTML, the lc-* classes of the sosreport page",
           "|safe" not in src and 'class="fas' not in src and "&nbsp;" not in src and not any(c in src for c in ("grid-cols-", "col-span-", "bg-gray-", "text-gray-", "md:")) and "innerHTML" not in src and 'import "tabs/_log_collection.html"' in src)
@@ -175,9 +175,9 @@ def main():
     mock_generate.main(["--out", out, "--no-archives"])
     lc = mg.parse(os.path.join(out, mock_generate.MG_NAME))["log_collection"]
     sections = {s["key"]: s for s in lc["sections"]}
-    check("the mock must-gather: all six sections, the workers' kubelet log the largest host service log, kube-apiserver/master-0 the largest audit log, every section largest first",
+    check("the mock must-gather: all six sections, the workers' kubelet log the largest host service log, a kube-apiserver file the largest audit log, every section largest first",
           list(sections) == ["top", "namespaces", "pod_logs", "host", "audit", "network"] and sections["host"]["rows"][0]["name"] == "workers/kubelet_service.log"
-          and sections["audit"]["rows"][0]["name"].startswith("kube-apiserver/master-0") and all([i["size"] for i in s["rows"]] == sorted([i["size"] for i in s["rows"]], reverse=True) for s in sections.values()),
+          and sections["audit"]["rows"][0]["name"].startswith("kube-apiserver/") and all([i["size"] for i in s["rows"]] == sorted([i["size"] for i in s["rows"]], reverse=True) for s in sections.values()),
           str([(k, s["rows"][0]["name"]) for k, s in sections.items()]))
 
     print(f"\n{'All checks passed' if not FAILED else str(FAILED) + ' check(s) failed'}")

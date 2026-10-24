@@ -493,7 +493,7 @@ export default function SettingsModal({
                 className={`
  sc-rail-tab sm:w-full flex items-center px-3 py-2 text-xs transition-colors rounded-sm whitespace-nowrap focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40
  ${activeTab === category.id
- ?'bg-blue-600 text-white'
+ ?'btn-selected'
  :'text-os-text-secondary hover:text-os-text-primary hover:bg-os-card-secondary dark:hover:bg-os-sidebar-hover'
  }
 `}
@@ -565,7 +565,7 @@ export default function SettingsModal({
                     <div role="radiogroup" aria-label="Settings scope" className="flex flex-wrap items-center gap-1">
                       {scopeOptions.map(([id, label]) => (
                         <button key={id} type="button" role="radio" aria-checked={scope === id} data-testid={`scope-${id}`} onClick={() => chooseScope(id)}
-                          className={`sc-btn sc-btn-segment px-2 py-1 rounded-sm border text-xs transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 ${scope === id ?'bg-blue-600 border-blue-600 text-white':'border-os-input-border text-os-text-secondary hover:bg-os-card-secondary'}`}>
+                          className={`sc-btn sc-btn-segment px-2 py-1 rounded-sm border text-xs transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 ${scope === id ?'btn-selected':'border-os-input-border text-os-text-secondary hover:bg-os-card-secondary'}`}>
                           {label}
                         </button>
                       ))}

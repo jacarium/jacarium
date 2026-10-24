@@ -1,7 +1,7 @@
 {
   "name": "jacarium",
   "private": true,
-  "version": "3.3.5",
+  "version": "3.3.6",
   "description": "Everything you know and use for technical work, in one place.",
   "homepage": "https://jacarium.com",
   "desktopName": "com.jacarium.app.desktop",
@@ -39,6 +39,7 @@
     "preview": "vite preview",
     "release": "node scripts/release.cjs",
     "release:tag": "node scripts/release.cjs tag",
+    "deps:urgent": "node scripts/urgent-dep-update.cjs",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "backend:build": "cd backend && bash build_backend.sh",
     "electron:build": "npm run build && electron-builder",
@@ -153,7 +154,7 @@
     "@vitejs/plugin-react": "^5.1.1",
     "chart.js": "^4.5.1",
     "concurrently": "^8.2.2",
-    "electron": "^42.11.14",
+    "electron": "^42.11.16",
     "electron-builder": "^26.15.7",
     "esbuild": "^0.28.1",
     "eslint": "^10.8.0",
@@ -173,6 +174,15 @@
     "katex": "^0.18.2",
     "lodash-es": "^4.18.1",
     "postcss-selector-parser": "^7.1.6",
-    "qs": "^6.16.0"
+    "qs": "^6.16.0",
+    "node-gyp": {
+      "undici": "^6.29.1"
+    },
+    "@electron/get": {
+      "undici": "^7.30.1"
+    },
+    "zod": "^4.6.6",
+    "body-parser": "^1.20.9",
+    "fast-uri": "^3.1.9"
   }
 }

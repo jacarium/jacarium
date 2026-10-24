@@ -153,7 +153,7 @@ export default function DocumentPermissionsModal({
             </select>
             <button
               onClick={handleAddPermission}
-              className="px-4 py-2 bg-purple-600 text-white text-sm hover:bg-purple-700 rounded-sm transition-colors flex items-center gap-2"
+              className="btn btn-brand px-4 py-2 text-sm flex items-center gap-2"
             >
               Add
             </button>
@@ -191,7 +191,7 @@ export default function DocumentPermissionsModal({
                   </div>
                   <button
                     onClick={() => handleRemovePermission(machineId)}
-                    className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 dark:hover:bg-red-900/20 rounded-sm transition-colors"
+                    className="btn btn-danger-ghost p-2"
                     title="Remove permission"
                   >
                     <Trash2 size={16} />
@@ -213,7 +213,7 @@ export default function DocumentPermissionsModal({
         </button>
         <button
           onClick={handleSave}
-          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm hover:bg-purple-700 rounded-sm transition-colors"
+          className="btn btn-brand flex items-center gap-2 px-4 py-2 text-sm"
         >
           Save Permissions
         </button>

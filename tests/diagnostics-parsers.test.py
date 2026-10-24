@@ -103,8 +103,8 @@ def main():
           f"{data.status_code}/{html.status_code} {(data.get_json() or {}).get('error')}")
     dpdk = (data.get_json() or {}).get("data") or {}
     check("DPDK: no PMD threads reported (pmd_stats empty, not an exception)", dpdk.get("pmd_stats") == [], str(dpdk.get("pmd_stats"))[:100])
-    check("DPDK fragment says the data is not available in this report",
-          "DPDK data not available in this report" in (html.get_json() or {}).get("html", ""))
+    check("DPDK fragment says in its Findings that the captures are missing (no empty-state block)",
+          "No Open vSwitch / DPDK captures in this report" in (html.get_json() or {}).get("html", "") and "No Data Available" not in (html.get_json() or {}).get("html", ""))
 
     # 3. dmidecode PSU status order
     dmi_path = os.path.join(sos, "sos_commands", "hardware", "dmidecode")

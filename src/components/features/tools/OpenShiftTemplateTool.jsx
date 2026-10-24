@@ -660,7 +660,7 @@ export default function OpenShiftTemplateTool() {
                 <button
                   onClick={handleSave}
                   disabled={!selectedTemplate}
-                  className="px-3 py-1.5 flex items-center gap-2 bg-os-blue text-white rounded-sm hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  className="btn btn-primary px-3 py-1.5 flex items-center gap-2 text-sm"
                   title="Save template"
                 >
                   Save
@@ -700,7 +700,7 @@ export default function OpenShiftTemplateTool() {
           <div className="border-t border-os-border my-1"></div>
           <button
             onClick={handleDelete}
-            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+            className="w-full px-4 py-2 text-left text-sm text-(--btn-danger-fg) hover:bg-(--btn-danger-bg-hover) flex items-center gap-2"
           >
             <MenuItemIcon action="delete" danger />
             Delete
@@ -778,7 +778,7 @@ export default function OpenShiftTemplateTool() {
                     </select>
                     <button
                       onClick={() => setShowNewCategory(true)}
-                      className="flex items-center gap-2 px-3 py-2 bg-os-blue text-white text-sm hover:bg-blue-600 transition-colors"
+                      className="btn btn-primary flex items-center gap-2 px-3 py-2 text-sm"
                       title="Create new category"
                     >
                       New
@@ -820,7 +820,7 @@ export default function OpenShiftTemplateTool() {
                         onClick={() => setTemplateIcon(iconName)}
                         className={`p-3 border transition-all bg-os-modal flex items-center justify-center ${
  templateIcon === iconName
- ?'border-os-blue bg-blue-50 dark:bg-blue-900/20'
+ ?'btn-selected-soft'
  :'border-os-input-border hover:border-os-blue hover:bg-os-card-secondary'
  }`}
                         title={iconName}
@@ -851,7 +851,7 @@ export default function OpenShiftTemplateTool() {
               </button>
               <button
                 onClick={handleSaveEdit}
-                className="flex items-center gap-2 px-4 py-2 bg-os-blue text-white text-sm hover:bg-blue-600 transition-colors shadow-xs"
+                className="btn btn-primary flex items-center gap-2 px-4 py-2 text-sm"
               >
                 Save Changes
               </button>

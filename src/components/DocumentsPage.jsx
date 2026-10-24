@@ -3521,7 +3521,7 @@ export default function DocumentsPage({
                   <button
                     onClick={confirmBulkDocumentDelete}
                     disabled={bulkDeleteConfirmText !== 'I REALLY DO'}
-                    className="px-4 py-2 bg-red-600 text-white text-sm hover:bg-red-700 transition-colors rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="btn btn-danger-solid px-4 py-2 text-sm"
                   >
                     Delete Documents
                   </button>
@@ -3565,7 +3565,7 @@ export default function DocumentsPage({
                   </select>
                   <button
                     onClick={() => setShowBulkMoveNewCategory(true)}
-                    className="flex items-center gap-2 px-3 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors"
+                    className="btn btn-primary flex items-center gap-2 px-3 py-2 text-sm"
                     title="Create new category"
                   >
                     New
@@ -3611,7 +3611,7 @@ export default function DocumentsPage({
               <button
                 onClick={handleBulkMoveConfirm}
                 disabled={!bulkMoveCategory && !bulkMoveNewCategory.trim()}
-                className="px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn btn-primary px-4 py-2 text-sm"
               >
                 Move Documents
               </button>

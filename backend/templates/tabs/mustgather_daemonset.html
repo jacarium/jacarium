@@ -1,56 +1,41 @@
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 <div id="daemonSetPanel" class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm w-full">
- <div class="mb-2">
- <label class="inline-flex items-center text-xs font-semibold">
- <input type="checkbox" id="show-empty-namespaces" class="form-checkbox">
- <span class="ml-2">Show Empty Namespaces</span>
- </label>
- </div>
- <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
- <div>
- <label for="daemonSetNamespaceFilter" class="block text-xs font-semibold mb-1">Namespaces</label>
- <select id="daemonSetNamespaceFilter" class="w-full px-3 py-2 text-sm border">
+ {% call ui.filter_bar() %}
+    <label class="ui-field">{{ ui.icon('search') }}<input autocomplete="off" data-ui-search aria-label="Search daemon sets" id="daemonSetSearchInput" type="search" placeholder="Search daemon sets..." class="ui-input"></label>
+    <label class="ui-rows">Namespaces<span class="ui-select-wrap"><select aria-label="Namespaces" id="daemonSetNamespaceFilter" class="ui-select">
  <option value="">All</option>
- </select>
- </div>
- <div class="md:col-span-7">
- <label for="daemonSetSearchInput" class="block text-xs font-semibold mb-1">Search All</label>
- <input id="daemonSetSearchInput" type="text" placeholder="Search daemon sets..." class="w-full px-3 py-2 text-sm border" />
- </div>
- </div>
- <div class="flex justify-between items-center mb-2">
- <div id="filteredDaemonSetCount" class="text-sm">Showing all daemon sets</div>
- <div class="flex items-center gap-2">
- <label class="text-xs font-semibold">Per Page:</label>
- <select id="daemonsetPageSizeSelect" onchange="window.changeDaemonsetPageSize()" class="px-3 py-1 text-sm border">
+ </select>{{ ui.icon('chevron') }}</span></label>
+    <label class="ui-check-label" for="show-empty-namespaces"><input type="checkbox" id="show-empty-namespaces" class="ui-check">Show Empty Namespaces</label>
+    {% call ui.end() %}<span class="ui-status" id="filteredDaemonSetCount" aria-live="polite">Showing all daemon sets</span><label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select aria-label="Rows per page" id="daemonsetPageSizeSelect" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { window.changeDaemonsetPageSize(); }) : window.changeDaemonsetPageSize()" class="ui-select">
  <option value="50">50</option>
  <option value="100" selected>100</option>
  <option value="250">250</option>
  <option value="-1">All</option>
- </select>
- </div>
- </div>
- <table class="w-full min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
+ </select>{{ ui.icon('chevron') }}</span></label>{% endcall %}
+  {% endcall %}
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortDaemonSetsBy('namespace')">Namespace <i id="daemonset-indicator-namespace" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortDaemonSetsBy('name')">Name <i id="daemonset-indicator-name" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortDaemonSetsBy('desired')">Desired <i id="daemonset-indicator-desired" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortDaemonSetsBy('current')">Current <i id="daemonset-indicator-current" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortDaemonSetsBy('ready')">Ready <i id="daemonset-indicator-ready" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortDaemonSetsBy('age')">Age <i id="daemonset-indicator-age" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-sorted="ascending" onclick="window.sortDaemonSetsBy('namespace')">Namespace <i id="daemonset-indicator-namespace" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortDaemonSetsBy('name')">Name <i id="daemonset-indicator-name" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortDaemonSetsBy('desired')">Desired <i id="daemonset-indicator-desired" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortDaemonSetsBy('current')">Current <i id="daemonset-indicator-current" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortDaemonSetsBy('ready')">Ready <i id="daemonset-indicator-ready" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortDaemonSetsBy('age')">Age <i id="daemonset-indicator-age" class="ml-1 fas text-sm"></i></th>
  </tr>
  </thead>
  <tbody id="daemonSetTableBody"></tbody>
  </table>
- <div id="daemonsetPaginationButtons" class="flex justify-center items-center gap-2 mt-4"></div>
+ <nav id="daemonsetPaginationButtons" class="ui-pager" aria-label="Pages" hidden></nav>
  </div>
 </div>
 
 <div id="daemonSetDetailsPanel" style="display: none;">
  <div class="space-y-4">
  <div class="mb-4">
- <button onclick="window.backFromDaemonModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ <button onclick="window.backFromDaemonModal()" class="btn btn-secondary flex items-center gap-2">
  Back
  </button>
  </div>
@@ -60,7 +45,7 @@
  <i class="fas fa-info-circle mr-2"></i> Daemon Set Details
  </h3>
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm" id="daemonSetDetailsTable"></table>
+ <table class="ui-table" id="daemonSetDetailsTable"></table>
  </div>
  </div>
 
@@ -73,7 +58,7 @@
  id="daemonSetYamlFilter"
  type="text"
  placeholder="Filter YAML lines..."
- class="w-full px-3 py-2 text-sm border"
+ class="ui-input w-full"
  />
  </div>
  <div id="daemonSetJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
@@ -82,7 +67,7 @@
 </div>
 <script>
  var daemonSetsData = {{ data | tojson }};
- var currentSort = { key: null, direction: 1 };
+ var currentSort = { key: 'namespace', direction: 1 };
  var daemonsetCurrentPage = 1;
  var daemonsetPageSize = 100;
 
@@ -175,21 +160,21 @@
  if(ds.name === 'No daemonsets') {
  row.className = "border-b";
  row.innerHTML = `
- <td class="px-4 py-2">${ds.namespace}</td>
- <td class="px-4 py-2">No Daemon Sets</td>
- <td class="px-4 py-2">-</td>
- <td class="px-4 py-2">-</td>
- <td class="px-4 py-2">-</td>
- <td class="px-4 py-2">-</td>`;
+ <td>${ds.namespace}</td>
+ <td>No Daemon Sets</td>
+ <td>-</td>
+ <td>-</td>
+ <td>-</td>
+ <td>-</td>`;
  } else {
  row.className = "cursor-pointer border-b hover:bg-gray-50 dark:hover:bg-gray-800";
  row.innerHTML = `
- <td class="px-4 py-2">${ds.namespace}</td>
- <td class="px-4 py-2">${ds.name}</td>
- <td class="px-4 py-2">${ds.desired}</td>
- <td class="px-4 py-2">${ds.current}</td>
- <td class="px-4 py-2">${ds.ready}</td>
- <td class="px-4 py-2">${ds.age}</td>`;
+ <td>${ds.namespace}</td>
+ <td>${ds.name}</td>
+ <td>${ds.desired}</td>
+ <td>${ds.current}</td>
+ <td>${ds.ready}</td>
+ <td>${ds.age}</td>`;
  row.addEventListener("click", () => {
  lastClickedRow = row;
  openDaemonSetDetails(ds);
@@ -207,46 +192,8 @@
  }
 
  function updateDaemonsetPagination(totalCount) {
- const totalPages = daemonsetPageSize === -1 ? 1 : Math.ceil(totalCount / daemonsetPageSize);
- const container = document.getElementById("daemonsetPaginationButtons");
- container.innerHTML ="";
-
- if (totalPages <= 1) return;
-
- const prevBtn = document.createElement("button");
- prevBtn.textContent ="Previous";
- prevBtn.className = daemonsetCurrentPage === 1
- ? "px-3 py-1 text-sm bg-gray-300 text-gray-500 cursor-not-allowed"
- : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
- prevBtn.disabled = daemonsetCurrentPage === 1;
- prevBtn.onclick = () => daemonsetCurrentPage > 1 && window.goToDaemonsetPage(daemonsetCurrentPage - 1);
- container.appendChild(prevBtn);
-
- const maxButtons = 5;
- let startPage = Math.max(1, daemonsetCurrentPage - Math.floor(maxButtons / 2));
- let endPage = Math.min(totalPages, startPage + maxButtons - 1);
- if (endPage - startPage < maxButtons - 1) {
- startPage = Math.max(1, endPage - maxButtons + 1);
- }
-
- for (let i = startPage; i <= endPage; i++) {
- const btn = document.createElement("button");
- btn.textContent = i;
- btn.className = i === daemonsetCurrentPage
- ? "px-3 py-1 text-sm bg-blue-700 text-white font-bold current-page"
- : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
- btn.onclick = () => window.goToDaemonsetPage(i);
- container.appendChild(btn);
- }
-
- const nextBtn = document.createElement("button");
- nextBtn.textContent ="Next";
- nextBtn.className = daemonsetCurrentPage === totalPages
- ? "px-3 py-1 text-sm bg-gray-300 text-gray-500 cursor-not-allowed"
- : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
- nextBtn.disabled = daemonsetCurrentPage === totalPages;
- nextBtn.onclick = () => daemonsetCurrentPage < totalPages && window.goToDaemonsetPage(daemonsetCurrentPage + 1);
- container.appendChild(nextBtn);
+   // the shared pager (diagPager): one page -> nothing drawn
+   window.diagPager.render(document.getElementById('daemonsetPaginationButtons'), { total: totalCount, page: daemonsetCurrentPage, pageSize: daemonsetPageSize, go: function (p) { window.goToDaemonsetPage(p); } });
  }
 
  window.goToDaemonsetPage = function(page) {
@@ -291,13 +238,13 @@
  }, 0);
 
  daemonSetDetailsTable.innerHTML = `
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Name:</td><td class="py-2">${ds.name}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Namespace:</td><td class="py-2">${ds.namespace}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Desired:</td><td class="py-2">${ds.desired}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Current:</td><td class="py-2">${ds.current}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Ready:</td><td class="py-2">${ds.ready}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Available:</td><td class="py-2">${ds.available}</td></tr>
- <tr><td class="py-2 pr-4 font-semibold">Age:</td><td class="py-2">${ds.age}</td></tr>`;
+ <tr><td>Name:</td><td>${ds.name}</td></tr>
+ <tr><td>Namespace:</td><td>${ds.namespace}</td></tr>
+ <tr><td>Desired:</td><td>${ds.desired}</td></tr>
+ <tr><td>Current:</td><td>${ds.current}</td></tr>
+ <tr><td>Ready:</td><td>${ds.ready}</td></tr>
+ <tr><td>Available:</td><td>${ds.available}</td></tr>
+ <tr><td>Age:</td><td>${ds.age}</td></tr>`;
 
  // Setup YAML filter
  const yamlFilterInput = document.getElementById('daemonSetYamlFilter');
@@ -340,6 +287,8 @@
  indicators.forEach(icon => {
  icon.classList.remove('fa-caret-up', 'fa-caret-down');
  });
+ const cur = currentSort.key && document.getElementById('daemonset-indicator-' + currentSort.key);
+ if (cur) window.diagTables.markSort(cur, currentSort.direction === 1);
  }
  window.sortDaemonSetsBy = function(key) {
  if (currentSort.key === key) {

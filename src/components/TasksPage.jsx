@@ -1225,13 +1225,13 @@ export default function TasksPage() {
                 <button
                   onClick={checkInstallation}
                   disabled={checkingInstallation}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-sm transition-colors disabled:opacity-50"
+                  className="btn btn-danger-ghost flex items-center gap-2 px-3 py-1.5 text-xs"
                 >
                   Retry
                 </button>
                 <button
                   onClick={() => setInstallBannerDismissed(true)}
-                  className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-sm transition-colors"
+                  className="btn btn-danger-ghost p-1"
                 >
                   <X size={16} className="text-red-600 dark:text-red-400" />
                 </button>
@@ -1281,7 +1281,7 @@ export default function TasksPage() {
 
                 <button
                   onClick={handleBulkDelete}
-                  className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 flex items-center gap-2 transition-colors"
+                  className="btn btn-danger-solid px-4 py-2 flex items-center gap-2"
                 >
                   <span className="text-sm font-medium">Delete Selected</span>
                 </button>
@@ -1378,7 +1378,7 @@ export default function TasksPage() {
                 {/* Add Task */}
                 <button
                   onClick={handleAddTask}
-                  className="p-1.5 bg-os-blue text-white rounded-sm hover:bg-os-blue-hover transition-colors"
+                  className="btn btn-primary p-1.5"
                   title="Add Task"
                 >
                   <Plus size={14} />
@@ -1408,7 +1408,7 @@ export default function TasksPage() {
                     }}
                     className={`px-2 py-1 text-xs transition-colors ${
  statusFilter.includes(status)
- ?'bg-os-blue text-white'
+ ?'btn-selected'
  :'bg-os-card-secondary text-os-text-secondary hover:bg-os-border'
  }`}
                   >
@@ -1427,7 +1427,7 @@ export default function TasksPage() {
                         onClick={() => setProjectFilter(projectFilter === project ? '' : project)}
                         className={`px-2 py-1 text-xs transition-colors ${
  projectFilter === project
- ?'bg-os-blue text-white'
+ ?'btn-selected'
  :'bg-os-card-secondary text-os-text-secondary hover:bg-os-border'
  }`}
                       >
@@ -1448,7 +1448,7 @@ export default function TasksPage() {
                         onClick={() => setTagFilter(tagFilter === tag ? '' : tag)}
                         className={`px-2 py-1 text-xs transition-colors ${
  tagFilter === tag
- ?'bg-os-blue text-white'
+ ?'btn-selected'
  :'bg-os-card-secondary text-os-text-secondary hover:bg-os-border'
  }`}
                       >
@@ -1562,7 +1562,7 @@ export default function TasksPage() {
                         onClick={() => handleToggleSectionSelection(activeTasks)}
                         className={`w-4 h-4 border flex items-center justify-center transition-colors ${
  activeTasks.every(t => selectedTasks.includes(t.id))
- ?'bg-os-blue border-os-blue'
+ ?'btn-selected'
  :'border-os-border/60 hover:border-os-blue'
  }`}
                         title="Select all active tasks"
@@ -1613,7 +1613,7 @@ export default function TasksPage() {
                         onClick={() => handleToggleSectionSelection(pendingTasks)}
                         className={`w-4 h-4 border flex items-center justify-center transition-colors ${
  pendingTasks.every(t => selectedTasks.includes(t.id))
- ?'bg-os-blue border-os-blue'
+ ?'btn-selected'
  :'border-os-border/60 hover:border-os-blue'
  }`}
                         title="Select all pending tasks"
@@ -1664,7 +1664,7 @@ export default function TasksPage() {
                         onClick={() => handleToggleSectionSelection(waitingTasks)}
                         className={`w-4 h-4 border flex items-center justify-center transition-colors ${
  waitingTasks.every(t => selectedTasks.includes(t.id))
- ?'bg-os-blue border-os-blue'
+ ?'btn-selected'
  :'border-os-border/60 hover:border-os-blue'
  }`}
                         title="Select all waiting tasks"
@@ -1715,7 +1715,7 @@ export default function TasksPage() {
                         onClick={() => handleToggleSectionSelection(completedTasks)}
                         className={`w-4 h-4 border flex items-center justify-center transition-colors ${
  completedTasks.every(t => selectedTasks.includes(t.id))
- ?'bg-os-blue border-os-blue'
+ ?'btn-selected'
  :'border-os-border/60 hover:border-os-blue'
  }`}
                         title="Select all completed tasks"
@@ -1766,7 +1766,7 @@ export default function TasksPage() {
                         onClick={() => handleToggleSectionSelection(deletedTasks)}
                         className={`w-4 h-4 border flex items-center justify-center transition-colors ${
  deletedTasks.every(t => selectedTasks.includes(t.id))
- ?'bg-os-blue border-os-blue'
+ ?'btn-selected'
  :'border-os-border/60 hover:border-os-blue'
  }`}
                         title="Select all deleted tasks"
@@ -1833,7 +1833,7 @@ export default function TasksPage() {
                       // Trigger the form in sidebar to open
                       window.dispatchEvent(new CustomEvent('openTaskInstanceForm'));
                     }}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors"
+                    className="btn btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm"
                   >
                     Create Instance
                   </button>

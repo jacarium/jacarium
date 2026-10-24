@@ -285,7 +285,7 @@ const FloatingTiles = ({ onClose, currentMachineId, playerName }) => {
                 {lobbyId && !isSinglePlayer ? (
                   <button
                     onClick={handleJoinLobby}
-                    className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    className="btn btn-success flex-1 px-4 py-3 flex items-center justify-center gap-2"
                   >
                     <Users size={20} />
                     Join Lobby
@@ -293,7 +293,7 @@ const FloatingTiles = ({ onClose, currentMachineId, playerName }) => {
                 ) : (
                   <button
                     onClick={handleCreateLobby}
-                    className="flex-1 px-4 py-3 bg-os-blue hover:bg-os-blue/90 text-white rounded-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    className="btn btn-primary flex-1 px-4 py-3 flex items-center justify-center gap-2"
                   >
                     <Play size={20} />
                     {isSinglePlayer ? 'Start Game' : 'Create Lobby'}
@@ -334,7 +334,7 @@ const FloatingTiles = ({ onClose, currentMachineId, playerName }) => {
               {isHost && players.length === 2 && (
                 <button
                   onClick={handleStartGame}
-                  className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-sm font-medium transition-colors"
+                  className="btn btn-success w-full px-4 py-3"
                 >
                   Start Game
                 </button>
@@ -384,7 +384,7 @@ const FloatingTiles = ({ onClose, currentMachineId, playerName }) => {
               </div>
               <button
                 onClick={() => setGameState(GAME_STATES.SETUP)}
-                className="px-6 py-3 bg-os-blue hover:bg-os-blue/90 text-white rounded-sm font-medium transition-colors flex items-center justify-center gap-2 mx-auto"
+                className="btn btn-primary px-6 py-3 flex items-center justify-center gap-2 mx-auto"
               >
                 <Home size={20} />
                 New Game

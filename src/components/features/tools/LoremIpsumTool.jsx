@@ -111,7 +111,7 @@ export default function LoremIpsumTool() {
           </div>
           <button
             onClick={generateLorem}
-            className="px-4 py-2 bg-os-blue text-white text-sm rounded-sm hover:bg-os-blue-hover transition-colors"
+            className="btn btn-primary px-4 py-2 text-sm"
           >
             Generate
           </button>

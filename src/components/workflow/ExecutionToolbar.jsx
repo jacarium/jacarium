@@ -18,7 +18,7 @@ function ToolbarButton({ onClick, disabled, title, active = false, buttonRef, ch
  disabled
  ?'text-os-text-muted cursor-not-allowed'
  : active
- ?'bg-os-blue text-white hover:bg-os-blue-hover'
+ ?'btn-selected'
  :'text-os-text-secondary hover:bg-os-card-secondary hover:text-os-text-primary'
  }`}
     >

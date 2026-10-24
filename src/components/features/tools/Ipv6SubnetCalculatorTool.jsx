@@ -281,7 +281,7 @@ export default function Ipv6SubnetCalculatorTool() {
         <button
           onClick={calculateSubnet}
           disabled={!ipAddress}
-          className="px-4 py-2 bg-os-blue text-white text-sm rounded-sm hover:bg-os-blue-hover disabled:opacity-50 transition-colors"
+          className="btn btn-primary px-4 py-2 text-sm"
         >
           Calculate
         </button>

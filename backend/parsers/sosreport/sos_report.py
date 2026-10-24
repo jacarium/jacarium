@@ -8,6 +8,7 @@ tabs/sosreport_sos_report.html; a report without a manifest gives the
 empty state, never an exception.
 """
 import os
+from parsers.findings import finding, no_data, sort_findings
 
 from . import blame
 
@@ -47,4 +48,17 @@ def parse(directory):
             'compression': str(manifest.get('compression') or ''), 'tmpdir': str(manifest.get('tmpdir') or ''),
             'blame_available': b['available'], 'blame_reason': b['reason'],
         })
-    return {'sos_report': info}
+    return {'sos_report': info, 'findings': findings_for(info)}
+
+def findings_for(info):
+    """The Findings strip: the sos run (version, the host, how long), a manifest missing (info), the plugins that
+    hit their timeout (warn, from Blame's summary when present)."""
+    out = []
+    if not info or not info.get('available', info.get('version')):
+        return [no_data('No sos manifest in this report', ['sos_reports/manifest.json', 'version.txt'], info.get('reason') if isinstance(info, dict) else None)]
+    summary = (info.get('blame') or {}).get('summary') or info.get('summary') or {}
+    if summary.get('timeouts'):
+        names = summary.get('timeout_names') or []
+        out.append(finding('warn', f"{summary['timeouts']} plugin{'s' if summary['timeouts'] != 1 else ''} hit the timeout", ', '.join(names[:6]) + (' \u2026' if len(names) > 6 else ''), tab='sos_report', sub_tab='blame', count=summary['timeouts']))
+    out.append(finding('info', f"sos {info.get('version') or '?'}" + (f" on {info['hostname']}" if info.get('hostname') else '') + (f", {info['total']}" if info.get('total') else ''), (info.get('cmdline') or '') + ('; Blame shows where the time went' if summary else '')))
+    return sort_findings(out)

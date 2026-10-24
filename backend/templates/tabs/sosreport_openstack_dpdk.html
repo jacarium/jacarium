@@ -16,17 +16,11 @@
  {% set color = numa_colors[node_id] if node_id < numa_colors|length else '' %}
  {% set _ = cpu_to_numa_color.update({ cpu|string: color }) %}
 {% endfor %}
-
+{% import "tabs/_ui.html" as ui %}
 
 <div class="space-y-4">
- {% if not data.pmd_stats and not data.ovs_config %}
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-base font-medium mb-1">
- <i class="fas fa-info-circle mr-2"></i> DPDK data not available in this report
- </h3>
- <p class="text-sm text-gray-500">No Open vSwitch / DPDK captures (ovs-appctl dpif-netdev/pmd-stats-show, Open_vSwitch other_config) were found. The host details below are shown for reference.</p>
- </div>
- {% endif %}
+{{ ui.findings(findings) }}
+{% if data.pmd_stats or data.ovs_config or data.ovs_interfaces or data.cmdline or data.nova_cpu_sets or data.physnets %}
  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
  <div class="flex flex-col gap-4">
  <div class="panel rounded-lg shadow-sm">
@@ -66,13 +60,6 @@
  {% endfor %}
  </ul>
  {% else %}
- <div class="text-center py-8">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
- <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No physnet NUMA nodes found</div>
- </div>
  {% endif %}
  </div>
  </div>
@@ -172,7 +159,7 @@
  type="number"
  min="0"
  placeholder="9000"
- class="w-24 rounded-sm bg-white text-gray-900 border border-gray-300 dark:border-gray-600 px-2 py-1 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+ class="ui-input w-24"
  />
  </label>
 
@@ -183,14 +170,14 @@
  type="number"
  min="0"
  placeholder="9000"
- class="w-24 rounded-sm bg-white text-gray-900 border border-gray-300 dark:border-gray-600 px-2 py-1 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+ class="ui-input w-24"
  />
  </label>
  </div>
 
  <button
  id="calculate-btn"
- class="px-4 py-2 rounded-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+ class="px-4 py-2 rounded-sm font-semibold btn btn-primary"
  >
  Calculate Recommended Memory
  </button>
@@ -229,13 +216,6 @@
  {% endfor %}
  </div>
  {% else %}
- <div class="text-center py-8">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
- <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No data found in this section</div>
- </div>
  {% endif %}
  </li>
 
@@ -263,13 +243,6 @@
  {% endfor %}
  </div>
  {% else %}
- <div class="text-center py-8">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
- <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No data found in this section</div>
- </div>
  {% endif %}
  </li>
 
@@ -299,13 +272,6 @@
  {% endfor %}
  </div>
  {% else %}
- <div class="text-center py-8">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
- <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No data found in this section</div>
- </div>
  {% endif %}
  </li>
 
@@ -347,27 +313,20 @@
  </h3>
  </header>
 
- <table class="w-full text-xs border-collapse mb-6">
+ <table class="ui-table border-collapse mb-6">
  <tbody>
  {% if data.cmdline %}
  {% for key, value in data.cmdline.items() %}
  {% if key not in special_params %}
- <tr class="border-b hover:bg-gray-50">
- <td class="py-1 px-2 align-top font-semibold whitespace-nowrap">{{ key }}:</td>
- <td class="py-1 px-2">{{ value or"N/A" }}</td>
+ <tr>
+ <td class="align-top">{{ key }}:</td>
+ <td>{{ value or"N/A" }}</td>
  </tr>
  {% endif %}
  {% endfor %}
  {% else %}
  <tr>
  <td colspan="2">
- <div class="text-center py-8">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
- <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No kernel parameters found</div>
- </div>
  </td>
  </tr>
  {% endif %}
@@ -397,13 +356,6 @@
  </li>
  {% endfor %}
  {% else %}
- <div class="text-center py-8">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
- <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No configuration found</div>
- </div>
  {% endif %}
  </ul>
  </div>
@@ -443,13 +395,6 @@
  {% endfor %}
  {% else %}
  <li>
- <div class="text-center py-8">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
- <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No OVS DPDK configuration found</div>
- </div>
  </li>
  {% endif %}
  </ul>
@@ -543,29 +488,29 @@
  <i class="fas fa-bug"></i>
  Common Issues & Checks
  </h3>
- <table class="min-w-full rounded-sm table-auto text-left text-sm">
+ <table class="ui-table text-left">
  <thead>
- <tr class="border-b hover:bg-gray-50">
- <th class="px-3 py-2">Issue</th>
- <th class="px-3 py-2">What to Check</th>
+ <tr>
+ <th>Issue</th>
+ <th>What to Check</th>
  </tr>
  </thead>
  <tbody>
- <tr class="border-b hover:bg-gray-50">
- <td class="px-3 py-2 font-medium">OVS-DPDK too slow to drain Physical NICs</td>
- <td class="px-3 py-2">Check <strong>rx_dropped=0</strong> on <strong>dpdk0</strong>/<strong>dpdk1</strong>.</td>
+ <tr>
+ <td>OVS-DPDK too slow to drain Physical NICs</td>
+ <td>Check <strong>rx_dropped=0</strong> on <strong>dpdk0</strong>/<strong>dpdk1</strong>.</td>
  </tr>
- <tr class="border-b hover:bg-gray-50">
- <td class="px-3 py-2 font-medium">VM too slow to drain vhost-user</td>
- <td class="px-3 py-2">Check <strong>tx_dropped=0</strong> on <strong>vhost-user</strong> interface.</td>
+ <tr>
+ <td>VM too slow to drain vhost-user</td>
+ <td>Check <strong>tx_dropped=0</strong> on <strong>vhost-user</strong> interface.</td>
  </tr>
- <tr class="border-b hover:bg-gray-50">
- <td class="px-3 py-2 font-medium">OVS-DPDK too slow to drain vhost-user</td>
- <td class="px-3 py-2">Check <strong>rx_dropped=0</strong> on <strong>vhost-user</strong> interface.</td>
+ <tr>
+ <td>OVS-DPDK too slow to drain vhost-user</td>
+ <td>Check <strong>rx_dropped=0</strong> on <strong>vhost-user</strong> interface.</td>
  </tr>
- <tr class="border-b hover:bg-gray-50">
- <td class="px-3 py-2 font-medium">PCIe ↔ RAM slow</td>
- <td class="px-3 py-2">Misconfigured memory channels or PCIe x4? Check <strong>tx_dropped=0</strong> on <strong>dpdk0</strong>/<strong>dpdk1</strong>.</td>
+ <tr>
+ <td>PCIe ↔ RAM slow</td>
+ <td>Misconfigured memory channels or PCIe x4? Check <strong>tx_dropped=0</strong> on <strong>dpdk0</strong>/<strong>dpdk1</strong>.</td>
  </tr>
  </tbody>
  </table>
@@ -576,20 +521,20 @@
  <i class="fas fa-book"></i>
  Resources
  </h3>
- <table class="min-w-full rounded-sm table-auto text-left text-sm">
+ <table class="ui-table text-left">
  <thead>
- <tr class="border-b hover:bg-gray-50">
- <th class="px-3 py-2">Links</th>
+ <tr>
+ <th>Links</th>
  </tr>
  </thead>
  <tbody>
- <tr class="border-b hover:bg-gray-50">
- <td class="px-3 py-2 font-medium">
+ <tr>
+ <td>
  <a href="https://fast.dpdk.org/doc/perf/" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">DPDK NIC Performance Guide</a>
  </td>
  </tr>
- <tr class="border-b hover:bg-gray-50">
- <td class="px-3 py-2 font-medium">
+ <tr>
+ <td>
  <a href="https://www.dell.com/support/manuals/en-au/oth-r660/r660_ism_pub/system-memory-guidelines?guid=guid-5d549479-c3fa-47ca-9860-de5f2c0a2b34&lang=en-us" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">Dell R660 Product Memory Guidelines</a>
  </td>
  </tr>
@@ -603,80 +548,65 @@
  <h3 class="text-base font-medium mb-4">
  <i class="fas fa-network-wired mr-2"></i> Open vSwitch Interfaces
  </h3>
- <input id="ovs-search" type="text" placeholder="Search OVS interfaces..." class="mb-3 p-2 w-full rounded-sm text-sm border border-gray-300 dark:border-gray-600 focus:outline-hidden focus:ring-2 focus:ring-blue-500" onkeyup="filterOvsTable()" />
-
- <div class="flex justify-between items-center mb-2">
- <div id="ovsCount" class="text-xs">Showing all interfaces</div>
- <div class="flex items-center">
- <label class="text-xs">Rows per page:</label>
- <select id="ovsPageSize" onchange="changeOvsPageSize()" class="px-2 py-1 text-white text-xs rounded-md">
+ {% call ui.filter_bar() %}<label class="ui-field">{{ ui.icon('search') }}<input data-ui-search aria-label="Search OVS interfaces" autocomplete="off" id="ovs-search" type="search" placeholder="Search OVS interfaces..." class="ui-input" onkeyup="window.diagBusy ? window.diagBusy.filter(this, function () { filterOvsTable(); }) : filterOvsTable()" /></label>{% call ui.end() %}<span class="ui-status" id="ovsCount" aria-live="polite">Showing all interfaces</span><label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select id="ovsPageSize" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { changeOvsPageSize(); }) : changeOvsPageSize()" class="ui-select" aria-label="Rows per page">
  <option value="25">25</option>
  <option value="50" selected>50</option>
  <option value="100">100</option>
  <option value="-1">All</option>
- </select>
- </div>
- </div>
+ </select>{{ ui.icon('chevron') }}</span></label>{% endcall %}{% endcall %}
 
  <div class="overflow-x-auto">
 
- <table id="ovs-interface-table" class="min-w-full text-xs rounded-lg shadow-md">
- <thead class="border-b">
+ <table id="ovs-interface-table" class="ui-table">
+ <thead>
  <tr class="text-left">
- <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(0)">Name <i id="ovs-sort-0" class="fas text-sm ml-1"></i></th>
- <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(1)">Type <i id="ovs-sort-1" class="fas text-sm ml-1"></i></th>
- <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(2, true)">MTU <i id="ovs-sort-2" class="fas text-sm ml-1"></i></th>
- <th class="px-2 py-2">MAC (ext)</th>
- <th class="px-2 py-2">MAC (in use)</th>
- <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(5)">Admin State <i id="ovs-sort-5" class="fas text-sm ml-1"></i></th>
- <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(6)">Link State <i id="ovs-sort-6" class="fas text-sm ml-1"></i></th>
- <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(7, true)">NUMA <i id="ovs-sort-7" class="fas text-sm ml-1"></i></th>
- <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(8, true)">RX Packets <i id="ovs-sort-8" class="fas text-sm ml-1"></i></th>
- <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(9, true)">TX Packets <i id="ovs-sort-9" class="fas text-sm ml-1"></i></th>
- <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(10, true)">RX Drops <i id="ovs-sort-10" class="fas text-sm ml-1"></i></th>
- <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(11, true)">TX Drops <i id="ovs-sort-11" class="fas text-sm ml-1"></i></th>
- <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(12, true)">RX Errors <i id="ovs-sort-12" class="fas text-sm ml-1"></i></th>
- <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(13, true)">RX Missed Errors <i id="ovs-sort-13" class="fas text-sm ml-1"></i></th>
- <th class="px-2 py-2 cursor-pointer" onclick="sortOvsTable(14, true)">OvS TX Retries <i id="ovs-sort-14" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortOvsTable(0)">Name <i id="ovs-sort-0" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortOvsTable(1)">Type <i id="ovs-sort-1" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortOvsTable(2, true)">MTU <i id="ovs-sort-2" class="fas text-sm ml-1"></i></th>
+ <th>MAC (ext)</th>
+ <th>MAC (in use)</th>
+ <th class="cursor-pointer" onclick="sortOvsTable(5)">Admin State <i id="ovs-sort-5" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortOvsTable(6)">Link State <i id="ovs-sort-6" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortOvsTable(7, true)">NUMA <i id="ovs-sort-7" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortOvsTable(8, true)">RX Packets <i id="ovs-sort-8" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortOvsTable(9, true)">TX Packets <i id="ovs-sort-9" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortOvsTable(10, true)">RX Drops <i id="ovs-sort-10" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortOvsTable(11, true)">TX Drops <i id="ovs-sort-11" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortOvsTable(12, true)">RX Errors <i id="ovs-sort-12" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortOvsTable(13, true)">RX Missed Errors <i id="ovs-sort-13" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="sortOvsTable(14, true)">OvS TX Retries <i id="ovs-sort-14" class="fas text-sm ml-1"></i></th>
  </tr>
  </thead>
  <tbody>
  {% if data.ovs_interfaces %}
  {% for iface in data.ovs_interfaces %}
- <tr class="border-b hover:bg-gray-50">
- <td class="px-2 py-1">{{ iface['name'] }}</td>
- <td class="px-2 py-1">{{ iface.get('type', 'N/A') }}</td>
- <td class="px-2 py-1">{{ iface.get('mtu', 'N/A') }}</td>
- <td class="px-2 py-1">{{ iface.get('external_ids', {}).get('mac', '—') }}</td>
- <td class="px-2 py-1">{{ iface.get('mac_in_use', '—') }}</td>
- <td class="px-2 py-1">{{ iface.get('admin_state', 'N/A') }}</td>
- <td class="px-2 py-1">{{ iface.get('link_state', 'N/A') }}</td>
- <td class="px-2 py-1">{{ iface.get('status', {}).get('numa', '—') }}</td>
- <td class="px-2 py-1">{{ iface.get('statistics', {}).get('rx_packets', '0') }}</td>
- <td class="px-2 py-1">{{ iface.get('statistics', {}).get('tx_packets', '0') }}</td>
- <td class="px-2 py-1">{{ iface.get('statistics', {}).get('rx_dropped', '0') }}</td>
- <td class="px-2 py-1">{{ iface.get('statistics', {}).get('tx_dropped', '0') }}</td>
- <td class="px-2 py-1">{{ iface.get('statistics', {}).get('rx_errors', '0') }}</td>
- <td class="px-2 py-1">{{ iface.get('statistics', {}).get('rx_missed_errors', '0') }}</td>
- <td class="px-2 py-1">{{ iface.get('statistics', {}).get('ovs_tx_retries', '0') }}</td>
+ <tr>
+ <td>{{ iface['name'] }}</td>
+ <td>{{ iface.get('type', 'N/A') }}</td>
+ <td>{{ iface.get('mtu', 'N/A') }}</td>
+ <td>{{ iface.get('external_ids', {}).get('mac', '—') }}</td>
+ <td>{{ iface.get('mac_in_use', '—') }}</td>
+ <td>{{ iface.get('admin_state', 'N/A') }}</td>
+ <td>{{ iface.get('link_state', 'N/A') }}</td>
+ <td>{{ iface.get('status', {}).get('numa', '—') }}</td>
+ <td>{{ iface.get('statistics', {}).get('rx_packets', '0') }}</td>
+ <td>{{ iface.get('statistics', {}).get('tx_packets', '0') }}</td>
+ <td>{{ iface.get('statistics', {}).get('rx_dropped', '0') }}</td>
+ <td>{{ iface.get('statistics', {}).get('tx_dropped', '0') }}</td>
+ <td>{{ iface.get('statistics', {}).get('rx_errors', '0') }}</td>
+ <td>{{ iface.get('statistics', {}).get('rx_missed_errors', '0') }}</td>
+ <td>{{ iface.get('statistics', {}).get('ovs_tx_retries', '0') }}</td>
  </tr>
  {% endfor %}
  {% else %}
  <tr>
  <td colspan="15">
- <div class="text-center py-8">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
- <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No interface data found</div>
- </div>
  </td>
  </tr>
  {% endif %}
  </tbody>
  </table>
- <div id="ovsPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ <nav id="ovsPaginationControls" class="ui-pager" aria-label="Pages" hidden></nav>
  </div>
  </div>
 
@@ -685,32 +615,32 @@
  <i class="fas fa-microchip mr-2"></i> PMD Queue Statistics
  </h3>
 
- <input id="pmd-search" type="text" placeholder="Search PMD statistics..." class="mb-3 p-2 w-full rounded-sm text-sm border border-gray-300 dark:border-gray-600 focus:outline-hidden focus:ring-2 focus:ring-blue-500" onkeyup="filterPmdTable()" />
+ <input id="pmd-search" type="text" placeholder="Search PMD statistics..." class="ui-input mb-3 w-full" onkeyup="window.diagBusy ? window.diagBusy.filter(this, function () { filterPmdTable(); }) : filterPmdTable()" />
 
  <div class="overflow-x-auto">
- <table id="pmd-stats-table" class="min-w-full text-xs">
+ <table id="pmd-stats-table" class="ui-table">
  <thead>
- <tr class="text-left border-b">
- <th class="px-2 py-1">NUMA ID</th>
- <th class="px-2 py-1">Core ID</th>
- <th class="px-2 py-1">Packets</th>
- <th class="px-2 py-1">Recirculations</th>
- <th class="px-2 py-1">Idle Cycles</th>
- <th class="px-2 py-1">Processing Cycles</th>
- <th class="px-2 py-1">Avg Cycles/Pkt</th>
- <th class="px-2 py-1">Avg Proc Cycles/Pkt</th>
- <th class="px-2 py-1">pmd Overhead (%)</th>
- <th class="px-2 py-1">EMC Hits</th>
- <th class="px-2 py-1">SMC Hits</th>
- <th class="px-2 py-1">Megaflow Hits</th>
- <th class="px-2 py-1">Avg Subtable Lookups/Megaflow Hit</th>
- <th class="px-2 py-1">Miss with Success Upcall</th>
- <th class="px-2 py-1">Miss with Failed Upcall</th>
- <th class="px-2 py-1">Avg Packets/Output Batch</th>
- <th class="px-2 py-1">Port</th>
- <th class="px-2 py-1">Queue ID</th>
- <th class="px-2 py-1">Enabled</th>
- <th class="px-2 py-1">PMD Usage %</th>
+ <tr class="text-left">
+ <th>NUMA ID</th>
+ <th>Core ID</th>
+ <th>Packets</th>
+ <th>Recirculations</th>
+ <th>Idle Cycles</th>
+ <th>Processing Cycles</th>
+ <th>Avg Cycles/Pkt</th>
+ <th>Avg Proc Cycles/Pkt</th>
+ <th>pmd Overhead (%)</th>
+ <th>EMC Hits</th>
+ <th>SMC Hits</th>
+ <th>Megaflow Hits</th>
+ <th>Avg Subtable Lookups/Megaflow Hit</th>
+ <th>Miss with Success Upcall</th>
+ <th>Miss with Failed Upcall</th>
+ <th>Avg Packets/Output Batch</th>
+ <th>Port</th>
+ <th>Queue ID</th>
+ <th>Enabled</th>
+ <th>PMD Usage %</th>
  </tr>
  </thead>
 
@@ -719,69 +649,62 @@
  {% for pmd in data.pmd_stats %}
  {% if pmd.ports %}
  {% for port in pmd.ports %}
- <tr class="border-b hover:bg-gray-50">
- <td class="px-2 py-1">{{ pmd.get('numa_id', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('core_id', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('packets_received', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('packet_recirculations', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('idle_cycles') }}</td>
- <td class="px-2 py-1">{{ pmd.get('processing_cycles') }}</td>
- <td class="px-2 py-1">{{ pmd.get('avg_cycles_per_packet', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('avg_processing_cycles_per_packet', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('pmd_overhead', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('emc_hits', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('smc_hits', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('megaflow_hits', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('avg._subtable_lookups_per_megaflow_hit', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('miss_with_success_upcall', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('miss_with_failed_upcall', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('avg._packets_per_output_batch', '—') }}</td>
- <td class="px-2 py-1 font-mono whitespace-nowrap">
+ <tr>
+ <td>{{ pmd.get('numa_id', '—') }}</td>
+ <td>{{ pmd.get('core_id', '—') }}</td>
+ <td>{{ pmd.get('packets_received', '—') }}</td>
+ <td>{{ pmd.get('packet_recirculations', '—') }}</td>
+ <td>{{ pmd.get('idle_cycles') }}</td>
+ <td>{{ pmd.get('processing_cycles') }}</td>
+ <td>{{ pmd.get('avg_cycles_per_packet', '—') }}</td>
+ <td>{{ pmd.get('avg_processing_cycles_per_packet', '—') }}</td>
+ <td>{{ pmd.get('pmd_overhead', '—') }}</td>
+ <td>{{ pmd.get('emc_hits', '—') }}</td>
+ <td>{{ pmd.get('smc_hits', '—') }}</td>
+ <td>{{ pmd.get('megaflow_hits', '—') }}</td>
+ <td>{{ pmd.get('avg._subtable_lookups_per_megaflow_hit', '—') }}</td>
+ <td>{{ pmd.get('miss_with_success_upcall', '—') }}</td>
+ <td>{{ pmd.get('miss_with_failed_upcall', '—') }}</td>
+ <td>{{ pmd.get('avg._packets_per_output_batch', '—') }}</td>
+ <td class="ui-mono">
  {{ port.port }}
  </td>
- <td class="px-2 py-1 text-center">
+ <td class="text-center">
  {{ port.queue_id }}
  </td>
- <td class="px-2 py-1 text-center">
+ <td class="text-center">
  {{ 'Yes' if port.enabled else 'No' }}
  </td>
- <td class="px-2 py-1 text-right">
+ <td class="ui-num">
  {{ port.pmd_usage_percent }}%
  </td>
  </tr>
  {% endfor %}
  {% else %}
- <tr class="border-b hover:bg-gray-50">
- <td class="px-2 py-1">{{ pmd.get('numa_id', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('core_id', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('packets_received', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('packet_recirculations', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('idle_cycles') }}</td>
- <td class="px-2 py-1">{{ pmd.get('processing_cycles') }}</td>
- <td class="px-2 py-1">{{ pmd.get('avg_cycles_per_packet', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('avg_processing_cycles_per_packet', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('pmd_overhead', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('emc_hits', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('smc_hits', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('megaflow_hits', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('avg._subtable_lookups_per_megaflow_hit', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('miss_with_success_upcall', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('miss_with_failed_upcall', '—') }}</td>
- <td class="px-2 py-1">{{ pmd.get('avg._packets_per_output_batch', '—') }}</td>
- <td class="px-2 py-1 text-center" colspan="4">&mdash;</td>
+ <tr>
+ <td>{{ pmd.get('numa_id', '—') }}</td>
+ <td>{{ pmd.get('core_id', '—') }}</td>
+ <td>{{ pmd.get('packets_received', '—') }}</td>
+ <td>{{ pmd.get('packet_recirculations', '—') }}</td>
+ <td>{{ pmd.get('idle_cycles') }}</td>
+ <td>{{ pmd.get('processing_cycles') }}</td>
+ <td>{{ pmd.get('avg_cycles_per_packet', '—') }}</td>
+ <td>{{ pmd.get('avg_processing_cycles_per_packet', '—') }}</td>
+ <td>{{ pmd.get('pmd_overhead', '—') }}</td>
+ <td>{{ pmd.get('emc_hits', '—') }}</td>
+ <td>{{ pmd.get('smc_hits', '—') }}</td>
+ <td>{{ pmd.get('megaflow_hits', '—') }}</td>
+ <td>{{ pmd.get('avg._subtable_lookups_per_megaflow_hit', '—') }}</td>
+ <td>{{ pmd.get('miss_with_success_upcall', '—') }}</td>
+ <td>{{ pmd.get('miss_with_failed_upcall', '—') }}</td>
+ <td>{{ pmd.get('avg._packets_per_output_batch', '—') }}</td>
+ <td class="text-center" colspan="4">&mdash;</td>
  </tr>
  {% endif %}
  {% endfor %}
  {% else %}
  <tr>
  <td colspan="22">
- <div class="text-center py-8">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
- <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No PMD queue statistics found</div>
- </div>
  </td>
  </tr>
  {% endif %}
@@ -800,56 +723,49 @@
  </p>
  <pre class="text-sm rounded-sm mb-2 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 p-2">ovs-appctl dpif-netdev/pmd-stats-clear</pre>
 
- <input id="pmd-perf-search" type="text" placeholder="Search PMD performance..." class="mb-3 p-2 w-full rounded-sm text-sm border border-gray-300 dark:border-gray-600 focus:outline-hidden focus:ring-2 focus:ring-blue-500" onkeyup="filterPmdPerfTable()" />
+ <input id="pmd-perf-search" type="text" placeholder="Search PMD performance..." class="ui-input mb-3 w-full" onkeyup="window.diagBusy ? window.diagBusy.filter(this, function () { filterPmdPerfTable(); }) : filterPmdPerfTable()" />
 
  <div class="overflow-x-auto">
- <table id="pmd-perf-table" class="min-w-full text-xs">
+ <table id="pmd-perf-table" class="ui-table">
  <thead>
- <tr class="text-left border-b">
- <th class="px-2 py-1">NUMA ID</th>
- <th class="px-2 py-1">Core ID</th>
- <th class="px-2 py-1">Iterations</th>
- <th class="px-2 py-1">Used TSC Cycles</th>
- <th class="px-2 py-1">Idle Iterations</th>
- <th class="px-2 py-1">Busy Iterations</th>
- <th class="px-2 py-1">Rx Packets</th>
- <th class="px-2 py-1">Tx Packets</th>
- <th class="px-2 py-1">Tx Batches</th>
- <th class="px-2 py-1">EMC Hits</th>
- <th class="px-2 py-1">Megaflow Hits</th>
- <th class="px-2 py-1">Upcalls</th>
- <th class="px-2 py-1">Lost Upcalls</th>
+ <tr class="text-left">
+ <th>NUMA ID</th>
+ <th>Core ID</th>
+ <th>Iterations</th>
+ <th>Used TSC Cycles</th>
+ <th>Idle Iterations</th>
+ <th>Busy Iterations</th>
+ <th>Rx Packets</th>
+ <th>Tx Packets</th>
+ <th>Tx Batches</th>
+ <th>EMC Hits</th>
+ <th>Megaflow Hits</th>
+ <th>Upcalls</th>
+ <th>Lost Upcalls</th>
  </tr>
  </thead>
  <tbody>
  {% if data.pmd_perf %}
  {% for thread in data.pmd_perf %}
- <tr class="border-b hover:bg-gray-50">
- <td class="px-2 py-1">{{ thread.get('numa_id', '—') }}</td>
- <td class="px-2 py-1">{{ thread.get('core_id', '—') }}</td>
- <td class="px-2 py-1">{{ thread.get('iterations', '—') }}</td>
- <td class="px-2 py-1">{{ thread.get('used_tsc_cycles', '—') }}</td>
- <td class="px-2 py-1">{{ thread.get('idle_iterations', '—') }}</td>
- <td class="px-2 py-1">{{ thread.get('busy_iterations', '—') }}</td>
- <td class="px-2 py-1">{{ thread.get('rx_packets', '—') }}</td>
- <td class="px-2 py-1">{{ thread.get('tx_packets', '—') }}</td>
- <td class="px-2 py-1">{{ thread.get('tx_batches', '—') }}</td>
- <td class="px-2 py-1">{{ thread.get('emc_hits', '—') }}</td>
- <td class="px-2 py-1">{{ thread.get('megaflow_hits', '—') }}</td>
- <td class="px-2 py-1">{{ thread.get('upcalls', '—') }}</td>
- <td class="px-2 py-1">{{ thread.get('lost_upcalls', '—') }}</td>
+ <tr>
+ <td>{{ thread.get('numa_id', '—') }}</td>
+ <td>{{ thread.get('core_id', '—') }}</td>
+ <td>{{ thread.get('iterations', '—') }}</td>
+ <td>{{ thread.get('used_tsc_cycles', '—') }}</td>
+ <td>{{ thread.get('idle_iterations', '—') }}</td>
+ <td>{{ thread.get('busy_iterations', '—') }}</td>
+ <td>{{ thread.get('rx_packets', '—') }}</td>
+ <td>{{ thread.get('tx_packets', '—') }}</td>
+ <td>{{ thread.get('tx_batches', '—') }}</td>
+ <td>{{ thread.get('emc_hits', '—') }}</td>
+ <td>{{ thread.get('megaflow_hits', '—') }}</td>
+ <td>{{ thread.get('upcalls', '—') }}</td>
+ <td>{{ thread.get('lost_upcalls', '—') }}</td>
  </tr>
  {% endfor %}
  {% else %}
  <tr>
  <td colspan="13">
- <div class="text-center py-8">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
- <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No PMD thread performance data found</div>
- </div>
  </td>
  </tr>
  {% endif %}
@@ -863,29 +779,29 @@
  <i class="fas fa-microchip mr-2"></i> Instances
  </h3>
 
- <input id="instance-search" type="text" placeholder="Search instances..." class="mb-3 p-2 w-full rounded-sm text-sm border border-gray-300 dark:border-gray-600 focus:outline-hidden focus:ring-2 focus:ring-blue-500" onkeyup="filterInstanceTable()" />
+ <input id="instance-search" type="text" placeholder="Search instances..." class="ui-input mb-3 w-full" onkeyup="window.diagBusy ? window.diagBusy.filter(this, function () { filterInstanceTable(); }) : filterInstanceTable()" />
 
  <div class="overflow-x-auto">
- <table id="instance-table" class="min-w-full text-xs">
+ <table id="instance-table" class="ui-table">
  <thead>
- <tr class="text-left border-b">
- <th class="px-2 py-1">Name</th>
- <th class="px-2 py-1">Flavor</th>
- <th class="px-2 py-1">vCPUs</th>
- <th class="px-2 py-1">RAM (MiB)</th>
- <th class="px-2 py-1">Disk (GB)</th>
- <th class="px-2 py-1">Created</th>
- <th class="px-2 py-1">User</th>
- <th class="px-2 py-1">Project</th>
- <th class="px-2 py-1">Root Image</th>
- <th class="px-2 py-1">Ports</th>
- <th class="px-2 py-1">IPs</th>
- <th class="px-2 py-1">Memory Total</th>
- <th class="px-2 py-1">Memory Current</th>
- <th class="px-2 py-1">Hugepages</th>
- <th class="px-2 py-1">vCPU Pinning</th>
- <th class="px-2 py-1">Interfaces</th>
- <th class="px-2 py-1">Disks</th>
+ <tr class="text-left">
+ <th>Name</th>
+ <th>Flavor</th>
+ <th>vCPUs</th>
+ <th>RAM (MiB)</th>
+ <th>Disk (GB)</th>
+ <th>Created</th>
+ <th>User</th>
+ <th>Project</th>
+ <th>Root Image</th>
+ <th>Ports</th>
+ <th>IPs</th>
+ <th>Memory Total</th>
+ <th>Memory Current</th>
+ <th>Hugepages</th>
+ <th>vCPU Pinning</th>
+ <th>Interfaces</th>
+ <th>Disks</th>
  </tr>
  </thead>
  <tbody>
@@ -897,39 +813,39 @@
  {% set user = owner.get('user', {}) %}
  {% set project = owner.get('project', {}) %}
  {% set root = metadata.get('root', {}) %}
- <tr class="border-b hover:bg-gray-50">
- <td class="px-2 py-1">{{ metadata.get('name') or filename }}</td>
- <td class="px-2 py-1">{{ flavor.get('name', 'N/A') }}</td>
- <td class="px-2 py-1">{{ flavor.get('vcpus', '—') }}</td>
- <td class="px-2 py-1">{{ flavor.get('memory', '—') }}</td>
- <td class="px-2 py-1">{{ flavor.get('disk', '—') }}</td>
- <td class="px-2 py-1">{{ metadata.get('creation_time', '—') }}</td>
- <td class="px-2 py-1">{{ user.get('name', '—') }}</td>
- <td class="px-2 py-1">{{ project.get('name', '—') }}</td>
- <td class="px-2 py-1">
+ <tr>
+ <td>{{ metadata.get('name') or filename }}</td>
+ <td>{{ flavor.get('name', 'N/A') }}</td>
+ <td>{{ flavor.get('vcpus', '—') }}</td>
+ <td>{{ flavor.get('memory', '—') }}</td>
+ <td>{{ flavor.get('disk', '—') }}</td>
+ <td>{{ metadata.get('creation_time', '—') }}</td>
+ <td>{{ user.get('name', '—') }}</td>
+ <td>{{ project.get('name', '—') }}</td>
+ <td>
  {{ root.get('type', '—') }}<br>
  <span class="font-mono text-xs">{{ root.get('uuid', '') }}</span>
  </td>
- <td class="px-2 py-1">
+ <td>
  {% for port in metadata.get('ports', []) %}
  <div class="font-mono text-xs">{{ port.get('uuid', '—') }}</div>
  {% endfor %}
  </td>
- <td class="px-2 py-1">
+ <td>
  {% for port in metadata.get('ports', []) %}
  {% for ip in port.get('ips', []) %}
  <div>[{{ ip.get('type', '') }}] {{ ip.get('address', '') }}</div>
  {% endfor %}
  {% endfor %}
  </td>
- <td class="px-2 py-1">{{ instance.get('memory', {}).get('total_kib', '—') }} KiB</td>
- <td class="px-2 py-1">{{ instance.get('memory', {}).get('current_kib', '—') }} KiB</td>
- <td class="px-2 py-1">
+ <td>{{ instance.get('memory', {}).get('total_kib', '—') }} KiB</td>
+ <td>{{ instance.get('memory', {}).get('current_kib', '—') }} KiB</td>
+ <td>
  {% for page in instance.get('memory', {}).get('hugepages', []) %}
  <div>{{ page.get('size_kib', '?') }} KiB / Node {{ page.get('nodeset', '?') }}</div>
  {% endfor %}
  </td>
- <td class="px-2 py-1">
+ <td>
  <div class="flex flex-wrap gap-1">
  {% for vcpu, cpu in instance.get('vcpupins', {}).items() %}
  {% set topo = data.cpu_topology.get(cpu, {}) %}
@@ -942,7 +858,7 @@
  </div>
  </td>
 
- <td class="px-2 py-1">
+ <td>
  {% for iface in instance.get('interfaces', []) %}
  <div>{{ iface.get('name', '—') }} <span class="font-mono text-xs">({{ iface.get('mac', '—') }})</span>
  queues:{{ iface.get('queues', '—') }}
@@ -951,7 +867,7 @@
  </div>
  {% endfor %}
  </td>
- <td class="px-2 py-1">
+ <td>
  {% for disk in instance.get('disks', []) %}
  <div><strong>{{ disk.get('target', '—') }}</strong>: <span class="font-mono text-xs">{{ disk.get('source', '—') }}</span></div>
  {% endfor %}
@@ -961,13 +877,6 @@
  {% else %}
  <tr>
  <td colspan="17">
- <div class="text-center py-8">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-base font-semibold text-gray-700 dark:text-gray-300 mt-3">No Data Available</div>
- <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">No instance data found</div>
- </div>
  </td>
  </tr>
  {% endif %}
@@ -976,7 +885,9 @@
  </div>
  </div>
  </div>
+{% endif %}
 </div>
+{% if data.pmd_stats or data.ovs_config or data.ovs_interfaces or data.cmdline or data.nova_cpu_sets or data.physnets %}
 <script>
  // Define functions in global scope
  window.filterInstanceTable = function() {
@@ -1097,51 +1008,8 @@
  }
 
  function updateOvsPagination(totalCount) {
- const controls = document.getElementById('ovsPaginationControls');
-
- if (ovsPageSize === -1 || totalCount <= ovsPageSize) {
- controls.innerHTML = '';
- return;
- }
-
- const totalPages = Math.ceil(totalCount / ovsPageSize);
- let html = '';
-
- html += `<button onclick="goToOvsPage(1)" ${ovsCurrentPage === 1 ? 'disabled' : ''}
- class="px-3 py-1 text-sm rounded-sm ${ovsCurrentPage === 1 ? 'bg-gray-600 text-gray-400 dark:text-gray-500' : ' text-white '}">
- First</button>`;
-
- html += `<button onclick="goToOvsPage(${ovsCurrentPage - 1})" ${ovsCurrentPage === 1 ? 'disabled' : ''}
- class="px-3 py-1 text-sm rounded-sm ${ovsCurrentPage === 1 ? 'bg-gray-600 text-gray-400 dark:text-gray-500' : ' text-white '}">
- Prev</button>`;
-
- const maxButtons = 5;
- let startPage = Math.max(1, ovsCurrentPage - Math.floor(maxButtons / 2));
- let endPage = Math.min(totalPages, startPage + maxButtons - 1);
-
- if (endPage - startPage < maxButtons - 1) {
- startPage = Math.max(1, endPage - maxButtons + 1);
- }
-
- if (startPage > 1) html += '<span class="px-2">...</span>';
-
- for (let i = startPage; i <= endPage; i++) {
- html += `<button onclick="goToOvsPage(${i})"
- class="px-3 py-1 text-sm rounded-sm ${i === ovsCurrentPage ? ' text-white font-bold border-2 current-page' : ' text-white '}">
- ${i}</button>`;
- }
-
- if (endPage < totalPages) html += '<span class="px-2">...</span>';
-
- html += `<button onclick="goToOvsPage(${ovsCurrentPage + 1})" ${ovsCurrentPage === totalPages ? 'disabled' : ''}
- class="px-3 py-1 text-sm rounded-sm ${ovsCurrentPage === totalPages ? 'bg-gray-600 text-gray-400 dark:text-gray-500' : ' text-white '}">
- Next</button>`;
-
- html += `<button onclick="goToOvsPage(${totalPages})" ${ovsCurrentPage === totalPages ? 'disabled' : ''}
- class="px-3 py-1 text-sm rounded-sm ${ovsCurrentPage === totalPages ? 'bg-gray-600 text-gray-400 dark:text-gray-500' : ' text-white '}">
- Last</button>`;
-
- controls.innerHTML = html;
+   // the shared pager (diagPager): one page -> nothing drawn
+   window.diagPager.render(document.getElementById('ovsPaginationControls'), { total: totalCount, page: ovsCurrentPage, pageSize: ovsPageSize, go: function (p) { goToOvsPage(p); } });
  }
 
  window.goToOvsPage = function(page) {
@@ -1166,6 +1034,7 @@
 
  function updateOvsSortIndicator(colIndex, ascending) {
  const indicator = document.getElementById(`ovs-sort-${colIndex}`);
+ window.diagTables.markSort(indicator, ascending);
  if (indicator) {
  indicator.classList.remove('fa-caret-up', 'fa-caret-down');
  indicator.classList.add(ascending ? 'fa-caret-up' : 'fa-caret-down');
@@ -1285,4 +1154,5 @@
  });
  }
 </script>
+{% endif %}
 

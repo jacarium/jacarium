@@ -1,57 +1,42 @@
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 <div id="deploymentListPanel" class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm w-full">
- <div class="mb-2">
- <label class="inline-flex items-center text-xs font-semibold">
- <input type="checkbox" id="show-empty-namespaces" class="form-checkbox">
- <span class="ml-2">Show Empty Namespaces</span>
- </label>
- </div>
- <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
- <div>
- <label for="deploymentNamespaceFilter" class="block text-xs font-semibold mb-1">Namespaces</label>
- <select id="deploymentNamespaceFilter" class="w-full px-3 py-2 text-sm border">
+ {% call ui.filter_bar() %}
+    <label class="ui-field">{{ ui.icon('search') }}<input autocomplete="off" data-ui-search aria-label="Search deployments" id="search-input" type="search" placeholder="Search deployments..." class="ui-input"></label>
+    <label class="ui-rows">Namespaces<span class="ui-select-wrap"><select aria-label="Namespaces" id="deploymentNamespaceFilter" class="ui-select">
  <option value="">All</option>
- </select>
- </div>
- <div class="md:col-span-7">
- <label for="search-input" class="block text-xs font-semibold mb-1">Search All</label>
- <input id="search-input" type="text" placeholder="Search deployments..." class="w-full px-3 py-2 text-sm border" />
- </div>
- </div>
- <div class="flex justify-between items-center mb-2">
- <div id="filteredDeploymentCount" class="text-sm">Showing all deployments</div>
- <div class="flex items-center gap-2">
- <label class="text-xs font-semibold">Per Page:</label>
- <select id="deploymentPageSizeSelect" onchange="window.changeDeploymentPageSize()" class="px-3 py-1 text-sm border">
+ </select>{{ ui.icon('chevron') }}</span></label>
+    <label class="ui-check-label" for="show-empty-namespaces"><input type="checkbox" id="show-empty-namespaces" class="ui-check">Show Empty Namespaces</label>
+    {% call ui.end() %}<span class="ui-status" id="filteredDeploymentCount" aria-live="polite">Showing all deployments</span><label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select aria-label="Rows per page" id="deploymentPageSizeSelect" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { window.changeDeploymentPageSize(); }) : window.changeDeploymentPageSize()" class="ui-select">
  <option value="50">50</option>
  <option value="100" selected>100</option>
  <option value="250">250</option>
  <option value="-1">All</option>
- </select>
- </div>
- </div>
- <table class="w-full min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
+ </select>{{ ui.icon('chevron') }}</span></label>{% endcall %}
+  {% endcall %}
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('namespace')">Namespace <i id="deployment-indicator-namespace" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('name')">Name <i id="deployment-indicator-name" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('replicas')">Replicas <i id="deployment-indicator-replicas" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('updated')">Updated <i id="deployment-indicator-updated" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('available')">Available <i id="deployment-indicator-available" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('age')">Age <i id="deployment-indicator-age" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-sorted="ascending" onclick="window.sortBy('namespace')">Namespace <i id="deployment-indicator-namespace" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortBy('name')">Name <i id="deployment-indicator-name" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortBy('replicas')">Replicas <i id="deployment-indicator-replicas" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortBy('updated')">Updated <i id="deployment-indicator-updated" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortBy('available')">Available <i id="deployment-indicator-available" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortBy('age')">Age <i id="deployment-indicator-age" class="ml-1 fas text-sm"></i></th>
  </tr>
  </thead>
  <tbody id="deployment-table-body">
  </tbody>
  </table>
- <div id="deploymentPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ <nav id="deploymentPaginationControls" class="ui-pager" aria-label="Pages" hidden></nav>
  </div>
 </div>
 
 <div id="deploymentPanel" style="display: none;">
  <div class="space-y-4">
  <div class="mb-4">
- <button onclick="window.backFromDeploymentModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ <button onclick="window.backFromDeploymentModal()" class="btn btn-secondary flex items-center gap-2">
  Back
  </button>
  </div>
@@ -61,7 +46,7 @@
  <i class="fas fa-info-circle mr-2"></i> Deployment Details
  </h2>
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm" id="deploymentDetailsTable"></table>
+ <table class="ui-table" id="deploymentDetailsTable"></table>
  </div>
  </div>
 
@@ -82,7 +67,7 @@
  id="deploymentYamlFilter"
  type="text"
  placeholder="Filter YAML lines..."
- class="w-full px-3 py-2 text-sm border"
+ class="ui-input w-full"
  />
  </div>
  <div id="deploymentJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
@@ -93,7 +78,7 @@
 <script>
 
  var deploymentsData = {{ data | tojson }};
- var currentSort = { key: null, direction: 1 };
+ var currentSort = { key: 'namespace', direction: 1 };
  var deploymentCurrentPage = 1;
  var deploymentPageSize = 100;
 
@@ -225,22 +210,22 @@
 
  if(dep.name === 'No deployments') {
  row.innerHTML = `
- <td class="px-4 py-2">${dep.namespace}</td>
- <td class="px-4 py-2">No Deployments</td>
- <td class="px-4 py-2">-</td>
- <td class="px-4 py-2">-</td>
- <td class="px-4 py-2">-</td>
- <td class="px-4 py-2">-</td>
+ <td>${dep.namespace}</td>
+ <td>No Deployments</td>
+ <td>-</td>
+ <td>-</td>
+ <td>-</td>
+ <td>-</td>
  `;
  row.style.cursor = 'default';
  } else {
  row.innerHTML = `
- <td class="px-4 py-2">${dep.namespace}</td>
- <td class="px-4 py-2">${dep.name}</td>
- <td class="px-4 py-2">${dep.replicas}</td>
- <td class="px-4 py-2">${dep.updated}</td>
- <td class="px-4 py-2">${dep.available}</td>
- <td class="px-4 py-2">${dep.age}</td>
+ <td>${dep.namespace}</td>
+ <td>${dep.name}</td>
+ <td>${dep.replicas}</td>
+ <td>${dep.updated}</td>
+ <td>${dep.available}</td>
+ <td>${dep.age}</td>
  `;
  row.addEventListener("click", () => {
  lastClickedRow = row;
@@ -260,35 +245,8 @@
  }
 
  function updateDeploymentPagination(totalCount) {
- const container = document.getElementById("deploymentPaginationControls");
- if (!container) return;
-
- if (deploymentPageSize === -1 || totalCount <= deploymentPageSize) {
- container.innerHTML ="";
- return;
- }
-
- const totalPages = Math.ceil(totalCount / deploymentPageSize);
- let html ="";
-
- html += `<button onclick="window.goToDeploymentPage(1)" ${deploymentCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${deploymentCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">First</button>`;
- html += `<button onclick="window.goToDeploymentPage(${deploymentCurrentPage - 1})" ${deploymentCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${deploymentCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Prev</button>`;
-
- const startPage = Math.max(1, deploymentCurrentPage - 2);
- const endPage = Math.min(totalPages, deploymentCurrentPage + 2);
-
- for (let i = startPage; i <= endPage; i++) {
- if (i === deploymentCurrentPage) {
- html += `<button class="px-3 py-1 text-sm bg-blue-700 text-white font-bold current-page">${i}</button>`;
- } else {
- html += `<button onclick="window.goToDeploymentPage(${i})" class="px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700">${i}</button>`;
- }
- }
-
- html += `<button onclick="window.goToDeploymentPage(${deploymentCurrentPage + 1})" ${deploymentCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${deploymentCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Next</button>`;
- html += `<button onclick="window.goToDeploymentPage(${totalPages})" ${deploymentCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${deploymentCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Last</button>`;
-
- container.innerHTML = html;
+   // the shared pager (diagPager): one page -> nothing drawn
+   window.diagPager.render(document.getElementById('deploymentPaginationControls'), { total: totalCount, page: deploymentCurrentPage, pageSize: deploymentPageSize, go: function (p) { window.goToDeploymentPage(p); } });
  }
 
  window.goToDeploymentPage = function(page) {
@@ -314,6 +272,8 @@
  indicators.forEach(icon => {
  icon.classList.remove('fa-caret-up', 'fa-caret-down');
  });
+ const cur = currentSort.key && document.getElementById('deployment-indicator-' + currentSort.key);
+ if (cur) window.diagTables.markSort(cur, currentSort.direction === 1);
  }
 
  window.sortBy = function(key) {
@@ -428,12 +388,12 @@
  }, 0);
 
  deploymentDetailsTable.innerHTML = `
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Name:</td><td class="py-2">${dep.name}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Namespace:</td><td class="py-2">${dep.namespace}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Replicas:</td><td class="py-2">${dep.replicas}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Updated:</td><td class="py-2">${dep.updated}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Available:</td><td class="py-2">${dep.available}</td></tr>
- <tr><td class="py-2 pr-4 font-semibold">Age:</td><td class="py-2">${dep.age}</td></tr>
+ <tr><td>Name:</td><td>${dep.name}</td></tr>
+ <tr><td>Namespace:</td><td>${dep.namespace}</td></tr>
+ <tr><td>Replicas:</td><td>${dep.replicas}</td></tr>
+ <tr><td>Updated:</td><td>${dep.updated}</td></tr>
+ <tr><td>Available:</td><td>${dep.available}</td></tr>
+ <tr><td>Age:</td><td>${dep.age}</td></tr>
  `;
 
  const conditions = dep.raw?.status?.conditions || [];
@@ -447,27 +407,27 @@
  } else {
  let tableHTML =
  `<div class="text-sm mb-2">Showing ${conditions.length} condition(s)</div>` +
- '<table class="w-full min-w-full text-sm rounded-lg shadow-md">' +
- '<thead class="border-b">' +
+ '<table class="ui-table">' +
+ '<thead>' +
  '<tr>' +
- '<th class="px-4 py-2 text-left">Type</th>' +
- '<th class="px-4 py-2 text-left">Status</th>' +
- '<th class="px-4 py-2 text-left">Reason</th>' +
- '<th class="px-4 py-2 text-left">Message</th>' +
- '<th class="px-4 py-2 text-left">Last Updated</th>' +
- '<th class="px-4 py-2 text-left">Last Transition</th>' +
+ '<th>Type</th>' +
+ '<th>Status</th>' +
+ '<th>Reason</th>' +
+ '<th>Message</th>' +
+ '<th>Last Updated</th>' +
+ '<th>Last Transition</th>' +
  '</tr>' +
  '</thead>' +
  '<tbody>';
 
  for (const cond of conditions) {
  tableHTML +=
- '<tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-800">' +
- `<td class="px-4 py-2">${cond.type}</td>` +
- `<td class="px-4 py-2">${cond.status}</td>` +
- `<td class="px-4 py-2">${cond.reason}</td>` +
- `<td class="px-4 py-2 break-all">${cond.message}</td>` +
- `<td class="px-4 py-2">${new Date(cond.lastUpdateTime).toLocaleString('en-US', {
+ '<tr>' +
+ `<td>${cond.type}</td>` +
+ `<td>${cond.status}</td>` +
+ `<td>${cond.reason}</td>` +
+ `<td class="break-all">${cond.message}</td>` +
+ `<td>${new Date(cond.lastUpdateTime).toLocaleString('en-US', {
      month: 'short',
      day: '2-digit',
      year: 'numeric',
@@ -476,7 +436,7 @@
      timeZone: 'UTC',
      timeZoneName: 'short'
    })}</td>` +
- `<td class="px-4 py-2">${new Date(cond.lastTransitionTime).toLocaleString('en-US', {
+ `<td>${new Date(cond.lastTransitionTime).toLocaleString('en-US', {
      month: 'short',
      day: '2-digit',
      year: 'numeric',

@@ -1,569 +1,254 @@
-{% set first_key = data.keys() | list | first %}
-{% set dataset = data[first_key] %}
+{#
+  System > Processes (parsers/sosreport/processes.py): the Findings strip,
+  three chart cards side by side (the processes by state, the top CPU and
+  memory consumers as horizontal bars that filter the table on a click),
+  then the process table: the shared compact filter bar on one row, the
+  shared pager, one line per process with the command cut to the cell (the
+  whole command line, a copy button and the process's threads in the row
+  that opens on a click), the empty columns hidden with a Columns menu to
+  show them. Every control, table, chart and badge is the shared design;
+  the script never builds HTML from report content (textContent only).
+#}
+{% import "tabs/_ui.html" as ui %}
+{# the first listing with processes is the one shown (ps auxwwwm, else the SELinux-labelled one) #}
+{% set first_key = namespace(v=none) %}{% for k, v in data.items() if k != 'findings' and v.processes and first_key.v is none %}{% set first_key.v = k %}{% endfor %}{% set first_key = first_key.v %}
+{{ ui.findings(findings) }}
 
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium mb-2">
- <i class="fas fa-question-circle mr-2"></i> Process State Legend
- </h3>
- <table class="min-w-full text-sm rounded-sm">
- <thead>
- <tr class="border-b">
- <th class="px-3 py-2 text-left">State</th>
- <th class="px-3 py-2 text-left">Description</th>
- </tr>
- </thead>
- <tbody>
- {% for state, desc in {
- 'D': 'Uninterruptible sleep (usually IO). For 20 seconds to 120 seconds, then hung_task_timeout_secs.',
- 'I': 'Idle process (sleeping for longer than about 20 seconds).',
- 'P': 'Parked (idle kernel thread).',
- 'R': 'Running or runnable (on run queue).',
- 'S': 'Interruptible sleep (waiting for an event to complete).',
- 'T': 'Stopped by job control signal.',
- 'U': 'Uninterruptible sleep (BSD).',
- 'Z': 'Zombie (terminated but not reaped by parent).',
- 't': 'Stopped by debugger during the tracing',
- 'X': 'Dead (should never be seen)',
- 'W': 'Paging (not valid since Linux 2.6.xx)',
- '<': 'High-priority (not nice to other processes)',
- 'N': 'Low-priority (nice to other processes)',
- 'L': 'Has pages locked into memory (for real-time and custom IO)',
- 's': 'Is a session leader',
- 'l': 'Multi-threaded (using CLONE_THREAD, like NPTL pthreads do)',
- '+': 'In the foreground process group'
- }.items() %}
- <tr class="hover:bg-gray-50">
- <td class="px-3 py-1">{{ state }}</td>
- <td class="px-3 py-1">{{ desc }}</td>
- </tr>
- {% endfor %}
- </tbody>
- </table>
- </div>
-
- <div class="flex flex-col gap-4">
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium mb-2">
- <i class="fas fa-chart-pie mr-2"></i> Process by State
- </h3>
- <div id="stateValues" class="flex flex-wrap gap-2 text-sm mb-2"></div>
- <div class="relative">
- <canvas id="stateChart"></canvas>
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium mb-2">
- <i class="fas fa-chart-line mr-2"></i> Top 5 CPU Utilization
- </h3>
- <div class="relative h-48">
- <canvas id="cpuChart" height="150"></canvas>
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium mb-2">
- <i class="fas fa-memory mr-2"></i> Top 5 Memory Utilization
- </h3>
- <div class="relative h-48">
- <canvas id="memChart" height="150"></canvas>
- </div>
- </div>
- </div>
+{% if first_key %}
+<div class="ui-grid-charts">
+  <div class="panel rounded-lg shadow-sm" data-chart-card>
+    {{ ui.card_title('Processes by state') }}
+    <canvas id="stateChart" aria-label="Processes by state"></canvas>
+  </div>
+  <div class="panel rounded-lg shadow-sm" data-chart-card>
+    {{ ui.card_title('Top 5 CPU + other') }}
+    <canvas id="cpuChart" aria-label="Top CPU consumers"></canvas>
+  </div>
+  <div class="panel rounded-lg shadow-sm" data-chart-card>
+    {{ ui.card_title('Top 5 memory + other') }}
+    <canvas id="memChart" aria-label="Top memory consumers"></canvas>
+  </div>
 </div>
 
-<div class="grid grid-cols-1 gap-4">
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium mb-2">
- <i class="fas fa-tasks mr-2"></i> Processes
- </h3>
-
- <div class="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-2">
- <div>
- <label for="datasetSelect" class="block text-xs font-semibold mb-1">File</label>
- <select id="datasetSelect" class="w-full px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out" onchange="updateDataset()">
- {% for datasetKey in data.keys() %}
- <option value="{{ datasetKey }}" {% if datasetKey == first_key %}selected{% endif %}>{{ datasetKey }}</option>
- {% endfor %}
- </select>
- </div>
- <div>
- <label class="block text-xs font-semibold mb-1">STAT</label>
- <select id="statFilter" onchange="filterProcesses()"
- class="w-full px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
- <option value="">All</option>
- {% for s in ['D','I','P','R','S','T','t','Z','X','W','<','N','L','s','l','+'] %}
- <option value="{{ s }}">{{ s }}</option>
- {% endfor %}
- </select>
- </div>
- <div>
- <label class="block text-xs font-semibold mb-1">%CPU ≥</label>
- <input type="number" id="cpuMinFilter" oninput="filterProcesses()"
- class="w-full px-3 py-2 text-sm rounded-md text-white">
- </div>
- <div>
- <label class="block text-xs font-semibold mb-1">%MEM ≥</label>
- <input type="number" id="memMinFilter" oninput="filterProcesses()"
- class="w-full px-3 py-2 text-sm rounded-md text-white">
- </div>
- <div class="md:col-span-2 xl:col-span-2">
- <label class="block text-xs font-semibold mb-1">Search All</label>
- <input type="text" id="processFilter" oninput="filterProcesses()"
- class="w-full px-3 py-2 text-sm rounded-md">
- </div>
- </div>
-
- <div class="overflow-x-auto">
- <div class="flex justify-between items-center mb-2">
- <div id="filteredCount" class="text-xs">Showing all processes</div>
- <div class="flex items-center gap-2">
- <label class="text-xs">Rows per page:</label>
- <select id="pageSizeSelect" onchange="changePageSize()" class="px-2 py-1 text-white text-xs rounded-md">
- <option value="50">50</option>
- <option value="100" selected>100</option>
- <option value="250">250</option>
- <option value="500">500</option>
- <option value="1000">1000</option>
- <option value="-1">All</option>
- </select>
- </div>
- </div>
- <table id="processesTable" class="min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
- <tr>
- {% for key in dataset.headers %}
- <th class="px-4 py-2 text-left cursor-pointer" onclick="sortProcessTable({{ loop.index0 }})">
- <div class="flex items-center">
- {{ key }} <i id="proc-indicator-{{ loop.index0 }}" class="fas text-sm ml-1"></i>
- </div>
- </th>
- {% endfor %}
- </tr>
- </thead>
- <tbody>
- </tbody>
- </table>
- <div id="paginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
- </div>
- </div>
+<div class="panel rounded-lg shadow-sm" id="processes-panel" hidden>
+  {% call ui.filter_bar(id='processes-toolbar') %}
+    {{ ui.search('processFilter', 'Search processes (a regex works)') }}
+    <label class="ui-rows">File<span class="ui-select-wrap ui-narrow"><select id="datasetSelect" class="ui-select" aria-label="Process listing">{% for datasetKey in data.keys() if datasetKey != 'findings' and data[datasetKey].processes %}<option value="{{ datasetKey }}"{% if datasetKey == first_key %} selected{% endif %}>{{ datasetKey }}</option>{% endfor %}</select>{{ ui.icon('chevron') }}</span></label>
+    <label class="ui-rows">STAT<span class="ui-select-wrap ui-narrow"><select id="statFilter" class="ui-select" aria-label="State"><option value="">All</option>{% for s in ['D','I','P','R','S','T','t','Z','X','W','<','N','L','s','l','+'] %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select>{{ ui.icon('chevron') }}</span></label>
+    {{ ui.numfield('cpuMinFilter', '%CPU ≥', 'min="0" step="0.1"') }}
+    {{ ui.numfield('memMinFilter', '%MEM ≥', 'min="0" step="0.1"') }}
+    {% call ui.end() %}<details class="ui-menu" id="columns-menu"><summary class="btn btn-secondary btn-sm">Columns</summary><div class="ui-menu-body" id="columns-menu-body"></div></details>{{ ui.xrow_all('#processesTable') }}{% endcall %}
+  {% endcall %}
+  <div class="ui-table-wrap">
+    <table id="processesTable" class="ui-table">
+      <thead><tr>{{ ui.xrow_th() }}</tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  {% call ui.pagebar('processes-status', 'processes-pager') %}<select id="pageSizeSelect" class="ui-select" aria-label="Rows per page"><option value="50">50</option><option value="100" selected>100</option><option value="250">250</option><option value="500">500</option><option value="1000">1000</option><option value="-1">All</option></select>{% endcall %}
 </div>
+{% endif %}
 
 <script>
- var allDatasets = {{ data | tojson }};
- var currentDatasetKey = Object.keys(allDatasets)[0];
- var allProcesses = [];
- var filteredProcesses = [];
- var currentPage = 1;
- var pageSize = 100;
- var filterTimeout = null;
-
- window.updateDataset = function() {
- const select = document.getElementById('datasetSelect');
- currentDatasetKey = select.value;
- renderDataset(currentDatasetKey);
- };
-
- function renderDataset(datasetKey) {
- allProcesses = allDatasets[datasetKey].processes;
- const headers = allDatasets[datasetKey].headers;
-
- document.getElementById("processFilter").value = '';
- document.getElementById("statFilter").value = '';
- document.getElementById("cpuMinFilter").value = '';
- document.getElementById("memMinFilter").value = '';
-
- const theadRow = document.querySelector("#processesTable thead tr");
- theadRow.innerHTML = '';
-
- headers.forEach((key, i) => {
- const th = document.createElement('th');
- th.className = 'px-4 py-2 text-left cursor-pointer';
- th.setAttribute('data-key', key);
- th.innerHTML = `<div class="flex items-center">
- ${key} <i id="proc-indicator-${i}" class="fas text-sm ml-1"></i>
- </div>`;
- th.onclick = () => sortProcessTable(i);
- theadRow.appendChild(th);
- });
-
- currentPage = 1;
- filterProcesses();
- resetProcIndicators();
- updateCharts(allProcesses);
- }
-
- function resetProcIndicators() {
- const indicators = document.querySelectorAll('[id^="proc-indicator-"]');
- indicators.forEach(icon => {
- icon.classList.remove('fa-caret-up', 'fa-caret-down');
- });
- }
-
- var currentSortColumn = null;
- var currentSortDirection = 'asc';
-
- window.sortProcessTable = function(columnIndex) {
- const headers = Array.from(document.querySelectorAll("#processesTable thead th")).map(th => th.getAttribute('data-key'));
- const key = headers[columnIndex];
-
- if (currentSortColumn === columnIndex) {
- currentSortDirection = (currentSortDirection === 'asc') ? 'desc' : 'asc';
- } else {
- currentSortColumn = columnIndex;
- currentSortDirection = 'asc';
- }
-
- filteredProcesses.sort((a, b) => {
- const aVal = a[key];
- const bVal = b[key];
-
- const aNum = parseFloat(aVal);
- const bNum = parseFloat(bVal);
-
- let comparison = 0;
- if (!isNaN(aNum) && !isNaN(bNum)) {
- comparison = aNum - bNum;
- } else {
- comparison = String(aVal).localeCompare(String(bVal));
- }
-
- return currentSortDirection === 'asc' ? comparison : -comparison;
- });
-
- currentPage = 1;
- renderTable();
-
- resetProcIndicators();
- const indicator = document.getElementById(`proc-indicator-${columnIndex}`);
- if (indicator) {
- indicator.classList.add(currentSortDirection === 'asc' ? 'fa-caret-up' : 'fa-caret-down');
- }
- };
-
- window.filterProcesses = function() {
- clearTimeout(filterTimeout);
- filterTimeout = setTimeout(() => {
- const searchInputRaw = document.getElementById("processFilter").value.trim();
- const statFilter = document.getElementById("statFilter").value;
- const cpuMin = parseFloat(document.getElementById("cpuMinFilter").value) || 0;
- const memMin = parseFloat(document.getElementById("memMinFilter").value) || 0;
-
- let searchRegex = null;
- if (searchInputRaw.length > 0) {
- try {
- searchRegex = new RegExp(searchInputRaw,"i");
- } catch (e) {
- console.warn("Invalid regex in search input:", e);
- searchRegex = null;
- }
- }
-
- const headers = Array.from(document.querySelectorAll("#processesTable thead th")).map(th => th.getAttribute('data-key'));
- const statIndex = headers.indexOf("STAT");
- const cpuIndex = headers.indexOf("%CPU");
- const memIndex = headers.indexOf("%MEM");
-
- filteredProcesses = allProcesses.filter(proc => {
- const stat = proc[headers[statIndex]] ||"";
- const cpu = parseFloat(proc[headers[cpuIndex]]) || 0;
- const mem = parseFloat(proc[headers[memIndex]]) || 0;
-
- let searchMatch = true;
- if (searchRegex) {
- searchMatch = headers.some(key => searchRegex.test(String(proc[key] ||"")));
- }
-
- const statMatch = !statFilter || stat.includes(statFilter);
- const cpuMatch = cpu >= cpuMin;
- const memMatch = mem >= memMin;
-
- return searchMatch && statMatch && cpuMatch && memMatch;
- });
-
- currentPage = 1;
- renderTable();
- }, 300);
- };
-
- function renderTable() {
- const tbody = document.querySelector('#processesTable tbody');
- const headers = Array.from(document.querySelectorAll("#processesTable thead th")).map(th => th.getAttribute('data-key'));
-
- const totalCount = filteredProcesses.length;
- const start = pageSize === -1 ? 0 : (currentPage - 1) * pageSize;
- const end = pageSize === -1 ? totalCount : Math.min(start + pageSize, totalCount);
- const pageProcesses = filteredProcesses.slice(start, end);
-
- const fragment = document.createDocumentFragment();
-
- pageProcesses.forEach(proc => {
- const tr = document.createElement('tr');
- tr.className = 'hover:bg-gray-50';
-
- headers.forEach(key => {
- const td = document.createElement('td');
- td.className = 'px-4 py-2';
- const val = proc[key];
-
- if (key === 'PID' && val !== '-') {
- td.innerHTML = `<div class="inline-flex items-center">${val}</div>`;
- } else if (key === 'COMMAND') {
- td.innerHTML = `<div class="whitespace-normal wrap-break-word max-w-lg">${val}</div>`;
- } else {
- td.textContent = val;
- }
-
- tr.appendChild(td);
- });
-
- fragment.appendChild(tr);
- });
-
- tbody.innerHTML = '';
- tbody.appendChild(fragment);
-
- updatePaginationControls();
- updateCountDisplay();
- }
-
- function updateCountDisplay() {
- const totalCount = filteredProcesses.length;
- const allCount = allProcesses.length;
-
- let countText;
- if (pageSize === -1) {
- countText = totalCount === allCount
- ? `Showing all ${totalCount} processes`
- : `Showing ${totalCount} of ${allCount} processes`;
- } else {
- const start = (currentPage - 1) * pageSize + 1;
- const end = Math.min(currentPage * pageSize, totalCount);
- countText = totalCount === allCount
- ? `Showing ${start}-${end} of ${totalCount} processes`
- : `Showing ${start}-${end} of ${totalCount} (filtered from ${allCount})`;
- }
-
- document.getElementById("filteredCount").textContent = countText;
- }
-
- function updatePaginationControls() {
- const controls = document.getElementById('paginationControls');
-
- if (pageSize === -1 || filteredProcesses.length <= pageSize) {
- controls.innerHTML = '';
- return;
- }
-
- const totalPages = Math.ceil(filteredProcesses.length / pageSize);
- const maxButtons = 7;
-
- let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
- let endPage = Math.min(totalPages, startPage + maxButtons - 1);
-
- if (endPage - startPage < maxButtons - 1) {
- startPage = Math.max(1, endPage - maxButtons + 1);
- }
-
- let html = '';
-
- html += `<button onclick="goToPage(1)" ${currentPage === 1 ? 'disabled' : ''}
- class="px-3 py-1 text-sm rounded-sm ${currentPage === 1 ? 'bg-gray-600 text-gray-400' : ' text-white '}">
- First</button>`;
-
- html += `<button onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}
- class="px-3 py-1 text-sm rounded-sm ${currentPage === 1 ? 'bg-gray-600 text-gray-400' : ' text-white '}">
- Prev</button>`;
-
- if (startPage > 1) {
- html += '<span class="px-2">...</span>';
- }
-
- for (let i = startPage; i <= endPage; i++) {
- html += `<button onclick="goToPage(${i})"
- class="px-3 py-1 text-sm rounded-sm ${i === currentPage ? ' text-white current-page' : ' text-white '}">
- ${i}</button>`;
- }
-
- if (endPage < totalPages) {
- html += '<span class="px-2">...</span>';
- }
-
- html += `<button onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}
- class="px-3 py-1 text-sm rounded-sm ${currentPage === totalPages ? 'bg-gray-600 text-gray-400' : ' text-white '}">
- Next</button>`;
-
- html += `<button onclick="goToPage(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''}
- class="px-3 py-1 text-sm rounded-sm ${currentPage === totalPages ? 'bg-gray-600 text-gray-400' : ' text-white '}">
- Last</button>`;
-
- controls.innerHTML = html;
- }
-
- window.goToPage = function(page) {
- currentPage = page;
- renderTable();
- };
-
- window.changePageSize = function() {
- pageSize = parseInt(document.getElementById('pageSizeSelect').value);
- currentPage = 1;
- renderTable();
- };
-
- function updateCharts(processes) {
-
- document.getElementById("stateValues").innerHTML = '';
- const stateCounts = {};
- const cpuDataMap = {};
- const memDataMap = {};
-
- processes.forEach(proc => {
- const stat = proc['STAT'] || '-';
- const pid = proc['PID'];
- const cpu = parseFloat(proc['%CPU']) || 0;
- const mem = parseFloat(proc['%MEM']) || 0;
- const cmd = (proc['COMMAND'] || '').split(' ')[0];
-
- if (pid && pid !== '-' && !isNaN(cpu)) cpuDataMap[cmd] = (cpuDataMap[cmd] || 0) + cpu;
- if (pid && pid !== '-' && !isNaN(mem)) memDataMap[cmd] = (memDataMap[cmd] || 0) + mem;
-
- const shortState = stat[0] || '-';
- if (shortState !== '-') stateCounts[shortState] = (stateCounts[shortState] || 0) + 1;
- });
-
- const stateValuesDiv = document.getElementById("stateValues");
- Object.entries(stateCounts).forEach(([state, count]) => {
- const badge = document.createElement("div");
- badge.className =" px-3 py-1 rounded-full shadow-sm text-xs";
- badge.textContent = `${state}: ${count}`;
- stateValuesDiv.appendChild(badge);
- });
-
- const cpuData = Object.entries(cpuDataMap)
- .map(([command, cpu]) => ({ command, cpu }))
- .sort((a, b) => b.cpu - a.cpu);
-
- const memData = Object.entries(memDataMap)
- .map(([command, mem]) => ({ command, mem }))
- .sort((a, b) => b.mem - a.mem);
-
- function top5PlusOthers(data, valueKey) {
- const top = data.slice(0, 5);
- const others = data.slice(5).reduce((acc, p) => acc + p[valueKey], 0);
- if (others > 0) top.push({ command: 'Other', [valueKey]: others });
- return top;
- }
-
- const topCpu = top5PlusOthers(cpuData, 'cpu');
- const topMem = top5PlusOthers(memData, 'mem');
-
- if (window.stateChart && typeof window.stateChart.destroy === 'function') {
- window.stateChart.destroy();
- }
- if (window.cpuChart && typeof window.cpuChart.destroy === 'function') {
- window.cpuChart.destroy();
- }
- if (window.memChart && typeof window.memChart.destroy === 'function') {
- window.memChart.destroy();
- }
-
- const stateCtx = document.getElementById("stateChart").getContext("2d");
- window.stateChart = new Chart(stateCtx, {
- type:"doughnut",
- data: {
- labels: Object.keys(stateCounts),
- datasets: [{
- label:"Processes by State",
- data: Object.values(stateCounts),
- backgroundColor: [
-"#4CAF50","#FFC107","#F44336","#2196F3","#9C27B0","#FF9800"
- ],
- }]
- },
- options: {
- responsive: true,
- maintainAspectRatio: false,
- animation: false,
- plugins: {
- legend: { labels: { color: diagnosticsThemeColor('text'), font: { size: 12 } }, position: 'bottom' },
- tooltip: { backgroundColor: diagnosticsThemeColor('tooltip'), titleColor: '#facc15', bodyColor: diagnosticsThemeColor('text'), borderColor: '#374151', borderWidth: 1 },
- },
- scales: {
- x: { grid: { color: diagnosticsThemeColor('grid') }, ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } } },
- y: { beginAtZero: true, grid: { color: diagnosticsThemeColor('grid') }, ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } } }
- }
- },
- });
-
- const cpuCtx = document.getElementById("cpuChart").getContext("2d");
- window.cpuChart = new Chart(cpuCtx, {
- type:"bar",
- data: {
- labels: topCpu.map(p => p.command),
- datasets: [{
- label:"% CPU",
- data: topCpu.map(p => p.cpu),
- backgroundColor:"#3BBA9C"
- }]
- },
- options: {
- responsive: true,
- maintainAspectRatio: false,
- animation: false,
- plugins: {
- legend: { labels: { color: diagnosticsThemeColor('text'), font: { size: 12 } } },
- tooltip: { backgroundColor: diagnosticsThemeColor('tooltip'), titleColor: '#facc15', bodyColor: diagnosticsThemeColor('text'), borderColor: '#374151', borderWidth: 1 }
- },
- scales: {
- x: { grid: { color: diagnosticsThemeColor('grid') }, ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } } },
- y: { beginAtZero: true, grid: { color: diagnosticsThemeColor('grid') }, ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } } }
- }
- }
- });
-
- const memCtx = document.getElementById("memChart").getContext("2d");
- window.memChart = new Chart(memCtx, {
- type:"bar",
- data: {
- labels: topMem.map(p => p.command),
- datasets: [{
- label:"% MEM",
- data: topMem.map(p => p.mem),
- backgroundColor:"#4CAF50"
- }]
- },
- options: {
- responsive: true,
- maintainAspectRatio: false,
- animation: false,
- plugins: {
- legend: { labels: { color: diagnosticsThemeColor('text'), font: { size: 12 } } },
- tooltip: { backgroundColor: diagnosticsThemeColor('tooltip'), titleColor: '#facc15', bodyColor: diagnosticsThemeColor('text'), borderColor: '#374151', borderWidth: 1 }
- },
- scales: {
- x: { grid: { color: diagnosticsThemeColor('grid') }, ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } } },
- y: { beginAtZero: true, grid: { color: diagnosticsThemeColor('grid') }, ticks: { color: diagnosticsThemeColor('text'), font: { size: 11 } } }
- }
- }
- });
- }
- updateDataset();
-
- // Watch for theme changes and re-render charts
- const themeObserver = new MutationObserver((mutations) => {
- mutations.forEach((mutation) => {
- if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
- // Theme has changed, re-render charts
- updateCharts(allProcesses);
- }
- });
- });
-
- // Start observing theme changes
- themeObserver.observe(document.documentElement, {
- attributes: true,
- attributeFilter: ['class']
- });
+(function () {
+  var allDatasets = {{ data | tojson }};
+  delete allDatasets.findings;
+  // the listings with processes, the one the select shows first (tojson sorts the keys: never trust their order)
+  var keys = Object.keys(allDatasets).filter(function (k) { return allDatasets[k] && allDatasets[k].processes && allDatasets[k].processes.length; });
+  if (!keys.length) return;
+  var panel = document.getElementById('processes-panel');
+  var select = document.getElementById('datasetSelect');
+  var table = document.getElementById('processesTable');
+  var thead = table.querySelector('thead tr');
+  var tbody = table.querySelector('tbody');
+  var statusEl = document.getElementById('processes-status');
+  var pager = document.getElementById('processes-pager');
+  var NUMERIC = { '%CPU': 1, '%MEM': 1, VSZ: 1, RSS: 1, PID: 1, PPID: 1 };
+  var BYTES = { VSZ: 1, RSS: 1 };   // ps prints KiB
+  var STAT_HELP = { D: 'uninterruptible sleep (usually I/O)', I: 'idle kernel thread', P: 'parked', R: 'running or runnable', S: 'interruptible sleep', T: 'stopped by a job-control signal', t: 'stopped by a debugger', U: 'uninterruptible sleep (BSD)', W: 'paging (obsolete)', X: 'dead', Z: 'zombie (terminated, not reaped by its parent)', '<': 'high priority', N: 'low priority (nice)', L: 'pages locked in memory', s: 'session leader', l: 'multi-threaded', '+': 'in the foreground process group' };
+  function describeStat(stat) { return String(stat || '').split('').map(function (c) { return STAT_HELP[c] ? c + ': ' + STAT_HELP[c] : c; }).join('\n'); }
+  var fmt = window.diagChart ? window.diagChart.fmt : { num: String, bytes: String, pct: String };
+  var kib = function (v) { var n = parseFloat(v); return isNaN(n) ? (v || '-') : fmt.bytes(n * 1024); };
+
+  var state = { key: keys[0], headers: [], rows: [], filtered: [], page: 1, pageSize: 100, sortKey: '%CPU', sortDir: 'desc', hidden: {}, shown: {} };
+
+  function dataset() { return allDatasets[state.key] || { headers: [], processes: [], summary: {} }; }
+
+  // ---- the charts ----
+  var charts = {};
+  function drawCharts() {
+    var sum = dataset().summary || {};
+    var states = sum.states || [];
+    charts.state = window.diagChart.make('stateChart', {
+      type: 'doughnut',
+      data: { labels: states.map(function (s) { return s.state + ' ' + s.label; }), datasets: [{ data: states.map(function (s) { return s.count; }), roles: states.map(function (s) { return s.role; }) }] },
+      options: { plugins: { tooltip: { callbacks: { label: function (it) { return ' ' + fmt.num(it.raw) + ' processes'; } } } } },
+    });
+    var top = function (which, unit) {
+      var t = sum[which] || { rows: [], other: 0 };
+      var rows = t.rows.map(function (r) { return { name: r.label, title: r.name + ' (pid ' + r.pid + ', ' + r.user + ')', count: r.value, command: r.command, pid: r.pid, user: r.user, rss: r.rss }; });
+      if (t.other > 0) rows.push({ name: 'other', title: 'every other process', count: t.other, role: 'other', other: true });
+      return rows;
+    };
+    charts.cpu = window.diagChart.categoryBars('cpuChart', top('top_cpu'), {
+      label: '%CPU', format: function (v) { return fmt.pct(v); }, colour: function (r) { return r.other ? window.diagChart.roleColor('other') : window.diagChart.roleColor('ok'); },
+      tooltip: function (r) { return r.other ? [] : [r.command || '']; }, onRow: function (r) { if (!r.other) filterTo(String(r.pid)); },
+    });
+    charts.mem = window.diagChart.categoryBars('memChart', top('top_mem'), {
+      label: '%MEM', format: function (v) { return fmt.pct(v); }, colour: function (r) { return r.other ? window.diagChart.roleColor('other') : window.diagChart.roleColor('series') ; },
+      tooltip: function (r) { return r.other ? [] : [r.command || '', r.rss ? 'RSS ' + fmt.bytes(r.rss * 1024) : '']; }, onRow: function (r) { if (!r.other) filterTo(String(r.pid)); },
+    });
+  }
+  function filterTo(q) { var f = document.getElementById('processFilter'); f.value = q; applyFilters(); f.scrollIntoView({ block: 'nearest' }); }
+
+  // ---- the table ----
+  function emptyColumns(rows, headers) {
+    var out = {};
+    headers.forEach(function (h) { out[h] = rows.length > 0 && rows.every(function (r) { return r[h] === '-' || r[h] === '' || r[h] === undefined; }); });
+    return out;
+  }
+  function visibleHeaders() { return state.headers.filter(function (h) { return !(state.hidden[h] && !state.shown[h]); }); }
+  function buildHead() {
+    thead.textContent = '';
+    var xth = document.createElement('th'); xth.className = 'ui-xrow-th'; xth.setAttribute('aria-label', 'Details'); thead.appendChild(xth);
+    visibleHeaders().forEach(function (h) {
+      var th = document.createElement('th');
+      th.setAttribute('data-key', h);
+      if (NUMERIC[h]) th.className = 'ui-num';
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'lc-sort'; b.textContent = h; b.addEventListener('click', function () { sortBy(h); });
+      th.appendChild(b);
+      thead.appendChild(th);
+    });
+    if (dataset().has_threads) { var th = document.createElement('th'); th.textContent = 'Threads'; th.className = 'ui-num'; th.setAttribute('data-key', '_threads'); thead.appendChild(th); }
+    markSort();
+  }
+  function markSort() {
+    Array.prototype.forEach.call(thead.children, function (th) {
+      var b = th.querySelector('.lc-sort');
+      if (th.getAttribute('data-key') === state.sortKey) { th.setAttribute('aria-sort', state.sortDir === 'asc' ? 'ascending' : 'descending'); if (b) { b.classList.add('lc-sorted'); b.classList.toggle('lc-asc', state.sortDir === 'asc'); } }
+      else { th.removeAttribute('aria-sort'); if (b) b.classList.remove('lc-sorted', 'lc-asc'); }
+    });
+  }
+  function buildColumnsMenu() {
+    var body = document.getElementById('columns-menu-body');
+    body.textContent = '';
+    state.headers.forEach(function (h) {
+      var label = document.createElement('label');
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.className = 'ui-check'; cb.checked = !(state.hidden[h] && !state.shown[h]);
+      cb.addEventListener('change', function () { state.shown[h] = cb.checked; if (!cb.checked) state.hidden[h] = true; buildHead(); render(); });
+      label.appendChild(cb); label.appendChild(document.createTextNode(' ' + h + (state.hidden[h] ? ' (empty)' : '')));
+      body.appendChild(label);
+    });
+  }
+  function sortBy(key) {
+    if (state.sortKey === key) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+    else { state.sortKey = key; state.sortDir = NUMERIC[key] ? 'desc' : 'asc'; }
+    state.page = 1;
+    applySort(); markSort(); render();
+  }
+  function applySort() {
+    var key = state.sortKey, dir = state.sortDir === 'asc' ? 1 : -1;
+    state.filtered.sort(function (a, b) {
+      var av = a[key], bv = b[key];
+      var an = parseFloat(av), bn = parseFloat(bv);
+      var c = (!isNaN(an) && !isNaN(bn)) ? an - bn : String(av).localeCompare(String(bv));
+      return c * dir;
+    });
+  }
+  function applyFilters() {
+    var q = document.getElementById('processFilter').value.trim();
+    var stat = document.getElementById('statFilter').value;
+    var cpuMin = parseFloat(document.getElementById('cpuMinFilter').value) || 0;
+    var memMin = parseFloat(document.getElementById('memMinFilter').value) || 0;
+    var re = null;
+    if (q) { try { re = new RegExp(q, 'i'); } catch (e) { re = null; } }
+    state.filtered = state.rows.filter(function (p) {
+      if (stat && String(p.STAT || '').indexOf(stat) < 0) return false;
+      if ((parseFloat(p['%CPU']) || 0) < cpuMin || (parseFloat(p['%MEM']) || 0) < memMin) return false;
+      if (!q) return true;
+      var hay = state.headers.map(function (h) { return p[h]; }).join(' ');
+      return re ? re.test(hay) : hay.toLowerCase().indexOf(q.toLowerCase()) >= 0;
+    });
+    state.page = 1;
+    applySort(); render();
+  }
+  function cell(p, h) {
+    var td = document.createElement('td');
+    var v = p[h] === undefined ? '-' : p[h];
+    if (h === 'COMMAND') { td.className = 'ui-cmd'; td.textContent = v; td.title = v; }
+    else if (BYTES[h]) { td.className = 'ui-num'; td.textContent = kib(v); td.title = v + ' KiB'; }
+    else if (NUMERIC[h]) { td.className = 'ui-num'; td.textContent = v; }
+    else if (h === 'STAT') { td.textContent = v; td.title = describeStat(v); }
+    else td.textContent = v;
+    return td;
+  }
+  function expandRow(p, cols) {
+    var body = document.createElement('div');
+    var head = document.createElement('div'); head.className = 'ui-xrow-actions';
+    var kv = document.createElement('dl'); kv.className = 'ui-kv';
+    [['PID', p.PID], ['Parent', p.PPID !== '-' ? p.PPID : ''], ['User', p.USER], ['State', p.STAT ? p.STAT + ' (' + describeStat(p.STAT).split('\n')[0].replace(/^.: /, '') + ')' : ''], ['Threads', p.thread_count ? fmt.num(p.thread_count) : ''], ['Started', p.START], ['CPU time', p.TIME]].forEach(function (it) { if (!it[1]) return; var d = document.createElement('div'); var dt = document.createElement('dt'); dt.textContent = it[0]; var dd = document.createElement('dd'); dd.textContent = it[1]; d.appendChild(dt); d.appendChild(dd); kv.appendChild(d); });
+    body.appendChild(kv);
+    var copy = document.createElement('button'); copy.type = 'button'; copy.className = 'btn btn-secondary ui-copy'; copy.textContent = 'Copy command'; copy.setAttribute('data-copy', p.COMMAND || '');
+    head.appendChild(copy);
+    body.appendChild(head);
+    var pre = document.createElement('pre'); pre.textContent = p.COMMAND || '-'; body.appendChild(head); body.appendChild(pre);
+    if (p.threads && p.threads.length) {
+      var t = document.createElement('table'); t.className = 'ui-table';
+      var th = document.createElement('thead'); var hr = document.createElement('tr');
+      ['STAT', '%CPU', 'TIME', 'START'].forEach(function (h) { var c = document.createElement('th'); c.textContent = h; if (h === '%CPU') c.className = 'ui-num'; hr.appendChild(c); });
+      th.appendChild(hr); t.appendChild(th);
+      var tb = document.createElement('tbody');
+      p.threads.slice(0, 400).forEach(function (thr) {
+        var r = document.createElement('tr');
+        ['STAT', '%CPU', 'TIME', 'START'].forEach(function (h) { var c = document.createElement('td'); c.textContent = thr[h]; if (h === '%CPU') c.className = 'ui-num'; if (h === 'STAT') c.title = describeStat(thr[h]); r.appendChild(c); });
+        tb.appendChild(r);
+      });
+      t.appendChild(tb);
+      var cap = document.createElement('div'); cap.className = 'ui-kv-title'; cap.textContent = 'Threads (' + fmt.num(p.threads.length) + (p.threads.length > 400 ? ', the first 400 shown' : '') + ')';
+      var wrap = document.createElement('div'); wrap.appendChild(cap); var tw = document.createElement('div'); tw.className = 'ui-table-wrap'; tw.appendChild(t); wrap.appendChild(tw); body.appendChild(wrap);
+    }
+    return window.diagTables.xrowPanel(cols + 1, body);
+  }
+  function render() {
+    var headers = visibleHeaders();
+    var cols = headers.length + (dataset().has_threads ? 1 : 0);
+    var total = state.filtered.length;
+    var start = state.pageSize === -1 ? 0 : (state.page - 1) * state.pageSize;
+    var end = state.pageSize === -1 ? total : Math.min(start + state.pageSize, total);
+    var frag = document.createDocumentFragment();
+    state.filtered.slice(start, end).forEach(function (p) {
+      var tr = document.createElement('tr'); tr.className = 'ui-xrow'; tr.setAttribute('data-pid', p.PID); tr.setAttribute('tabindex', '0'); tr.setAttribute('aria-expanded', 'false');
+      tr.appendChild(window.diagTables.xrowCell());
+      headers.forEach(function (h) { tr.appendChild(cell(p, h)); });
+      if (dataset().has_threads) { var td = document.createElement('td'); td.className = 'ui-num'; if (p.thread_count) { var chip = document.createElement('span'); chip.className = 'ui-chip ui-static'; chip.textContent = fmt.num(p.thread_count) + ' thread' + (p.thread_count !== 1 ? 's' : ''); td.appendChild(chip); } else td.textContent = '-'; tr.appendChild(td); }
+      frag.appendChild(tr);
+      frag.appendChild(expandRow(p, cols));
+    });
+    tbody.textContent = '';
+    tbody.appendChild(frag);
+    var d = dataset();
+    window.diagPager.status(statusEl, { start: total ? start + 1 : 0, end: end, total: total, unit: 'processes', filteredFrom: state.rows.length, extra: d.has_threads ? '(' + fmt.num(d.thread_count) + ' threads)' : '' });
+    window.diagPager.render(pager, { page: state.page, total: total, pageSize: state.pageSize, go: function (p) { state.page = p; render(); } });
+  }
+  function load(key) {
+    state.key = key;
+    var d = dataset();
+    state.headers = (d.headers || []).slice();
+    state.rows = d.processes || [];
+    state.hidden = emptyColumns(state.rows, state.headers); state.shown = {};
+    state.sortKey = '%CPU'; state.sortDir = 'desc'; state.page = 1;
+    ['processFilter', 'statFilter', 'cpuMinFilter', 'memMinFilter'].forEach(function (id) { document.getElementById(id).value = ''; });
+    panel.hidden = !state.rows.length;
+    buildHead(); buildColumnsMenu(); drawCharts();
+    state.filtered = state.rows.slice(); applySort(); render();
+  }
+  var filter = function (el, fn) { if (window.diagBusy) window.diagBusy.filter(el, fn); else fn(); };
+  select.addEventListener('change', function () { filter(select, function () { load(select.value); }); });
+  ['processFilter', 'cpuMinFilter', 'memMinFilter'].forEach(function (id) { var el = document.getElementById(id); var t = null; el.addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { filter(el, applyFilters); }, 250); }); });
+  document.getElementById('statFilter').addEventListener('change', function () { filter(this, applyFilters); });
+  document.getElementById('pageSizeSelect').addEventListener('change', function () { state.pageSize = parseInt(this.value, 10); state.page = 1; render(); });
+  load(select.value && keys.indexOf(select.value) >= 0 ? select.value : keys[0]);
+  window.updateDataset = function () { load(select.value); };
+  window.filterProcesses = applyFilters;
+})();
 </script>

@@ -1,0 +1,363 @@
+{#
+  The must-gather Audit page (tabs/mustgather_audit.html, an explorer over
+  every audit event) takes from this file: the au-* styles, the inline
+  icons, the empty state, the events script (the rows built with the DOM
+  API from the search route's JSON, the masked bodies with Reveal, the
+  what-changed chips and diffs, the search wrapper, the status line, the
+  histogram and the slim status / verb bars) and the chart helpers (colours
+  that survive a theme switch, the broken time axis).
+  Imported with {% import "tabs/_audit.html" as au %}.
+
+  Own rules on the app's tokens (the diagnostics frame has only the app's
+  compiled Tailwind), inline SVG, every value escaped by Jinja; the scripts
+  never build HTML from report text. Coloured left accents are square;
+  cards, chips and buttons keep the token radius. Status colours are
+  fixed (2xx accent, 3xx grey, 4xx amber, 5xx and 403 red) and always come
+  with their label.
+#}
+{% macro styles() -%}
+{% import "tabs/_table_head.html" as th %}
+<style>
+/* The Audit page's own layout. Controls, chips, badges, cards, the status line, the empty state and the busy state are the shared
+   ui-* rules of backend/static/styles.css and diagBusy / diagChart of backend/static/diagnostics-ui.js. */
+.au .au-mono, .au code, .au pre { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); }
+.au-check { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.au-check.au-off { opacity: 0.5; cursor: not-allowed; }
+.au-field { position: relative; display: flex; align-items: center; min-width: 0; }
+.au-field > svg { position: absolute; left: 9px; width: 14px; height: 14px; color: var(--os-text-secondary, #6a6e73); pointer-events: none; }
+/* The search bar: a card-bound row of fields; chips for the active filters */
+.au-search { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; min-width: 0; }
+.au-search .ui-field { flex: 1 1 150px; max-width: 280px; min-width: 0; }
+.au-search .ui-field.au-wide { flex: 2 1 240px; max-width: 420px; }
+.au-search .ui-field.au-narrow { flex: 1 1 130px; max-width: 190px; }
+.au-search .ui-field.au-select-wrap { flex-basis: 170px; }
+.au-search .ui-field > select, .au-search .ui-field > input { max-width: 100%; }
+.au-search .au-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); white-space: nowrap; }
+.au-advanced > summary { list-style: none; cursor: pointer; font-size: 12px; color: var(--os-blue, #0066cc); }
+.au-advanced > summary::-webkit-details-marker { display: none; }
+.au-advanced-body { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin-top: 6px; min-width: 0; }
+.au-check { display: inline-flex; align-items: flex-start; gap: 6px; font-size: 12px; min-width: 0; max-width: 100%; }
+.au-check.au-off { opacity: 0.5; cursor: not-allowed; }
+.au-more { font-size: 12px; color: var(--os-text-secondary, #6a6e73); overflow-wrap: anywhere; }
+.au-list-empty { color: var(--os-text-secondary, #6a6e73); font-size: 12px; padding: 10px 0; }
+/* The visuals: the histogram over time (full width) and the slim status / verb bars side by side */
+.au-visuals { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; min-width: 0; }
+.au-visual { min-width: 0; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-xs, 6px); padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; }
+.au-visual.au-visual-wide { grid-column: 1 / -1; }
+.au-visual-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.au-hist { position: relative; height: 110px; width: 100%; min-width: 0; }
+.au-hist canvas, .au-bars canvas { width: 100% !important; }
+.au-bars { position: relative; width: 100%; min-width: 0; }
+.au-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--os-text-secondary, #6a6e73); }
+.au-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; background: var(--swatch); }
+/* Tags and names */
+.au-kind { font-size: 10.5px; color: var(--os-text-secondary, #6a6e73); margin-left: 4px; }
+/* A service account shows as <namespace>:<name> behind a small SA tag (the full name in the title; the search matches the full name) */
+.au-sa { display: inline-block; font-size: 9.5px; font-weight: 600; letter-spacing: 0.04em; line-height: 14px; padding: 0 4px; margin-right: 5px; border-radius: 3px; border: 1px solid var(--os-border, #d2d2d2); color: var(--os-text-secondary, #6a6e73); background: var(--os-card-secondary, #f0f0f0); font-family: var(--font-sans, inherit); vertical-align: 1px; }
+.au-ev .au-who .au-via { display: block; font-size: 10.5px; color: var(--os-text-secondary, #6a6e73); font-family: var(--font-sans, inherit); white-space: normal; overflow-wrap: anywhere; }
+.au-as { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--btn-warning-text); margin-right: 4px; font-family: var(--font-sans, inherit); }
+/* Event rows: one <details> per event, a square coloured left accent by severity */
+.au-events { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.au-ev { border: 1px solid var(--os-border, #d2d2d2); border-left-width: 3px; border-radius: 0 var(--radius-sm, 8px) var(--radius-sm, 8px) 0; background: var(--os-card, #fff); min-width: 0; }
+.au-ev.au-sev-bad { border-left-color: var(--chart-bad); } .au-ev.au-sev-warn { border-left-color: var(--chart-warn); } .au-ev.au-sev-info { border-left-color: var(--chart-info); }
+.au-ev > summary, .au-ev-head { display: grid; grid-template-columns: 150px minmax(0, 1.2fr) 92px minmax(0, 2fr) 84px 74px minmax(0, 1fr); gap: 4px 10px; align-items: baseline; padding: 5px 10px; font-size: 12px; min-width: 0; }
+.au-ev > summary { list-style: none; cursor: pointer; }
+/* The header row: the rows' grid, so the columns line up, and the shared header design of the diagnostics tables (tabs/_table_head.html,
+   the Log Collection table's): each cell (.au-th) the small uppercase muted label on the secondary background with the border under it,
+   each sort button (.lc-sort) with the shared marker, hover and active colours. The cells carry the design's own 10px side padding, so the
+   row keeps the rows' 10px side padding and 10px column gap and every cell is pulled 10px out on both sides (into the row's padding at the
+   ends, into the gap between columns, where the neighbours overlap under the same background): the label starts exactly where the rows'
+   text starts, the right-aligned Latency ends exactly where the rows' number ends, and the background and bottom border run edge to edge.
+   Sticky at the top while the rows scroll; in the app the frame never scrolls (the diagnostics pane does), so the page also follows the
+   pane's viewport with a transform (window.diagnosticsViewport, the stick() function of the events page). */
+{{ th.styles('.au-ev-head .au-th') }}
+.au-ev-head { position: sticky; top: 0; z-index: 2; margin: 0 1px 0 3px; padding: 0 10px; align-items: stretch; background: var(--os-card-secondary, #f0f0f0); }
+.au-ev-head .au-th { margin: 0 -10px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.au-ev-head .lc-sort { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; }
+.au-ev-head .au-num, .au-ev .au-cell.au-latency { text-align: right; font-variant-numeric: tabular-nums; }
+   dims under a thin progress bar along the top of the sticky header (the narrow "Sort by" row when the header is hidden), and after 300 ms a
+   floating pill at the bottom of the pane says how long the search has run, with Cancel; an error lands in the same pill with Retry */
+.au-sort-narrow { position: relative; }
+.au-sort-narrow { display: none; }
+.au-ev .au-cell.au-verb-cell { font-weight: 600; }
+.au-ev .au-cell.au-latency { color: var(--os-text-secondary, #6a6e73); }
+.au-ev .au-what .au-path { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); color: var(--os-text-secondary, #6a6e73); }
+.au-ev > summary::-webkit-details-marker { display: none; }
+.au-ev > summary:hover { background: var(--os-card-secondary, #f0f0f0); }
+.au-ev[open] > summary { border-bottom: 1px solid var(--os-border, #d2d2d2); }
+.au-ev .au-cell { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-ev .au-cell.au-what { white-space: normal; overflow-wrap: anywhere; }
+.au-ev .au-who { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); }
+/* An impersonation: the requester on one line (ellipsised when tight), "acting as" + the impersonated identity on its own line, never truncated */
+.au-ev .au-who .au-who-main { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-ev .au-who .au-as-line { display: block; white-space: normal; overflow-wrap: anywhere; }
+.au-ev .au-what .au-verb { font-weight: 600; }
+.au-ev .au-what .au-verb-inline { display: none; }
+.au-ev .au-what .au-ns { color: var(--os-text-secondary, #6a6e73); }
+.au-ev .au-from { color: var(--os-text-secondary, #6a6e73); font-size: 11.5px; }
+.au-ev-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; }
+.au-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 4px 14px; margin: 0; }
+.au-facts > div { min-width: 0; }
+.au-facts dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); }
+.au-facts dd { margin: 0; overflow-wrap: anywhere; font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); font-size: 12px; }
+.au-raw { margin: 0; padding: 8px 10px; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-xs, 6px); background: var(--os-code-bg, #f6f8fa); font-size: 11.5px; line-height: 1.45; max-height: 420px; overflow: auto; white-space: pre; }
+.au-bodies { display: flex; flex-direction: column; gap: 4px; }
+.au-body > summary { list-style: none; cursor: pointer; }
+.au-body > summary::-webkit-details-marker { display: none; }
+.au-body-tools { margin: 4px 0; }
+/* What changed: the chips on a write row, the field diff in its body */
+.au-changes-inline { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
+.au-hl { display: inline-flex; padding: 1px 7px; border-radius: var(--radius-chip, 6px); font-size: 11.5px; border: 1px solid var(--os-border, #d2d2d2); background: var(--os-card-secondary, #f0f0f0); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.au-hl-image, .au-hl-scale { border-color: rgba(59, 130, 246, 0.4); } .au-hl-rbac, .au-hl-secret, .au-hl-delete, .au-hl-cluster { border-color: rgba(220, 38, 38, 0.4); } .au-hl-node, .au-hl-configmap, .au-hl-env, .au-hl-resources { border-color: rgba(245, 158, 11, 0.45); }
+.au-diff-wrap { border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-xs, 6px); overflow: hidden; background: var(--os-card, #fff); }
+#diagnostics-content .au-diff { table-layout: fixed !important; }
+#diagnostics-content .au-diff th, #diagnostics-content .au-diff td { max-width: none !important; }
+.au-diff { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.au-diff th { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); text-align: left; padding: 3px 6px; background: var(--os-card-secondary, #f0f0f0); font-weight: 600; }
+.au-diff th.au-diff-path { width: 34%; }
+.au-diff td { padding: 2px 6px; border-bottom: 1px solid var(--os-border, #d2d2d2); vertical-align: top; overflow-wrap: anywhere; font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); white-space: normal; }
+.au-diff td.au-diff-old { color: var(--btn-danger-fg); } .au-diff td.au-diff-new { color: var(--btn-success-text); }
+.au-diff tr:last-child td { border-bottom: 0; }
+/* Empty state */
+/* Narrow: the event row stacks (when + status on the first line, then who, what, from), the fields take the full width, the visuals one column */
+@media (max-width: 720px) {
+  .au-ev > summary { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "when code" "who who" "what what" "from latency"; gap: 2px 10px; }
+  .au-ev .au-cell.au-when { grid-area: when; color: var(--os-text-secondary, #6a6e73); }
+  .au-ev .au-cell.au-code { grid-area: code; text-align: right; }
+  .au-ev .au-cell.au-who { grid-area: who; }
+  .au-ev .au-cell.au-verb-cell { display: none; }
+  .au-ev .au-cell.au-what { grid-area: what; }
+  .au-ev .au-cell.au-what .au-verb-inline { display: inline; }
+  .au-ev .au-cell.au-from { grid-area: from; }
+  .au-ev .au-cell.au-latency { grid-area: latency; }
+  .au-ev-head { display: none; }
+  .au-sort-narrow { display: flex; }
+  .au-search .ui-field, .au-search .ui-field.au-wide, .au-search .ui-field.au-narrow { max-width: none; flex-basis: 100%; }
+  .au-visuals { grid-template-columns: minmax(0, 1fr); }
+  .au-visual.au-visual-wide { grid-column: auto; }
+}
+</style>
+{%- endmacro %}
+
+{% macro icon(name) -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if name == 'search' %}<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+{%- elif name == 'select' %}<path d="m6 9 6 6 6-6"/>
+{%- elif name == 'empty' %}<path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{% macro empty(title, text) -%}
+{#- nothing: a missing-data case is a Findings line now, never an empty-state block #}
+{%- endmacro %}
+
+{# ---------------------------------------------------------------------------
+   Chart helpers: colours that survive a theme switch (a token resolved
+   through a canvas into a parsable colour, an alpha fill built from it,
+   both read again at every chart update, so the bridge's chart.update()
+   re-themes every dataset) and the broken time axis (bucket_plan on the
+   backend): the capture windows get width in proportion to their own
+   duration, a hole between them a fixed narrow break drawn as a hatched
+   band with a zig-zag on the axis and its label, the line never crosses
+   it. Call before events_script().
+   --------------------------------------------------------------------------- #}
+{% macro chart_script() -%}
+<script>
+/* The chart helpers are the shared diagChart (backend/static/diagnostics-ui.js); auChart stays as an alias for the page's older callers */
+window.auChart = window.diagChart;
+</script>
+{%- endmacro %}
+
+{# ---------------------------------------------------------------------------
+   The events script: rows from the search route's JSON built with the DOM
+   API (no HTML strings), the masked bodies with Reveal, the what-changed
+   chips and the field diff, the search wrapper that drops stale answers,
+   the status line, the histogram (requests and errors per bucket on the
+   broken axis) and the slim horizontal bars (status codes, verbs). Call
+   after chart_script().
+   --------------------------------------------------------------------------- #}
+{% macro events_script() -%}
+<script>
+(() => {
+  const script = document.currentScript;
+  const root = script.closest('.au') || document.body;
+  const directory = root.dataset.directory || '';
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined && text !== null) n.textContent = String(text); return n; };
+  const api = (path, body, signal) => (window.diagnosticsApiRequest ? window.diagnosticsApiRequest(path, body)
+    : fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }).then(async (r) => ({ ok: r.ok, status: r.status, json: await r.json().catch(() => ({})) })));
+  let seq = 0, inflight = null, cancelling = null;
+  // One search at a time per page: a newer call makes the older answer stale ({stale: true}); cancel() ends the running one at once
+  // ({cancelled: true} to its caller, its late answer dropped) and stops the backend's scan through /audit_events_cancel. The next
+  // search waits for that call to land first, so the cancel can never hit the new search instead.
+  async function search(query) {
+    const mine = ++seq;
+    if (cancelling) await cancelling;
+    let res, stop;
+    const stopped = new Promise((r) => { stop = r; });
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    inflight = { mine, stop: () => { stop({ cancelled: true }); if (ctl) ctl.abort(); } };
+    try { res = await Promise.race([api('/audit_events_search', { directory, query }, ctl && ctl.signal), stopped]); }
+    catch (e) { res = { ok: false, status: 0, json: { error: String(e && e.message || e) } }; }
+    if (inflight && inflight.mine === mine) inflight = null;
+    if (res && res.cancelled) return res;
+    if (mine !== seq) return { stale: true };
+    return res;
+  }
+  function cancel() {
+    if (!inflight) return false;
+    const cur = inflight; inflight = null; seq++;
+    cur.stop();
+    cancelling = api('/audit_events_cancel', { directory }).catch(() => ({})).then(() => { cancelling = null; });
+    return true;
+  }
+  const codeTag = (code) => {
+    const c = Number(code) || 0;
+    const cls = c >= 500 || c === 403 ? 'ui-badge-bad' : c >= 400 ? 'ui-badge-warn' : c >= 200 && c < 300 ? 'ui-badge-ok' : 'ui-badge-muted';
+    return el('span', 'ui-badge ' + cls, c || 'none');
+  };
+  const severity = (e, sev) => sev || (e.change && e.change.severity !== 'info' ? e.change.severity : e.code >= 500 || e.code === 403 ? 'bad' : e.code >= 400 ? 'warn' : 'info');
+  // A service account as <namespace>:<name> behind an SA tag, the full name in the title
+  const whoName = (name) => {
+    const n = String(name || '');
+    const span = el('span', 'au-who-name'); span.title = n;
+    if (n.startsWith('system:serviceaccount:') && n.split(':').length >= 4) { span.appendChild(el('span', 'au-sa', 'SA')); span.appendChild(document.createTextNode(n.split(':').slice(2).join(':'))); }
+    else span.textContent = n;
+    return span;
+  };
+  const fact = (dl, label, value) => { if (!value) return; const d = el('div'); d.appendChild(el('dt', '', label)); d.appendChild(el('dd', '', value)); dl.appendChild(d); };
+  const bodyBlock = (label, text, auditId, part, truncated) => {
+    const d = el('details', 'au-body');
+    d.appendChild(el('summary', 'ui-link au-link', label + (truncated ? ' · truncated' : '')));
+    const tools = el('div', 'au-body-tools');
+    const b = el('button', 'btn btn-secondary btn-sm au-reveal'); b.type = 'button'; b.dataset.auditId = auditId; b.dataset.part = part; b.appendChild(el('span', '', 'Reveal masked values'));
+    tools.appendChild(b); d.appendChild(tools);
+    d.appendChild(el('pre', 'au-raw au-body-text', text));
+    return d;
+  };
+  // One event row: a details element (au-ev au-sev-…, data-user/verb/resource/namespace/code/ts/audit-id) with the summary grid and the body
+  function row(e, opts) {
+    const d = el('details', 'au-ev au-sev-' + severity(e, opts && opts.sev));
+    d.dataset.user = e.user || ''; d.dataset.verb = e.verb || ''; d.dataset.resource = e.resource || ''; d.dataset.namespace = e.namespace || ''; d.dataset.code = e.code; d.dataset.ts = e.ts || ''; d.dataset.auditId = e.audit_id || '';
+    const s = el('summary');
+    const when = el('span', 'au-cell au-when au-mono', e.ts); when.title = e.ts; s.appendChild(when);
+    const who = el('span', 'au-cell au-who'); who.title = e.user + (e.impersonated ? ' acting as ' + e.impersonated : '');
+    const main = el('span', 'au-who-main'); main.appendChild(whoName(e.user)); who.appendChild(main);
+    if (e.impersonated) { const as = el('span', 'au-as-line'); as.appendChild(el('span', 'au-as', 'acting as')); as.appendChild(whoName(e.impersonated)); who.appendChild(as); }
+    if (e.matched_via && /^group /.test(e.matched_via)) who.appendChild(el('span', 'au-via', 'via ' + e.matched_via));   // the user filter matched through a group: say so
+    s.appendChild(who);
+    const verbCell = el('span', 'au-cell au-verb-cell', e.verb); verbCell.title = e.verb; s.appendChild(verbCell);
+    const what = el('span', 'au-cell au-what');
+    what.appendChild(el('span', 'au-verb au-verb-inline', e.verb)); what.appendChild(document.createTextNode(' '));
+    if (e.resource) {
+      what.appendChild(el('span', 'au-mono', e.resource + (e.subresource ? '/' + e.subresource : '')));
+      if (e.namespace) { what.appendChild(document.createTextNode(' ')); what.appendChild(el('span', 'au-ns', 'in ' + e.namespace)); }
+      if (e.name) { what.appendChild(document.createTextNode(' ')); what.appendChild(el('span', 'au-mono', e.name)); }
+    } else {
+      // a non-resource request (/metrics, /healthz, /readyz ...): its URI path, the query string trimmed, the full URI in the title
+      const pathEl = el('span', 'au-path', (e.uri || '').split('?')[0] || '(no object)'); pathEl.title = e.uri || ''; what.appendChild(pathEl);
+    }
+    if (e.change && e.change.chips && e.change.chips.length) {
+      const chips = el('span', 'au-changes-inline');
+      e.change.chips.forEach((c, i) => chips.appendChild(el('span', 'au-hl au-hl-' + ((e.change.types || [])[i] || 'other'), c)));
+      what.appendChild(document.createTextNode(' ')); what.appendChild(chips);
+    }
+    s.appendChild(what);
+    const lat = el('span', 'au-cell au-latency', e.latency || ''); lat.title = e.latency ? 'stageTimestamp - requestReceivedTimestamp' : 'no latency recorded'; s.appendChild(lat);
+    const code = el('span', 'au-cell au-code'); code.appendChild(codeTag(e.code)); s.appendChild(code);
+    const from = el('span', 'au-cell au-from', (e.ip || '') + (e.agent ? ' · ' + e.agent : '')); from.title = (e.ip || '') + ' ' + (e.agent || ''); s.appendChild(from);
+    d.appendChild(s);
+    const body = el('div', 'au-ev-body');
+    const dl = el('dl', 'au-facts');
+    fact(dl, 'Apiserver', (e.apiserver || '') + (e.node ? ' · ' + e.node : ''));
+    fact(dl, 'Authorization', (e.decision ? e.decision + ': ' : '') + (e.reason || ''));
+    fact(dl, 'Latency', e.latency); fact(dl, 'Stage', e.stage && e.stage !== 'ResponseComplete' ? e.stage : ''); fact(dl, 'Level', e.level);
+    fact(dl, 'User agent', e.agent); fact(dl, 'URI', e.uri);
+    body.appendChild(dl);
+    if (e.change) {
+      const ch = e.change;
+      if (ch.highlights && ch.highlights.length) { const hl = el('div', 'au-changes-inline'); ch.highlights.forEach((h) => hl.appendChild(el('span', 'au-hl au-hl-' + h.type, h.text))); body.appendChild(hl); }
+      if (ch.diffs && ch.diffs.length) {
+        const wrap = el('div', 'au-diff-wrap');
+        const table = el('table', 'au-diff');
+        const thead = el('thead'); const hr = el('tr'); [['Field', 'au-diff-path'], ['Old', ''], ['New', '']].forEach(([t, c]) => hr.appendChild(el('th', c, t))); thead.appendChild(hr); table.appendChild(thead);
+        const tbody = el('tbody');
+        ch.diffs.forEach((d2) => { const tr = el('tr'); tr.appendChild(el('td', 'au-diff-path', d2.path)); tr.appendChild(el('td', 'au-diff-old', d2.old === null || d2.old === undefined ? (ch.old_known ? '(unset)' : '(unknown)') : String(d2.old))); tr.appendChild(el('td', 'au-diff-new', d2.new === null || d2.new === undefined ? '(removed)' : String(d2.new))); tbody.appendChild(tr); });
+        table.appendChild(tbody); wrap.appendChild(table); body.appendChild(wrap);
+        if (ch.diffs_total > ch.diffs.length) body.appendChild(el('div', 'au-more', (ch.diffs_total - ch.diffs.length) + ' more changed fields in the bodies below'));
+        if (!ch.old_known) body.appendChild(el('div', 'au-more', 'The old values are unknown: no earlier write of this object in the scanned files (the new values are shown).'));
+      }
+    }
+    if (e.has_request_body || e.has_response_body) {
+      const bodies = el('div', 'au-bodies');
+      if (e.has_request_body) bodies.appendChild(bodyBlock('Request body' + (e.patch_type ? ' (' + e.patch_type + ')' : ''), e.request_body, e.audit_id, 'request', e.request_truncated));
+      if (e.has_response_body) bodies.appendChild(bodyBlock('Response body', e.response_body, e.audit_id, 'response', e.response_truncated));
+      body.appendChild(bodies);
+    }
+    if (e.raw) { const raw = el('details', 'au-body'); raw.appendChild(el('summary', 'ui-link au-link', 'Raw event')); raw.appendChild(el('pre', 'au-raw', e.raw)); body.appendChild(raw); }
+    d.appendChild(body);
+    return d;
+  }
+  function render(container, events, opts) {
+    if (!(opts && opts.append)) container.textContent = '';
+    for (const e of events) container.appendChild(row(e, opts));
+  }
+  // Reveal: the unmasked body through the parent's proxy, on demand; a second click hides it again
+  root.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('.au-reveal');
+    if (!btn) return;
+    const pre = btn.closest('.au-body').querySelector('.au-body-text');
+    const label = btn.querySelector('span');
+    if (btn.dataset.revealed) { pre.textContent = btn.dataset.masked; label.textContent = 'Reveal masked values'; delete btn.dataset.revealed; return; }
+    label.textContent = 'Loading...';
+    try {
+      const res = await api('/audit_event_body', { directory, audit_id: btn.dataset.auditId, part: btn.dataset.part });
+      if (res && res.ok && res.json && typeof res.json.body === 'string') { btn.dataset.masked = pre.textContent; pre.textContent = res.json.body; btn.dataset.revealed = '1'; label.textContent = 'Hide values'; }
+      else { label.textContent = 'Not available'; setTimeout(() => { label.textContent = 'Reveal masked values'; }, 1500); }
+    } catch (e) { label.textContent = 'Not available'; setTimeout(() => { label.textContent = 'Reveal masked values'; }, 1500); }
+  });
+  const charts = {};
+  const destroy = (id) => { if (charts[id]) { charts[id].destroy(); delete charts[id]; } };
+  // The histogram: requests and errors per bucket on the broken axis (diagChart.timeSeries); onBucket(bucket) on a click (a time filter)
+  function histogram(canvas, hist, onBucket) {
+    if (!canvas || !window.diagChart) return;
+    const b = (hist && hist.buckets) || [];
+    const real = b.filter((x) => !x.gap).length;
+    // the template's container (.au-hist, which sizes the chart): the shared helper puts the canvas in its own box inside it
+    const wrap = canvas.closest('.au-hist') || canvas.parentElement;
+    if (wrap) wrap.hidden = real < 1;
+    const note = wrap && wrap.nextElementSibling && wrap.nextElementSibling.classList.contains('au-hist-note') ? wrap.nextElementSibling : null;
+    if (note) note.textContent = (hist && hist.gaps || []).length ? (hist.windows || []).length + ' capture windows: ' + hist.gaps.map((g) => g.label + ' (' + g.from + ' → ' + g.to + ')').join('; ') : '';
+    if (real < 1) { destroy(canvas.id); return; }
+    const step = hist.step_seconds || (hist.step_minutes ? hist.step_minutes * 60 : 1);
+    charts[canvas.id] = window.diagChart.timeSeries(canvas, { buckets: b, step, onBucket, series: [
+      { label: 'ok', role: 'ok', value: (x) => Math.max(0, (x.n || 0) - (x.errors || 0)) },
+      { label: 'errors (4xx/5xx)', role: 'error', value: (x) => x.errors || 0 },
+    ] });
+    return charts[canvas.id];
+  }
+  // Slim horizontal bars (diagChart.categoryBars): rows = [{name, count, errors?}], colour(row) -> css colour, onRow(row) on a click
+  function bars(canvas, rows, colour, onRow) {
+    if (!canvas || !window.diagChart) return;
+    charts[canvas.id] = window.diagChart.categoryBars(canvas, rows, { colour, onRow });
+    return charts[canvas.id];
+  }
+  const fmt = (n) => Number(n || 0).toLocaleString('en-US');
+  const stepText = (seconds) => (seconds < 60 ? seconds + ' s' : seconds < 3600 ? (seconds / 60) + ' min' : seconds < 86400 ? (seconds / 3600) + ' h' : (seconds / 86400) + ' d');
+  // The one status line: "Forbidden: 14 of 5,372 match · newest 14 · scanned 15 files in 3.2 s", the partial wording when the budget ran out
+  function statusText(res, label, shown) {
+    const j = res.json || {};
+    const total = j.total || 0;
+    const parts = [];
+    const head = label ? label + ': ' : '';
+    if (j.partial) parts.push(head + 'at least ' + fmt(total) + ' match (the scan stopped at the ' + (j.budget_seconds || 20) + ' s budget after ' + fmt(j.scanned_files) + ' of ' + fmt(j.files) + ' files)');
+    else if (!j.counted) parts.push(head + fmt(shown) + ' shown');
+    else parts.push(head + fmt(total) + ' match');
+    if (j.counted && shown) parts.push(shown >= total && !j.partial ? 'showing all ' + fmt(shown) : 'showing the newest ' + fmt(shown));
+    parts.push('scanned ' + fmt(j.scanned_files) + (j.skipped_files ? ' of ' + fmt(j.files) + ' files (' + fmt(j.skipped_files) + ' skipped by the time range)' : ' files') + ' in ' + (j.seconds || 0) + ' s');
+    return parts.join(' · ');
+  }
+  window.auEvents = { api, search, cancel, row, render, histogram, bars, statusText, fmt, stepText, codeTag, el, whoName, directory, charts };
+})();
+</script>
+{%- endmacro %}

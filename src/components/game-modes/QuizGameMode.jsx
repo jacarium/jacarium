@@ -679,7 +679,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
               }}
               className={`px-3 py-1.5 text-xs rounded border ${
                 quizMode === 'standard'
-                  ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-950'
+                  ? 'btn-selected-soft'
                   : 'bg-os-card border-os-border text-os-text-secondary'
               }`}
             >
@@ -693,7 +693,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
               }}
               className={`px-3 py-1.5 text-xs rounded border ${
                 quizMode === 'ai-generated'
-                  ? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-950'
+                  ? 'btn-brand-soft'
                   : 'bg-os-card border-os-border text-os-text-secondary'
               }`}
             >
@@ -710,7 +710,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
               }}
               className={`px-3 py-1.5 text-xs rounded border ${
                 quizMode === 'custom'
-                  ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-950'
+                  ? 'btn-selected-soft'
                   : 'bg-os-card border-os-border text-os-text-secondary'
               }`}
             >
@@ -736,7 +736,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
                       onClick={() => selectQuizType(quizType.id)}
                       className={`px-2 py-2 text-left text-xs border rounded transition-all flex items-center gap-2 ${
                         isSelected
-                          ? 'bg-blue-50 border-2 border-blue-500 dark:bg-blue-950'
+                          ? 'btn btn-selected-soft border-2'
                           : 'bg-os-card border-os-border hover:bg-os-card-secondary hover:border-os-border'
                       }`}
                     >
@@ -769,7 +769,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
                   onClick={() => setAiInputMode('topic')}
                   className={`px-3 py-1.5 text-xs rounded border ${
                     aiInputMode === 'topic'
-                      ? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-950 dark:text-purple-300'
+                      ? 'btn-brand-soft'
                       : 'bg-os-card border-os-border text-os-text-secondary'
                   }`}
                 >
@@ -779,7 +779,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
                   onClick={() => setAiInputMode('url')}
                   className={`px-3 py-1.5 text-xs rounded border ${
                     aiInputMode === 'url'
-                      ? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-950 dark:text-purple-300'
+                      ? 'btn-brand-soft'
                       : 'bg-os-card border-os-border text-os-text-secondary'
                   }`}
                 >
@@ -790,7 +790,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
                   onClick={() => setAiInputMode('file')}
                   className={`px-3 py-1.5 text-xs rounded border ${
                     aiInputMode === 'file'
-                      ? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-950 dark:text-purple-300'
+                      ? 'btn-brand-soft'
                       : 'bg-os-card border-os-border text-os-text-secondary'
                   }`}
                 >
@@ -896,7 +896,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
                 (aiInputMode === 'url' && !aiDocUrl.trim()) ||
                 (aiInputMode === 'file' && !aiSelectedFile)
               }
-              className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-sm text-sm font-medium transition-colors flex items-center justify-center gap-2 mb-2"
+              className="btn btn-brand w-full px-3 py-2 text-sm flex items-center justify-center gap-2 mb-2"
             >
               <Sparkles size={14} />
               {isGenerating ? 'Generating...' : 'Generate Questions'}
@@ -912,14 +912,14 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
               <div className="flex gap-2 mt-2">
                 <button
                   onClick={downloadAIQuizAsJSON}
-                  className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-sm text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                  className="btn btn-primary flex-1 px-3 py-2 text-sm flex items-center justify-center gap-2"
                 >
                   <Download size={14} />
                   Download JSON
                 </button>
                 <button
                   onClick={saveAIQuizAsCustom}
-                  className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-sm text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                  className="btn btn-success flex-1 px-3 py-2 text-sm flex items-center justify-center gap-2"
                 >
                   <Save size={14} />
                   Save as Custom
@@ -939,7 +939,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
               </h3>
               <button
                 onClick={importQuizFromJSON}
-                className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-sm text-xs transition-colors flex items-center gap-1"
+                className="btn btn-primary px-2 py-1 text-xs flex items-center gap-1"
               >
                 <Upload size={12} />
                 Import JSON
@@ -970,13 +970,13 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
                     <div className="flex gap-2 ml-2">
                       <button
                         onClick={() => loadCustomQuiz(quiz)}
-                        className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-sm text-xs transition-colors"
+                        className="btn btn-primary px-2 py-1 text-xs"
                       >
                         Load
                       </button>
                       <button
                         onClick={() => deleteCustomQuizHandler(quiz.id)}
-                        className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded-sm text-xs transition-colors"
+                        className="btn btn-danger-solid px-2 py-1 text-xs"
                       >
                         <Trash2 size={12} />
                       </button>
@@ -991,7 +991,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
         <button
           onClick={createLobby}
           disabled={quizQuestions.length === 0}
-          className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-sm text-sm font-medium transition-colors flex items-center justify-center gap-2"
+          className="btn btn-primary w-full px-3 py-2 text-sm flex items-center justify-center gap-2"
         >
           <Play size={16} />
           {isSinglePlayer ? 'Start Quiz' : 'Create Lobby'}
@@ -1095,14 +1095,14 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
             <button
               onClick={submitAnswer}
               disabled={!myAnswer.trim() || hasAnsweredCurrentQuestion}
-              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-os-card-secondary disabled:text-os-text-muted disabled:cursor-not-allowed text-white rounded-sm text-sm font-medium transition-colors"
+              className="btn btn-primary flex-1 px-4 py-2 text-sm"
             >
               {hasAnsweredCurrentQuestion ? '✓ Submitted - Waiting for others...' : 'Submit Answer'}
             </button>
             <button
               onClick={requestHint}
               disabled={hintsRevealed >= currentQuestion.hints.length || hasAnsweredCurrentQuestion}
-              className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-os-card-secondary disabled:text-os-text-muted disabled:cursor-not-allowed text-white rounded-sm text-sm font-medium flex items-center gap-1.5 transition-colors"
+              className="btn btn-warning px-4 py-2 disabled:bg-os-card-secondary disabled:text-os-text-muted text-sm flex items-center gap-1.5"
             >
               <Lightbulb size={14} />
               Hint (-{POINTS_DEDUCTION_PER_HINT})

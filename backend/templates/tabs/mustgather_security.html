@@ -1,3 +1,5 @@
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 <div id="securityOverviewPanel" class="space-y-4">
  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
  <div class="panel rounded-lg shadow-sm">
@@ -14,7 +16,7 @@
  {% else %}
  <p class="text-sm text-gray-500">No secrets with certificate expiry metadata in this must-gather.</p>
  {% endif %}
- <button type="button" class="mt-3 px-3 py-1 text-sm border rounded" onclick="window.diagnosticsOpenTab('security', 'tls_secrets')">Open TLS Secret Expiration</button>
+ <button type="button" class="btn btn-primary btn-sm mt-3" onclick="window.diagnosticsOpenTab('security', 'tls_secrets')">Open TLS Secret Expiration</button>
  </div>
 
  <div class="panel rounded-lg shadow-sm">
@@ -32,7 +34,7 @@
  {% else %}
  <p class="text-sm text-gray-500">No certificate signing requests in this must-gather.</p>
  {% endif %}
- <button type="button" class="mt-3 px-3 py-1 text-sm border rounded" onclick="window.diagnosticsOpenTab('security', 'csr')">Open Certificate Signing Requests</button>
+ <button type="button" class="btn btn-primary btn-sm mt-3" onclick="window.diagnosticsOpenTab('security', 'csr')">Open Certificate Signing Requests</button>
  </div>
  </div>
 
@@ -46,22 +48,22 @@
  {% if data.tls.attention %}
  <h4 class="text-sm font-semibold mb-1">Certificates expired or expiring within 60 days</h4>
  <div class="overflow-x-auto mb-4">
- <table class="min-w-full text-sm">
+ <table class="ui-table">
  <thead>
- <tr class="border-b text-left">
- <th class="px-2 py-1">Namespace</th>
- <th class="px-2 py-1">Secret</th>
- <th class="px-2 py-1">Status</th>
- <th class="px-2 py-1">Expiry</th>
+ <tr class="text-left">
+ <th>Namespace</th>
+ <th>Secret</th>
+ <th>Status</th>
+ <th>Expiry</th>
  </tr>
  </thead>
  <tbody>
  {% for s in data.tls.attention %}
- <tr class="border-b">
- <td class="px-2 py-1">{{ s.namespace }}</td>
- <td class="px-2 py-1 font-mono">{{ s.name }}</td>
- <td class="px-2 py-1 {% if s.status == 'Expired' %}text-red-600{% else %}text-yellow-600{% endif %}">{{ s.status }} ({{ s.days_display }})</td>
- <td class="px-2 py-1">{{ s.expiry }}</td>
+ <tr>
+ <td>{{ s.namespace }}</td>
+ <td class="ui-mono">{{ s.name }}</td>
+ <td class="{% if s.status == 'Expired' %}text-red-600{% else %}text-yellow-600{% endif %}">{{ s.status }} ({{ s.days_display }})</td>
+ <td>{{ s.expiry }}</td>
  </tr>
  {% endfor %}
  </tbody>
@@ -71,20 +73,20 @@
  {% if data.csr.pending %}
  <h4 class="text-sm font-semibold mb-1">Pending certificate signing requests</h4>
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm">
+ <table class="ui-table">
  <thead>
- <tr class="border-b text-left">
- <th class="px-2 py-1">Name</th>
- <th class="px-2 py-1">Requested by</th>
- <th class="px-2 py-1">Signer</th>
+ <tr class="text-left">
+ <th>Name</th>
+ <th>Requested by</th>
+ <th>Signer</th>
  </tr>
  </thead>
  <tbody>
  {% for c in data.csr.pending %}
- <tr class="border-b">
- <td class="px-2 py-1 font-mono">{{ c.name }}</td>
- <td class="px-2 py-1">{{ c.username }}</td>
- <td class="px-2 py-1">{{ c.signer_name }}</td>
+ <tr>
+ <td class="ui-mono">{{ c.name }}</td>
+ <td>{{ c.username }}</td>
+ <td>{{ c.signer_name }}</td>
  </tr>
  {% endfor %}
  </tbody>

@@ -85,7 +85,7 @@ export default function SSHCommandEditModal({ command, onSave, onClose }) {
             </button>
             <button
               type="submit"
-              className="px-3 py-1.5 bg-os-blue hover:bg-blue-600 text-white rounded-sm transition-colors text-xs"
+              className="btn btn-primary px-3 py-1.5 text-xs"
             >
               {command ? 'Update' : 'Add'}
             </button>

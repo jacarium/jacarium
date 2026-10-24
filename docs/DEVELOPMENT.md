@@ -69,6 +69,26 @@ in its root (`./Jacarium-*.AppImage --appimage-extract`, then
 `squashfs-root/com.jacarium.app.desktop`, with `.DirIcon` and
 `jacarium.png` next to it).
 
+## Urgent dependency updates (only on the user's explicit request)
+
+`.npmrc` refuses package versions published less than seven days ago
+(`min-release-age=7`), so a hijacked release has time to be caught. When a
+security fix is younger than that and the user explicitly asks for it,
+`npm run deps:urgent -- <name@x.y.z> [...] --reason "<GHSA / CVE ...>"`
+installs exactly those versions past the limit: it refuses without explicit
+specs and a reason, checks each version first (the publisher against the
+installed version's, the registry signature, the SLSA provenance and its
+repository, the tarball diffed against the installed copy with new
+dependencies, install scripts and new child_process / fs / network / eval /
+env usage flagged, the version's age), stops on a red flag unless `--force`
+is given, installs with a one-off `--min-release-age=0` (an override for a
+transitive package, the dependency field for a direct one; `.npmrc` is never
+edited), then checks the lockfile diff and integrity, runs `npm audit` and
+`npm audit signatures`, reinstalls the test-only packages, appends the note
+to `docs/security/urgent-updates.md` and prints the commit message.
+`--dry-run` runs every check and installs nothing. Never run it on your own
+initiative, and never for "everything".
+
 ## Python dependencies
 
 `backend/requirements.txt` lists the backend's direct dependencies;

@@ -130,7 +130,7 @@ export default function AddCalendarModal({ isOpen, onClose, onCalendarAdded }) {
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-os-blue text-white rounded-sm hover:bg-os-blue-hover text-sm disabled:opacity-50"
+              className="btn btn-primary px-4 py-2 text-sm"
             >
               {loading ? 'Adding...' : 'Add Calendar'}
             </button>

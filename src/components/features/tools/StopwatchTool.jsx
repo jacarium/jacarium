@@ -79,14 +79,14 @@ export default function StopwatchTool() {
           {!isRunning ? (
             <button
               onClick={handleStart}
-              className="px-6 py-3 bg-os-blue text-white text-sm rounded-sm hover:bg-os-blue-hover transition-colors"
+              className="btn btn-primary px-6 py-3 text-sm"
             >
               {time > 0 ? 'Resume' : 'Start'}
             </button>
           ) : (
             <button
               onClick={handlePause}
-              className="px-6 py-3 bg-yellow-500 text-white text-sm rounded-sm hover:bg-yellow-600 transition-colors"
+              className="btn btn-warning px-6 py-3 text-sm"
             >
               Pause
             </button>

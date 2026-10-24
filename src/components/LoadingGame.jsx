@@ -122,7 +122,7 @@ const LoadingGame = ({ message = "Loading..." }) => {
         </p>
         <button
           onClick={initializeGrid}
-          className="px-4 py-2 bg-os-blue hover:bg-os-blue/90 text-white rounded-sm  transition-colors"
+          className="btn btn-primary px-4 py-2"
         >
           New Game
         </button>

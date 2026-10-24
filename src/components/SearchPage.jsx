@@ -798,7 +798,7 @@ export default function SearchPage({
                   </div>
                   <button
                     onClick={() => setStatusBannerDismissed(true)}
-                    className="p-1 hover:bg-blue-100 rounded-sm transition-colors"
+                    className="btn btn-quiet p-1"
                     title="Dismiss"
                   >
                     <X size={16} className="text-blue-600" />
@@ -817,7 +817,7 @@ export default function SearchPage({
                   </div>
                   <button
                     onClick={() => setStatusBannerDismissed(true)}
-                    className="p-1 hover:bg-yellow-100 rounded-sm transition-colors"
+                    className="btn btn-warning-ghost p-1"
                     title="Dismiss"
                   >
                     <X size={16} className="text-yellow-600" />
@@ -836,7 +836,7 @@ export default function SearchPage({
                   </div>
                   <button
                     onClick={() => setStatusBannerDismissed(true)}
-                    className="p-1 hover:bg-red-100 rounded-sm transition-colors"
+                    className="btn btn-danger-ghost p-1"
                     title="Dismiss"
                   >
                     <X size={16} className="text-red-600" />
@@ -933,7 +933,7 @@ export default function SearchPage({
                 {newCategoryName.trim() && (
                   <button
                     onClick={handleCreateAndApplyCategory}
-                    className="mt-2 w-full px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors rounded-sm"
+                    className="btn btn-primary mt-2 w-full px-4 py-2 text-sm"
                   >
                     Create & Apply "{newCategoryName.trim()}"
                   </button>
@@ -955,7 +955,7 @@ export default function SearchPage({
               <button
                 onClick={confirmChangeCategory}
                 disabled={!selectedNewCategory}
-                className="px-4 py-2 text-sm bg-os-blue hover:bg-os-blue-hover text-white rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn btn-primary px-4 py-2 text-sm"
               >
                 Apply Selected
               </button>

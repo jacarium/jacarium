@@ -46,4 +46,20 @@ def parse(directory):
 
     result['hostnamectl'] = read_key_value_file(os.path.join(directory, 'sos_commands', 'host', 'hostnamectl_status'))
     result['rhosp_release'] = parse_release_info(os.path.join(directory, 'etc', 'rhosp-release'))
+    # the Findings: the three sub-tabs' strips, each named and linked
+    from parsers.findings import finding, sort_findings
+    from parsers.sosreport import haproxy, openstack_dpdk, pacemaker
+    out = []
+    for sub, mod in (('openstack_dpdk', openstack_dpdk), ('haproxy', haproxy), ('pacemaker', pacemaker)):
+        try:
+            items = (mod.parse(directory) or {}).get('findings', [])
+        except Exception as e:  # noqa: BLE001
+            items = [finding('warn', f"{sub} could not be read", str(e)[:200])]
+        for f in items:
+            f = dict(f)
+            if not f.get('link'):
+                f['link'] = {'tab': 'openstack', 'sub_tab': sub, 'query': ''}
+            f['title'] = f"{sub}: {f['title']}"
+            out.append(f)
+    result['findings'] = sort_findings(out)
     return result

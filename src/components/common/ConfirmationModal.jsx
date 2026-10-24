@@ -72,10 +72,10 @@ export default function ConfirmationModal({
               onClick={handleConfirm}
               className={`flex-1 px-4 py-2 transition-colors ${
  dangerous
- ?'bg-red-600 hover:bg-red-700 text-white'
+ ?'btn btn-danger-solid'
  : isAlertOnly
- ?'bg-purple-600 hover:bg-purple-700 text-white'
- :'bg-purple-600 hover:bg-purple-700 text-white'
+ ?'btn btn-brand'
+ :'btn btn-brand'
  }`}
             >
               {isAlertOnly ? 'OK' : confirmText}

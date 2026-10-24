@@ -500,7 +500,7 @@ export default function ChatSidebar({ isOpen, side = 'left' }) {
                           </button>
                           <button
                             onClick={() => handleAcceptQuizChallenge(msg.challengerId, msg.challengerName, msg.gameId)}
-                            className="flex-1 px-3 py-2 bg-os-blue hover:bg-os-blue-hover text-white rounded-sm transition-colors flex items-center justify-center gap-1 text-sm"
+                            className="btn btn-primary flex-1 px-3 py-2 flex items-center justify-center gap-1 text-sm"
                           >
                             <Check size={14} />
                             Accept

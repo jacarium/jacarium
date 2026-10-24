@@ -159,7 +159,7 @@ export default function BoardSettingsModal({ isOpen, onClose, onSave, board }) {
             <button
               type="button"
               onClick={handleAddColumn}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 dark:bg-blue-900/20 rounded-sm transition-colors"
+              className="btn btn-quiet flex items-center gap-2 px-3 py-1.5 text-sm"
             >
               Add Column
             </button>
@@ -196,7 +196,7 @@ export default function BoardSettingsModal({ isOpen, onClose, onSave, board }) {
                 <button
                   type="button"
                   onClick={() => handleDeleteColumn(index)}
-                  className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 dark:hover:bg-red-900/20 rounded-sm transition-colors shrink-0"
+                  className="btn btn-danger-ghost p-2 shrink-0"
                   disabled={columns.length <= 1}
                 >
                   <Trash2 size={16} />
@@ -223,7 +223,7 @@ export default function BoardSettingsModal({ isOpen, onClose, onSave, board }) {
           </button>
           <button
             type="submit"
-            className="px-4 py-2 bg-blue-600 text-white text-sm hover:bg-blue-700 rounded-sm transition-colors"
+            className="btn btn-primary px-4 py-2 text-sm"
           >
             Save Settings
           </button>

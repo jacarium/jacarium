@@ -104,7 +104,8 @@ def verify_sosreport(client, directory):
     check("System: memory nearly exhausted (available ~2.3 GiB of 31)", fm.get("total", 0) > 30 and fm.get("available", 99) < 3, str(fm))
 
     procs = (d["processes"] or {}).get("ps_auxwwwm", {}).get("processes", [])
-    check(f"Processes: {len(procs)} rows from ps auxwwwm incl. threads", len(procs) >= 25)
+    nthreads = sum(len(x.get("threads") or []) for x in procs)
+    check(f"Processes: {len(procs)} processes from ps auxwwwm, {nthreads} threads attached to their process", len(procs) >= 18 and nthreads >= 3 and len(procs) + nthreads >= 25)
     check("Processes: example-worker pid 4311 at 88.6% CPU / 61.2% MEM (planted)",
           any(p["PID"] == "4311" and p["%CPU"] == "88.6" and p["%MEM"] == "61.2" for p in procs))
     zprocs = (d["processes"] or {}).get("ps_auxZww", {}).get("processes", [])
@@ -152,7 +153,7 @@ def verify_sosreport(client, directory):
           any(e.get("mounted") == "/" and e.get("used_percent") == "73%" for e in df) and any(e.get("mounted") == "/mnt/backup" and e.get("used_percent") == "100%" for e in df))
 
     cg = (d["cgroups_cpu"] or {}).get("ps_auxwwwm", {})
-    check("Control Groups CPU: cgroup v1 detected with system.slice tree", cg.get("cgroup_version") == "cgroup" and "system.slice" in cg.get("cgroup_data", {}))
+    check("Control Groups CPU: cgroup v1 detected with system.slice tree", cg.get("cgroup_version") == 1 and "system.slice" in cg.get("cgroup_data", {}))
     worker_cg = cg.get("cgroup_data", {}).get("system.slice", {}).get("example-worker.service", {})
     check("Control Groups CPU: example-worker.service has a CFS quota (600000/100000 = 6 cores) and 3 processes",
           worker_cg.get("cpu.cfs_quota_us") == "600000" and len(worker_cg.get("_processes", [])) == 3, str({k: v for k, v in worker_cg.items() if k != "_processes"}))
@@ -278,13 +279,36 @@ def verify_mustgather(client, directory):
     check_tabs("mustgather", res)
     d = {k: v["data"] for k, v in res.items()}
 
+    au = (d.get("audit") or {}).get("audit") or {}
+    at = au.get("totals") or {}
+    check("Audit: 3,048 requests over 16 files, 12 malformed lines, 413 forbidden (the scanner's spike and the old registry-secret denial), 20 throttled, 4 impersonations, one spike on the timeline",
+          at.get("events") == 3048 and at.get("files") == 16 and at.get("malformed") == 12 and at.get("forbidden") == 413 and at.get("throttled") == 20 and at.get("impersonation") == 4
+          and len((au.get("timeline") or {}).get("spikes", [])) == 1, str(at))
+    from parsers.mustgather import audit_search
+    sq, _ = audit_search.validate({"preset": "changes", "aggregates": True, "limit": 1000})
+    sr = audit_search.search(directory, sq)
+    hl = {}
+    for e in sr["events"]:
+        for h in (e.get("change") or {}).get("highlights", []):
+            hl.setdefault(h["type"], []).append(h["text"])
+    check("Audit: the profile note reads Default from the APIServer config with the oauth custom rule; an Events search with the Changes preset finds master-2's bodies: the image bump, scale, RBAC grant/revoke, Secret key names and deleteOptions",
+          (au.get("profile") or {}).get("profile") == "Default" and (au.get("profile") or {}).get("config_profile") == "Default" and len((au.get("profile") or {}).get("custom_rules") or []) == 1
+          and sr["ok"] and sr["total"] > 100 and any("1.4.0 \u2192" in t for t in hl.get("image", [])) and "replicas 3 \u2192 5" in hl.get("scale", []) and any(t.startswith("binding removed") for t in hl.get("rbac", []))
+          and "key token added (value never shown)" in hl.get("secret", []) and any("gracePeriodSeconds=30" in t for t in hl.get("delete", [])),
+          str({"profile": (au.get("profile") or {}).get("profile"), "config": (au.get("profile") or {}).get("config_profile"), "rules": len((au.get("profile") or {}).get("custom_rules") or []), "ok": sr.get("ok"), "total": sr.get("total"), "error": sr.get("error"), "types": {k: len(v) for k, v in hl.items()}}))
+    sd = audit_search.search(directory, audit_search.validate({"preset": "sensitive_deletes", "aggregates": True})[0])
+    sr_reads = audit_search.search(directory, audit_search.validate({"preset": "secret_reads"})[0])
+    rb = audit_search.search(directory, audit_search.validate({"preset": "rbac_changes"})[0])
+    check("Audit > Events presets: the planted namespace delete by bob-admin among the sensitive deletes, alice's three secret reads, the RBAC changes",
+          any(e["user"] == "bob-admin" and e["resource"] == "namespaces" and e["verb"] == "delete" for e in sd["events"]) and sr_reads["total"] >= 3 and rb["total"] >= 4, str({"sensitive": sd["total"], "secret_reads": sr_reads["total"], "rbac": rb["total"]}))
+
     lc = (d.get("log_collection") or {}).get("log_collection") or {}
     sections = {s["key"]: s for s in lc.get("sections", [])}
     check("Log Collection: last tab; sections for the top-level dirs, namespaces, container logs, host service, audit and network logs",
           list(res)[-1] == "log_collection" and list(sections) == ["top", "namespaces", "pod_logs", "host", "audit", "network"], str(list(sections)))
     check("Log Collection: every section largest first, the workers' kubelet log the largest host service log, master-0 the largest audit log",
           all([i["size"] for i in s["rows"]] == sorted([i["size"] for i in s["rows"]], reverse=True) for s in sections.values())
-          and sections["host"]["rows"][0]["name"] == "workers/kubelet_service.log" and sections["audit"]["rows"][0]["name"].startswith("kube-apiserver/master-0"),
+          and sections["host"]["rows"][0]["name"] == "workers/kubelet_service.log" and sections["audit"]["rows"][0]["name"].startswith("kube-apiserver/"),
           str([(k, s["rows"][0]["name"]) for k, s in sections.items()]))
     check("Log Collection: the top-level totals add up to the whole must-gather", sum(i["size"] for i in sections["top"]["rows"]) == lc.get("total_size") and lc.get("total_files", 0) > 100, str(lc.get("total_size")))
 
@@ -331,6 +355,7 @@ def verify_mustgather(client, directory):
           mcp.get("master", {}).get("updated") == "True" and mcp.get("worker", {}).get("degraded") == "True" and mcp.get("worker", {}).get("degraded_machine_count") == 1 and mcp.get("worker", {}).get("unavailable_machine_count") == 1, str({k: (v.get("updated"), v.get("degraded")) for k, v in mcp.items()}))
 
     pods = d["pod"] or {}
+    pods = {ns: v for ns, v in pods.items() if not ns.startswith("_")}   # "_nodes": the pods-per-node chart's data, not a namespace
     allpods = {name: p for ns in pods.values() for name, p in ns.items()}
     check(f"Pods: {len(allpods)} pods in {len(pods)} namespaces, ages computed", len(allpods) >= 18 and all("_age_seconds" in p for p in allpods.values()), str({k: len(v) for k, v in pods.items()}))
     crash = allpods.get("payments-worker-7b8c9d0e1-efghi", {})

@@ -176,7 +176,7 @@ export default function CardModal({ isOpen, onClose, onSave, card }) {
           </button>
           <button
             type="submit"
-            className="px-4 py-2 bg-blue-600 text-white text-sm hover:bg-blue-700 rounded-sm transition-colors"
+            className="btn btn-primary px-4 py-2 text-sm"
           >
             {card ? 'Save Changes' : 'Create Card'}
           </button>

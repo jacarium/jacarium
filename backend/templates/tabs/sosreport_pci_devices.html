@@ -1,159 +1,114 @@
- <div class="panel rounded-lg shadow-sm">
- <div class="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
- <select id="filter-class" class="w-full px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
- <option value="">All Classes</option>
- {% set classes = data.lspci | map(attribute='class') | unique | sort %}
- {% for class_name in classes %}
- <option value="{{ class_name | lower }}">{{ class_name }}</option>
- {% endfor %}
- </select>
- <select id="filter-vendor" class="w-full px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
- <option value="">All Vendors</option>
- {% set vendors = data.lspci | map(attribute='vendor_id') | unique | sort %}
- {% for vendor_id in vendors %}
- <option value="{{ vendor_id | lower }}">{{ vendor_id }}</option>
- {% endfor %}
- </select>
- <div class="md:col-span-2">
- <input
- type="text"
- id="pci-filter"
- placeholder=""
- class="w-full px-3 py-2 text-sm rounded-md border focus:outline-hidden focus:ring-2"
- autocomplete="off"
- />
- </div>
- </div>
-
- <p id="pci-count" class="text-xs mb-2"></p>
-
- {% if data.lspci and data.lspci | length > 0 %}
- <div class="overflow-x-auto">
- <table id="pci-table" class="min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
- <tr>
- <th class="px-4 py-2 text-left w-8"></th>
- <th class="px-4 py-2 text-left">Class</th>
- <th class="px-4 py-2 text-left">Vendor ID</th>
- <th class="px-4 py-2 text-left">Device</th>
- </tr>
- </thead>
- <tbody id="pci-devices-container">
- {% for device in data.lspci %}
- <tr class="pci-device border-b cursor-pointer hover:bg-gray-50"
- data-class="{{ device.class | lower }}"
- data-vendor="{{ device.vendor_id | lower }}"
- data-index="{{ loop.index0 }}">
- <td class="px-4 py-2">
- <i class="fas fa-caret-right expand-icon"></i>
- </td>
- <td class="px-4 py-2">
- <i class="fas fa-microchip text-sm mr-2"></i>{{ device.class }}
- </td>
- <td class="px-4 py-2">{{ device.vendor_id }}</td>
- <td class="px-4 py-2">{{ device.summary }}</td>
- </tr>
- {% if device.details %}
- <tr class="pci-details hidden" data-parent="{{ loop.index0 }}">
- <td colspan="4" class="px-4 py-3 bg-gray-50">
- <div class="bg-white p-3 rounded-sm border border-gray-200">
- <h4 class="text-xs font-semibold mb-2 text-gray-700">Details:</h4>
- <pre class="text-xs whitespace-pre-wrap text-gray-900">{{ device.details | join('\n') }}</pre>
- </div>
- </td>
- </tr>
- {% endif %}
- {% endfor %}
- </tbody>
- </table>
- </div>
- {% else %}
- <p>No PCI device information available.</p>
- {% endif %}
- </div>
+{#
+  System > PCI Devices (parsers/sosreport/pci_devices.py): the Findings strip, the shared filter bar (search, class,
+  vendor, the count, expand / collapse all), one table of devices (slot, class, vendor, model, driver, link, NUMA) on
+  the shared expandable-row component: the panel shows the parsed fields as a key/value grid (subsystem, slot, NUMA,
+  IOMMU group, driver and modules, interrupt, link capability vs status), the regions, the Control / Status flags as
+  chips (a set error flag highlighted), and the raw lspci lines folded at the end.
+#}
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
+{% if data.lspci %}
+<div class="panel rounded-lg shadow-sm">
+  {% call ui.filter_bar() %}
+    {{ ui.search('pci-filter', 'Search devices (a regex works)') }}
+    {% call ui.select() %}<select id="filter-class" class="ui-select" aria-label="Class"><option value="">All classes</option>{% for class_name in data.lspci | map(attribute='class') | unique | sort %}<option value="{{ class_name | lower }}">{{ class_name }}</option>{% endfor %}</select>{% endcall %}
+    {% call ui.select() %}<select id="filter-vendor" class="ui-select" aria-label="Vendor"><option value="">All vendors</option>{% for vendor in data.lspci | map(attribute='vendor') | reject('equalto', '') | unique | sort %}<option value="{{ vendor | lower }}">{{ vendor }}</option>{% endfor %}</select>{% endcall %}
+    {% call ui.end() %}<span class="ui-status" id="pci-count" aria-live="polite"></span>{{ ui.xrow_all('#pci-table') }}{% endcall %}
+  {% endcall %}
+  <div class="ui-table-wrap">
+    <table id="pci-table" class="ui-table">
+      <thead>
+        <tr>
+          {{ ui.xrow_th() }}
+          <th>Slot</th>
+          <th data-sorted="ascending">Class</th>
+          <th>Vendor</th>
+          <th>Device</th>
+          <th>Driver</th>
+          <th>Link</th>
+          <th class="ui-num">NUMA</th>
+        </tr>
+      </thead>
+      <tbody id="pci-devices-container">
+        {% for device in data.lspci | sort(attribute='class') %}
+        {% set warn = (device.link and device.link.downgraded) or device.error_flags %}
+        <tr class="ui-xrow pci-device{% if warn %} ui-row-warn{% endif %}" data-class="{{ device.class | lower }}" data-vendor="{{ device.vendor | lower }}" data-index="{{ loop.index0 }}">
+          {{ ui.xrow_cell() }}
+          <td class="ui-mono">{{ device.slot }}</td>
+          <td>{{ device.class }}</td>
+          <td>{{ device.vendor or '-' }}</td>
+          <td class="ui-cmd" title="{{ device.summary }}">{{ device.model or device.description }}{% if device.revision %} <span class="ui-muted">rev {{ device.revision }}</span>{% endif %}</td>
+          <td class="ui-mono">{{ device.driver or '-' }}</td>
+          <td>{% if device.link %}{% if device.link.downgraded %}{{ ui.badge('warn', device.link.text, device.link.cap_text ~ ' capable, running ' ~ device.link.text) }}{% else %}<span title="{{ device.link.cap_text }} capable">{{ device.link.text }}</span>{% endif %}{% else %}-{% endif %}</td>
+          <td class="ui-num">{{ device.numa_node or '-' }}</td>
+        </tr>
+        {% call ui.xrow_panel(8) %}
+          {{ ui.kv([
+            ('Device', device.summary, 'mono', True),
+            ('Subsystem', device.subsystem),
+            ('Physical slot', device.physical_slot),
+            ('NUMA node', device.numa_node),
+            ('IOMMU group', device.iommu_group),
+            ('Driver', device.driver, 'mono'),
+            ('Kernel modules', device.modules, 'mono'),
+            ('Interrupt', device.interrupt),
+            ('Latency', device.latency),
+            ('Link capability', device.link.cap_text if device.link else ''),
+            ('Link status', (device.link.text ~ (' (downgraded)' if device.link.downgraded else '')) if device.link else ''),
+            ('IDs', (device.vendor_id ~ ':' ~ device.device_id) if device.vendor_id else '', 'mono'),
+            ('Capabilities', device.capabilities | join(', ')),
+          ]) }}
+          {% if device.regions %}
+          <div>{{ ui.kv_title('Regions') }}<ul class="ui-files">{% for r in device.regions %}<li class="ui-mono">{{ r.text }}</li>{% endfor %}</ul></div>
+          {% endif %}
+          {% if device.control %}<div>{{ ui.kv_title('Control') }}{{ ui.flags(device.control) }}</div>{% endif %}
+          {% if device.status %}<div>{{ ui.kv_title('Status' ~ (' (' ~ device.error_flags | length ~ ' error flag' ~ ('s' if device.error_flags | length != 1 else '') ~ ' set)' if device.error_flags else '')) }}{{ ui.flags(device.status) }}</div>{% endif %}
+          {% if device.details %}
+          {% call ui.fold('Raw lspci output') %}<pre>{{ device.details | join('\n') }}</pre>{% endcall %}
+          {% endif %}
+        {% endcall %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
+{% endif %}
 
 <script>
- (() => {
- const filterInput = document.getElementById('pci-filter');
- const filterClass = document.getElementById('filter-class');
- const filterVendor = document.getElementById('filter-vendor');
- const devicesContainer = document.getElementById('pci-devices-container');
- const countDisplay = document.getElementById('pci-count');
-
- // Handle row click to expand/collapse details
- devicesContainer.querySelectorAll('.pci-device').forEach(row => {
- row.addEventListener('click', function() {
- const index = this.dataset.index;
- const detailsRow = document.querySelector(`.pci-details[data-parent="${index}"]`);
- const icon = this.querySelector('.expand-icon');
-
- if (detailsRow) {
- const isHidden = detailsRow.classList.contains('hidden');
- detailsRow.classList.toggle('hidden');
- icon.classList.toggle('fa-caret-right', !isHidden);
- icon.classList.toggle('fa-caret-down', isHidden);
- }
- });
- });
-
- function updateCount() {
- const allDevices = devicesContainer.querySelectorAll('.pci-device');
- const visibleDevices = [...allDevices].filter(d => !d.hasAttribute('hidden'));
- countDisplay.textContent = `Showing ${visibleDevices.length} of ${allDevices.length} PCI devices`;
- }
-
- function filterDevices() {
- const classVal = filterClass.value.toLowerCase();
- const vendorVal = filterVendor.value.toLowerCase();
- const query = filterInput.value.trim();
- let regex = null;
-
- if (query.length > 0) {
- try {
- regex = new RegExp(query, 'i');
- } catch (e) {
- regex = null;
- }
- }
-
- const allDevices = devicesContainer.querySelectorAll('.pci-device');
-
- allDevices.forEach(device => {
- const index = device.dataset.index;
- const detailsRow = document.querySelector(`.pci-details[data-parent="${index}"]`);
- const summaryText = device.cells[3].textContent;
- const detailsText = detailsRow ? detailsRow.textContent : '';
- const classText = device.dataset.class;
- const vendorText = device.dataset.vendor;
-
- let matchesText = regex
- ? (regex.test(summaryText) || regex.test(detailsText))
- : (summaryText.toLowerCase().includes(query.toLowerCase()) || detailsText.toLowerCase().includes(query.toLowerCase()));
-
- let matchesClass = !classVal || classText === classVal;
- let matchesVendor = !vendorVal || vendorText === vendorVal;
-
- if (matchesText && matchesClass && matchesVendor) {
- device.removeAttribute('hidden');
- if (detailsRow && !detailsRow.classList.contains('hidden')) {
- detailsRow.removeAttribute('hidden');
- }
- } else {
- device.setAttribute('hidden', '');
- if (detailsRow) {
- detailsRow.setAttribute('hidden', '');
- }
- }
- });
-
- updateCount();
- }
-
- filterInput.addEventListener('input', filterDevices);
- filterClass.addEventListener('change', filterDevices);
- filterVendor.addEventListener('change', filterDevices);
-
- updateCount();
- })();
+(function () {
+  var filterInput = document.getElementById('pci-filter');
+  var filterClass = document.getElementById('filter-class');
+  var filterVendor = document.getElementById('filter-vendor');
+  var container = document.getElementById('pci-devices-container');
+  var countDisplay = document.getElementById('pci-count');
+  if (!container) return;
+  var rows = Array.prototype.slice.call(container.querySelectorAll('tr.pci-device'));
+  function updateCount(shown) {
+    countDisplay.textContent = 'Showing ' + shown + ' of ' + rows.length + ' PCI devices';
+  }
+  function filterDevices() {
+    var classVal = filterClass.value.toLowerCase();
+    var vendorVal = filterVendor.value.toLowerCase();
+    var query = filterInput.value.trim();
+    var regex = null;
+    if (query) { try { regex = new RegExp(query, 'i'); } catch (e) { regex = null; } }
+    var shown = 0;
+    rows.forEach(function (row) {
+      var panel = row.nextElementSibling;
+      var text = row.textContent + ' ' + (panel ? panel.textContent : '');
+      var ok = (!query || (regex ? regex.test(text) : text.toLowerCase().indexOf(query.toLowerCase()) >= 0))
+        && (!classVal || row.getAttribute('data-class') === classVal)
+        && (!vendorVal || row.getAttribute('data-vendor') === vendorVal);
+      row.hidden = !ok;
+      if (panel) panel.hidden = !ok || !row.classList.contains('ui-open');
+      if (ok) shown += 1;
+    });
+    updateCount(shown);
+  }
+  var run = function (el) { if (window.diagBusy) window.diagBusy.filter(el, filterDevices); else filterDevices(); };
+  filterInput.addEventListener('input', function () { run(filterInput); });
+  filterClass.addEventListener('change', function () { run(filterClass); });
+  filterVendor.addEventListener('change', function () { run(filterVendor); });
+  updateCount(rows.length);
+})();
 </script>

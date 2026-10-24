@@ -210,7 +210,7 @@ export default function ImportDBModal({
               Drag and drop your database export file here
             </p>
             <p className="text-xs text-os-text-secondary mb-4">or</p>
-            <label className="inline-flex items-center gap-2 px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover rounded-sm transition-colors cursor-pointer">
+            <label className="btn btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm cursor-pointer">
               <Upload size={16} />
               Choose File
               <input

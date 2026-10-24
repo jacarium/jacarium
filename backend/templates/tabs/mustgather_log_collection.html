@@ -9,12 +9,13 @@
   tabs/_log_collection.html, shared with the sosreport page (no Log
   Viewer here). Nothing reads a file; every name is escaped by Jinja.
 #}
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 {% import "tabs/_log_collection.html" as lcm %}
 {% set lc = data.log_collection or {} %}
 <div class="panel rounded-lg shadow-sm lc" id="log-collection-overview">
 {{ lcm.styles() }}
   <div class="lc-head">
-    <h2>Log Collection</h2>
     <span class="lc-sub">{{ "{:,}".format(lc.total_files or 0) }} file{{ 's' if lc.total_files != 1 else '' }}{% if lc.total_size %} &middot; {{ lc.total_size_text }}{% endif %}{% if lc.image_dir %} &middot; {{ lc.image_dir }}{% endif %}</span>
   </div>
 {% if lc.rows %}
@@ -24,6 +25,5 @@
   {{ lcm.table(lc) }}
   {{ lcm.script() }}
 {% else %}
-  {{ lcm.empty('Nothing to size', 'No files were found under this must-gather.') }}
 {% endif %}
 </div>

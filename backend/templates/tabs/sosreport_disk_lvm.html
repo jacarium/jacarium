@@ -1,46 +1,41 @@
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 <div class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm">
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-layer-group mr-2"></i> Volume Groups (VGs)
  </h3>
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left">VG</th>
- <th class="px-4 py-2 text-left">Attr</th>
- <th class="px-4 py-2 text-left">Ext</th>
- <th class="px-4 py-2 text-left">#PV</th>
- <th class="px-4 py-2 text-left">#LV</th>
- <th class="px-4 py-2 text-left">#SN</th>
- <th class="px-4 py-2 text-left">#VSize</th>
- <th class="px-4 py-2 text-left">#VFree</th>
+ <th>VG</th>
+ <th>Attr</th>
+ <th>Ext</th>
+ <th>#PV</th>
+ <th>#LV</th>
+ <th>#SN</th>
+ <th>#VSize</th>
+ <th>#VFree</th>
  </tr>
  </thead>
  <tbody>
  {% if data.lvm.vgs %}
  {% for vg in data.lvm.vgs %}
  <tr >
- <td class="px-4 py-2">{{ vg['VG'] }}</td>
- <td class="px-4 py-2">{{ vg['Attr'] }}</td>
- <td class="px-4 py-2">{{ vg['Ext'] }}</td>
- <td class="px-4 py-2">{{ vg['#PV'] }}</td>
- <td class="px-4 py-2">{{ vg['#LV'] }}</td>
- <td class="px-4 py-2">{{ vg['#SN'] }}</td>
- <td class="px-4 py-2">{{ vg['VSize'] }}</td>
- <td class="px-4 py-2">{{ vg['VFree'] }}</td>
+ <td>{{ vg['VG'] }}</td>
+ <td>{{ vg['Attr'] }}</td>
+ <td>{{ vg['Ext'] }}</td>
+ <td>{{ vg['#PV'] }}</td>
+ <td>{{ vg['#LV'] }}</td>
+ <td>{{ vg['#SN'] }}</td>
+ <td>{{ vg['VSize'] }}</td>
+ <td>{{ vg['VFree'] }}</td>
  </tr>
  {% endfor %}
  {% else %}
  <tr>
  <td colspan="9">
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No LVM data found in this report</div>
- </div>
  </td>
  </tr>
  {% endif %}
@@ -55,39 +50,32 @@
  <i class="fas fa-database mr-2"></i> Physical Volumes (PVs)
  </h3>
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left">PV</th>
- <th class="px-4 py-2 text-left">VG</th>
- <th class="px-4 py-2 text-left">Fmt</th>
- <th class="px-4 py-2 text-left">PSize</th>
- <th class="px-4 py-2 text-left">PFree</th>
- <th class="px-4 py-2 text-left">DevSize</th>
+ <th>PV</th>
+ <th>VG</th>
+ <th>Fmt</th>
+ <th>PSize</th>
+ <th>PFree</th>
+ <th>DevSize</th>
  </tr>
  </thead>
  <tbody>
  {% if data.lvm.pvs %}
  {% for pv in data.lvm.pvs %}
  <tr >
- <td class="px-4 py-2">{{ pv['PV'] }}</td>
- <td class="px-4 py-2">{{ pv['VG'] }}</td>
- <td class="px-4 py-2">{{ pv['Fmt'] }}</td>
- <td class="px-4 py-2">{{ pv['PSize'] }}</td>
- <td class="px-4 py-2">{{ pv['PFree'] }}</td>
- <td class="px-4 py-2">{{ pv['DevSize'] }}</td>
+ <td>{{ pv['PV'] }}</td>
+ <td>{{ pv['VG'] }}</td>
+ <td>{{ pv['Fmt'] }}</td>
+ <td>{{ pv['PSize'] }}</td>
+ <td>{{ pv['PFree'] }}</td>
+ <td>{{ pv['DevSize'] }}</td>
  </tr>
  {% endfor %}
  {% else %}
  <tr>
  <td colspan="9">
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No LVM data found in this report</div>
- </div>
  </td>
  </tr>
  {% endif %}
@@ -100,38 +88,28 @@
  <i class="fas fa-database mr-2"></i> Logical Volumes (LVs)
  </h3>
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left">LV</th>
- <th class="px-4 py-2 text-left">VG</th>
- <th class="px-4 py-2 text-left">LSize</th>
- <th class="px-4 py-2 text-left">Pool</th>
- <th class="px-4 py-2 text-left">Data%</th>
+ <th>LV</th>
+ <th>VG</th>
+ <th>LSize</th>
+ <th>Pool</th>
+ <th>Data%</th>
  </tr>
  </thead>
  <tbody>
  {% if data.lvm.lvs %}
  {% for lv in data.lvm.lvs %}
  <tr >
- <td class="px-4 py-2">{{ lv['LV'] }}</td>
- <td class="px-4 py-2">{{ lv['VG'] }}</td>
- <td class="px-4 py-2">{{ lv['LSize'] }}</td>
- <td class="px-4 py-2">{{ lv['Pool'] }}</td>
- <td class="px-4 py-2 w-48">
+ <td>{{ lv['LV'] }}</td>
+ <td>{{ lv['VG'] }}</td>
+ <td>{{ lv['LSize'] }}</td>
+ <td>{{ lv['Pool'] }}</td>
+ <td class="w-48">
  {% if 'Data%' in lv and lv['Data%'] != '' %}
  {% set data_percent = lv['Data%']|float %}
- <div class="flex items-center space-x-2">
- <div class="flex-1 bg-[#4a4a36] h-3">
- <div class="{% if data_percent >= 90 %}bg-[#b91c1c]
- {% elif data_percent >= 70 %}bg-[#eab308]
- {% else %}bg-[#4caf50]{% endif %}
- h-3" style="width: {{ data_percent }}%;"></div>
- </div>
- <div class="text-xs text-white whitespace-nowrap">
- {{ data_percent }}%
- </div>
- </div>
+ {{ ui.meter(lv.data_pct, lv.data_role, (lv['Data%'] ~ '%'), title=('metadata ' ~ lv['Meta%'] ~ '%') if lv['Meta%'] else none) }}
  {% endif %}
  </td>
  </tr>
@@ -139,13 +117,6 @@
  {% else %}
  <tr>
  <td colspan="9">
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No LVM data found in this report</div>
- </div>
  </td>
  </tr>
  {% endif %}

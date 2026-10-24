@@ -57,7 +57,7 @@ export default function WorkflowListMenu({
   };
 
   const sortButtonClass = (value) => `w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors ${
- sortBy === value ?'bg-os-blue text-white':'hover:bg-os-card-secondary'
+ sortBy === value ?'btn-selected':'hover:bg-os-card-secondary'
  }`;
 
   return (

@@ -200,7 +200,7 @@ export default function KanbanColumn({
                             onDeleteColumn?.(column.id);
                             setShowDeleteConfirm(false);
                           }}
-                          className="flex-1 px-3 py-1.5 bg-red-600 text-white text-sm rounded-sm hover:bg-red-700"
+                          className="btn btn-danger-solid flex-1 px-3 py-1.5 text-sm"
                         >
                           Delete
                         </button>

@@ -1,70 +1,63 @@
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 <div class="grid grid-cols-1 gap-4">
 
  {% if not data.cpus %}
  <div class="panel rounded-lg shadow-sm">
- <div class="empty-state">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
- </svg>
- <div class="empty-state-title">No Data Available</div>
- <div class="empty-state-description">No CPU C-State (cpuidle) data found in this report</div>
- </div>
  </div>
  {% endif %}
 
- {% if data.cpus %}
- <!-- CPU C-States Legend (two columns) -->
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium mb-2">
- <i class="fas fa-question-circle mr-2"></i> CPU C-States Legend
- </h3>
+  <!-- CPU C-States Legend (two columns): a reference, open by default, shown with or without cpuidle data -->
+ <details class="panel rounded-lg shadow-sm ui-details" id="cstates-legend" open>
+ <summary><span class="ui-card-title"><span>CPU C-States Legend</span></span></summary>
  <p class="text-sm mb-3">Not all CPUs support every C-state. States start at C0, which is the normal CPU operating mode (CPU is 100% turned on). With increasing C number, the CPU sleep mode gets deeper &mdash; more circuits and signals are turned off, and more time is required for the CPU to return to C0 (wake up).</p>
  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
- <table class="min-w-full text-sm rounded-sm">
+ <table class="ui-table">
  <thead>
- <tr class="border-b">
- <th class="px-3 py-2 text-left">Mode</th>
- <th class="px-3 py-2 text-left">Name</th>
- <th class="px-3 py-2 text-left">What it does</th>
+ <tr>
+ <th>Mode</th>
+ <th>Name</th>
+ <th>What it does</th>
  </tr>
  </thead>
  <tbody>
- <tr><td class="px-3 py-1">C0</td><td class="px-3 py-1">Operating State</td><td class="px-3 py-1">CPU fully turned on</td></tr>
- <tr><td class="px-3 py-1">C1</td><td class="px-3 py-1">Halt</td><td class="px-3 py-1">Stops CPU main internal clocks via software; bus interface unit and APIC are kept running at full speed</td></tr>
- <tr><td class="px-3 py-1">C1E</td><td class="px-3 py-1">Enhanced Halt</td><td class="px-3 py-1">Stops CPU main internal clocks via software and reduces CPU voltage; bus interface unit and APIC are kept running at full speed</td></tr>
- <tr><td class="px-3 py-1">C1E</td><td class="px-3 py-1">&mdash;</td><td class="px-3 py-1">Stops all CPU internal clocks</td></tr>
- <tr><td class="px-3 py-1">C2</td><td class="px-3 py-1">Stop Grant</td><td class="px-3 py-1">Stops CPU main internal clocks via hardware; bus interface unit and APIC are kept running at full speed</td></tr>
- <tr><td class="px-3 py-1">C2</td><td class="px-3 py-1">Stop Clock</td><td class="px-3 py-1">Stops CPU internal and external clocks via hardware</td></tr>
- <tr><td class="px-3 py-1">C2E</td><td class="px-3 py-1">Extended Stop Grant</td><td class="px-3 py-1">Stops CPU main internal clocks via hardware and reduces CPU voltage; bus interface unit and APIC are kept running at full speed</td></tr>
- <tr><td class="px-3 py-1">C3</td><td class="px-3 py-1">Sleep</td><td class="px-3 py-1">Stops all CPU internal clocks</td></tr>
- <tr><td class="px-3 py-1">C3</td><td class="px-3 py-1">Deep Sleep</td><td class="px-3 py-1">Stops all CPU internal and external clocks</td></tr>
+ <tr><td>C0</td><td>Operating State</td><td>CPU fully turned on</td></tr>
+ <tr><td>C1</td><td>Halt</td><td>Stops CPU main internal clocks via software; bus interface unit and APIC are kept running at full speed</td></tr>
+ <tr><td>C1E</td><td>Enhanced Halt</td><td>Stops CPU main internal clocks via software and reduces CPU voltage; bus interface unit and APIC are kept running at full speed</td></tr>
+ <tr><td>C1E</td><td>&mdash;</td><td>Stops all CPU internal clocks</td></tr>
+ <tr><td>C2</td><td>Stop Grant</td><td>Stops CPU main internal clocks via hardware; bus interface unit and APIC are kept running at full speed</td></tr>
+ <tr><td>C2</td><td>Stop Clock</td><td>Stops CPU internal and external clocks via hardware</td></tr>
+ <tr><td>C2E</td><td>Extended Stop Grant</td><td>Stops CPU main internal clocks via hardware and reduces CPU voltage; bus interface unit and APIC are kept running at full speed</td></tr>
+ <tr><td>C3</td><td>Sleep</td><td>Stops all CPU internal clocks</td></tr>
+ <tr><td>C3</td><td>Deep Sleep</td><td>Stops all CPU internal and external clocks</td></tr>
  </tbody>
  </table>
- <table class="min-w-full text-sm rounded-sm">
+ <table class="ui-table">
  <thead>
- <tr class="border-b">
- <th class="px-3 py-2 text-left">Mode</th>
- <th class="px-3 py-2 text-left">Name</th>
- <th class="px-3 py-2 text-left">What it does</th>
+ <tr>
+ <th>Mode</th>
+ <th>Name</th>
+ <th>What it does</th>
  </tr>
  </thead>
  <tbody>
- <tr><td class="px-3 py-1">C3</td><td class="px-3 py-1">AltVID</td><td class="px-3 py-1">Stops all CPU internal clocks and reduces CPU voltage</td></tr>
- <tr><td class="px-3 py-1">C4</td><td class="px-3 py-1">Deeper Sleep</td><td class="px-3 py-1">Reduces CPU voltage</td></tr>
- <tr><td class="px-3 py-1">C4E/C5</td><td class="px-3 py-1">Enhanced Deeper Sleep</td><td class="px-3 py-1">Reduces CPU voltage even more and turns off the memory cache</td></tr>
- <tr><td class="px-3 py-1">C6</td><td class="px-3 py-1">Deep Power Down</td><td class="px-3 py-1">Reduces the CPU internal voltage to any value, including 0 V</td></tr>
- <tr><td class="px-3 py-1">C7</td><td class="px-3 py-1">Deep Energy Saving</td><td class="px-3 py-1">The CPU tries to flush its L3 cache. If entirely cleared, cuts power to save energy. System agent power removed too.</td></tr>
- <tr><td class="px-3 py-1">C7s</td><td class="px-3 py-1">&mdash;</td><td class="px-3 py-1">L3 cache flushed in one step with MWAIT(C7) and C7s sub-state hint. Allows I/O devices to enter low power mode.</td></tr>
- <tr><td class="px-3 py-1">C8</td><td class="px-3 py-1">&mdash;</td><td class="px-3 py-1">The L3 cache is flushed in a single step. The power to the PLL is cut.</td></tr>
- <tr><td class="px-3 py-1">C9</td><td class="px-3 py-1">&mdash;</td><td class="px-3 py-1">The VCCIN (VCC Input Voltage) gets lowered to a minimum.</td></tr>
- <tr><td class="px-3 py-1">C10</td><td class="px-3 py-1">&mdash;</td><td class="px-3 py-1">The single phase core management system, VR12.6, goes into a low-power state. The CPU is almost shut down.</td></tr>
+ <tr><td>C3</td><td>AltVID</td><td>Stops all CPU internal clocks and reduces CPU voltage</td></tr>
+ <tr><td>C4</td><td>Deeper Sleep</td><td>Reduces CPU voltage</td></tr>
+ <tr><td>C4E/C5</td><td>Enhanced Deeper Sleep</td><td>Reduces CPU voltage even more and turns off the memory cache</td></tr>
+ <tr><td>C6</td><td>Deep Power Down</td><td>Reduces the CPU internal voltage to any value, including 0 V</td></tr>
+ <tr><td>C7</td><td>Deep Energy Saving</td><td>The CPU tries to flush its L3 cache. If entirely cleared, cuts power to save energy. System agent power removed too.</td></tr>
+ <tr><td>C7s</td><td>&mdash;</td><td>L3 cache flushed in one step with MWAIT(C7) and C7s sub-state hint. Allows I/O devices to enter low power mode.</td></tr>
+ <tr><td>C8</td><td>&mdash;</td><td>The L3 cache is flushed in a single step. The power to the PLL is cut.</td></tr>
+ <tr><td>C9</td><td>&mdash;</td><td>The VCCIN (VCC Input Voltage) gets lowered to a minimum.</td></tr>
+ <tr><td>C10</td><td>&mdash;</td><td>The single phase core management system, VR12.6, goes into a low-power state. The CPU is almost shut down.</td></tr>
  </tbody>
  </table>
  </div>
- </div>
+ </details>
 
+ {% if data.cpus %}
  <!-- Per-CPU Stacked C-State Time Chart -->
- <div class="panel rounded-lg shadow-sm">
+ <div class="panel rounded-lg shadow-sm" data-chart-card>
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-chart-bar mr-2"></i> C-State Time per CPU
  </h3>
@@ -76,80 +69,66 @@
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-table mr-2"></i> Per-CPU C-State Details
  </h3>
- <div class="mb-4">
- <div class="grid grid-cols-1 md:grid-cols-12 gap-2">
- <div class="md:col-span-3">
- <label class="block text-xs font-semibold mb-1">CPU Filter</label>
- <input type="number" id="cstateCpuFilter" oninput="window.filterCstateTable()"
- class="w-full px-3 py-2 text-sm rounded-sm border focus:outline-hidden focus:ring-2"
- placeholder="CPU number">
- </div>
- <div class="md:col-span-9">
- <label class="block text-xs font-semibold mb-1">Search</label>
- <input type="text" id="cstateSearchFilter" oninput="window.filterCstateTable()"
- class="w-full px-3 py-2 text-sm rounded-sm border focus:outline-hidden focus:ring-2"
- placeholder="Search across all columns...">
- </div>
- </div>
- <div class="flex justify-between items-center mb-2 mt-4">
- <div id="cstateFilteredCount" class="text-sm">Showing all {{ data.cpus | length }} CPUs</div>
- <div class="flex items-center gap-2">
- <label class="text-xs font-semibold">Per Page:</label>
- <select id="cstatePageSizeSelect" onchange="window.changeCstatePageSize()" class="px-3 py-1 text-white text-sm rounded-md">
+ {% call ui.filter_bar() %}
+    <label class="ui-field">{{ ui.icon('search') }}<input autocomplete="off" aria-label="Search across all columns" type="search" id="cstateSearchFilter" data-ui-search oninput="window.diagBusy ? window.diagBusy.filter(this, function () { window.filterCstateTable(); }) : window.filterCstateTable()"
+ class="ui-input"
+ placeholder="Search across all columns..."></label>
+    <label class="ui-numfield" for="cstateCpuFilter">CPU Filter<input aria-label="CPU Filter" type="number" id="cstateCpuFilter" oninput="window.diagBusy ? window.diagBusy.filter(this, function () { window.filterCstateTable(); }) : window.filterCstateTable()"
+ class="ui-input"
+ placeholder="CPU number"></label>
+    {% call ui.end() %}<span class="ui-status" id="cstateFilteredCount" aria-live="polite"></span><label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select aria-label="Rows per page" id="cstatePageSizeSelect" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { window.changeCstatePageSize(); }) : window.changeCstatePageSize()" class="ui-select">
  <option value="10">10</option>
  <option value="25" selected>25</option>
  <option value="50">50</option>
  <option value="100">100</option>
  <option value="-1">All</option>
- </select>
- </div>
- </div>
- </div>
+ </select>{{ ui.icon('chevron') }}</span></label>{% endcall %}
+  {% endcall %}
  <div style="overflow-x: auto;">
- <table id="cstateTable" class="min-w-full text-sm rounded-lg">
- <thead class="border-b">
+ <table id="cstateTable" class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCstateTable(0)">CPU <i id="cstate-indicator-0" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCstateTable(1)">Cur Freq (MHz) <i id="cstate-indicator-1" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCstateTable(2)">Max Freq (MHz) <i id="cstate-indicator-2" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" data-sorted="ascending" onclick="window.sortCstateTable(0)">CPU <i id="cstate-indicator-0" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="window.sortCstateTable(1)">Cur Freq (MHz) <i id="cstate-indicator-1" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="window.sortCstateTable(2)">Max Freq (MHz) <i id="cstate-indicator-2" class="fas text-sm ml-1"></i></th>
  {% for sname in data.state_names %}
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCstateTable({{ loop.index + 2 }})">{{ sname }} Time <i id="cstate-indicator-{{ loop.index + 2 }}" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="window.sortCstateTable({{ loop.index + 2 }})">{{ sname }} Time <i id="cstate-indicator-{{ loop.index + 2 }}" class="fas text-sm ml-1"></i></th>
  {% endfor %}
  {% for sname in data.state_names %}
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCstateTable({{ data.state_names | length + loop.index + 2 }})">{{ sname }} Usage <i id="cstate-indicator-{{ data.state_names | length + loop.index + 2 }}" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="window.sortCstateTable({{ data.state_names | length + loop.index + 2 }})">{{ sname }} Usage <i id="cstate-indicator-{{ data.state_names | length + loop.index + 2 }}" class="fas text-sm ml-1"></i></th>
  {% endfor %}
  {% for sname in data.state_names %}
- <th class="px-4 py-2 text-left">{{ sname }} Latency (µs)</th>
+ <th>{{ sname }} Latency (µs)</th>
  {% endfor %}
  </tr>
  </thead>
  <tbody>
  {% for cpuId, cpuInfo in data.cpus.items() %}
  <tr>
- <td class="px-4 py-2 font-medium">{{ cpuId }}</td>
- <td class="px-4 py-2" data-raw="{{ cpuInfo.cur_freq or 0 }}">{% if cpuInfo.cur_freq is not none %}{{ (cpuInfo.cur_freq / 1000) | round(0) | int }}{% else %}-{% endif %}</td>
- <td class="px-4 py-2" data-raw="{{ cpuInfo.max_freq or 0 }}">{% if cpuInfo.max_freq is not none %}{{ (cpuInfo.max_freq / 1000) | round(0) | int }}{% else %}-{% endif %}</td>
+ <td>{{ cpuId }}</td>
+ <td data-raw="{{ cpuInfo.cur_freq or 0 }}">{% if cpuInfo.cur_freq is not none %}{{ (cpuInfo.cur_freq / 1000) | round(0) | int }}{% else %}-{% endif %}</td>
+ <td data-raw="{{ cpuInfo.max_freq or 0 }}">{% if cpuInfo.max_freq is not none %}{{ (cpuInfo.max_freq / 1000) | round(0) | int }}{% else %}-{% endif %}</td>
  {% for sname in data.state_names %}
  {% set ns = namespace(found=false, time=0) %}
  {% for s in cpuInfo.states %}{% if s.name == sname %}{% set ns.found = true %}{% set ns.time = s.time %}{% endif %}{% endfor %}
- <td class="px-4 py-2" data-raw="{{ ns.time }}">{% if ns.found %}{{ ns.time }}{% else %}-{% endif %}</td>
+ <td data-raw="{{ ns.time }}">{% if ns.found %}{{ ns.time }}{% else %}-{% endif %}</td>
  {% endfor %}
  {% for sname in data.state_names %}
  {% set ns = namespace(found=false, usage=0) %}
  {% for s in cpuInfo.states %}{% if s.name == sname %}{% set ns.found = true %}{% set ns.usage = s.usage %}{% endif %}{% endfor %}
- <td class="px-4 py-2">{% if ns.found %}{{ ns.usage }}{% else %}-{% endif %}</td>
+ <td>{% if ns.found %}{{ ns.usage }}{% else %}-{% endif %}</td>
  {% endfor %}
  {% for sname in data.state_names %}
  {% set ns = namespace(found=false, latency=0) %}
  {% for s in cpuInfo.states %}{% if s.name == sname %}{% set ns.found = true %}{% set ns.latency = s.latency %}{% endif %}{% endfor %}
- <td class="px-4 py-2">{% if ns.found %}{{ ns.latency }}{% else %}-{% endif %}</td>
+ <td>{% if ns.found %}{{ ns.latency }}{% else %}-{% endif %}</td>
  {% endfor %}
  </tr>
  {% endfor %}
  </tbody>
  </table>
  </div>
- <div id="cstatePaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ <nav id="cstatePaginationControls" class="ui-pager" aria-label="Pages" hidden></nav>
  </div>
 
  {% endif %}
@@ -164,6 +143,7 @@
 
  function init() {
  var table = document.getElementById('cstateTable');
+ if (!table) return;   // no cpuidle data: the Findings strip says so, the legend stands alone
  if (!table) { setTimeout(init, 50); return; }
 
  // --- Time formatting ---
@@ -212,7 +192,7 @@
  });
 
  var ctx = document.getElementById('cstateTimeChart').getContext('2d');
- var cstateChart = new Chart(ctx, {
+ var cstateChart = window.diagChart.make(ctx, {
   type: 'bar',
   data: {
    labels: cpuLabels,
@@ -315,38 +295,8 @@
  }
 
  function renderPagination(total) {
-  var container = document.getElementById('cstatePaginationControls');
-  if (!container) return;
-  container.innerHTML = '';
-  if (cstatePageSize <= 0 || total <= cstatePageSize) return;
-
-  var maxPage = Math.ceil(total / cstatePageSize);
-  var btnClass = 'px-3 py-1 text-sm rounded-sm border';
-
-  function addBtn(label, page, disabled) {
-   var btn = document.createElement('button');
-   btn.textContent = label;
-   btn.className = btnClass + (disabled ? ' opacity-50 cursor-not-allowed' : ' cursor-pointer');
-   btn.disabled = disabled;
-   btn.onclick = function() { cstateCurrentPage = page; renderPage(getFilteredRows()); };
-   container.appendChild(btn);
-  }
-
-  addBtn('First', 1, cstateCurrentPage === 1);
-  addBtn('Prev', cstateCurrentPage - 1, cstateCurrentPage === 1);
-
-  var startPage = Math.max(1, cstateCurrentPage - 2);
-  var endPage = Math.min(maxPage, cstateCurrentPage + 2);
-  for (var p = startPage; p <= endPage; p++) {
-   var btn = document.createElement('button');
-   btn.textContent = p;
-   btn.className = btnClass + (p === cstateCurrentPage ? ' font-bold current-page' : '');
-   btn.onclick = (function(pg) { return function() { cstateCurrentPage = pg; renderPage(getFilteredRows()); }; })(p);
-   container.appendChild(btn);
-  }
-
-  addBtn('Next', cstateCurrentPage + 1, cstateCurrentPage === maxPage);
-  addBtn('Last', maxPage, cstateCurrentPage === maxPage);
+   // the shared pager (diagPager): one page -> nothing drawn
+   window.diagPager.render(document.getElementById('cstatePaginationControls'), { total: total, page: cstateCurrentPage, pageSize: cstatePageSize, go: function (p) { cstateCurrentPage = p; renderPage(getFilteredRows()); } });
  }
 
  window.filterCstateTable = function() {
@@ -374,6 +324,7 @@
   }
   var activeInd = document.getElementById('cstate-indicator-' + colIndex);
   if (activeInd) activeInd.className = 'fas text-sm ml-1 ' + (asc ? 'fa-caret-up' : 'fa-caret-down');
+  window.diagTables.markSort(activeInd, asc);
 
   allRows.sort(function(a, b) {
    var cellA = a.getElementsByTagName('td')[colIndex];

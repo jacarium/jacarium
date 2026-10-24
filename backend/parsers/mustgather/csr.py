@@ -2,7 +2,8 @@ import os
 import yaml
 import glob
 
-from parsers.mustgather._common import resolve_data_dir
+from parsers.findings import finding, recall, remember, sort_findings, no_data
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
 
 def parse(directory):
     result = []
@@ -22,7 +23,7 @@ def parse(directory):
         try:
             with open(filepath, "r") as f:
                 # YAML files may contain multiple documents (separated by ---)
-                docs = yaml.safe_load_all(f)
+                docs = safe_load_all(f)
 
                 for doc in docs:
                     if not doc:
@@ -39,7 +40,15 @@ def parse(directory):
         except Exception as e:
             result.append({"error": str(e), "file": filepath})
 
+    # the ones that need a hand first: Pending, then Denied / Failed, then Approved, newest first
+    result.sort(key=lambda c: ({'Pending': 0, 'Denied': 1, 'Failed': 1}.get(c.get('status'), 2), c.get('created') or ''))
+    remember(('csr', directory), findings_for(result))
     return result
+
+
+def findings(directory):
+    # the parser's list, or the one way to say the gather holds nothing of this (never a GOOD without data)
+    return recall(('csr', resolve_data_dir(directory)), lambda: parse(directory)) or [no_data('No CertificateSigningRequests in this must-gather', ['cluster-scoped-resources/certificates.k8s.io/certificatesigningrequests'], 'trimmed gather')]
 
 
 def parse_csr(csr):
@@ -104,3 +113,22 @@ def parse_csr(csr):
         "conditions": conditions,
         "raw": csr
     }
+
+def findings_for(csrs):
+    """The Findings strip: pending CSRs (warn: a node's kubelet waits for its certificate), denied or failed ones
+    (warn), the counts."""
+    out = []
+    pending = [c for c in csrs if c.get('status') == 'Pending']
+    if pending:
+        out.append(finding('warn', f"{len(pending)} CSR{'s' if len(pending) != 1 else ''} pending", ', '.join(f"{c['name']} ({c.get('username') or c.get('signer_name', '')})" for c in pending[:5]) + (' …' if len(pending) > 5 else '') + "; a kubelet's serving or client certificate waits for approval (oc adm certificate approve)", count=len(pending)))
+    bad = [c for c in csrs if c.get('status') in ('Denied', 'Failed')]
+    if bad:
+        out.append(finding('warn', f"{len(bad)} CSR{'s' if len(bad) != 1 else ''} denied or failed", ', '.join(f"{c['name']}: {c.get('status_reason') or c.get('status')}" for c in bad[:5]), count=len(bad)))
+    errors = [c for c in csrs if c.get('error')]
+    if errors:
+        out.append(finding('warn', f"{len(errors)} CSR file{'s' if len(errors) != 1 else ''} could not be read", str(errors[0].get('error'))[:200]))
+    if not csrs:
+        out.append(finding('info', 'No CSRs in this must-gather'))
+    elif not any(f['severity'] in ('bad', 'warn') for f in out):
+        out.append(finding('good', f"{len(csrs)} CSRs, all approved"))
+    return sort_findings(out)

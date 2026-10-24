@@ -177,7 +177,7 @@ try {
       edges: { left: [r(q('.lv-header label')).left, r(q('#log-file-dropdown-btn')).left, r(q('.lv-filters .lv-field')).left].map(Math.round), right: [r(q('#single-date-button')).right, r(q('.lv-status')).right, r(q('#process-filter')).right].map(Math.round) },
       // where each control's text sits: the centre of its content box (a single line centred in it), and its line-height
       textCentre: ['#log-search', '#log-exclude', '#severity-filter', '#process-filter'].map((sel) => { const el = q(sel); const b = r(el); const c = cs(el); return { sel, centre: Math.round((b.top + parseFloat(c.borderTopWidth) + parseFloat(c.paddingTop) + (b.bottom - parseFloat(c.borderBottomWidth) - parseFloat(c.paddingBottom))) / 2 * 2) / 2, lineHeight: c.lineHeight, appearance: c.appearance }; }),
-      blue: rgb('--os-blue'), border: rgb('--os-border'),
+      blue: rgb('--os-blue'), primary: rgb('--btn-primary-bg'), border: rgb('--os-border'),
     };
     probe.remove(); return out;
   })()`);
@@ -194,12 +194,12 @@ try {
     check(`${name}: the handles and the highlight sit centred on the line`, Math.abs(g.hl.cy - g.track.cy) <= 1 && g.handles.every((cy) => Math.abs(cy - g.track.cy) <= 1), JSON.stringify({ track: g.track.cy, hl: g.hl.cy, handles: g.handles }));
     check(`${name}: the start and end labels line up with the line's ends`, Math.abs(g.labels.l1left - g.track.left) <= 12 && Math.abs(g.labels.l2right - g.track.right) <= 12, JSON.stringify({ labels: g.labels, left: g.track.left, right: g.track.right }));
     const tops = new Set(g.toolbar.map((b) => b.top)); const heights = new Set(g.toolbar.map((b) => b.height));
-    check(`${name}: the toolbar's controls share one height (32px) and one baseline, the status too`, g.toolbar.length === 4 && heights.size === 1 && [...heights][0] === 32 && tops.size === 1 && Math.abs(g.status.top + g.status.height / 2 - ([...tops][0] + 16)) <= 2, JSON.stringify({ toolbar: g.toolbar, status: g.status }));
+    check(`${name}: the toolbar's controls share one height (30px, the shared field height) and one baseline, the status too`, g.toolbar.length === 4 && heights.size === 1 && [...heights][0] === 30 && tops.size === 1 && Math.abs(g.status.top + g.status.height / 2 - ([...tops][0] + 15)) <= 2, JSON.stringify({ toolbar: g.toolbar, status: g.status }));
     const ftops = new Set(g.filters.map((b) => b.top)); const fheights = new Set(g.filters.map((b) => b.height));
     check(`${name}: no hint button; both fields' tooltips carry the syntax`, !g.hint && g.titles.every((t) => /commas/.test(t) && /quotes/.test(t) && /backslash/.test(t)), JSON.stringify({ hint: g.hint, titles: g.titles }));
-    check(`${name}: the filter row's fields and selects share one height and one baseline, with leading icons the text clears`, g.filters.length === 4 && fheights.size === 1 && [...fheights][0] === 32 && ftops.size === 1 && g.icons.length === 2 && g.icons.every((w) => w >= 12) && g.iconClear.every((gap) => gap >= 4), JSON.stringify({ filters: g.filters, icons: g.icons, iconClear: g.iconClear }));
+    check(`${name}: the filter row's fields and selects share one height and one baseline, with leading icons the text clears`, g.filters.length === 4 && fheights.size === 1 && [...fheights][0] === 30 && ftops.size === 1 && g.icons.length === 2 && g.icons.every((w) => w >= 12) && g.iconClear.every((gap) => gap >= 4), JSON.stringify({ filters: g.filters, icons: g.icons, iconClear: g.iconClear }));
     check(`${name}: the placeholders are short and the fields are not cut off`, g.placeholders.join('|') === 'Search logs|Filter out' && g.filters.every((b) => b.right <= g.filtersRight + 1));
-    check(`${name}: Load Logs is the accent button`, g.loadBg === g.blue, `${g.loadBg} vs ${g.blue}`);
+    check(`${name}: Load Logs is the primary button (--btn-primary-bg)`, g.loadBg === g.primary, `${g.loadBg} vs ${g.primary}`);
     check(`${name}: the Date Range row, the toolbar and the filter row share one left edge and one right edge (the date picker, the status, the All Processes select)`, new Set(g.edges.left).size === 1 && new Set(g.edges.right).size === 1, JSON.stringify(g.edges));
     const centres = g.textCentre.map((t) => t.centre);
     check(`${name}: the text of the two fields and the two selects sits on one line (content-box centres equal with no vertical padding, the selects without native chrome)`, Math.max(...centres) - Math.min(...centres) <= 1 && g.textCentre.slice(2).every((t) => t.appearance === 'none'), JSON.stringify(g.textCentre));

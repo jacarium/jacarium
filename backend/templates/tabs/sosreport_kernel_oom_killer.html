@@ -1,4 +1,6 @@
 {% from "tabs/_kernel_diag_macros.html" import icon, tag, stat, timeline, chips, stack, raw_block, copy_button, filters, empty %}
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 {#
   Kernel OOM Killer: one row per kill, with the victim, the trigger, the
   memory state, why the kernel chose to kill (the constraint line in plain
@@ -37,10 +39,10 @@
   </div>
 
   <div class="kd-filters">
-    <label class="kd-field kd-grow">{{ icon('search') }}<input type="search" id="oom-filter" class="kd-input kd-search" placeholder="Search victim, cgroup, invoker" autocomplete="off" spellcheck="false" aria-label="Search OOM events"></label>
-    <label class="kd-field kd-select-wrap"><select class="kd-select kd-sort" aria-label="Sort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select>{{ icon('select') }}</label>
-    <button type="button" class="kd-btn kd-expand-all"><span>Expand all</span></button>
-    <button type="button" class="kd-btn kd-collapse-all"><span>Collapse all</span></button>
+    <label class="ui-field kd-field kd-grow">{{ icon('search') }}<input type="search" id="oom-filter" class="ui-input kd-input kd-search" placeholder="Search victim, cgroup, invoker" autocomplete="off" spellcheck="false" aria-label="Search OOM events"></label>
+    <label class="ui-select-wrap kd-field kd-select-wrap"><select class="ui-select kd-select kd-sort" aria-label="Sort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select>{{ icon('select') }}</label>
+    <button type="button" class="btn btn-secondary btn-sm kd-btn kd-expand-all"><span>Expand all</span></button>
+    <button type="button" class="btn btn-secondary btn-sm kd-btn kd-collapse-all"><span>Collapse all</span></button>
     <span class="kd-shown"></span>
   </div>
 
@@ -94,30 +96,30 @@
           <div class="kd-section-title">Top memory users <span class="kd-stat-sub">{{ ev.tasks|length }} of {{ ev.tasks_total or ev.tasks|length }} tasks in the dump, by rss</span>
             <span class="kd-actions">{{ copy_button('oom-raw-' ~ ev.id) }}</span>
           </div>
-          <div class="kd-table-wrap">
-          <table class="kd-table">
-            <thead><tr><th class="kd-num">pid</th><th>name</th><th class="kd-num kd-sorted" data-dir="desc">rss</th><th class="kd-num">total vm</th><th class="kd-num">swap</th><th class="kd-num">adj</th><th class="kd-num">uid</th></tr></thead>
+          <div class="ui-table-wrap kd-table-wrap">
+          <table class="ui-table kd-table">
+            <thead><tr><th class="ui-num kd-num">pid</th><th>name</th><th class="ui-num kd-num kd-sorted" data-dir="desc">rss</th><th class="ui-num kd-num">total vm</th><th class="ui-num kd-num">swap</th><th class="ui-num kd-num">adj</th><th class="ui-num kd-num">uid</th></tr></thead>
             <tbody>
             {% for t in ev.tasks %}
               <tr class="{% if t.killed %}kd-killed{% endif %}{% if loop.index > TOP %} kd-extra{% endif %}"{% if loop.index > TOP %} hidden{% endif %}>
-                <td class="kd-num" data-v="{{ t.pid }}">{{ t.pid }}</td>
-                <td class="kd-name">{{ t.name }}{% if t.killed %} <span class="kd-tag kd-sev-critical">killed</span>{% endif %}</td>
-                <td class="kd-num" data-v="{{ t.rss_kb }}">{{ t.rss }}</td>
-                <td class="kd-num" data-v="{{ t.total_vm_kb }}">{{ t.total_vm }}</td>
-                <td class="kd-num" data-v="{{ t.swap_kb }}">{{ t.swap }}</td>
-                <td class="kd-num" data-v="{{ t.oom_score_adj }}">{{ t.oom_score_adj }}</td>
-                <td class="kd-num" data-v="{{ t.uid }}">{{ t.uid }}</td>
+                <td class="ui-num kd-num" data-v="{{ t.pid }}">{{ t.pid }}</td>
+                <td class="kd-name">{{ t.name }}{% if t.killed %} <span class="ui-badge ui-badge-bad kd-tag kd-sev-critical">killed</span>{% endif %}</td>
+                <td class="ui-num kd-num" data-v="{{ t.rss_kb }}">{{ t.rss }}</td>
+                <td class="ui-num kd-num" data-v="{{ t.total_vm_kb }}">{{ t.total_vm }}</td>
+                <td class="ui-num kd-num" data-v="{{ t.swap_kb }}">{{ t.swap }}</td>
+                <td class="ui-num kd-num" data-v="{{ t.oom_score_adj }}">{{ t.oom_score_adj }}</td>
+                <td class="ui-num kd-num" data-v="{{ t.uid }}">{{ t.uid }}</td>
               </tr>
             {% endfor %}
             </tbody>
           </table>
           </div>
-          {% if ev.tasks|length > TOP %}<button type="button" class="kd-link kd-show-all" data-all="Show all {{ ev.tasks|length }} tasks" data-less="Show the top {{ TOP }}">Show all {{ ev.tasks|length }} tasks</button>{% endif %}
+          {% if ev.tasks|length > TOP %}<button type="button" class="ui-link kd-link kd-show-all" data-all="Show all {{ ev.tasks|length }} tasks" data-less="Show the top {{ TOP }}">Show all {{ ev.tasks|length }} tasks</button>{% endif %}
         </div>
         {% endif %}
         {% if ev.frames %}
         <details>
-          <summary class="kd-link">Call trace of the allocation that triggered the kill</summary>
+          <summary class="ui-link kd-link">Call trace of the allocation that triggered the kill</summary>
           {{ stack(ev.frames) }}
         </details>
         {% endif %}
@@ -127,7 +129,6 @@
   {% endfor %}
   </div>
 {% else %}
-  {{ empty('No OOM kills', 'The OOM killer did not run in the kernel logs of this report.', summary.sources) }}
 {% endif %}
 {% include "tabs/_kernel_diag.html" %}
 </div>

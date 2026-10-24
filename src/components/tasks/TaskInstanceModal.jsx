@@ -170,7 +170,7 @@ export default function TaskInstanceModal({
             type="submit"
             onClick={handleSubmit}
             disabled={loading}
-            className="px-4 py-2 text-sm bg-os-blue hover:bg-os-blue-hover text-white rounded-sm transition-colors disabled:opacity-50"
+            className="btn btn-primary px-4 py-2 text-sm"
           >
             {loading ? 'Saving...' : editingInstance ? 'Update' : 'Create'}
           </button>
@@ -237,7 +237,7 @@ export default function TaskInstanceModal({
               type="button"
               onClick={handleValidate}
               disabled={loading}
-              className="px-3 py-2 text-sm bg-os-blue hover:bg-os-blue-hover text-white rounded-sm transition-colors disabled:opacity-50"
+              className="btn btn-primary px-3 py-2 text-sm"
             >
               Check
             </button>
@@ -290,7 +290,7 @@ export default function TaskInstanceModal({
                 type="button"
                 onClick={handleInitialize}
                 disabled={loading}
-                className="mt-3 px-3 py-2 bg-os-blue hover:bg-os-blue-hover text-white text-sm rounded-sm transition-colors disabled:opacity-50"
+                className="btn btn-primary mt-3 px-3 py-2 text-sm"
               >
                 Initialize
               </button>

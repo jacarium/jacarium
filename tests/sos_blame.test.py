@@ -209,8 +209,8 @@ def main():
     check("Log Collection render: every row's size bar is proportional to its bytes (100% for the largest, 0.1% for 9 KiB vs 12 MiB, 0 for unknown)",
           len(bars) == len(rendered) and bars[0] == 100.0 and all(abs(b - round(100.0 * max(s, 0) / sizes[0], 1)) < 0.051 for b, s in zip(bars, sizes)), str(list(zip(bars, sizes))[:6]))
     check("Log Collection render: one Name / Size header pair (Size selected), the section chips with counts, the search box, the band with the split and the largest file",
-          html.count('class="lc-sort lc-sorted" data-key="size"') == 1 and html.count('data-key="name"') == 1 and html.count('class="lc-chip" data-section=') == 4 and 'id="lc-search"' in html
-          and 'id="lc-stack"' in html and 'id="lc-largest"' in html and "journalctl_--no-pager" in html.split('id="lc-largest"')[1][:400], str(html.count('class="lc-chip" data-section=')))
+          html.count('class="lc-sort lc-sorted" data-key="size"') == 1 and html.count('data-key="name"') == 1 and html.count('class="ui-chip lc-chip" data-section=') == 4 and 'id="lc-search"' in html
+          and 'id="lc-stack"' in html and 'id="lc-largest"' in html and "journalctl_--no-pager" in html.split('id="lc-largest"')[1][:400], str(html.count('class="ui-chip lc-chip" data-section=')))
     l = log_collection.parse(sized)["log_collection"]
     check("Log Collection data: the band's split sums to 100% across the four sections, the largest file is the 12 MiB journal, the journal section holds 12 MiB + 9 KiB + 100 B",
           abs(sum(s["pct"] for s in l["bar"]) - 100.0) < 0.3 and l["largest"]["name"] == "journalctl_--no-pager" and l["largest"]["section_label"] == "Journal captures"
@@ -224,9 +224,9 @@ def main():
     check("Blame by its own id resolves too", h.status_code == 200 and 'id="blame-table"' in (h.get_json() or {}).get("html", ""))
     d, h = tab(old, "sos_report", "blame")
     html = (h.get_json() or {}).get("html", "")
-    check("Blame on the old manifest: the empty state names the sos version, no table, no charts", h.status_code == 200 and "No plugin timings" in html and "4.1.0" in html and 'id="blame-table"' not in html and "<canvas" not in html, html[-300:])
+    check("Blame on the old manifest: the Findings say there are no plugin timings and name the sos version, no table, no charts", h.status_code == 200 and "No plugin timings in this manifest" in html and "4.1.0" in html and 'id="blame-table"' not in html and "<canvas" not in html, html[-300:])
     d, h = tab(tree("no-manifest-2"), "sos_report", "blame")
-    check("Blame without a manifest: the empty state", h.status_code == 200 and "No plugin timings" in (h.get_json() or {}).get("html", ""))
+    check("Blame without a manifest: the Findings say so", h.status_code == 200 and "No sos manifest in this report" in (h.get_json() or {}).get("html", ""))
 
     print("\n--- 6. escaping ---")
     nasty = mock_manifests.rhel_manifest()

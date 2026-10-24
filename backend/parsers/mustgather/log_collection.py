@@ -188,10 +188,25 @@ def parse(directory):
             other += item['size']
     if other:
         bar.append({'key': 'other', 'label': 'other', 'total': other, 'total_text': human(other), 'pct': round(100.0 * other / state['size'], 1) if state['size'] else 0.0, 'color': 7})
-    return {'log_collection': {
+    lc = {
         'sections': sections, 'bar': bar, 'rows': rows, 'largest': largest, 'top': TOP, 'keep': KEEP,
         'extra_count': sum(1 for r in rows if r['extra']), 'max_file': max_file, 'max_dir': max_dir,
         'total_files': state['files'], 'total_size': state['size'], 'total_size_text': human(state['size']),
         'unreadable': state['unreadable'], 'capped': state['capped'],
         'root': os.path.basename(root.rstrip('/')), 'image_dir': os.path.basename(root.rstrip('/')) if root != directory else '',
-    }}
+    }
+    return {'log_collection': lc, 'findings': findings_for(lc)}
+
+
+def findings_for(lc):
+    """The Findings strip: unreadable files (warn), the listing capped, the totals; no logs (info)."""
+    from parsers.findings import finding, no_data, sort_findings
+    if not lc.get('rows'):
+        return [no_data('No logs in this must-gather', ['namespaces/*/pods/*/*/logs', 'host_service_logs', 'audit_logs'], 'trimmed gather')]
+    out = []
+    if lc.get('unreadable'):
+        out.append(finding('warn', f"{lc['unreadable']} file{'s' if lc['unreadable'] != 1 else ''} unreadable", 'the size could not be read: a broken symlink or a permission problem', count=lc['unreadable']))
+    if lc.get('capped'):
+        out.append(finding('info', 'The listing is capped', 'the gather holds more files than are listed'))
+    out.append(finding('info', f"{lc.get('total_files', 0)} files, {lc.get('total_size_text', '')}", (f"the largest: {lc['largest'].get('name', '')} ({lc['largest'].get('size_text', '')})" if lc.get('largest') else '')))
+    return sort_findings(out)

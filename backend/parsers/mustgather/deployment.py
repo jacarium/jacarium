@@ -4,7 +4,8 @@ import glob
 import re
 from datetime import datetime, timezone, timedelta
 
-from parsers.mustgather._common import resolve_data_dir
+from parsers.findings import finding, recall, remember, sort_findings, no_data
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
 
 def parse(directory):
     result = {}
@@ -56,7 +57,7 @@ def parse(directory):
             for filepath in deployment_files:
                 try:
                     with open(filepath, "r") as f:
-                        yaml_content = yaml.safe_load(f)
+                        yaml_content = safe_load(f)
 
                     if yaml_content.get("kind") == "DeploymentList" and "items" in yaml_content:
                         for item in yaml_content["items"]:
@@ -91,4 +92,39 @@ def parse(directory):
 
         result[namespace] = deployment_json
 
+    remember(('deployment', directory), findings_for(result))
     return result
+
+
+def findings(directory):
+    # the parser's list, or the one way to say the gather holds nothing of this (never a GOOD without data)
+    return recall(('deployment', resolve_data_dir(directory)), lambda: parse(directory)) or [no_data('No deployments in this must-gather', ['namespaces/*/apps/deployments.yaml'], 'trimmed gather')]
+
+
+def findings_for(result):
+    """The Findings strip: deployments with no available replica (bad), fewer available than wanted (warn), paused
+    or with a failed rollout (warn), the counts."""
+    out = []
+    total = 0
+    for ns, items in result.items():
+        for name, d in items.items():
+            if not isinstance(d, dict) or d.get("error") or d.get("kind") not in (None, "Deployment"):
+                continue
+            total += 1
+            spec, status = d.get("spec") or {}, d.get("status") or {}
+            want = int(spec.get("replicas") if spec.get("replicas") is not None else 1)
+            avail = int(status.get("availableReplicas") or 0)
+            if want and avail == 0:
+                out.append(finding("bad", f"{ns}/{name}: 0 of {want} replicas available", "the deployment serves nothing", tab="workloads", sub_tab="pod", query=name, count=want))
+            elif want and avail < want:
+                out.append(finding("warn", f"{ns}/{name}: {avail} of {want} replicas available", f"{int(status.get('unavailableReplicas') or (want - avail))} unavailable", tab="workloads", sub_tab="pod", query=name, count=want - avail))
+            if spec.get("paused"):
+                out.append(finding("warn", f"{ns}/{name} is paused", "no rollout happens while paused"))
+            for c in status.get("conditions") or []:
+                if c.get("type") == "Progressing" and c.get("status") == "False":
+                    out.append(finding("warn", f"{ns}/{name}: the rollout is not progressing", (c.get("message") or c.get("reason") or "")[:200]))
+    if not total:
+        out.append(finding("info", "No deployments in this must-gather"))
+    elif not any(f["severity"] in ("bad", "warn") for f in out):
+        out.append(finding("good", f"{total} deployments at their wanted replicas"))
+    return sort_findings(out)

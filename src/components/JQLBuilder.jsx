@@ -1435,7 +1435,7 @@ export default function JQLBuilder({ standalone }) {
                                           handleUpdateRule(projectRule.id, { value: proj.name });
                                         }
                                       }}
-                                      className="px-2 py-1 bg-os-card border border-red-300 dark:border-red-700 text-red-800 dark:text-red-200 text-xs rounded-sm hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
+                                      className="btn btn-danger px-2 py-1 bg-os-card text-xs"
                                     >
                                       {proj.name} ({proj.key})
                                     </button>
@@ -1501,7 +1501,7 @@ export default function JQLBuilder({ standalone }) {
                       <button
                         onClick={handleUpdateTemplate}
                         disabled={!jql}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
+                        className="btn btn-primary flex items-center gap-2 px-3 py-1.5 text-sm"
                         title="Update current template"
                       >
                         Update Template
@@ -1510,7 +1510,7 @@ export default function JQLBuilder({ standalone }) {
                       <button
                         onClick={() => setSaveTemplateModalOpen(true)}
                         disabled={!jql}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
+                        className="btn btn-primary flex items-center gap-2 px-3 py-1.5 text-sm"
                         title="Save current query as template"
                       >
                         Save Template
@@ -1554,7 +1554,7 @@ export default function JQLBuilder({ standalone }) {
 
                     <button
                       onClick={() => setCustomFieldsModalOpen(true)}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors shadow-xs"
+                      className="btn btn-primary flex items-center gap-2 px-3 py-1.5 text-sm"
                       title="Manage custom fields"
                     >
                       <span className="hidden sm:inline">Fields</span>
@@ -1562,7 +1562,7 @@ export default function JQLBuilder({ standalone }) {
 
                     <button
                       onClick={() => setImportJQLModalOpen(true)}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors shadow-xs"
+                      className="btn btn-primary flex items-center gap-2 px-3 py-1.5 text-sm"
                       title="Import JQL query"
                     >
                       <span className="hidden sm:inline">Import</span>
@@ -1612,7 +1612,7 @@ export default function JQLBuilder({ standalone }) {
                 </h2>
                 <button
                   onClick={addSortField}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors shadow-xs"
+                  className="btn btn-primary flex items-center gap-2 px-3 py-1.5 text-sm"
                 >
                   Add Sort Field
                 </button>
@@ -1652,7 +1652,7 @@ export default function JQLBuilder({ standalone }) {
                   <button
                     onClick={openInJira}
                     disabled={!jql}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="btn btn-primary flex items-center gap-2 px-3 py-1.5 text-sm"
                     title="Open in Jira (Cmd/Ctrl + Enter)"
                   >
                     Open in Jira
@@ -1792,7 +1792,7 @@ export default function JQLBuilder({ standalone }) {
                   const input = document.getElementById('import-shared-input');
                   handleImportShared(input.value);
                 }}
-                className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700"
+                className="btn btn-primary px-4 py-2 text-sm"
               >
                 Import
               </button>
@@ -1967,7 +1967,7 @@ function RuleRow({ rule, onUpdate, onRemove, onCopyRule, onFieldChange, canRemov
         <button
           onClick={() => onRemove(rule.id)}
           disabled={!canRemove}
-          className="p-2 text-status-danger hover:bg-red-50 dark:bg-red-900/20 dark:hover:bg-red-900/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+          className="btn btn-danger-ghost p-2 disabled:opacity-30 disabled:hover:bg-transparent"
           title="Remove rule"
         >
           <Trash2 size={16} />
@@ -2032,7 +2032,7 @@ function SortFieldRow({ sortField, onUpdate, onRemove, canRemove }) {
       <button
         onClick={() => onRemove(sortField.id)}
         disabled={!canRemove}
-        className="mt-6 p-2 text-status-danger hover:bg-red-50 dark:bg-red-900/20 dark:hover:bg-red-900/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+        className="btn btn-danger-ghost mt-6 p-2 disabled:opacity-30 disabled:hover:bg-transparent"
         title="Remove sort field"
       >
         <Trash2 size={16} />
@@ -2081,7 +2081,7 @@ function GroupRenderer({
         <div className="flex items-center gap-2">
           <button
             onClick={() => onAddRule(group.id, 'AND')}
-            className="flex items-center gap-1 px-2 py-1 bg-os-blue text-white text-xs hover:bg-os-blue-hover transition-colors rounded-sm shadow-xs"
+            className="btn btn-primary flex items-center gap-1 px-2 py-1 text-xs"
             title="Add rule to this group"
           >
             Rule
@@ -2096,7 +2096,7 @@ function GroupRenderer({
           <button
             onClick={() => onPasteRule(group.id, 'AND')}
             disabled={!copiedRule}
-            className="flex items-center gap-1 px-2 py-1 bg-os-blue text-white text-xs hover:bg-os-blue-hover transition-colors rounded-sm shadow-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-os-blue"
+            className="btn btn-primary flex items-center gap-1 px-2 py-1 text-xs"
             title={copiedRule ? "Paste copied rule" : "No rule copied"}
           >
             Rule from Clipboard
@@ -2104,7 +2104,7 @@ function GroupRenderer({
           {!isRootGroup && (
             <button
               onClick={() => onRemoveItem(group.id)}
-              className="p-1.5 text-status-danger hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors rounded-sm"
+              className="btn btn-danger-ghost p-1.5"
               title="Remove this group"
             >
               <Trash2 size={14} />

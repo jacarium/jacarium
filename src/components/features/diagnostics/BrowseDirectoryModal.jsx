@@ -116,7 +116,7 @@ export default function BrowseDirectoryModal({
                 onClick={() => handleShortcut(shortcut.value)}
                 className={`px-3 py-2 text-sm border transition-colors ${
  directory === shortcut.value
- ?'bg-os-blue text-white border-os-blue'
+ ?'btn-selected'
  :'bg-os-card text-os-text-primary border-os-input-border hover:bg-os-card-secondary'
  }`}
               >
@@ -146,7 +146,7 @@ export default function BrowseDirectoryModal({
         <button
           onClick={handleConfirm}
           disabled={!directory.trim()}
-          className="flex items-center gap-2 px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn btn-primary flex items-center gap-2 px-4 py-2 text-sm"
         >
           Set Directory
         </button>

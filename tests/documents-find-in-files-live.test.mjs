@@ -39,6 +39,7 @@
  * Exit code 0 = all checks passed (or skipped), 1 = a check failed.
  */
 import { launchDocumentsApp, createNewDocument, createDocumentViaSidebar, setEditorContent, sleep } from './helpers/live-documents-app.mjs';
+import { COLOR_PROBE } from './helpers/color.mjs';
 
 // Find in Files' chord is the platform's Mod+Shift+F (src/shortcuts/registry.js): Command on the Mac this runs on, Control elsewhere (CDP modifiers: Alt 1, Ctrl 2, Meta 4, Shift 8)
 const MOD_SHIFT = (process.platform === 'darwin' ? 4 : 2) | 8;
@@ -56,7 +57,8 @@ function check(name, ok, detail = '') {
 // recipe as tests/documents-import-theme.test.mjs).
 const PROBE = `(() => {
   if (window.__probe) return true;
-  const parse = (s) => { const m = /rgba?\\(([^)]+)\\)/.exec(s || ''); if (!m) return null; const p = m[1].split(/[\\s,\\/]+/).filter(Boolean).map(Number); return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1]; };
+  // every colour syntax Chrome reports (rgb, oklch, oklab, color(), color-mix results) through the shared helper
+  const parse = ${COLOR_PROBE}.parse;
   const lum = ([r, g, b]) => { const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
   const contrast = (a, b) => { const la = lum(a), lb = lum(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); };
   const over = (top, bottom) => { const a = top[3]; return [0, 1, 2].map((i) => Math.round(top[i] * a + bottom[i] * (1 - a))).concat([1]); };
@@ -175,8 +177,8 @@ async function measureTheme(app, theme) {
   })()`);
   check(`${theme}: the band shares the top bar's background and differs from the painted results/preview surfaces`, bands.band && bands.band === bands.header && bands.results && bands.band !== bands.results && bands.preview && bands.band !== bands.preview, JSON.stringify(bands));
   check(`${theme}: the band is at least 34px tall`, bands.bandHeight >= 34, `${bands.bandHeight}px`);
-  const button = await measure(app, `${WINDOW} button[type="button"].bg-os-blue`);
-  console.log(`INFO  ${theme}: "Open in New Tab" button  (${button ? `${button.ratio}:1` : 'not found'} - app-wide --os-blue token)`);
+  const button = await measure(app, `${WINDOW} button[type="button"].btn-primary`);
+  console.log(`INFO  ${theme}: "Open in New Tab" button  (${button ? `${button.ratio}:1` : 'not found'} - app-wide --btn-primary-bg token)`);
 }
 
 async function main() {

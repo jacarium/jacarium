@@ -1,7 +1,8 @@
 import os
 import yaml
 
-from parsers.mustgather._common import resolve_data_dir
+from parsers.findings import finding, recall, remember, sort_findings, no_data
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
 
 def parse(directory):
     result = {}
@@ -21,7 +22,7 @@ def parse(directory):
         if os.path.exists(events_path):
             try:
                 with open(events_path, "r") as f:
-                    events_content = yaml.safe_load(f)
+                    events_content = safe_load(f)
 
                 if events_content.get("kind") == "EventList" and "items" in events_content:
                     events_json = events_content["items"]
@@ -35,6 +36,50 @@ def parse(directory):
                     "metadata": {"namespace": namespace},
                 }]
 
+        # Warning events first, then the newest first: what the reader looks for sits on top
+        events_json.sort(key=lambda e: (0 if (e.get('type') == 'Warning') else 1, str(e.get('lastTimestamp') or e.get('eventTime') or (e.get('metadata') or {}).get('creationTimestamp') or '')), reverse=False)
+        events_json.sort(key=lambda e: str(e.get('lastTimestamp') or e.get('eventTime') or (e.get('metadata') or {}).get('creationTimestamp') or ''), reverse=True)
+        events_json.sort(key=lambda e: 0 if (e.get('type') == 'Warning') else 1)
         result[namespace] = events_json
 
+    remember(('events', directory), findings_for(result))
     return result
+
+
+def findings(directory):
+    # the parser's list, or the one way to say the gather holds nothing of this (never a GOOD without data)
+    return recall(('events', resolve_data_dir(directory)), lambda: parse(directory)) or [no_data('No events in this must-gather', ['namespaces/*/core/events.yaml'], 'trimmed gather')]
+
+SERIOUS = {'OOMKilling', 'FailedScheduling', 'BackOff', 'FailedMount', 'FailedAttachVolume', 'NodeNotReady', 'Unhealthy', 'Failed', 'FailedCreate', 'Evicted', 'FailedKillPod', 'NetworkNotReady'}
+
+
+def findings_for(result):
+    """The Findings strip: the Warning reasons with their counts (the serious ones - OOMKilling, FailedScheduling,
+    BackOff, FailedMount, NodeNotReady, Unhealthy ... - as warnings, the rest informational), the totals."""
+    out = []
+    reasons = {}
+    total = 0
+    warnings = 0
+    for ns, events in result.items():
+        for e in events:
+            if not isinstance(e, dict) or e.get('kind') == 'Error':
+                continue
+            total += 1
+            if e.get('type') != 'Warning':
+                continue
+            warnings += 1
+            r = e.get('reason') or '?'
+            entry = reasons.setdefault(r, {'count': 0, 'objects': set(), 'namespaces': set()})
+            entry['count'] += int(e.get('count') or 1)
+            obj = e.get('involvedObject') or {}
+            if obj.get('name'):
+                entry['objects'].add(obj.get('name'))
+            entry['namespaces'].add(ns)
+    for r, entry in sorted(reasons.items(), key=lambda kv: -kv[1]['count'])[:8]:
+        objs = sorted(entry['objects'])
+        out.append(finding('warn' if r in SERIOUS else 'info', f"{r}: {entry['count']} warning event{'s' if entry['count'] != 1 else ''}", f"{len(entry['objects'])} object{'s' if len(entry['objects']) != 1 else ''} in {', '.join(sorted(entry['namespaces'])[:3])}" + (' …' if len(entry['namespaces']) > 3 else '') + (": " + ', '.join(objs[:3]) + (' …' if len(objs) > 3 else '') if objs else ''), tab='workloads', sub_tab='pod', query=objs[0] if len(objs) == 1 else None, count=entry['count']))
+    if total and not warnings:
+        out.append(finding('good', f"{total} events, none of type Warning"))
+    elif not total:
+        out.append(finding('info', 'No events in this must-gather', 'namespaces/*/core/events.yaml is missing or empty'))
+    return sort_findings(out)

@@ -204,14 +204,14 @@ export default function InteractiveSSHTerminal({
               <button
                 type="submit"
                 disabled={!input.trim()}
-                className="px-3 py-1.5 bg-os-blue hover:bg-blue-600 text-white rounded-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs"
+                className="btn btn-primary px-3 py-1.5 text-xs"
               >
                 Send
               </button>
               <button
                 type="button"
                 onClick={handleExit}
-                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-sm transition-colors text-xs"
+                className="btn btn-danger-solid px-3 py-1.5 text-xs"
               >
                 Exit
               </button>

@@ -85,7 +85,7 @@ export default function TransferTextModal({ mode = 'export', format = 'base64', 
           <div className="flex items-center justify-end gap-3">
             <button
               onClick={copy}
-              className="px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors rounded-sm"
+              className="btn btn-primary px-4 py-2 text-sm"
               data-testid="transfer-copy"
               aria-live="polite"
             >
@@ -122,7 +122,7 @@ export default function TransferTextModal({ mode = 'export', format = 'base64', 
             <button
               onClick={onImport}
               disabled={!data.trim()}
-              className="px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn btn-primary px-4 py-2 text-sm"
             >
               Import
             </button>

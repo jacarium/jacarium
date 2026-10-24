@@ -70,7 +70,7 @@ export default function BulkMoveCategoryModal({ categories, onClose, onConfirm }
             </button>
             <button
               onClick={() => onConfirm(showNewCategory ? newCategory.trim() : category)}
-              className="px-4 py-2 text-sm text-white bg-os-blue rounded-sm hover:bg-os-blue-hover transition-colors"
+              className="btn btn-primary px-4 py-2 text-sm"
             >
               Move
             </button>

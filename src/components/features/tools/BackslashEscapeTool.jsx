@@ -115,7 +115,7 @@ export default function BackslashEscapeTool() {
           </div>
           <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Enter text..." className="w-full h-32 px-3 py-2 bg-os-card border border-os-border rounded-sm text-os-text-primary font-mono text-sm resize-none focus:outline-hidden focus:ring-2 focus:ring-os-blue placeholder:text-os-text-muted" />
         </div>
-        <button onClick={handleConvert} disabled={!input} className="px-4 py-2 bg-os-blue text-white text-sm rounded-sm hover:bg-os-blue-hover disabled:opacity-50 transition-colors">{mode === 'escape' ? 'Escape' : 'Unescape'}</button>
+        <button onClick={handleConvert} disabled={!input} className="btn btn-primary px-4 py-2 text-sm">{mode === 'escape' ? 'Escape' : 'Unescape'}</button>
         <div>
           <label className="block text-sm text-os-text-primary mb-2">Output</label>
           <textarea value={output} readOnly placeholder="Output will appear here..." className="w-full h-32 px-3 py-2 bg-os-card border border-os-border rounded-sm text-os-text-primary font-mono text-sm resize-none placeholder:text-os-text-muted" />

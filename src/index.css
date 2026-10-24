@@ -182,6 +182,26 @@ body {
 
 /* Light theme colors (default) */
 :root {
+  /* the categorical palette of the charts, stacked bars, legend swatches, section dots and chips (one colour per
+     category wherever it appears); the Diagnostics frame reads them as --chart-cat-N */
+  --chart-cat-1: #2563eb;
+  --chart-cat-2: #7c3aed;
+  --chart-cat-3: #0d9488;
+  --chart-cat-4: #d97706;
+  --chart-cat-5: #db2777;
+  --chart-cat-6: #16a34a;
+  --chart-cat-7: #ea580c;
+  --chart-cat-8: #64748b;
+  /* the chart role colours: diagChart's ok / info / good / warn / bad / muted, the meters, the finding, note and row
+     accents, the badge borders and the legend swatches. The badge / accent hues of the theme, never the solid
+     button fills (amber-700 reads as brown on a bar); the Diagnostics frame reads them as --chart-<role> */
+  --chart-ok: var(--os-blue);
+  --chart-info: var(--os-blue);
+  --chart-good: #16a34a;
+  --chart-warn: #d97706;
+  --chart-bad: #dc2626;
+  --chart-muted: #9ca3af;
+  --radius-table: 10px;
   --os-masthead: #151515;
   --os-sidebar: #212427;
   --os-sidebar-hover: #2c3034;
@@ -246,6 +266,109 @@ body {
   --os-code-builtin: #953800;
   --os-code-variable: #953800;
   --os-code-meta: #6639ba;
+  /* ==== Buttons: change the button colours here ====
+     The one source of the button colours. The .btn-* classes (the Buttons
+     section further down) and <Button variant> (src/components/ui/
+     primitives.jsx) draw from these, in the app, in the Diagnostics frame
+     (the app stylesheet is inlined there, the theme attributes and any
+     inline override on <html> are mirrored by the bridge) and in the
+     Electron profile picker (a copy of the light primary pair; tests/
+     button-primary-consistency.test.mjs keeps it equal). The dark blocks
+     below carry their own values; a theme that sets none inherits these.
+     The primary pair is the solid action blue of Save Settings / New
+     Document (Tailwind's blue-600 / 700 / 800 in oklch, as compiled). */
+  --btn-primary-bg: oklch(0.546 0.245 262.881);
+  --btn-primary-bg-hover: oklch(0.488 0.243 264.376);
+  --btn-primary-bg-active: oklch(0.424 0.199 265.638);
+  --btn-primary-fg: #FFFFFF;
+  --btn-primary-border: transparent;
+  --btn-primary-ring: color-mix(in srgb, var(--btn-primary-bg) 40%, transparent);
+  --btn-primary-disabled-bg: color-mix(in srgb, var(--btn-primary-bg) 50%, transparent);
+  --btn-primary-disabled-fg: color-mix(in srgb, var(--btn-primary-fg) 70%, transparent);
+  --btn-secondary-bg: var(--os-modal);
+  --btn-secondary-bg-hover: var(--os-card-secondary);
+  --btn-secondary-bg-active: var(--os-divider);
+  --btn-secondary-fg: var(--os-text-primary);
+  --btn-secondary-border: var(--os-input-border);
+  --btn-secondary-ring: color-mix(in srgb, var(--os-blue) 40%, transparent);
+  --btn-secondary-disabled-bg: var(--os-modal);
+  --btn-secondary-disabled-fg: var(--os-text-muted);
+  --btn-danger-bg: var(--os-modal);                 /* the outlined danger button (Delete next to Cancel) */
+  --btn-danger-bg-hover: #FEF2F2;
+  --btn-danger-bg-active: #FEE2E2;
+  --btn-danger-fg: #B91C1C;                        /* red-700: 6.5:1 on white, 5.6:1 on the hover tint (the 600 was 4.4:1 on the tint) */
+  --btn-danger-border: #EF4444;                    /* red-500: the outline reads at 3.8:1 against a white card */
+  --btn-danger-ring: color-mix(in srgb, var(--btn-danger-fg) 40%, transparent);
+  --btn-danger-disabled-bg: var(--os-modal);
+  --btn-danger-disabled-fg: color-mix(in srgb, var(--btn-danger-fg) 50%, transparent);
+  --btn-danger-solid-bg: #DC2626;                   /* the solid one (a confirmation's destructive action) */
+  --btn-danger-solid-bg-hover: #B91C1C;
+  --btn-danger-solid-bg-active: #991B1B;
+  --btn-danger-solid-fg: #FFFFFF;
+  --btn-danger-solid-border: transparent;
+  --btn-danger-solid-ring: color-mix(in srgb, var(--btn-danger-solid-bg) 40%, transparent);
+  --btn-danger-solid-disabled-bg: color-mix(in srgb, var(--btn-danger-solid-bg) 50%, transparent);
+  --btn-danger-solid-disabled-fg: color-mix(in srgb, var(--btn-danger-solid-fg) 70%, transparent);
+  --btn-ghost-bg: transparent;
+  --btn-ghost-bg-hover: var(--os-card-secondary);
+  --btn-ghost-bg-active: var(--os-divider);
+  --btn-ghost-fg: #5F6368;                         /* a shade under the secondary text: 5.3:1 on the card-secondary surface too (the secondary text is 4.49:1 there) */
+  --btn-ghost-fg-hover: var(--os-text-primary);
+  --btn-ghost-border: transparent;
+  --btn-ghost-ring: color-mix(in srgb, var(--os-blue) 40%, transparent);
+  --btn-ghost-disabled-bg: transparent;
+  --btn-ghost-disabled-fg: var(--os-text-muted);
+  --btn-warning-bg: #B45309;                       /* amber-700: white text at 5.0:1 (the 600 gave 3.2:1) */
+  --btn-warning-bg-hover: #92400E;
+  --btn-warning-bg-active: #78350F;
+  --btn-warning-fg: #FFFFFF;
+  --btn-warning-border: transparent;
+  --btn-warning-ring: color-mix(in srgb, var(--btn-warning-bg) 40%, transparent);
+  --btn-warning-disabled-bg: color-mix(in srgb, var(--btn-warning-bg) 50%, transparent);
+  --btn-warning-disabled-fg: color-mix(in srgb, var(--btn-warning-fg) 70%, transparent);
+  --btn-success-bg: #15803D;                       /* green-700: white text at 4.7:1 (the 600 gave 3.4:1) */
+  --btn-success-bg-hover: #166534;
+  --btn-success-bg-active: #14532D;
+  --btn-success-fg: #FFFFFF;
+  --btn-success-border: transparent;
+  --btn-success-ring: color-mix(in srgb, var(--btn-success-bg) 40%, transparent);
+  --btn-success-disabled-bg: color-mix(in srgb, var(--btn-success-bg) 50%, transparent);
+  --btn-success-disabled-fg: color-mix(in srgb, var(--btn-success-fg) 70%, transparent);
+  --btn-selected-bg: var(--os-blue);                /* a toggle, segment, filter or sort button in its on state */
+  --btn-selected-fg: #FFFFFF;
+  --btn-selected-bg-hover: var(--os-blue-hover);
+  --btn-selected-text: var(--os-blue-hover);        /* the on state's text on its tint (.btn-selected-soft): the accent's darker shade, 5.4:1 on the strong tint (the accent itself gave 4.1:1) */
+  --btn-brand-bg: var(--brand-accent);              /* the violet accent: AI, cloud and sharing actions */
+  --btn-brand-bg-hover: color-mix(in srgb, var(--brand-accent) 85%, black);
+  --btn-brand-bg-active: color-mix(in srgb, var(--brand-accent) 70%, black);
+  --btn-brand-fg: #FFFFFF;
+  --btn-brand-border: transparent;
+  --btn-brand-ring: color-mix(in srgb, var(--brand-accent) 40%, transparent);
+  --btn-brand-disabled-bg: color-mix(in srgb, var(--brand-accent) 50%, transparent);
+  --btn-brand-disabled-fg: color-mix(in srgb, #FFFFFF 70%, transparent);
+  --btn-quiet-bg: transparent;                      /* accent text on nothing, a tint on hover (Refresh, Done, Add column) */
+  --btn-quiet-bg-hover: color-mix(in srgb, var(--os-blue) 10%, transparent);
+  --btn-quiet-bg-active: color-mix(in srgb, var(--os-blue) 18%, transparent);
+  --btn-quiet-fg: var(--os-blue-hover);             /* the accent's darker shade: 4.5:1 on its hover tint over the card-secondary surface too (the accent gave 4.25:1) */
+  --btn-quiet-border: transparent;
+  --btn-quiet-ring: color-mix(in srgb, var(--os-blue) 40%, transparent);
+  --btn-quiet-disabled-bg: transparent;
+  --btn-quiet-disabled-fg: var(--os-text-muted);
+  /* the role as TEXT on a surface (the -ghost and -soft forms): darker than the solid fill, so it reads at 4.5:1 on the
+     page, a card, the card-secondary surface and the role's own tint (tests/button-primary-consistency.test.mjs checks
+     every role on every surface in every theme) */
+  --btn-success-text: #166534;
+  --btn-warning-text: #92400E;
+  --btn-brand-text: color-mix(in srgb, var(--brand-accent) 78%, black);
+  /* the tints: a ghost button's hover and a soft (tinted) button's surface, derived from the role's solid colour */
+  --btn-success-tint: color-mix(in srgb, var(--btn-success-bg) 12%, transparent);
+  --btn-success-tint-strong: color-mix(in srgb, var(--btn-success-bg) 22%, transparent);
+  --btn-warning-tint: color-mix(in srgb, var(--btn-warning-bg) 12%, transparent);
+  --btn-warning-tint-strong: color-mix(in srgb, var(--btn-warning-bg) 22%, transparent);
+  --btn-brand-tint: color-mix(in srgb, var(--brand-accent) 12%, transparent);
+  --btn-brand-tint-strong: color-mix(in srgb, var(--brand-accent) 22%, transparent);
+  --btn-selected-tint: color-mix(in srgb, var(--btn-selected-bg) 12%, transparent);
+  --btn-selected-tint-strong: color-mix(in srgb, var(--btn-selected-bg) 22%, transparent);
 }
 
 /* Dark theme colors: "Jacaranda (dark)", the default dark theme (Auto on a
@@ -253,6 +376,20 @@ body {
    for the rail's active item, leaf green for success. Every text/surface
    pair below is >= 4.5:1 (tests/jacaranda-theme.test.mjs computes them). */
 .dark {
+  --chart-cat-1: #60a5fa;
+  --chart-cat-2: #a78bfa;
+  --chart-cat-3: #2dd4bf;
+  --chart-cat-4: #fbbf24;
+  --chart-cat-5: #f472b6;
+  --chart-cat-6: #4ade80;
+  --chart-cat-7: #fb923c;
+  --chart-cat-8: #94a3b8;
+  --chart-ok: var(--os-blue);
+  --chart-info: var(--os-blue);
+  --chart-good: #4ade80;
+  --chart-warn: #fbbf24;
+  --chart-bad: #f87171;
+  --chart-muted: #94a3b8;
   --os-masthead: #0F0D16;
   --os-sidebar: #15121F;
   --os-sidebar-hover: #1E1930;
@@ -309,12 +446,118 @@ body {
   --os-code-builtin: #ffa657;
   --os-code-variable: #ffa657;
   --os-code-meta: #d2a8ff;
+  /* Buttons (see the :root block: "change the button colours here"): the same action blue, the danger
+     and ghost surfaces on this theme's tokens, the outlined danger button's tints for a dark card */
+  --btn-primary-bg: oklch(0.546 0.245 262.881);
+  --btn-primary-bg-hover: oklch(0.488 0.243 264.376);
+  --btn-primary-bg-active: oklch(0.424 0.199 265.638);
+  --btn-primary-fg: #FFFFFF;
+  --btn-primary-border: transparent;
+  --btn-primary-ring: color-mix(in srgb, var(--btn-primary-bg) 40%, transparent);
+  --btn-primary-disabled-bg: color-mix(in srgb, var(--btn-primary-bg) 50%, transparent);
+  --btn-primary-disabled-fg: color-mix(in srgb, var(--btn-primary-fg) 70%, transparent);
+  --btn-secondary-bg: var(--os-modal);
+  --btn-secondary-bg-hover: var(--os-card-secondary);
+  --btn-secondary-bg-active: var(--os-divider);
+  --btn-secondary-fg: var(--os-text-primary);
+  --btn-secondary-border: var(--os-input-border);
+  --btn-secondary-ring: color-mix(in srgb, var(--os-blue) 40%, transparent);
+  --btn-secondary-disabled-bg: var(--os-modal);
+  --btn-secondary-disabled-fg: var(--os-text-muted);
+  --btn-danger-bg: var(--os-modal);                 /* the outlined danger button (Delete next to Cancel) */
+  --btn-danger-bg-hover: color-mix(in srgb, #7F1D1D 20%, transparent);
+  --btn-danger-bg-active: color-mix(in srgb, #7F1D1D 35%, transparent);
+  --btn-danger-fg: #F87171;
+  --btn-danger-border: #EF4444;                    /* red-500: the outline reads at 3.8:1 against the dark card-secondary surface (the 800 gave 2.2:1, the 600 2.97:1) */
+  --btn-danger-ring: color-mix(in srgb, var(--btn-danger-fg) 40%, transparent);
+  --btn-danger-disabled-bg: var(--os-modal);
+  --btn-danger-disabled-fg: color-mix(in srgb, var(--btn-danger-fg) 50%, transparent);
+  --btn-danger-solid-bg: #DC2626;                   /* the solid one (a confirmation's destructive action) */
+  --btn-danger-solid-bg-hover: #B91C1C;
+  --btn-danger-solid-bg-active: #991B1B;
+  --btn-danger-solid-fg: #FFFFFF;
+  --btn-danger-solid-border: transparent;
+  --btn-danger-solid-ring: color-mix(in srgb, var(--btn-danger-solid-bg) 40%, transparent);
+  --btn-danger-solid-disabled-bg: color-mix(in srgb, var(--btn-danger-solid-bg) 50%, transparent);
+  --btn-danger-solid-disabled-fg: color-mix(in srgb, var(--btn-danger-solid-fg) 70%, transparent);
+  --btn-ghost-bg: transparent;
+  --btn-ghost-bg-hover: var(--os-card-secondary);
+  --btn-ghost-bg-active: var(--os-divider);
+  --btn-ghost-fg: var(--os-text-secondary);
+  --btn-ghost-fg-hover: var(--os-text-primary);
+  --btn-ghost-border: transparent;
+  --btn-ghost-ring: color-mix(in srgb, var(--os-blue) 40%, transparent);
+  --btn-ghost-disabled-bg: transparent;
+  --btn-ghost-disabled-fg: var(--os-text-muted);
+  --btn-warning-bg: #B45309;                       /* amber-700: white text at 5.0:1 */
+  --btn-warning-bg-hover: #92400E;
+  --btn-warning-bg-active: #78350F;
+  --btn-warning-fg: #FFFFFF;
+  --btn-warning-border: transparent;
+  --btn-warning-ring: color-mix(in srgb, var(--btn-warning-bg) 40%, transparent);
+  --btn-warning-disabled-bg: color-mix(in srgb, var(--btn-warning-bg) 50%, transparent);
+  --btn-warning-disabled-fg: color-mix(in srgb, var(--btn-warning-fg) 70%, transparent);
+  --btn-success-bg: #15803D;                       /* green-700: white text at 4.7:1 */
+  --btn-success-bg-hover: #166534;
+  --btn-success-bg-active: #14532D;
+  --btn-success-fg: #FFFFFF;
+  --btn-success-border: transparent;
+  --btn-success-ring: color-mix(in srgb, var(--btn-success-bg) 40%, transparent);
+  --btn-success-disabled-bg: color-mix(in srgb, var(--btn-success-bg) 50%, transparent);
+  --btn-success-disabled-fg: color-mix(in srgb, var(--btn-success-fg) 70%, transparent);
+  --btn-selected-bg: var(--btn-primary-bg);         /* a toggle, segment, filter or sort button in its on state: the action blue (white text at 5.2:1; the light accent blue gave 2.8:1) */
+  --btn-selected-fg: #FFFFFF;
+  --btn-selected-bg-hover: var(--btn-primary-bg-hover);
+  --btn-selected-text: var(--os-blue-hover);        /* the on state's text on its tint (.btn-selected-soft): the accent's lighter shade, 5:1 on the strong tint over the card-secondary surface */
+  --btn-brand-bg: var(--brand-accent);              /* the violet accent: AI, cloud and sharing actions */
+  --btn-brand-bg-hover: color-mix(in srgb, var(--brand-accent) 85%, black);
+  --btn-brand-bg-active: color-mix(in srgb, var(--brand-accent) 70%, black);
+  --btn-brand-fg: #FFFFFF;
+  --btn-brand-border: transparent;
+  --btn-brand-ring: color-mix(in srgb, var(--brand-accent) 40%, transparent);
+  --btn-brand-disabled-bg: color-mix(in srgb, var(--brand-accent) 50%, transparent);
+  --btn-brand-disabled-fg: color-mix(in srgb, #FFFFFF 70%, transparent);
+  --btn-quiet-bg: transparent;                      /* accent text on nothing, a tint on hover (Refresh, Done, Add column) */
+  --btn-quiet-bg-hover: color-mix(in srgb, var(--os-blue) 10%, transparent);
+  --btn-quiet-bg-active: color-mix(in srgb, var(--os-blue) 18%, transparent);
+  --btn-quiet-fg: var(--os-blue-hover);             /* the accent's lighter shade: 4.5:1 on its hover tint over the card-secondary surface (the accent gave 4.4:1) */
+  --btn-quiet-border: transparent;
+  --btn-quiet-ring: color-mix(in srgb, var(--os-blue) 40%, transparent);
+  --btn-quiet-disabled-bg: transparent;
+  --btn-quiet-disabled-fg: var(--os-text-muted);
+  /* the role as TEXT on a dark surface (the -ghost and -soft forms): the 400 level, lighter than the solid fill */
+  --btn-success-text: #4ADE80;
+  --btn-warning-text: #FBBF24;
+  --btn-brand-text: color-mix(in srgb, var(--brand-accent) 60%, white);
+  /* the tints: a ghost button's hover and a soft (tinted) button's surface, derived from the role's solid colour */
+  --btn-success-tint: color-mix(in srgb, var(--btn-success-bg) 12%, transparent);
+  --btn-success-tint-strong: color-mix(in srgb, var(--btn-success-bg) 22%, transparent);
+  --btn-warning-tint: color-mix(in srgb, var(--btn-warning-bg) 12%, transparent);
+  --btn-warning-tint-strong: color-mix(in srgb, var(--btn-warning-bg) 22%, transparent);
+  --btn-brand-tint: color-mix(in srgb, var(--brand-accent) 12%, transparent);
+  --btn-brand-tint-strong: color-mix(in srgb, var(--brand-accent) 22%, transparent);
+  --btn-selected-tint: color-mix(in srgb, var(--btn-selected-bg) 12%, transparent);
+  --btn-selected-tint-strong: color-mix(in srgb, var(--btn-selected-bg) 22%, transparent);
 }
 
 /* "Dark (neutral)": the dark theme as it was before Jacaranda - neutral
    greys, selectable in Settings > General > Color Scheme; the gradient
    themes paint their rail over these surfaces too. */
 .dark[data-dark-variant="neutral"] {
+  --chart-cat-1: #60a5fa;
+  --chart-cat-2: #a78bfa;
+  --chart-cat-3: #2dd4bf;
+  --chart-cat-4: #fbbf24;
+  --chart-cat-5: #f472b6;
+  --chart-cat-6: #4ade80;
+  --chart-cat-7: #fb923c;
+  --chart-cat-8: #94a3b8;
+  --chart-ok: var(--os-blue);
+  --chart-info: var(--os-blue);
+  --chart-good: #4ade80;
+  --chart-warn: #fbbf24;
+  --chart-bad: #f87171;
+  --chart-muted: #94a3b8;
   --os-masthead: #0f0f0f;
   --os-sidebar: #1a1a1a;
   --os-sidebar-hover: #262626;
@@ -351,7 +594,143 @@ body {
   --os-terminal-warning: #facc15;
   --os-terminal-error: #f87171;
   --os-terminal-selection: rgba(74, 158, 255, 0.35);
+  /* Buttons (see the :root block: "change the button colours here"): the same action blue, the danger
+     and ghost surfaces on this theme's tokens, the outlined danger button's tints for a dark card */
+  --btn-primary-bg: oklch(0.546 0.245 262.881);
+  --btn-primary-bg-hover: oklch(0.488 0.243 264.376);
+  --btn-primary-bg-active: oklch(0.424 0.199 265.638);
+  --btn-primary-fg: #FFFFFF;
+  --btn-primary-border: transparent;
+  --btn-primary-ring: color-mix(in srgb, var(--btn-primary-bg) 40%, transparent);
+  --btn-primary-disabled-bg: color-mix(in srgb, var(--btn-primary-bg) 50%, transparent);
+  --btn-primary-disabled-fg: color-mix(in srgb, var(--btn-primary-fg) 70%, transparent);
+  --btn-secondary-bg: var(--os-modal);
+  --btn-secondary-bg-hover: var(--os-card-secondary);
+  --btn-secondary-bg-active: var(--os-divider);
+  --btn-secondary-fg: var(--os-text-primary);
+  --btn-secondary-border: var(--os-input-border);
+  --btn-secondary-ring: color-mix(in srgb, var(--os-blue) 40%, transparent);
+  --btn-secondary-disabled-bg: var(--os-modal);
+  --btn-secondary-disabled-fg: var(--os-text-muted);
+  --btn-danger-bg: var(--os-modal);                 /* the outlined danger button (Delete next to Cancel) */
+  --btn-danger-bg-hover: color-mix(in srgb, #7F1D1D 20%, transparent);
+  --btn-danger-bg-active: color-mix(in srgb, #7F1D1D 35%, transparent);
+  --btn-danger-fg: #F87171;
+  --btn-danger-border: #EF4444;                    /* red-500: the outline reads at 3.8:1 against the dark card-secondary surface (the 800 gave 2.2:1, the 600 2.97:1) */
+  --btn-danger-ring: color-mix(in srgb, var(--btn-danger-fg) 40%, transparent);
+  --btn-danger-disabled-bg: var(--os-modal);
+  --btn-danger-disabled-fg: color-mix(in srgb, var(--btn-danger-fg) 50%, transparent);
+  --btn-danger-solid-bg: #DC2626;                   /* the solid one (a confirmation's destructive action) */
+  --btn-danger-solid-bg-hover: #B91C1C;
+  --btn-danger-solid-bg-active: #991B1B;
+  --btn-danger-solid-fg: #FFFFFF;
+  --btn-danger-solid-border: transparent;
+  --btn-danger-solid-ring: color-mix(in srgb, var(--btn-danger-solid-bg) 40%, transparent);
+  --btn-danger-solid-disabled-bg: color-mix(in srgb, var(--btn-danger-solid-bg) 50%, transparent);
+  --btn-danger-solid-disabled-fg: color-mix(in srgb, var(--btn-danger-solid-fg) 70%, transparent);
+  --btn-ghost-bg: transparent;
+  --btn-ghost-bg-hover: var(--os-card-secondary);
+  --btn-ghost-bg-active: var(--os-divider);
+  --btn-ghost-fg: var(--os-text-secondary);
+  --btn-ghost-fg-hover: var(--os-text-primary);
+  --btn-ghost-border: transparent;
+  --btn-ghost-ring: color-mix(in srgb, var(--os-blue) 40%, transparent);
+  --btn-ghost-disabled-bg: transparent;
+  --btn-ghost-disabled-fg: var(--os-text-muted);
+  --btn-warning-bg: #B45309;                       /* amber-700: white text at 5.0:1 */
+  --btn-warning-bg-hover: #92400E;
+  --btn-warning-bg-active: #78350F;
+  --btn-warning-fg: #FFFFFF;
+  --btn-warning-border: transparent;
+  --btn-warning-ring: color-mix(in srgb, var(--btn-warning-bg) 40%, transparent);
+  --btn-warning-disabled-bg: color-mix(in srgb, var(--btn-warning-bg) 50%, transparent);
+  --btn-warning-disabled-fg: color-mix(in srgb, var(--btn-warning-fg) 70%, transparent);
+  --btn-success-bg: #15803D;                       /* green-700: white text at 4.7:1 */
+  --btn-success-bg-hover: #166534;
+  --btn-success-bg-active: #14532D;
+  --btn-success-fg: #FFFFFF;
+  --btn-success-border: transparent;
+  --btn-success-ring: color-mix(in srgb, var(--btn-success-bg) 40%, transparent);
+  --btn-success-disabled-bg: color-mix(in srgb, var(--btn-success-bg) 50%, transparent);
+  --btn-success-disabled-fg: color-mix(in srgb, var(--btn-success-fg) 70%, transparent);
+  --btn-selected-bg: var(--btn-primary-bg);         /* a toggle, segment, filter or sort button in its on state: the action blue (white text at 5.2:1; the light accent blue gave 2.8:1) */
+  --btn-selected-fg: #FFFFFF;
+  --btn-selected-bg-hover: var(--btn-primary-bg-hover);
+  --btn-selected-text: var(--os-blue-hover);        /* the on state's text on its tint (.btn-selected-soft): the accent's lighter shade, 5:1 on the strong tint over the card-secondary surface */
+  --btn-brand-bg: var(--brand-accent);              /* the violet accent: AI, cloud and sharing actions */
+  --btn-brand-bg-hover: color-mix(in srgb, var(--brand-accent) 85%, black);
+  --btn-brand-bg-active: color-mix(in srgb, var(--brand-accent) 70%, black);
+  --btn-brand-fg: #FFFFFF;
+  --btn-brand-border: transparent;
+  --btn-brand-ring: color-mix(in srgb, var(--brand-accent) 40%, transparent);
+  --btn-brand-disabled-bg: color-mix(in srgb, var(--brand-accent) 50%, transparent);
+  --btn-brand-disabled-fg: color-mix(in srgb, #FFFFFF 70%, transparent);
+  --btn-quiet-bg: transparent;                      /* accent text on nothing, a tint on hover (Refresh, Done, Add column) */
+  --btn-quiet-bg-hover: color-mix(in srgb, var(--os-blue) 10%, transparent);
+  --btn-quiet-bg-active: color-mix(in srgb, var(--os-blue) 18%, transparent);
+  --btn-quiet-fg: var(--os-blue-hover);             /* the accent's lighter shade: 4.5:1 on its hover tint over the card-secondary surface (the accent gave 4.4:1) */
+  --btn-quiet-border: transparent;
+  --btn-quiet-ring: color-mix(in srgb, var(--os-blue) 40%, transparent);
+  --btn-quiet-disabled-bg: transparent;
+  --btn-quiet-disabled-fg: var(--os-text-muted);
+  /* the role as TEXT on a dark surface (the -ghost and -soft forms): the 400 level, lighter than the solid fill */
+  --btn-success-text: #4ADE80;
+  --btn-warning-text: #FBBF24;
+  --btn-brand-text: color-mix(in srgb, var(--brand-accent) 60%, white);
+  /* the tints: a ghost button's hover and a soft (tinted) button's surface, derived from the role's solid colour */
+  --btn-success-tint: color-mix(in srgb, var(--btn-success-bg) 12%, transparent);
+  --btn-success-tint-strong: color-mix(in srgb, var(--btn-success-bg) 22%, transparent);
+  --btn-warning-tint: color-mix(in srgb, var(--btn-warning-bg) 12%, transparent);
+  --btn-warning-tint-strong: color-mix(in srgb, var(--btn-warning-bg) 22%, transparent);
+  --btn-brand-tint: color-mix(in srgb, var(--brand-accent) 12%, transparent);
+  --btn-brand-tint-strong: color-mix(in srgb, var(--brand-accent) 22%, transparent);
+  --btn-selected-tint: color-mix(in srgb, var(--btn-selected-bg) 12%, transparent);
+  --btn-selected-tint-strong: color-mix(in srgb, var(--btn-selected-bg) 22%, transparent);
 }
+
+
+/* ==== Buttons (tests/button-primary-consistency.test.mjs) ====
+   One class set for every button in the app and in the Diagnostics frame: .btn with a role class (.btn-primary, .btn-secondary,
+   .btn-danger, .btn-danger-solid, .btn-ghost, .btn-warning, .btn-success, .btn-brand, .btn-quiet, the -ghost and -soft forms)
+   draws its colours from the --btn-<role>-* tokens of the theme blocks above, so a theme recolours every button at once;
+   .btn-selected / .btn-selected-soft are the on state of a toggle, segment, filter, icon-picker or sort button. Sizes .btn-sm / .btn-md / .btn-lg, or a button keeps its own padding utilities.
+   <Button variant> (src/components/ui/primitives.jsx) applies these. Unlayered on purpose: the rules win over a leftover
+   colour utility on the same element. */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; white-space: nowrap; border: 1px solid var(--btn-border, transparent); border-radius: var(--radius-control); background-color: var(--btn-bg); color: var(--btn-fg); font-weight: var(--weight-control); cursor: pointer; transition: background-color 0.15s, color 0.15s, border-color 0.15s; }
+.btn:hover:not(:disabled) { background-color: var(--btn-bg-hover); color: var(--btn-fg-hover, var(--btn-fg)); }
+.btn:active:not(:disabled) { background-color: var(--btn-bg-active); }
+.btn:focus { outline: none; }
+.btn:focus-visible { box-shadow: 0 0 0 2px var(--btn-ring); }
+.btn:disabled { background-color: var(--btn-disabled-bg); color: var(--btn-disabled-fg); cursor: not-allowed; }
+.btn-primary { --btn-bg: var(--btn-primary-bg); --btn-bg-hover: var(--btn-primary-bg-hover); --btn-bg-active: var(--btn-primary-bg-active); --btn-fg: var(--btn-primary-fg); --btn-border: var(--btn-primary-border); --btn-ring: var(--btn-primary-ring); --btn-disabled-bg: var(--btn-primary-disabled-bg); --btn-disabled-fg: var(--btn-primary-disabled-fg); }
+.btn-secondary { --btn-bg: var(--btn-secondary-bg); --btn-bg-hover: var(--btn-secondary-bg-hover); --btn-bg-active: var(--btn-secondary-bg-active); --btn-fg: var(--btn-secondary-fg); --btn-border: var(--btn-secondary-border); --btn-ring: var(--btn-secondary-ring); --btn-disabled-bg: var(--btn-secondary-disabled-bg); --btn-disabled-fg: var(--btn-secondary-disabled-fg); }
+.btn-danger { --btn-bg: var(--btn-danger-bg); --btn-bg-hover: var(--btn-danger-bg-hover); --btn-bg-active: var(--btn-danger-bg-active); --btn-fg: var(--btn-danger-fg); --btn-border: var(--btn-danger-border); --btn-ring: var(--btn-danger-ring); --btn-disabled-bg: var(--btn-danger-disabled-bg); --btn-disabled-fg: var(--btn-danger-disabled-fg); }
+.btn-danger-ghost { --btn-bg: transparent; --btn-bg-hover: var(--btn-danger-bg-hover); --btn-bg-active: var(--btn-danger-bg-active); --btn-fg: var(--btn-danger-fg); --btn-border: transparent; --btn-ring: var(--btn-danger-ring); --btn-disabled-bg: transparent; --btn-disabled-fg: var(--btn-danger-disabled-fg); }
+.btn-danger-solid { --btn-bg: var(--btn-danger-solid-bg); --btn-bg-hover: var(--btn-danger-solid-bg-hover); --btn-bg-active: var(--btn-danger-solid-bg-active); --btn-fg: var(--btn-danger-solid-fg); --btn-border: var(--btn-danger-solid-border); --btn-ring: var(--btn-danger-solid-ring); --btn-disabled-bg: var(--btn-danger-solid-disabled-bg); --btn-disabled-fg: var(--btn-danger-solid-disabled-fg); }
+.btn-ghost { --btn-bg: var(--btn-ghost-bg); --btn-bg-hover: var(--btn-ghost-bg-hover); --btn-bg-active: var(--btn-ghost-bg-active); --btn-fg: var(--btn-ghost-fg); --btn-fg-hover: var(--btn-ghost-fg-hover); --btn-border: var(--btn-ghost-border); --btn-ring: var(--btn-ghost-ring); --btn-disabled-bg: var(--btn-ghost-disabled-bg); --btn-disabled-fg: var(--btn-ghost-disabled-fg); }
+.btn-warning { --btn-bg: var(--btn-warning-bg); --btn-bg-hover: var(--btn-warning-bg-hover); --btn-bg-active: var(--btn-warning-bg-active); --btn-fg: var(--btn-warning-fg); --btn-border: var(--btn-warning-border); --btn-ring: var(--btn-warning-ring); --btn-disabled-bg: var(--btn-warning-disabled-bg); --btn-disabled-fg: var(--btn-warning-disabled-fg); }
+.btn-success { --btn-bg: var(--btn-success-bg); --btn-bg-hover: var(--btn-success-bg-hover); --btn-bg-active: var(--btn-success-bg-active); --btn-fg: var(--btn-success-fg); --btn-border: var(--btn-success-border); --btn-ring: var(--btn-success-ring); --btn-disabled-bg: var(--btn-success-disabled-bg); --btn-disabled-fg: var(--btn-success-disabled-fg); }
+.btn-selected { background-color: var(--btn-selected-bg); color: var(--btn-selected-fg); border-color: var(--btn-selected-bg); }
+.btn-brand { --btn-bg: var(--btn-brand-bg); --btn-bg-hover: var(--btn-brand-bg-hover); --btn-bg-active: var(--btn-brand-bg-active); --btn-fg: var(--btn-brand-fg); --btn-border: var(--btn-brand-border); --btn-ring: var(--btn-brand-ring); --btn-disabled-bg: var(--btn-brand-disabled-bg); --btn-disabled-fg: var(--btn-brand-disabled-fg); }
+.btn-quiet { --btn-bg: var(--btn-quiet-bg); --btn-bg-hover: var(--btn-quiet-bg-hover); --btn-bg-active: var(--btn-quiet-bg-active); --btn-fg: var(--btn-quiet-fg); --btn-border: var(--btn-quiet-border); --btn-ring: var(--btn-quiet-ring); --btn-disabled-bg: var(--btn-quiet-disabled-bg); --btn-disabled-fg: var(--btn-quiet-disabled-fg); }
+/* ghosts: the role's text colour (--btn-<role>-text, which reads on any surface) on nothing, its tint on hover; softs: the tint as the surface
+   (a tinted toggle in its on state, a small status button) with the same text and the role's colour as the border */
+.btn-brand-ghost { --btn-bg: transparent; --btn-bg-hover: var(--btn-brand-tint); --btn-bg-active: var(--btn-brand-tint-strong); --btn-fg: var(--btn-brand-text); --btn-border: transparent; --btn-ring: var(--btn-brand-ring); --btn-disabled-bg: transparent; --btn-disabled-fg: var(--os-text-muted); }
+.btn-success-ghost { --btn-bg: transparent; --btn-bg-hover: var(--btn-success-tint); --btn-bg-active: var(--btn-success-tint-strong); --btn-fg: var(--btn-success-text); --btn-border: transparent; --btn-ring: var(--btn-success-ring); --btn-disabled-bg: transparent; --btn-disabled-fg: var(--os-text-muted); }
+.btn-warning-ghost { --btn-bg: transparent; --btn-bg-hover: var(--btn-warning-tint); --btn-bg-active: var(--btn-warning-tint-strong); --btn-fg: var(--btn-warning-text); --btn-border: transparent; --btn-ring: var(--btn-warning-ring); --btn-disabled-bg: transparent; --btn-disabled-fg: var(--os-text-muted); }
+.btn-danger-soft { --btn-bg: var(--btn-danger-bg-hover); --btn-bg-hover: var(--btn-danger-bg-active); --btn-bg-active: var(--btn-danger-bg-active); --btn-fg: var(--btn-danger-fg); --btn-border: transparent; --btn-ring: var(--btn-danger-ring); --btn-disabled-bg: var(--btn-danger-bg-hover); --btn-disabled-fg: var(--btn-danger-disabled-fg); }
+.btn-success-soft { --btn-bg: var(--btn-success-tint); --btn-bg-hover: var(--btn-success-tint-strong); --btn-bg-active: var(--btn-success-tint-strong); --btn-fg: var(--btn-success-text); --btn-border: var(--btn-success-text); --btn-ring: var(--btn-success-ring); --btn-disabled-bg: var(--btn-success-tint); --btn-disabled-fg: var(--os-text-muted); }
+.btn-brand-soft { --btn-bg: var(--btn-brand-tint); --btn-bg-hover: var(--btn-brand-tint-strong); --btn-bg-active: var(--btn-brand-tint-strong); --btn-fg: var(--btn-brand-text); --btn-border: var(--btn-brand-text); --btn-ring: var(--btn-brand-ring); --btn-disabled-bg: var(--btn-brand-tint); --btn-disabled-fg: var(--os-text-muted); }
+.btn-selected-soft { background-color: var(--btn-selected-tint); color: var(--btn-selected-text); border-color: var(--btn-selected-text); }
+/* the on state keeps its own colours under the pointer (the base .btn:hover rule would paint the role's hover over it) */
+.btn.btn-selected:hover:not(:disabled) { background-color: var(--btn-selected-bg-hover); color: var(--btn-selected-fg); }
+.btn.btn-selected-soft:hover:not(:disabled) { background-color: var(--btn-selected-tint-strong); color: var(--btn-selected-text); }
+.btn-ghost, .btn-danger-ghost, .btn-brand-ghost, .btn-success-ghost, .btn-warning-ghost, .btn-quiet { border-width: 0; }
+.btn.justify-start { justify-content: flex-start; }   /* a card- or row-like button keeps its content at the start */
+.btn-sm { padding: 0.25rem 0.625rem; font-size: 0.75rem; }
+.btn-md { padding: 0.375rem 0.75rem; font-size: 0.75rem; }
+.btn-lg { padding: 0.5rem 1rem; font-size: 0.875rem; }
+/* ==== End of buttons ==== */
 
 /* Light theme - fix bg-os-blue with opacity */
 .bg-os-blue.bg-opacity-10 {
@@ -1959,12 +2338,17 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   border-color: var(--os-input-border) !important;
 }
 
-/* Buttons with light backgrounds */
-#diagnostics-content button,
-#diagnostics-content .btn {
-  background-color: var(--os-card-secondary) !important;
-  color: var(--os-text-primary) !important;
-  border-color: var(--os-border) !important;
+/* A template's plain button is the secondary button role (backend/static/styles.css gives it the shape); one on the shared
+   .btn classes, a sort header, a link-style or icon button keeps its own role */
+#diagnostics-content button:not(.btn):not(.lc-sort):not(.ui-link):not(.ui-icon-btn):not(.ui-chip):not([class*="-link"]) {
+  background-color: var(--btn-secondary-bg) !important;
+  color: var(--btn-secondary-fg) !important;
+  border-color: var(--btn-secondary-border) !important;
+}
+#diagnostics-content button.px-3.py-1:not(.btn), #diagnostics-content button.px-4.py-2:not(.btn), #diagnostics-content button.text-white:not(.btn) {
+  background-color: var(--btn-primary-bg) !important;
+  color: var(--btn-primary-fg) !important;
+  border-color: var(--btn-primary-border) !important;
 }
 
 /* Chart.js and SVG charts: text and grid follow the tokens (the series keep

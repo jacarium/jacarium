@@ -1,13 +1,8 @@
 {% set default_log_file = 'haproxy.log' if data.log_files and 'haproxy.log' in data.log_files else (data.log_files[0] if data.log_files else None) %}
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 
 {% if not data or not data.config %}
-<div class="flex flex-col items-center justify-center py-12 text-center">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0 mb-3" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-sm font-medium mb-1">No HAProxy Data Available</div>
- <div class="text-xs text-gray-500">HAProxy configuration not found in this sosreport</div>
-</div>
 {% else %}
 
 <div class="grid grid-cols-1 gap-4">
@@ -19,13 +14,12 @@
  <i class="fas fa-file-alt mr-2"></i> Log Issues
  </h3>
  <div class="flex items-center gap-2">
- <label for="logFileSelect" class="text-sm font-semibold">Log File:</label>
- <select id="logFileSelect" onchange="updateLogFile()" class="px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
+ <label class="ui-rows">Log file<span class="ui-select-wrap"><select aria-label="Log file" id="logFileSelect" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { updateLogFile(); }) : updateLogFile()" class="ui-select">
  <option value="__all__">All (Combined)</option>
  {% for log_file in data.log_files %}
  <option value="{{ log_file }}" {% if log_file == default_log_file %}selected{% endif %}>{{ log_file }}</option>
  {% endfor %}
- </select>
+ </select>{{ ui.icon('chevron') }}</span></label>
  <div id="logFileLoadingSpinner" style="display: none;">
  <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-os-blue"></div>
  </div>
@@ -39,41 +33,41 @@
  <h4 class="text-sm font-semibold mb-2">
  <i class="fas fa-question-circle mr-2"></i> HTTP Status Code Legend
  </h4>
- <table class="min-w-full text-xs rounded-sm">
+ <table class="ui-table">
  <thead>
- <tr class="border-b">
- <th class="px-3 py-2 text-left">Code</th>
- <th class="px-3 py-2 text-left">Description</th>
+ <tr>
+ <th>Code</th>
+ <th>Description</th>
  </tr>
  </thead>
  <tbody>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1">2xx</td>
- <td class="px-3 py-1">Success (200 OK, 201 Created, 204 No Content)</td>
+ <tr>
+ <td>2xx</td>
+ <td>Success (200 OK, 201 Created, 204 No Content)</td>
  </tr>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1">3xx</td>
- <td class="px-3 py-1">Redirection (301 Moved, 302 Found, 304 Not Modified)</td>
+ <tr>
+ <td>3xx</td>
+ <td>Redirection (301 Moved, 302 Found, 304 Not Modified)</td>
  </tr>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1">4xx</td>
- <td class="px-3 py-1">Client errors (400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found)</td>
+ <tr>
+ <td>4xx</td>
+ <td>Client errors (400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found)</td>
  </tr>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1">500</td>
- <td class="px-3 py-1">Internal Server Error</td>
+ <tr>
+ <td>500</td>
+ <td>Internal Server Error</td>
  </tr>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1">502</td>
- <td class="px-3 py-1">Bad Gateway (backend server error)</td>
+ <tr>
+ <td>502</td>
+ <td>Bad Gateway (backend server error)</td>
  </tr>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1">503</td>
- <td class="px-3 py-1">Service Unavailable (no backend servers available)</td>
+ <tr>
+ <td>503</td>
+ <td>Service Unavailable (no backend servers available)</td>
  </tr>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1">504</td>
- <td class="px-3 py-1">Gateway Timeout (backend server timeout)</td>
+ <tr>
+ <td>504</td>
+ <td>Gateway Timeout (backend server timeout)</td>
  </tr>
  </tbody>
  </table>
@@ -84,59 +78,59 @@
  <h4 class="text-sm font-semibold mb-2">
  <i class="fas fa-question-circle mr-2"></i> Termination State Legend
  </h4>
- <table class="min-w-full text-xs rounded-sm">
+ <table class="ui-table">
  <thead>
- <tr class="border-b">
- <th class="px-3 py-2 text-left">Code</th>
- <th class="px-3 py-2 text-left">Description</th>
- <th class="px-3 py-2 text-left">Suggestion</th>
+ <tr>
+ <th>Code</th>
+ <th>Description</th>
+ <th>Suggestion</th>
  </tr>
  </thead>
  <tbody>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1 font-mono">cD</td>
- <td class="px-3 py-1">Client abort + Admin kill (reload/shutdown)</td>
- <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Expected during HAProxy reload - consider reload strategy</td>
+ <tr>
+ <td class="ui-mono">cD</td>
+ <td>Client abort + Admin kill (reload/shutdown)</td>
+ <td>Expected during HAProxy reload - consider reload strategy</td>
  </tr>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1 font-mono">sD</td>
- <td class="px-3 py-1">Server abort + Admin kill (reload/shutdown)</td>
- <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Expected during HAProxy reload - review reload frequency</td>
+ <tr>
+ <td class="ui-mono">sD</td>
+ <td>Server abort + Admin kill (reload/shutdown)</td>
+ <td>Expected during HAProxy reload - review reload frequency</td>
  </tr>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1 font-mono">CC</td>
- <td class="px-3 py-1">Client timeout waiting for data</td>
- <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Increase <span class="font-mono">timeout client</span> in haproxy.cfg</td>
+ <tr>
+ <td class="ui-mono">CC</td>
+ <td>Client timeout waiting for data</td>
+ <td>Increase <span class="font-mono">timeout client</span> in haproxy.cfg</td>
  </tr>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1 font-mono">SC</td>
- <td class="px-3 py-1">Server timeout waiting for data</td>
- <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Increase <span class="font-mono">timeout server</span> in haproxy.cfg</td>
+ <tr>
+ <td class="ui-mono">SC</td>
+ <td>Server timeout waiting for data</td>
+ <td>Increase <span class="font-mono">timeout server</span> in haproxy.cfg</td>
  </tr>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1 font-mono">PC</td>
- <td class="px-3 py-1">Proxy connection refused</td>
- <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Check backend server availability and firewall rules</td>
+ <tr>
+ <td class="ui-mono">PC</td>
+ <td>Proxy connection refused</td>
+ <td>Check backend server availability and firewall rules</td>
  </tr>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1 font-mono">PR/PH</td>
- <td class="px-3 py-1">Proxy resource/HTTP error</td>
- <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Increase <span class="font-mono">maxconn</span> or review resource limits</td>
+ <tr>
+ <td class="ui-mono">PR/PH</td>
+ <td>Proxy resource/HTTP error</td>
+ <td>Increase <span class="font-mono">maxconn</span> or review resource limits</td>
  </tr>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1 font-mono">sR/cR</td>
- <td class="px-3 py-1">Server/Client resource shortage</td>
- <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Increase <span class="font-mono">maxconn</span> in global/backend section</td>
+ <tr>
+ <td class="ui-mono">sR/cR</td>
+ <td>Server/Client resource shortage</td>
+ <td>Increase <span class="font-mono">maxconn</span> in global/backend section</td>
  </tr>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1 font-mono">D-</td>
- <td class="px-3 py-1">Session in queue waiting for server that went down</td>
- <td class="px-3 py-1 text-gray-600 dark:text-gray-400">Check backend server health and increase server capacity</td>
+ <tr>
+ <td class="ui-mono">D-</td>
+ <td>Session in queue waiting for server that went down</td>
+ <td>Check backend server health and increase server capacity</td>
  </tr>
- <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-3 py-1 font-mono">--</td>
- <td class="px-3 py-1">Normal termination (not tracked)</td>
- <td class="px-3 py-1 text-gray-600 dark:text-gray-400">No action needed</td>
+ <tr>
+ <td class="ui-mono">--</td>
+ <td>Normal termination (not tracked)</td>
+ <td>No action needed</td>
  </tr>
  </tbody>
  </table>
@@ -184,49 +178,38 @@
  </h3>
  </div>
 
- <div class="mb-4">
- <input type="text" id="backend-filter"
- class="w-full px-3 py-2 text-sm rounded-sm border"
- placeholder="Filter backends..."
- autocomplete="off">
- </div>
-
- <p id="backend-count" class="text-xs mb-2"></p>
+ {% call ui.filter_bar() %}<label class="ui-field">{{ ui.icon('search') }}<input type="search" id="backend-filter" class="ui-input" placeholder="Search backends (a regex works)" aria-label="Search backends" autocomplete="off"></label>{% call ui.end() %}<span class="ui-status" id="backend-count" aria-live="polite"></span>{{ ui.xrow_all('#backend-container') }}{% endcall %}{% endcall %}
 
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm">
- <thead class="border-b">
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left w-8"></th>
- <th class="px-4 py-2 text-left">Section</th>
- <th class="px-4 py-2 text-left">Mode</th>
- <th class="px-4 py-2 text-left">Balance</th>
- <th class="px-4 py-2 text-left">Servers</th>
- <th class="px-4 py-2 text-left">Health Checks</th>
+ <th class="ui-xrow-th" aria-label="Details"></th>
+ <th>Section</th>
+ <th>Mode</th>
+ <th>Balance</th>
+ <th>Servers</th>
+ <th>Health Checks</th>
  </tr>
  </thead>
  <tbody id="backend-container">
  <!-- Global Section -->
  {% if data.config.global and data.config.global.raw %}
- <tr class="backend-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ <tr class="backend-entry ui-xrow"
  data-index="global"
  data-name="global">
- <td class="px-4 py-2">
- <i class="fas fa-caret-right expand-icon"></i>
- </td>
- <td class="px-4 py-2 font-semibold">
+ <td class="ui-xrow-cell" data-label=""><button type="button" class="ui-xrow-btn" aria-expanded="false" aria-label="Details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></td>
+ <td>
  <i class="fas fa-globe mr-2"></i>global
  </td>
- <td class="px-4 py-2">-</td>
- <td class="px-4 py-2">-</td>
- <td class="px-4 py-2">-</td>
- <td class="px-4 py-2">-</td>
+ <td>-</td>
+ <td>-</td>
+ <td>-</td>
+ <td>-</td>
  </tr>
- <tr class="backend-details hidden" data-parent="global">
- <td colspan="6" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
- <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
- <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Global Configuration:</h4>
- <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{% for line in data.config.global.raw %}{{ line }}
+ <tr class="backend-details ui-xrow-panel" hidden data-parent="global">
+ <td colspan="7" data-label="">
+ <div class="ui-xrow-body"><div class="ui-kv-title">Global Configuration</div><pre>{% for line in data.config.global.raw %}{{ line }}
 {% endfor %}</pre>
  </div>
  </td>
@@ -235,25 +218,21 @@
 
  <!-- Defaults Section -->
  {% if data.config.defaults and data.config.defaults.raw %}
- <tr class="backend-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ <tr class="backend-entry ui-xrow"
  data-index="defaults"
  data-name="defaults">
- <td class="px-4 py-2">
- <i class="fas fa-caret-right expand-icon"></i>
- </td>
- <td class="px-4 py-2 font-semibold">
+ <td class="ui-xrow-cell" data-label=""><button type="button" class="ui-xrow-btn" aria-expanded="false" aria-label="Details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></td>
+ <td>
  <i class="fas fa-sliders-h mr-2"></i>defaults
  </td>
- <td class="px-4 py-2">-</td>
- <td class="px-4 py-2">-</td>
- <td class="px-4 py-2">-</td>
- <td class="px-4 py-2">-</td>
+ <td>-</td>
+ <td>-</td>
+ <td>-</td>
+ <td>-</td>
  </tr>
- <tr class="backend-details hidden" data-parent="defaults">
- <td colspan="6" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
- <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
- <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Defaults Configuration:</h4>
- <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{% for line in data.config.defaults.raw %}{{ line }}
+ <tr class="backend-details ui-xrow-panel" hidden data-parent="defaults">
+ <td colspan="7" data-label="">
+ <div class="ui-xrow-body"><div class="ui-kv-title">Defaults Configuration</div><pre>{% for line in data.config.defaults.raw %}{{ line }}
 {% endfor %}</pre>
  </div>
  </td>
@@ -261,33 +240,29 @@
  {% endif %}
 
  {% for backend_name, backend in data.config.backends.items() %}
- <tr class="backend-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ <tr class="backend-entry ui-xrow"
  data-index="{{ loop.index0 }}"
  data-name="{{ backend_name | lower }}">
- <td class="px-4 py-2">
- <i class="fas fa-caret-right expand-icon"></i>
- </td>
- <td class="px-4 py-2 font-semibold">{{ backend_name }}</td>
- <td class="px-4 py-2">
+ <td class="ui-xrow-cell" data-label=""><button type="button" class="ui-xrow-btn" aria-expanded="false" aria-label="Details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></td>
+ <td>{{ backend_name }}</td>
+ <td>
  <span class="px-2 py-1 rounded-sm text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
  {{ backend.mode or 'N/A' }}
  </span>
  </td>
- <td class="px-4 py-2">{{ backend.balance or 'N/A' }}</td>
- <td class="px-4 py-2">{{ backend.servers|length }}</td>
- <td class="px-4 py-2">
+ <td>{{ backend.balance or 'N/A' }}</td>
+ <td>{{ backend.servers|length }}</td>
+ <td>
  {% set checked = backend.servers|selectattr('check')|list|length %}
  <span class="{% if checked == backend.servers|length %}text-green-600 dark:text-green-400{% elif checked > 0 %}text-yellow-600 dark:text-yellow-400{% else %}text-red-600 dark:text-red-400{% endif %}">
  {{ checked }}/{{ backend.servers|length }}
  </span>
  </td>
  </tr>
- <tr class="backend-details hidden" data-parent="{{ loop.index0 }}">
- <td colspan="6" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+ <tr class="backend-details ui-xrow-panel" hidden data-parent="{{ loop.index0 }}">
+ <td colspan="7" data-label="">
  {% if backend.raw %}
- <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
- <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">{{ backend_name }} Configuration:</h4>
- <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{% for line in backend.raw %}{{ line }}
+ <div class="ui-xrow-body"><div class="ui-kv-title">{{ backend_name }} Configuration</div><pre>{% for line in backend.raw %}{{ line }}
 {% endfor %}</pre>
  </div>
  {% endif %}
@@ -305,43 +280,6 @@
  const filterInput = document.getElementById('backend-filter');
  const container = document.getElementById('backend-container');
  const countDisplay = document.getElementById('backend-count');
-
- // Handle row click to expand/collapse details using event delegation
- container.addEventListener('click', function(e) {
- // Find the closest backend-entry row
- const row = e.target.closest('.backend-entry');
- if (!row) return;
-
- const index = row.dataset.index;
- // Find the next sibling that's a details row
- let detailsRow = row.nextElementSibling;
-
- // Make sure we found the right details row
- if (detailsRow && detailsRow.classList.contains('backend-details')) {
- const icon = row.querySelector('.expand-icon');
- const isHidden = detailsRow.classList.contains('hidden');
-
- detailsRow.classList.toggle('hidden');
-
- // When expanding, also remove the hidden attribute (from filtering)
- // When collapsing, add it back if the parent entry is visible
- if (isHidden) {
- // Expanding - remove hidden attribute so it shows
- detailsRow.removeAttribute('hidden');
- } else {
- // Collapsing - only add hidden attribute if parent is visible
- if (!row.hasAttribute('hidden')) {
- // Parent is visible, so we can just rely on the class
- // No need to set attribute
- }
- }
-
- if (icon) {
- icon.classList.toggle('fa-caret-right', !isHidden);
- icon.classList.toggle('fa-caret-down', isHidden);
- }
- }
- });
 
  function updateCount() {
  const entries = container.querySelectorAll('.backend-entry');
@@ -372,19 +310,8 @@
  : entryText.toLowerCase().includes(query.toLowerCase()) || detailsText.toLowerCase().includes(query.toLowerCase())
  );
 
- if (matchesText) {
- entry.removeAttribute('hidden');
- // Only remove hidden attribute if details row is expanded (doesn't have hidden class)
- // This preserves the collapsed/expanded state during filtering
- if (detailsRow && detailsRow.classList.contains('backend-details') && !detailsRow.classList.contains('hidden')) {
- detailsRow.removeAttribute('hidden');
- }
- } else {
- entry.setAttribute('hidden', '');
- if (detailsRow && detailsRow.classList.contains('backend-details')) {
- detailsRow.setAttribute('hidden', '');
- }
- }
+ entry.hidden = !matchesText;
+ if (detailsRow && detailsRow.classList.contains('backend-details')) detailsRow.hidden = !matchesText || !entry.classList.contains('ui-open');
  });
 
  updateCount();
@@ -445,11 +372,9 @@
  return;
  }
 
- // Show loading spinner
- if (spinner) {
- spinner.style.display = 'inline-block';
- spinner.style.visibility = 'visible';
- }
+ // the shared busy state: the select's wrapper shows the spinner, the charts dim under the bar, the pill after 300 ms
+ if (spinner) { spinner.style.display = 'none'; }
+ const busy = window.diagBusy ? window.diagBusy.start(select.closest('.ui-select-wrap') || select.parentElement, { label: 'Loading…', table: document.getElementById('responseCodesChartWrapper') ? document.getElementById('responseCodesChartWrapper').closest('.panel') : null }) : null;
 
  // Fetch from server - get correct backend URL
  // Proxied through the trusted parent window: this sandboxed iframe has no
@@ -464,9 +389,7 @@
  .then(result => {
  if (result.error) {
  console.error('Error parsing log:', result.error);
- if (spinner) {
- spinner.style.display = 'none';
- }
+ if (busy) busy.fail('Loading failed: ' + result.error, () => updateLogFile());
  return;
  }
 
@@ -478,18 +401,11 @@
  updateResponseCodesChart(logData.time_series);
  updateIssuesChart(logData.time_series);
  renderServersDownTable(logData.issues);
-
- // Hide loading spinner
- if (spinner) {
- spinner.style.display = 'none';
- }
+ if (busy) busy.done('Log loaded');
  })
  .catch(error => {
  console.error('Error fetching log data:', error);
- // Hide loading spinner on error
- if (spinner) {
- spinner.style.display = 'none';
- }
+ if (busy) busy.fail('Loading failed: ' + (error && error.message || error), () => updateLogFile());
  });
  }
 
@@ -513,13 +429,6 @@
  if (!timeSeriesData) {
  console.log('No timeSeriesData available for response codes chart');
  wrapper.innerHTML = `
- <div class="flex flex-col items-center justify-center py-12 text-center">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0 mb-3" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
- </svg>
- <div class="text-sm font-medium mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No HTTP response codes or termination states found in logs</div>
- </div>
  `;
  return;
  }
@@ -534,13 +443,6 @@
  if (!hasHttpCodes && !hasTermStates) {
  console.log('No data to display in response codes chart');
  wrapper.innerHTML = `
- <div class="flex flex-col items-center justify-center py-12 text-center">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0 mb-3" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
- </svg>
- <div class="text-sm font-medium mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No HTTP response codes or termination states found in logs</div>
- </div>
  `;
  return;
  }
@@ -562,14 +464,10 @@
  };
 
  timeSeriesData.http_status_codes.forEach((code) => {
- const color = statusCodeColors[code] || `rgba(${Math.random()*255}, ${Math.random()*255}, ${Math.random()*255}, 0.8)`;
  datasets.push({
  label: `HTTP ${code}`,
  data: timeSeriesData.data[`http_${code}`] || [],
- borderColor: color,
- backgroundColor: color.replace('1)', '0.1)').replace('0.8)', '0.1)').replace('0.7)', '0.1)').replace('0.6)', '0.1)'),
- borderWidth: 2,
- tension: 0.1,
+ role: code[0] === '2' ? 'good' : code[0] === '3' ? 'info' : code[0] === '4' ? 'warn' : code[0] === '5' ? 'error' : undefined,
  fill: true
  });
  });
@@ -597,10 +495,6 @@
  datasets.push({
  label: info.label,
  data: timeSeriesData.data[`term_${state}`] || [],
- borderColor: info.color,
- backgroundColor: info.color.replace('1)', '0.1)'),
- borderWidth: 2,
- tension: 0.1,
  fill: true
  });
  });
@@ -610,7 +504,7 @@
  const canvas = document.getElementById('haproxyResponseCodesChart');
  if (!canvas) return;
 
- responseCodesChart = new Chart(canvas.getContext('2d'), {
+ responseCodesChart = window.diagChart.make(canvas.getContext('2d'), {
  type: 'line',
  data: {
  labels: timeSeriesData.labels || [],
@@ -689,13 +583,6 @@
 
  if (!timeSeriesData || !timeSeriesData.system_issues || timeSeriesData.system_issues.length === 0) {
  wrapper.innerHTML = `
- <div class="flex flex-col items-center justify-center py-12 text-center">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0 mb-3" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
- </svg>
- <div class="text-sm font-medium mb-1">No System Issues</div>
- <div class="text-xs text-gray-500">No backend/server down events, errors, or timeouts found</div>
- </div>
  `;
  return;
  }
@@ -722,14 +609,10 @@
  };
 
  const datasets = timeSeriesData.system_issues.map((issueType) => {
- const color = issueColors[issueType] || 'rgba(128, 128, 128, 1)';
  return {
  label: issueLabels[issueType] || issueType,
  data: timeSeriesData.data[issueType] || [],
- borderColor: color,
- backgroundColor: color.replace('1)', '0.1)'),
- borderWidth: 2,
- tension: 0.1,
+ role: ({ backend_down: 'error', server_down: 'warn', errors: 'warn', timeouts: 'info', connection_errors: 'other' })[issueType],
  fill: true
  };
  });
@@ -738,7 +621,7 @@
  const canvas = document.getElementById('haproxyIssuesChart');
  if (!canvas) return;
 
- issuesChart = new Chart(canvas.getContext('2d'), {
+ issuesChart = window.diagChart.make(canvas.getContext('2d'), {
  type: 'line',
  data: {
  labels: timeSeriesData.labels,
@@ -802,13 +685,6 @@
 
  if (!issues.server_down || issues.server_down.length === 0) {
  container.innerHTML = `
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0 mb-3" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
- </svg>
- <div class="text-sm font-medium mb-1">No Servers Down</div>
- <div class="text-xs text-gray-500">All servers are operational</div>
- </div>
  `;
  return;
  }
@@ -847,13 +723,13 @@
 
  let tableHtml = `
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm">
- <thead class="border-b">
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left w-8"></th>
- <th class="px-4 py-2 text-left">Backend</th>
- <th class="px-4 py-2 text-left">Server</th>
- <th class="px-4 py-2 text-left">Times Down</th>
+ <th class="ui-xrow-th" aria-label="Details"></th>
+ <th>Backend</th>
+ <th>Server</th>
+ <th>Times Down</th>
  </tr>
  </thead>
  <tbody id="servers-down-tbody">
@@ -871,23 +747,21 @@
  `).join('');
 
  tableHtml += `
- <tr class="server-down-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ <tr class="server-down-entry cursor-pointer"
  data-index="${index}">
- <td class="px-4 py-2">
- <i class="fas fa-caret-right expand-icon"></i>
- </td>
- <td class="px-4 py-2 font-semibold">${server.backend}</td>
- <td class="px-4 py-2">${server.server}</td>
- <td class="px-4 py-2">
+ <td class="ui-xrow-cell" data-label=""><button type="button" class="ui-xrow-btn" aria-expanded="false" aria-label="Details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></td>
+ <td>${server.backend}</td>
+ <td>${server.server}</td>
+ <td>
  <span class="px-2 py-1 rounded-sm text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
  ${server.count}
  </span>
  </td>
  </tr>
- <tr class="server-down-details hidden" data-parent="${index}">
- <td colspan="4" class="px-4 py-4 bg-os-card-secondary">
- <div class="ml-8">
- <h5 class="font-semibold mb-2 text-xs text-os-text-primary">Daily Breakdown:</h5>
+ <tr class="server-down-details ui-xrow-panel" hidden data-parent="${index}">
+ <td colspan="5" data-label="">
+ <div class="ui-xrow-body">
+ <div class="ui-kv-title">Daily breakdown</div>
  <div class="space-y-1 max-h-48 overflow-y-auto">
  ${dailyBreakdownRows}
  </div>
@@ -905,27 +779,7 @@
 
  container.innerHTML = tableHtml;
 
- // Add event listener for expand/collapse
- const tbody = document.getElementById('servers-down-tbody');
- if (tbody) {
- tbody.addEventListener('click', function(e) {
- const row = e.target.closest('.server-down-entry');
- if (!row) return;
-
- const index = row.dataset.index;
- let detailsRow = row.nextElementSibling;
-
- if (detailsRow && detailsRow.classList.contains('server-down-details')) {
- const icon = row.querySelector('.expand-icon');
- const isHidden = detailsRow.classList.contains('hidden');
-
- detailsRow.classList.toggle('hidden');
-
- if (icon) {
- icon.classList.toggle('fa-caret-right', !isHidden);
- icon.classList.toggle('fa-caret-down', isHidden);
- }
- }
+ // the rows open through the shared expandable-row component (diagTables)
  });
  }
  }

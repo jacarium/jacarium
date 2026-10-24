@@ -30,6 +30,7 @@ const os = require('os');
 const path = require('path');
 const tls = require('tls');
 const { updateCertificatePin } = require('./central-cert-pins.cjs');
+const { distrustReason, chainFromNodeCertificate } = require('./cert-distrust.cjs');
 const { chainFromSocket, parseCertificates, fingerprintOf, decideTrust, verifyChain, pinRoot, pinEntry } = require('./tls-trust.cjs');
 
 const CSRF_HEADER = { 'X-Requested-With': 'Jacarium' };
@@ -135,6 +136,9 @@ function trustedAgent(url, { pinsPath, onPinMismatch }) {
     socket.once('error', (e) => done(e));
     socket.once('secureConnect', async () => {
       try {
+        // the distrust list first (electron/cert-distrust.cjs): a chain through a compromised CA is refused whatever the pin says
+        const refused = distrustReason(chainFromNodeCertificate(socket.getPeerCertificate(true)));
+        if (refused) return done(new Error(`The certificate of ${url.host} is refused: ${refused}`));
         const chain = chainFromSocket(socket);
         let decision = decideTrust({ pinsPath, host: url.host, hostname: url.hostname, chainPems: chain, authorized: socket.authorized });
         if (decision.decision === 'unpinned' || decision.decision === 'upgrade-candidate') {

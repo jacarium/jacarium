@@ -1,3 +1,5 @@
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 <div id="mcpPanel" class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm w-full">
  <h3 class="text-lg font-medium mb-2">
@@ -9,13 +11,6 @@
  <canvas id="mcpHealthChart"></canvas>
  </div>
  {% else %}
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No MachineConfigPools Found</div>
- <div class="text-xs text-gray-500">No MCPs in must-gather</div>
- </div>
  {% endif %}
  </div>
  </div>
@@ -24,55 +19,43 @@
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-server mr-2"></i> MachineConfigPools
  </h3>
- <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
- <div>
- <label for="mcpStatusFilter" class="block text-xs font-semibold mb-1">Status</label>
- <select id="mcpStatusFilter" class="w-full px-3 py-2 text-sm border">
+ {% call ui.filter_bar() %}
+    <label class="ui-field">{{ ui.icon('search') }}<input autocomplete="off" data-ui-search aria-label="Search MCPs" id="mcpSearchInput" type="search" placeholder="Search MCPs..." class="ui-input"></label>
+    <label class="ui-rows">Status<span class="ui-select-wrap"><select aria-label="Status" id="mcpStatusFilter" class="ui-select">
  <option value="">All</option>
  <option value="degraded">Degraded</option>
  <option value="updating">Updating</option>
  <option value="paused">Paused</option>
- </select>
- </div>
- <div class="md:col-span-7">
- <label for="mcpSearchInput" class="block text-xs font-semibold mb-1">Search All</label>
- <input id="mcpSearchInput" type="text" placeholder="Search MCPs..." class="w-full px-3 py-2 text-sm border"/>
- </div>
- </div>
- <div class="flex justify-between items-center mb-2">
- <div id="filteredMcpCount" class="text-sm">Showing all MCPs</div>
- <div class="flex items-center gap-2">
- <label class="text-xs font-semibold">Per Page:</label>
- <select id="mcpPageSizeSelect" onchange="window.changeMcpPageSize()" class="px-3 py-1 text-sm border">
+ </select>{{ ui.icon('chevron') }}</span></label>
+    {% call ui.end() %}<span class="ui-status" id="filteredMcpCount" aria-live="polite">Showing all MCPs</span><label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select aria-label="Rows per page" id="mcpPageSizeSelect" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { window.changeMcpPageSize(); }) : window.changeMcpPageSize()" class="ui-select">
  <option value="50" selected>50</option>
  <option value="100">100</option>
  <option value="250">250</option>
  <option value="-1">All</option>
- </select>
- </div>
- </div>
- <table class="w-full min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
+ </select>{{ ui.icon('chevron') }}</span></label>{% endcall %}
+  {% endcall %}
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortMcpsBy('name')">NAME <i id="mcp-indicator-name" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortMcpsBy('config')">CONFIG <i id="mcp-indicator-config" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortMcpsBy('paused')">PAUSED <i id="mcp-indicator-paused" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortMcpsBy('updated')">UPDATED <i id="mcp-indicator-updated" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortMcpsBy('updating')">UPDATING <i id="mcp-indicator-updating" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortMcpsBy('degraded')">DEGRADED <i id="mcp-indicator-degraded" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortMcpsBy('machines')">MACHINES <i id="mcp-indicator-machines" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortMcpsBy('name')">NAME <i id="mcp-indicator-name" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortMcpsBy('config')">CONFIG <i id="mcp-indicator-config" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortMcpsBy('paused')">PAUSED <i id="mcp-indicator-paused" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortMcpsBy('updated')">UPDATED <i id="mcp-indicator-updated" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortMcpsBy('updating')">UPDATING <i id="mcp-indicator-updating" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-sorted="descending" onclick="window.sortMcpsBy('degraded')">DEGRADED <i id="mcp-indicator-degraded" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortMcpsBy('machines')">MACHINES <i id="mcp-indicator-machines" class="ml-1 fas text-sm"></i></th>
  </tr>
  </thead>
  <tbody id="mcpTableBody"></tbody>
  </table>
- <div id="mcpPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ <nav id="mcpPaginationControls" class="ui-pager" aria-label="Pages" hidden></nav>
  </div>
 </div>
 
 <div id="mcpDetailsPanel" style="display: none;">
  <div class="space-y-4">
  <div class="mb-4">
- <button onclick="window.backFromMcpModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ <button onclick="window.backFromMcpModal()" class="btn btn-secondary flex items-center gap-2">
  Back
  </button>
  </div>
@@ -82,7 +65,7 @@
  <i class="fas fa-info-circle mr-2"></i> MCP Details
  </h3>
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm" id="mcpDetailsTable"></table>
+ <table class="ui-table" id="mcpDetailsTable"></table>
  </div>
  </div>
 
@@ -105,7 +88,7 @@
  <i class="fas fa-file mr-2"></i> MCP YAML
  </h2>
  <div class="mb-2">
- <input id="mcpYamlFilter" type="text" placeholder="Filter YAML lines..." class="w-full px-3 py-2 text-sm border"/>
+ <input id="mcpYamlFilter" type="text" placeholder="Filter YAML lines..." class="ui-input w-full"/>
  </div>
  <div id="mcpJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
  </div>
@@ -204,13 +187,13 @@
  var pausedText = mcp.paused ? 'True' : 'False';
 
  row.innerHTML =
- '<td class="px-4 py-2">' + mcp.name + '</td>' +
- '<td class="px-4 py-2 text-xs font-mono">' + mcp.config_name + '</td>' +
- '<td class="px-4 py-2">' + pausedText + '</td>' +
- '<td class="px-4 py-2">' + mcp.updated + '</td>' +
- '<td class="px-4 py-2">' + mcp.updating + '</td>' +
- '<td class="px-4 py-2">' + mcp.degraded + '</td>' +
- '<td class="px-4 py-2">' + machinesText + '</td>';
+ '<td>' + mcp.name + '</td>' +
+ '<td class="ui-mono">' + mcp.config_name + '</td>' +
+ '<td>' + pausedText + '</td>' +
+ '<td>' + mcp.updated + '</td>' +
+ '<td>' + mcp.updating + '</td>' +
+ '<td>' + mcp.degraded + '</td>' +
+ '<td>' + machinesText + '</td>';
 
  row.onclick = function() { showMcpDetails(mcp); };
  return row;
@@ -223,34 +206,34 @@
 
  var detailsTable = document.getElementById("mcpDetailsTable");
  detailsTable.innerHTML =
- '<tr><td class="font-semibold pr-4 py-1">Name:</td><td>' + mcp.name + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Config:</td><td class="font-mono text-xs">' + mcp.config_name + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Paused:</td><td>' + (mcp.paused ? 'True' : 'False') + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Updated:</td><td>' + mcp.updated + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Updating:</td><td>' + mcp.updating + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Degraded:</td><td>' + mcp.degraded + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Machine Count:</td><td>' + mcp.machine_count + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Ready Machine Count:</td><td>' + mcp.ready_machine_count + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Updated Machine Count:</td><td>' + mcp.updated_machine_count + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Degraded Machine Count:</td><td>' + mcp.degraded_machine_count + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Unavailable Machine Count:</td><td>' + mcp.unavailable_machine_count + '</td></tr>';
+ '<tr><td>Name:</td><td>' + mcp.name + '</td></tr>' +
+ '<tr><td>Config:</td><td class="ui-mono">' + mcp.config_name + '</td></tr>' +
+ '<tr><td>Paused:</td><td>' + (mcp.paused ? 'True' : 'False') + '</td></tr>' +
+ '<tr><td>Updated:</td><td>' + mcp.updated + '</td></tr>' +
+ '<tr><td>Updating:</td><td>' + mcp.updating + '</td></tr>' +
+ '<tr><td>Degraded:</td><td>' + mcp.degraded + '</td></tr>' +
+ '<tr><td>Machine Count:</td><td>' + mcp.machine_count + '</td></tr>' +
+ '<tr><td>Ready Machine Count:</td><td>' + mcp.ready_machine_count + '</td></tr>' +
+ '<tr><td>Updated Machine Count:</td><td>' + mcp.updated_machine_count + '</td></tr>' +
+ '<tr><td>Degraded Machine Count:</td><td>' + mcp.degraded_machine_count + '</td></tr>' +
+ '<tr><td>Unavailable Machine Count:</td><td>' + mcp.unavailable_machine_count + '</td></tr>';
 
  // Conditions
  var conditionsDiv = document.getElementById("mcpConditionsTable");
  if (mcp.conditions && mcp.conditions.length > 0) {
- var conditionsHtml = '<table class="min-w-full"><thead class="border-b"><tr>' +
- '<th class="px-4 py-2 text-left">Type</th>' +
- '<th class="px-4 py-2 text-left">Status</th>' +
- '<th class="px-4 py-2 text-left">Reason</th>' +
- '<th class="px-4 py-2 text-left">Message</th>' +
+ var conditionsHtml = '<table class="ui-table"><thead><tr>' +
+ '<th>Type</th>' +
+ '<th>Status</th>' +
+ '<th>Reason</th>' +
+ '<th>Message</th>' +
  '</tr></thead><tbody>';
 
  mcp.conditions.forEach(function(condition) {
- conditionsHtml += '<tr class="border-b">' +
- '<td class="px-4 py-2">' + (condition.type || '-') + '</td>' +
- '<td class="px-4 py-2">' + (condition.status || '-') + '</td>' +
- '<td class="px-4 py-2">' + (condition.reason || '-') + '</td>' +
- '<td class="px-4 py-2 text-xs">' + (condition.message || '-') + '</td>' +
+ conditionsHtml += '<tr>' +
+ '<td>' + (condition.type || '-') + '</td>' +
+ '<td>' + (condition.status || '-') + '</td>' +
+ '<td>' + (condition.reason || '-') + '</td>' +
+ '<td>' + (condition.message || '-') + '</td>' +
  '</tr>';
  });
  conditionsHtml += '</tbody></table>';
@@ -326,32 +309,8 @@
  }
 
  function renderMcpPaginationControls(totalMcps) {
- var controls = document.getElementById("mcpPaginationControls");
- if (mcpPageSize === -1) {
- controls.innerHTML = "";
- return;
- }
-
- var totalPages = Math.ceil(totalMcps / mcpPageSize);
- var html = "";
-
- if (mcpCurrentPage > 1) {
- html += '<button onclick="window.changeMcpPage(' + (mcpCurrentPage - 1) + ')" class="px-3 py-1 border rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700">Previous</button>';
- }
-
- var startPage = Math.max(1, mcpCurrentPage - 2);
- var endPage = Math.min(totalPages, mcpCurrentPage + 2);
-
- for (var i = startPage; i <= endPage; i++) {
- var activeClass = i === mcpCurrentPage ? "bg-blue-500 text-white current-page" : "border hover:bg-gray-100 dark:hover:bg-gray-700";
- html += '<button onclick="window.changeMcpPage(' + i + ')" class="px-3 py-1 rounded-sm ' + activeClass + '">' + i + '</button>';
- }
-
- if (mcpCurrentPage < totalPages) {
- html += '<button onclick="window.changeMcpPage(' + (mcpCurrentPage + 1) + ')" class="px-3 py-1 border rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700">Next</button>';
- }
-
- controls.innerHTML = html;
+   // the shared pager (diagPager): one page -> nothing drawn
+   window.diagPager.render(document.getElementById('mcpPaginationControls'), { total: totalMcps, page: mcpCurrentPage, pageSize: mcpPageSize, go: function (p) { changeMcpPage(p); } });
  }
 
  window.changeMcpPage = function(page) {
@@ -380,6 +339,7 @@
  ["name", "config", "paused", "updated", "updating", "degraded", "machines"].forEach(function(key) {
  var indicator = document.getElementById("mcp-indicator-" + key);
  if (currentSort.key === key) {
+  window.diagTables.markSort(indicator, currentSort.direction > 0);
  indicator.className = "ml-1 fas " + (currentSort.direction === 1 ? "fa-sort-up" : "fa-sort-down");
  } else {
  indicator.className = "ml-1 fas";
@@ -427,10 +387,10 @@
  var colors = [];
 
  var statusMap = [
- { label: 'Degraded', count: degradedCount, color: 'rgb(239, 68, 68)' },
- { label: 'Updating', count: updatingCount, color: 'rgb(245, 158, 11)' },
- { label: 'Paused', count: pausedCount, color: 'rgb(156, 163, 175)' },
- { label: 'Healthy', count: healthyCount, color: 'rgb(34, 197, 94)' }
+ { label: 'Degraded', count: degradedCount, color: 'error' },
+ { label: 'Updating', count: updatingCount, color: 'warn' },
+ { label: 'Paused', count: pausedCount, color: 'other' },
+ { label: 'Healthy', count: healthyCount, color: 'good' }
  ];
 
  statusMap.forEach(function(status) {
@@ -444,14 +404,14 @@
  if (labels.length === 0) return;
 
  var ctx = document.getElementById('mcpHealthChart');
- new Chart(ctx, {
+ window.diagChart.make(ctx, {
  type: 'bar',
  data: {
  labels: labels,
  datasets: [{
  label: 'MCPs',
  data: data,
- backgroundColor: colors
+ roles: colors
  }]
  },
  options: {

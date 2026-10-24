@@ -131,7 +131,7 @@ export default function EnvVariablesModal({ isOpen, onClose }) {
                   </div>
                   <button
                     onClick={() => handleRemoveVariable(key)}
-                    className="p-1.5 hover:bg-red-50 dark:bg-red-900/20 dark:hover:bg-red-900/20 rounded-sm transition-colors"
+                    className="btn btn-danger-ghost p-1.5"
                     title="Remove variable"
                   >
                     <Trash2 size={16} className="text-red-600" />
@@ -169,7 +169,7 @@ export default function EnvVariablesModal({ isOpen, onClose }) {
                 <button
                   onClick={handleAddVariable}
                   disabled={!newKey.trim()}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  className="btn btn-brand px-4 py-2 flex items-center gap-2"
                 >
                   Add
                 </button>

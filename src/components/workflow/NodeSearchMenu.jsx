@@ -137,7 +137,7 @@ export default function NodeSearchMenu({ position, categories, onSelect, onClose
                           data-index={index}
                           onClick={() => onSelect(node.type)}
                           className={`w-full px-4 py-2 flex items-center gap-3 transition-colors text-left scroll-m-2 ${
- isSelected ?'bg-os-blue text-white':'hover:bg-os-card-secondary'
+ isSelected ?'btn-selected':'hover:bg-os-card-secondary'
  }`}
                         >
                           <div className={`p-1.5 rounded-sm ${isSelected ?'bg-white/20':`bg-${node.color}-50`}`}>

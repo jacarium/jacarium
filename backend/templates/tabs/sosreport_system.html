@@ -1,4 +1,6 @@
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
+<div class="ui-grid-charts ui-grid-2">
  <div class="flex flex-col gap-4">
  <div class="panel rounded-lg shadow-sm">
  <h3 class="text-lg font-medium mb-2">
@@ -73,11 +75,11 @@
  <li><strong>Total:</strong> {{ data.free_memory.total }} GB</li>
  <li><strong>Used:</strong> {{ data.free_memory.used }} GB</li>
  <li><strong>Free:</strong> {{ data.free_memory.free }} GB</li>
- <li><strong>Available:</strong> {{ data.free_memory.available }} GB</li>
+ <li><strong>Available:</strong> {{ data.free_memory.available }} GB{% if data.free_memory.available_estimated %} <span class="ui-muted">(estimated: free + buffers + cache)</span>{% endif %}</li>
  </ul>
- <div class="mt-2">
+ {% if data.free_memory and data.free_memory.total %}<div class="mt-2" data-chart-card>
  <canvas id="memoryChart"></canvas>
- </div>
+ </div>{% endif %}
  </div>
 
  <div class="panel rounded-lg shadow-sm">
@@ -88,15 +90,15 @@
  <li><strong>Now:</strong> {{ data.uptime.current_time or"N/A" }}</li>
  <li><strong>Uptime:</strong> {{ data.uptime.uptime or"N/A" }}</li>
  <li><strong>Users:</strong> {{ data.uptime.users or"N/A" }}</li>
- <li><strong>Load Avg:</strong>
+ {% if data.uptime and data.uptime.load_average %}<li><strong>Load Avg:</strong>
  1m: {{ data.uptime.load_average["1min"] }},
  5m: {{ data.uptime.load_average["5min"] }},
  15m: {{ data.uptime.load_average["15min"] }}
- </li>
+ </li>{% endif %}
  </ul>
- <div class="mt-2">
+ {% if data.uptime and data.uptime.load_average %}<div class="mt-2" data-chart-card>
  <canvas id="loadChart"></canvas>
- </div>
+ </div>{% endif %}
  </div>
  </div>
 </div>
@@ -104,23 +106,24 @@
  (function () {
  const memoryCanvas = document.getElementById('memoryChart');
  const loadCanvas = document.getElementById('loadChart');
- if (!memoryCanvas || !loadCanvas) return;
+ if (!memoryCanvas && !loadCanvas) return;
 
  let memoryChart = null;
  let loadChart = null;
 
  function createMemoryChart() {
+ if (!memoryCanvas) return;
  if (memoryChart) {
  memoryChart.destroy();
  }
 
- memoryChart = new Chart(memoryCanvas, {
+ memoryChart = window.diagChart.make(memoryCanvas, {
  type: 'doughnut',
  data: {
  labels: ['Used', 'Free', 'Available'],
  datasets: [{
  data: [{{ data.free_memory.used }}, {{ data.free_memory.free }}, {{ data.free_memory.available }}],
- backgroundColor: ['#FFD700', '#006400', '#90EE90'],
+ roles: ['warn', 'other', 'good'],
  }]
  },
  options: {
@@ -156,18 +159,19 @@
  }
 
  function createLoadChart() {
+ if (!loadCanvas) return;
  if (loadChart) {
  loadChart.destroy();
  }
 
- loadChart = new Chart(loadCanvas, {
+ loadChart = window.diagChart.make(loadCanvas, {
  type: 'bar',
  data: {
  labels: ['1 min', '5 min', '15 min'],
  datasets: [{
  label: 'Load Average',
- data: [{{ data.uptime.load_average["1min"] }}, {{ data.uptime.load_average["5min"] }}, {{ data.uptime.load_average["15min"] }}],
- backgroundColor: '#FFD700'
+ data: {{ ([data.uptime.load_average["1min"], data.uptime.load_average["5min"], data.uptime.load_average["15min"]] if data.uptime and data.uptime.load_average else []) | tojson }},
+ role: 'ok'
  }]
  },
  options: {

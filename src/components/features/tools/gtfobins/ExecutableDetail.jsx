@@ -54,7 +54,7 @@ export default function ExecutableDetail({ executable, functions, contexts, onBa
             </button>
             <button
               onClick={() => onDelete(executable)}
-              className="px-3 py-1.5 flex items-center gap-2 border border-os-border rounded-sm hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 text-sm transition-colors"
+              className="btn btn-danger px-3 py-1.5 flex items-center gap-2 text-sm"
             >
               Delete
             </button>

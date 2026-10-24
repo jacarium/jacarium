@@ -177,7 +177,7 @@ export default function DocumentTemplateModal({ isOpen, onClose, onSave, templat
                 </select>
                 <button
                   onClick={() => setShowNewCategory(true)}
-                  className="flex items-center gap-2 px-3 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors"
+                  className="btn btn-primary flex items-center gap-2 px-3 py-2 text-sm"
                   title="Create new category"
                 >
                   New
@@ -251,7 +251,7 @@ export default function DocumentTemplateModal({ isOpen, onClose, onSave, templat
             <button
               onClick={handleSave}
               disabled={saving || !name.trim() || (!category && !newCategory.trim()) || !content.trim()}
-              className="flex items-center gap-2 px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
+              className="btn btn-primary flex items-center gap-2 px-4 py-2 text-sm"
             >
               {saving ? 'Saving...' : template ? 'Save Changes' : 'Save Template'}
             </button>

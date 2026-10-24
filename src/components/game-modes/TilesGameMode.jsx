@@ -522,7 +522,7 @@ export default function TilesGameMode({ onBack, currentMachineId, isCentralServe
                   }}
                   className={`px-2 py-2 text-left text-xs border rounded transition-all flex items-center gap-2 ${
                     isSelected
-                      ? 'bg-purple-50 border-2 border-purple-500 dark:bg-purple-950'
+                      ? 'btn-brand-soft border-2'
                       : 'bg-os-card border-os-border hover:bg-os-card-secondary hover:border-os-border'
                   }`}
                 >
@@ -542,7 +542,7 @@ export default function TilesGameMode({ onBack, currentMachineId, isCentralServe
         {/* Start Button */}
         <button
           onClick={createGame}
-          className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-sm text-sm font-medium transition-colors flex items-center justify-center gap-2"
+          className="btn btn-brand w-full px-3 py-2 text-sm flex items-center justify-center gap-2"
         >
           <Play size={16} />
           {isSinglePlayer ? 'Start Tiles' : 'Create Lobby'}

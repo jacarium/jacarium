@@ -280,7 +280,7 @@ export default function DatasetSelectionModal({ isOpen, onClose, selectedDocumen
             <button
               onClick={handleSave}
               disabled={isIndexing}
-              className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-sm hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              className="btn btn-primary px-3 py-1.5 text-xs flex items-center gap-2"
             >
               
               Add ({selectedDocs.size})

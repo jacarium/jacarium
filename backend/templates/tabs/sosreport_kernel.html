@@ -1,3 +1,22 @@
-<div class="grid grid-cols-1 gap-4">
-
+{#
+  Kernel: the group page (parsers/sosreport/kernel.py): the Findings over
+  the three kernel tabs and one card per tab with its count and the last
+  incident; a card opens its tab (diagLinks: data-tab / data-sub-tab).
+  Every value is escaped by Jinja.
+#}
+{% import "tabs/_ui.html" as ui %}
+{% set k = data.kernel or {} %}
+{{ ui.findings(findings) }}
+<div class="panel rounded-lg shadow-sm" id="kernel-overview">
+  <div class="ui-grid">
+  {% for c in k.cards %}
+    <div class="ui-card">
+      {{ ui.card_title(c.label, c.count) }}
+      <div class="ui-stat-value{% if c.count and c.key != 'traces' %} ui-bad{% elif c.count %} ui-warn{% endif %}">{{ c.count }}</div>
+      <div class="ui-muted">{% if c.count %}first {{ c.first }}, last {{ c.last }}{% else %}none in the kernel logs{% endif %}</div>
+      <div><button type="button" class="ui-link" data-tab="kernel" data-sub-tab="{{ c.sub_tab }}">Open {{ c.label | lower }}</button></div>
+    </div>
+  {% endfor %}
+  </div>
+  <div class="ui-muted" style="margin-top: 10px;">{% if k.sources %}Sources: {{ k.sources | join(', ') }}{% if k.capped %} (the scan was capped){% endif %}{% else %}No kernel log source in this report.{% endif %}</div>
 </div>

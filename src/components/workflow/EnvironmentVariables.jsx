@@ -193,7 +193,7 @@ export default function EnvironmentVariables({ onClose }) {
                     <button
                       onClick={handleAddVariable}
                       disabled={!newKey.trim()}
-                      className="flex items-center gap-2 px-4 py-2 bg-os-blue text-white text-sm rounded-sm hover:bg-os-blue-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="btn btn-primary flex items-center gap-2 px-4 py-2 text-sm"
                     >
                       Add
                     </button>
@@ -245,7 +245,7 @@ export default function EnvironmentVariables({ onClose }) {
                             />
                             <button
                               onClick={() => handleUpdateVariable(key)}
-                              className="p-2 bg-os-blue text-white rounded-sm hover:bg-os-blue-hover transition-colors"
+                              className="btn btn-primary p-2"
                               title="Save"
                             >
                               <Save size={16} />
@@ -299,7 +299,7 @@ export default function EnvironmentVariables({ onClose }) {
                           </button>
                           <button
                             onClick={() => handleDeleteVariable(key)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-sm transition-colors"
+                            className="btn btn-danger-ghost p-1.5"
                             title="Delete variable"
                           >
                             <Trash2 size={16} />

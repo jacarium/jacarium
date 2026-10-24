@@ -243,7 +243,7 @@ export default function OpenShiftMasthead({ onToggleSidebar }) {
         <button
           onClick={onToggleSidebar}
           onContextMenu={handleHamburgerContextMenu}
-          className="p-1.5 hover:bg-gray-700 rounded-sm transition-colors text-white"
+          className="p-1.5 hover:bg-os-sidebar-hover rounded-sm transition-colors text-white"
           title="Toggle navigation"
         >
           <Menu size={18} />
@@ -288,8 +288,8 @@ export default function OpenShiftMasthead({ onToggleSidebar }) {
       <div className="ml-auto flex items-center gap-1">
         <button
           onClick={handleToggleQuiz}
-          className={`p-1.5 hover:bg-gray-700 transition-colors ${
-            isQuizOpen ? 'bg-gray-700 text-white' : 'text-gray-300 hover:text-white'
+          className={`p-1.5 hover:bg-os-sidebar-hover transition-colors ${
+            isQuizOpen ? 'bg-os-sidebar-hover text-white' : 'text-gray-300 hover:text-white'
           }`}
           title="Quiz"
         >
@@ -297,8 +297,8 @@ export default function OpenShiftMasthead({ onToggleSidebar }) {
         </button>
         <button
           onClick={handleToggleAIChat}
-          className={`p-1.5 hover:bg-gray-700 transition-colors ${
-            isAIChatOpen ? 'bg-gray-700 text-white' : 'text-gray-300 hover:text-white'
+          className={`p-1.5 hover:bg-os-sidebar-hover transition-colors ${
+            isAIChatOpen ? 'bg-os-sidebar-hover text-white' : 'text-gray-300 hover:text-white'
           }`}
           title="AI Chat"
         >
@@ -306,8 +306,8 @@ export default function OpenShiftMasthead({ onToggleSidebar }) {
         </button>
         <button
           onClick={handleToggleFloatingDraft}
-          className={`p-1.5 hover:bg-gray-700 transition-colors ${
-            isDraftOpen ? 'bg-gray-700 text-white' : 'text-gray-300 hover:text-white'
+          className={`p-1.5 hover:bg-os-sidebar-hover transition-colors ${
+            isDraftOpen ? 'bg-os-sidebar-hover text-white' : 'text-gray-300 hover:text-white'
           }`}
           title="Quick Notes"
         >
@@ -315,8 +315,8 @@ export default function OpenShiftMasthead({ onToggleSidebar }) {
         </button>
         <button
           onClick={handleToggleNotifications}
-          className={`p-1.5 hover:bg-gray-700 transition-colors relative ${
-            isNotificationSidebarOpen ? 'bg-gray-700 text-white' : 'text-gray-300 hover:text-white'
+          className={`p-1.5 hover:bg-os-sidebar-hover transition-colors relative ${
+            isNotificationSidebarOpen ? 'bg-os-sidebar-hover text-white' : 'text-gray-300 hover:text-white'
           }`}
           title="Notifications"
         >
@@ -326,13 +326,13 @@ export default function OpenShiftMasthead({ onToggleSidebar }) {
           )}
         </button>
         <button
-          className="p-1.5 hover:bg-gray-700 rounded-sm transition-colors text-gray-300"
+          className="p-1.5 hover:bg-os-sidebar-hover rounded-sm transition-colors text-gray-300"
           title="Help"
         >
           <HelpCircle size={18} />
         </button>
         <button
-          className="p-1.5 hover:bg-gray-700 rounded-sm transition-colors text-gray-300"
+          className="p-1.5 hover:bg-os-sidebar-hover rounded-sm transition-colors text-gray-300"
           title="User"
         >
           <User size={18} />

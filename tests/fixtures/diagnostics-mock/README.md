@@ -28,7 +28,7 @@ Output in `tests/fixtures/diagnostics-mock/out/`:
 | `sosreport-web-01-2026-10-13-abcdef.tar.xz` | the same tree archived like `sos report` does (140 KiB) |
 | `sosreport-ip-10-0-42-46-master-cluster-7bffs-master-2026-10-01-asqizwl/` | manifest-only sosreport: an OpenShift master-like `sos report` run (59 plugins, `ebpf` failing 383 commands, `networking` with 1,875) for Sos Report > Blame |
 | `sosreport-old-01-2026-10-01-oldfmt/` | manifest-only sosreport from an older sos (no per-plugin timings): the Blame tab's empty state |
-| `must-gather.local.1234567890/` | extracted must-gather (124 files, incl. host_service_logs/, audit_logs/ and network_logs/ for the Log Collection tab) |
+| `must-gather.local.1234567890/` | extracted must-gather (143 files, incl. host_service_logs/, network_logs/ and the API audit logs under audit_logs/ for the Audit and Log Collection tabs) |
 | `must-gather.local.1234567890.tar.gz` | the same tree archived (51 KiB) |
 | `sosreport-web-02-2026-10-13-bigjrnl[.tar.xz]` | `--large` only: same host story, ~50 000 journal lines (587 KiB archive) for Log Viewer performance |
 
@@ -129,6 +129,10 @@ Other files to browse (not parsed into a panel): `sos_commands/chrony/chronyc_tr
 `sos_commands/systemd/systemctl_list-units_--failed`, `sos_commands/kernel/dmesg`
 and `dmesg_-T` (all kernel lines), `sos_commands/kernel/modinfo_example_fastpath`,
 `installed-rpms`.
+
+## Audit logs (`audit_logs/`, `mock_audit_logs.py`)
+
+The API servers' audit logs in the real layout (`<apiserver>/<node>-audit.log.gz`, a rotated `-audit-<stamp>.log.gz` per master, `-termination.log.gz`, the `.audit_logs_listing` files, a plain `monitoring/<pod>/audit.log`) and the audit.k8s.io/v1 Event schema: 3,048 requests over two hours from three masters, service accounts, nodes and the oauth users `alice`, `bob-admin`, `svc-deployer`; planted: a **spike** of 400 denied (`403`) secret lists from `example-scanner/0.1 (burst)` in one minute, 20 **throttled** (`429`) Prometheus lists, alice denied on `openshift-config` secrets then reading `demo-app/db-credentials` three times, bob-admin **impersonating** the demo-app service account, svc-deployer denied early on an old registry secret (on master-2, outside the scan's first-100 sample: only the Events search finds it), **sensitive deletes** (a namespace, secrets, a configmap, a clusterrolebinding, a CRD) and **RBAC changes**, the **slowest** requests (8.5 s, 6.2 s, 3.2 s ...), long-running watches, deprecated endpoints calls, and 12 **malformed** lines. The cluster `APIServer` config (`cluster-scoped-resources/config.openshift.io/apiservers/cluster.yaml`) sets the audit profile **Default** with a custom rule (`system:authenticated:oauth` → WriteRequestBodies); master-2 records write bodies ("Mixed"): a deployment's image bump, JSON-patch scale 3→5 and scale/ subresource 5→2, resources and env changes, labels, a RoleBinding granted (alice, then bob-admin) and revoked with deleteOptions, a ClusterRole rule added, a ConfigMap key edit (one credential-like key masked), a Secret key rotation with run-time placeholder values (never shown), a node cordon + taint, CRD / webhook / SCC updates — the Audit > Changes page. `mock_audit_logs.generate(profile=...)` also builds the WriteRequestBodies / AllRequestBodies variants the tests use.
 
 ## What is in the must-gather (`demo` cluster, OpenShift 4.16.12)
 

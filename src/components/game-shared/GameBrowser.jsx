@@ -71,7 +71,7 @@ export default function GameBrowser({
         <div className="flex gap-2">
           <button
             onClick={onCreateSinglePlayer}
-            className="flex-1 px-4 py-2 bg-os-blue hover:bg-blue-600 text-white rounded-sm text-sm transition-colors flex items-center justify-center gap-2"
+            className="btn btn-primary flex-1 px-4 py-2 text-sm flex items-center justify-center gap-2"
           >
             Single Player
           </button>
@@ -80,7 +80,7 @@ export default function GameBrowser({
             disabled={!isCentralServerConnected}
             className={`flex-1 px-4 py-2 text-sm transition-colors flex items-center justify-center gap-2 ${
  isCentralServerConnected
- ?'bg-green-600 hover:bg-green-700 text-white'
+ ?'btn btn-success'
  :'bg-os-text-muted text-white cursor-not-allowed opacity-50'
  }`}
             title={!isCentralServerConnected ? 'Multiplayer requires connection to central server' : ''}
@@ -116,7 +116,7 @@ export default function GameBrowser({
                   </div>
                   <button
                     onClick={() => onJoinGame(game)}
-                    className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-sm text-xs transition-colors"
+                    className="btn btn-success px-3 py-1 text-xs"
                   >
                     Reconnect
                   </button>
@@ -151,7 +151,7 @@ export default function GameBrowser({
                   </div>
                   <button
                     onClick={() => onJoinGame(game)}
-                    className="px-3 py-1 bg-os-blue hover:bg-blue-600 text-white rounded-sm text-xs transition-colors"
+                    className="btn btn-primary px-3 py-1 text-xs"
                   >
                     Join
                   </button>

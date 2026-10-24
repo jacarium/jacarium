@@ -101,7 +101,7 @@ export default function CloudModal({
               </button>
               <button
                 onClick={handleConfirm}
-                className="px-4 py-2 text-sm text-white bg-purple-600 rounded-sm hover:bg-purple-700 transition-colors"
+                className="btn btn-brand px-4 py-2 text-sm"
               >
                 {confirmLabel}
               </button>
@@ -109,7 +109,7 @@ export default function CloudModal({
           ) : (
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm text-white bg-purple-600 rounded-sm hover:bg-purple-700 transition-colors"
+              className="btn btn-brand px-4 py-2 text-sm"
             >
               OK
             </button>

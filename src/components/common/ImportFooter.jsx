@@ -24,7 +24,7 @@ export default function ImportFooter({
   className = 'p-4 border-t border-os-border bg-os-modal flex items-center justify-end gap-3',
 }) {
   const secondary = 'px-4 py-2 bg-os-modal border border-os-input-border rounded-sm text-os-text-primary text-sm font-medium hover:bg-os-card-secondary transition-colors';
-  const primary = 'flex items-center gap-2 px-4 py-2 bg-os-blue text-white text-sm font-medium hover:bg-os-blue-hover rounded-sm transition-colors';
+  const primary = 'btn btn-primary flex items-center gap-2 px-4 py-2 text-sm';
   return (
     <div className={className} data-testid="import-footer">
       {imported ? (

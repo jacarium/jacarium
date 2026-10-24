@@ -307,7 +307,7 @@ export default function ExecutableEditModal({
                       </button>
                       <button
                         onClick={() => removeAttachment(attachIndex)}
-                        className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-sm transition-colors"
+                        className="btn btn-danger-ghost p-1"
                         title="Remove function"
                       >
                         <Trash2 size={14} />
@@ -324,7 +324,7 @@ export default function ExecutableEditModal({
                               </span>
                               <button
                                 onClick={() => removeEntry(attachIndex, entryIndex)}
-                                className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-sm transition-colors"
+                                className="btn btn-danger-ghost p-1"
                                 title="Remove entry"
                               >
                                 <Trash2 size={12} />
@@ -459,7 +459,7 @@ export default function ExecutableEditModal({
                 <button
                   onClick={addAttachment}
                   disabled={!attachFuncId}
-                  className="flex items-center gap-1 px-3 py-2 bg-os-blue text-white text-sm rounded-sm hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="btn btn-primary flex items-center gap-1 px-3 py-2 text-sm"
                 >
                    Attach
                 </button>
@@ -490,7 +490,7 @@ export default function ExecutableEditModal({
                   <button
                     onClick={handleCreateFunction}
                     disabled={!newFuncLabel.trim()}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-os-blue text-white text-sm rounded-sm hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="btn btn-primary flex items-center gap-1 px-3 py-1.5 text-sm"
                   >
                      Create &amp; attach
                   </button>
@@ -510,7 +510,7 @@ export default function ExecutableEditModal({
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-os-blue text-white text-sm rounded-sm hover:bg-blue-600 transition-colors"
+            className="btn btn-primary px-4 py-2 text-sm"
           >
             Save
           </button>

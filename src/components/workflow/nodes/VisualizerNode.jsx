@@ -144,8 +144,8 @@ function VisualizerNode({ data, isConnectable }) {
             disabled={isReadOnly}
             className={`nodrag px-2 py-0.5 text-xs ${
               viewMode === 'json'
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-200 text-os-text-secondary hover:bg-gray-300'
+                ? 'btn btn-brand'
+                : 'btn btn-secondary'
             } disabled:opacity-50`}
           >
             JSON
@@ -155,8 +155,8 @@ function VisualizerNode({ data, isConnectable }) {
             disabled={isReadOnly}
             className={`nodrag px-2 py-0.5 text-xs flex items-center gap-1 ${
               viewMode === 'table'
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-200 text-os-text-secondary hover:bg-gray-300'
+                ? 'btn btn-brand'
+                : 'btn btn-secondary'
             } disabled:opacity-50`}
           >
             Table

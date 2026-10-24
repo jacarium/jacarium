@@ -19,7 +19,7 @@
   "author": "Robin Cernin",
   "license": "AGPL-3.0-only",
   "dependencies": {
-    "body-parser": "^1.20.2",
+    "body-parser": "^1.20.9",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "lib0": "^0.2.117",

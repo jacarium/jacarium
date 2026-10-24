@@ -76,7 +76,7 @@ export default function CloudDocumentActions({
         <button
           onClick={handleUploadToCloud}
           disabled={uploading}
-          className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white text-sm hover:bg-purple-700 rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn btn-brand flex items-center gap-2 px-3 py-1.5 text-sm"
           title="Sync your changes with the team"
         >
           {uploading ? 'Syncing...' : 'Sync Changes'}
@@ -90,7 +90,7 @@ export default function CloudDocumentActions({
         <button
           onClick={handleUploadToCloud}
           disabled={uploading}
-          className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white text-sm hover:bg-purple-700 rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn btn-brand flex items-center gap-2 px-3 py-1.5 text-sm"
           title="Share this document with the team"
         >
           {uploading ? 'Sharing...' : 'Share with the Team'}

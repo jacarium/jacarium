@@ -227,6 +227,7 @@ try {
     await shotPage('sos-report');
     check(`${theme}: Log Collection group page opens`, await clickSidebarSpan(page, 'Log Collection'));
     frame = await diagnosticsFrame(page, '#log-collection-overview');
+    check(`${theme}: exactly one card between the page and the sosreport Log Collection search box (the frame's tab panel; the page draws no card of its own around it)`, !!frame && await frame.evaluate(() => { const b = []; for (let el = document.getElementById('lc-search').parentElement; el && el.id !== 'diagnostics-content'; el = el.parentElement) { const cs = getComputedStyle(el); if (parseFloat(cs.borderTopWidth) > 0 && parseFloat(cs.borderTopLeftRadius) > 0) b.push(el.id || el.className.split(' ')[0]); } return b.length === 1 && b[0] === 'log-collection-overview'; }));
     check(`${theme}: Log Collection renders the band, the table and the Open Log Viewer button`, !!frame && await frame.evaluate(() => !!document.getElementById('lc-band') && !!document.getElementById('lc-table') && !!document.getElementById('log-collection-open-viewer')));
     const lc = await probeLogCollection(frame);
     check(`${theme}: Log Collection: one table of every file largest first (bytes), the bars proportional to the bytes, the four section chips filter, the search narrows, Name sorts by name and Size back to largest first`,
@@ -285,6 +286,8 @@ try {
       return {
         charts: Object.keys(charts), canvases, rows: document.querySelectorAll('tr.bl-row').length, strip: !!document.querySelector('.bl-strip'),
         timeoutAccent: firstCell ? cs(firstCell).boxShadow : '', timeoutRadius: firstCell ? cs(firstCell).borderRadius : '',
+        // the theme's bad role (--chart-bad) as the browser spells it, the colour the accent must carry
+        badRole: (() => { const t = document.createElement('span'); t.style.color = 'rgb(1, 2, 3)'; t.style.color = getComputedStyle(document.documentElement).getPropertyValue('--chart-bad').trim(); document.body.appendChild(t); const c = getComputedStyle(t).color; t.remove(); return c.replace(/^rgba?\(/, '').replace(/[,/].*$/, (m) => m).replace(/\)$/, ''); })(),
         cardRadius: card ? cs(card).borderRadius : '', btnRadius: btn ? cs(btn).borderRadius : '',
         cmdlineRadius: cmdline ? [cs(cmdline).borderTopLeftRadius, cs(cmdline).borderBottomLeftRadius, cs(cmdline).borderTopRightRadius] : [], cmdlineLeft: cmdline ? cs(cmdline).borderLeftWidth : '',
         cmdlineMono: cmdline ? cs(cmdline).fontFamily : '', over, shown: (document.getElementById('blame-shown') || {}).textContent,
@@ -292,10 +295,10 @@ try {
     });
     check(`${theme}: the four charts drew (bars, cumulative, return codes, timeline) on canvases with a size`, probe.charts.length === 4 && probe.canvases.every((c) => !c.missing && c.w > 100 && c.h > 50), JSON.stringify(probe.canvases));
     check(`${theme}: the strip, the cmdline block (monospace, square left accent, rounded right) and the 24 plugin rows`, probe.strip && probe.rows === 24 && /mono|Consolas/i.test(probe.cmdlineMono) && probe.cmdlineRadius[0] === '0px' && probe.cmdlineRadius[1] === '0px' && probe.cmdlineRadius[2] !== '0px' && parseFloat(probe.cmdlineLeft) >= 3, JSON.stringify({ rows: probe.rows, r: probe.cmdlineRadius, l: probe.cmdlineLeft }));
-    check(`${theme}: the timed-out plugin's row carries a square red left accent (an inset shadow, no radius) while cards and buttons keep 8px`, /inset/.test(probe.timeoutAccent) && /220, 38, 38/.test(probe.timeoutAccent) && probe.timeoutRadius === '0px' && probe.cardRadius === '8px' && probe.btnRadius === '8px', JSON.stringify({ a: probe.timeoutAccent, c: probe.cardRadius, b: probe.btnRadius }));
+    check(`${theme}: the timed-out plugin's row carries a square left accent in the bad role (--chart-bad; an inset shadow, no radius); the chart cards are plain sections inside the tab's card (one card level) and the buttons keep 8px`, /inset/.test(probe.timeoutAccent) && probe.badRole && probe.timeoutAccent.includes(probe.badRole) && probe.timeoutRadius === '0px' && probe.cardRadius === '0px' && probe.btnRadius === '8px', JSON.stringify({ a: probe.timeoutAccent, bad: probe.badRole, c: probe.cardRadius, b: probe.btnRadius }));
     check(`${theme}: nothing in the strip, the card titles or the cmdline overflows`, probe.over.length === 0, probe.over.join(', '));
     // expand the slowest plugin, then screenshot the whole tab
-    const expanded = await frame.evaluate(() => { const row = document.querySelector('tr.bl-row'); row.querySelector('.bl-toggle').click(); const cmds = row.nextElementSibling; return { open: !cmds.hidden, cmdRows: cmds.querySelectorAll('tr.bl-cmd').length, exec: (cmds.querySelector('.bl-exec') || {}).textContent, mono: cmds.querySelector('.bl-exec') ? getComputedStyle(cmds.querySelector('.bl-exec')).fontFamily : '' }; });
+    const expanded = await frame.evaluate(() => { const row = document.querySelector('tr.bl-row'); row.querySelector('.ui-xrow-btn').click(); const cmds = row.nextElementSibling; return { open: !cmds.hidden, cmdRows: cmds.querySelectorAll('tr.bl-cmd').length, exec: (cmds.querySelector('.bl-exec') || {}).textContent, mono: cmds.querySelector('.bl-exec') ? getComputedStyle(cmds.querySelector('.bl-exec')).fontFamily : '' }; });
     check(`${theme}: a plugin row expands into its commands in monospace`, expanded.open && expanded.cmdRows >= 1 && /mono|Consolas/i.test(expanded.mono) && expanded.exec.includes('example-ctl'), JSON.stringify(expanded));
     await sleep(500);
     await shotFrame('blame-expanded');

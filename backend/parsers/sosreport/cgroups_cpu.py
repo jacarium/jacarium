@@ -2,6 +2,10 @@ import os
 import time
 from collections import defaultdict
 
+from parsers.findings import finding, sort_findings
+
+from ._common import parse_ps_file, report_root  # noqa: F401 - the shared ps parser (one copy for Processes and the two cgroups tabs)
+
 _previous_usage_percpu = {}
 
 def read_cgroup_file(path):
@@ -59,84 +63,6 @@ def merge_dicts(d1, d2):
         else:
             result[key] = v1 if v2 is None else v2 if v1 is None else (v1, v2)
     return result
-
-
-def parse_ps_file(ps_path, variant="ps_auxwwwm"):
-    processes = []
-
-    standard_headers = [
-        "USER", "LABEL", "PID", "PPID", "%CPU", "%MEM", "VSZ", "RSS", "TTY",
-        "STAT", "START", "TIME", "COMMAND"
-    ]
-
-    try:
-        with open(ps_path, "r") as f:
-            lines = f.readlines()
-
-        if not lines:
-            return {"headers": standard_headers, "processes": []}
-
-        header_line = lines[0].strip()
-        raw_headers = header_line.split()
-
-        header_map = {h: i for i, h in enumerate(raw_headers)}
-        expected_fields = len(raw_headers)
-
-        for required in ["PID", "%CPU", "COMMAND"]:
-            if required not in header_map:
-                return {"error": f"Missing expected header: {required}", "headers": standard_headers, "processes": []}
-
-        pid_index = header_map["PID"]
-        cpu_index = header_map["%CPU"]
-        command_index = header_map["COMMAND"]
-
-        raw_headers.insert(pid_index + 1, "PPID")
-
-        last_pid = None
-        last_cmd = None
-
-        for line in lines[1:]:
-            line = line.strip()
-            if not line:
-                continue
-
-            parts = line.split(None, expected_fields - 1)
-            if len(parts) < expected_fields:
-                parts += ['-'] * (expected_fields - len(parts))
-
-            pid = parts[pid_index]
-            cmd = parts[command_index]
-
-            is_thread = pid == '-'
-
-            if not is_thread:
-                last_pid = pid
-                if cmd != '-':
-                    last_cmd = cmd
-
-            ppid = last_pid if is_thread else '-'
-            parts.insert(pid_index + 1, ppid)
-
-            if is_thread and (cmd == '-' or not cmd.strip()):
-                parts[-1] = last_cmd or '-'
-
-            full_data = dict(zip(raw_headers, parts))
-            normalized = {h: full_data.get(h, '-') for h in standard_headers}
-
-            processes.append(normalized)
-
-        return {
-            "headers": standard_headers,
-            "processes": processes
-        }
-
-    except Exception as e:
-        return {
-            "error": str(e),
-            "headers": standard_headers,
-            "processes": []
-        }
-
 
 
 def build_sysfs_cgroup_pid_index(directory):
@@ -288,25 +214,30 @@ def add_scaled_core_usage_and_accumulate(cgroup_dict):
 def parse(directory):
     result = {}
 
-    entries = os.listdir(directory)
-    if len(entries) == 1:
-        inner = os.path.join(directory, entries[0])
-        if os.path.isdir(inner):
-            directory = inner
-
+    directory = report_root(directory)
     cgroup_version = detect_cgroup_version(directory)
-    if not os.path.exists(os.path.join(directory, "sys/fs/cgroup")):
+    unified = os.path.join(directory, "sys/fs/cgroup")
+    if not os.path.exists(unified):
+        _FINDINGS[directory] = [finding('info', 'No cgroup tree in this report', 'sys/fs/cgroup is missing')]
         return result
 
     cpu_path = os.path.join(directory, "sys/fs/cgroup/cpu,cpuacct")
     cpuset_path = os.path.join(directory, "sys/fs/cgroup/cpuset")
-
-    if not os.path.exists(cpu_path) or not os.path.exists(cpuset_path):
+    throttled = {}
+    if os.path.isdir(cpu_path):
+        cpu_data = parse_cgroup_dir(cpu_path, {"cpu.cfs_quota_us", "cpu.cfs_period_us", "cpuacct.usage_percpu", "cpu.stat"})
+        cpuset_data = parse_cgroup_dir(cpuset_path, {"cpuset.cpus"}) if os.path.isdir(cpuset_path) else {}
+        merged_data = merge_dicts(cpu_data, cpuset_data)
+        cgroup_version = 1
+    elif os.path.isfile(os.path.join(unified, 'cgroup.controllers')):
+        # cgroup v2: cpu.max "quota period" (or "max period"), cpu.stat's nr_throttled, cpuset.cpus.effective; no per-CPU usage
+        merged_data = parse_cgroup2_cpu(unified)
+        cgroup_version = 2
+    else:
+        _FINDINGS[directory] = [finding('info', 'No CPU cgroup tree in this report', 'sys/fs/cgroup/cpu,cpuacct (v1) and sys/fs/cgroup/cgroup.controllers (v2) are both missing')]
         return result
-
-    cpu_data = parse_cgroup_dir(cpu_path, {"cpu.cfs_quota_us", "cpu.cfs_period_us", "cpuacct.usage_percpu"})
-    cpuset_data = parse_cgroup_dir(cpuset_path, {"cpuset.cpus"})
-    merged_data = merge_dicts(cpu_data, cpuset_data)
+    # the page reads the result as {dataset: {...}}: the strip is served by findings() (the loader asks)
+    _FINDINGS[directory] = findings_for(merged_data, cgroup_version)
 
     root_files = {k: v for k, v in merged_data.items() if not isinstance(v, dict)}
     subdirs     = {k: v for k, v in merged_data.items() if isinstance(v, dict)}
@@ -346,3 +277,81 @@ def parse(directory):
         }
 
     return result
+
+_FINDINGS = {}
+
+
+def findings(directory):
+    """The Findings strip of the page (the loader calls it after parse(); on a cache hit parse() runs again)."""
+    root = report_root(directory)
+    if root not in _FINDINGS:
+        parse(directory)
+    return _FINDINGS.get(root, [])
+
+
+def parse_cgroup2_cpu(base_dir):
+    """The unified hierarchy's CPU accounting as the v1 shape the page reads: cpu.max -> cpu.cfs_quota_us /
+    cpu.cfs_period_us (-1 when 'max'), cpuset.cpus.effective -> cpuset.cpus, cpu.stat kept as text (nr_throttled);
+    cpuacct.usage_percpu has no v2 equivalent (an empty list)."""
+    def walk(d):
+        node = {}
+        mx = read_cgroup_file(os.path.join(d, 'cpu.max'))
+        if mx:
+            parts = mx.split()
+            node['cpu.cfs_quota_us'] = -1 if parts[0] == 'max' else (int(parts[0]) if parts[0].isdigit() else -1)
+            node['cpu.cfs_period_us'] = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 100000
+            node['cpuacct.usage_percpu'] = []
+        cpus = read_cgroup_file(os.path.join(d, 'cpuset.cpus.effective'))
+        if cpus:
+            node['cpuset.cpus'] = cpus
+        stat = read_cgroup_file(os.path.join(d, 'cpu.stat'))
+        if stat:
+            node['cpu.stat'] = stat
+        try:
+            children = sorted(e for e in os.listdir(d) if os.path.isdir(os.path.join(d, e)))
+        except OSError:
+            children = []
+        for e in children:
+            node[e] = walk(os.path.join(d, e))
+        return node
+    return walk(base_dir)
+
+
+def _stat_int(text, key):
+    for line in str(text or '').splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[0] == key and parts[1].isdigit():
+            return int(parts[1])
+    return None
+
+
+def findings_for(data, version):
+    """The Findings strip: cgroups with a CPU quota that were throttled (cpu.stat nr_throttled, v1 and v2), the quotas
+    in place, the hierarchy version."""
+    out = []
+    quotas, throttled = [], []
+
+    def recurse(node, path):
+        for k, v in node.items():
+            if isinstance(v, dict):
+                recurse(v, f"{path}/{k}" if path else f"/{k}")
+        quota, period = node.get('cpu.cfs_quota_us'), node.get('cpu.cfs_period_us')
+        if isinstance(quota, int) and quota > 0 and isinstance(period, int) and period > 0:
+            cores = quota / period
+            quotas.append((path or '/', cores))
+            nt = _stat_int(node.get('cpu.stat'), 'nr_throttled')
+            np = _stat_int(node.get('cpu.stat'), 'nr_periods')
+            if nt:
+                throttled.append((path or '/', cores, nt, np or 0))
+    recurse(data, '')
+    throttled.sort(key=lambda r: -(r[2] / r[3] if r[3] else r[2]))
+    for path, cores, nt, np in throttled[:8]:
+        share = (100.0 * nt / np) if np else 0
+        out.append(finding('bad' if share >= 25 else 'warn', f"{path} was throttled in {nt:,} periods".replace(',', '\u202f') + (f" ({share:.0f}%)" if np else ''), f"its quota is {cores:g} CPU{'s' if cores != 1 else ''}: the processes inside wait for the next period whenever they use it up", count=int(share)))
+    if quotas:
+        out.append(finding('info', f"{len(quotas)} cgroup{'s' if len(quotas) != 1 else ''} with a CPU quota (cgroup v{version})", ', '.join(f"{p} ({c:g} CPU{'s' if c != 1 else ''})" for p, c in sorted(quotas, key=lambda q: -q[1])[:4]) + (' …' if len(quotas) > 4 else '')))
+    else:
+        out.append(finding('info', f"No CPU quota set on any cgroup (cgroup v{version})"))
+    if not throttled and quotas:
+        out.append(finding('good', "No cgroup was throttled by its CPU quota"))
+    return sort_findings(out)

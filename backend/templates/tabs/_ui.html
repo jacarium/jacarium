@@ -1,0 +1,198 @@
+{#
+  The shared markup of the Diagnostics plugins: the macros every template
+  uses for a control with its icon, a wrapped select with its one chevron,
+  a badge, a chip, an empty state, a card title, a toolbar. The styles are
+  the ui-* rules of backend/static/styles.css (the frame stylesheet, one
+  design on the app's theme tokens), the behaviour the busy component and
+  the chart helper of backend/static/diagnostics-ui.js. Imported with
+  {% import "tabs/_ui.html" as ui %}.
+
+  Rules: inline SVG only (no icon font), every value escaped by Jinja,
+  no page-specific colours (the badge kinds carry the fixed status
+  colours), no utility classes the frame lacks.
+
+    {% call ui.field('search') %}<input type="search" id="..." class="ui-input" placeholder="Search">{% endcall %}
+    {% call ui.select() %}<select id="..." class="ui-select">...</select>{% endcall %}
+    {{ ui.badge('bad', 'Expired') }}   kinds: ok, good, warn, bad, info, muted
+    {{ ui.icon('search') }}            search, chevron, empty, filter, close, refresh, download, play, pause
+#}
+{% macro icon(name) -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if name == 'search' %}<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+{%- elif name == 'chevron' or name == 'select' %}<path d="m6 9 6 6 6-6"/>
+{%- elif name == 'empty' %}<path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/>
+{%- elif name == 'filter' %}<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
+{%- elif name == 'close' %}<path d="M18 6 6 18M6 6l12 12"/>
+{%- elif name == 'refresh' %}<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+{%- elif name == 'download' %}<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>
+{%- elif name == 'play' %}<path d="m6 3 14 9-14 9V3z"/>
+{%- elif name == 'pause' %}<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+{%- elif name == 'clock' %}<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+{%- elif name == 'alert' %}<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><path d="M12 9v4M12 17h.01"/>
+{%- elif name == 'check' %}<path d="M20 6 9 17l-5-5"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{# A field with its icon on the left: {% call ui.field('search', 'ui-wide') %}<input class="ui-input" ...>{% endcall %} #}
+{% macro field(icon_name='search', extra='') -%}
+<label class="ui-field {{ extra }}">{{ icon(icon_name) }}{{ caller() }}</label>
+{%- endmacro %}
+
+{# A wrapped select with the one chevron: {% call ui.select('ui-narrow') %}<select class="ui-select" ...>...</select>{% endcall %} #}
+{% macro select(extra='') -%}
+<label class="ui-select-wrap {{ extra }}">{{ caller() }}{{ icon('chevron') }}</label>
+{%- endmacro %}
+
+{# A status badge; the colour always next to its text #}
+{% macro badge(kind, text, title=None) -%}
+<span class="ui-badge ui-badge-{{ kind }}"{% if title %} title="{{ title }}"{% endif %}>{{ text }}</span>
+{%- endmacro %}
+
+{# A toggle chip (a section, a filter value); on = the accent outline #}
+{% macro chip(text, on=False, count=None, attrs='') -%}
+<button type="button" class="ui-chip{% if on %} ui-on{% endif %}" {{ attrs }}>{{ text }}{% if count is not none %} <span class="ui-chip-count">{{ count }}</span>{% endif %}</button>
+{%- endmacro %}
+
+{# The empty state of a tab or a section #}
+{% macro empty(title, text='') -%}
+{#- nothing: a missing-data case is a Findings line now, never an empty-state block #}
+{%- endmacro %}
+
+{# A compact card's title line: the label, a count, the actions on the right #}
+{% macro card_title(text, count=None) -%}
+<div class="ui-card-title"><span>{{ text }}</span>{% if count is not none %}<span class="ui-count-text">{{ count }}</span>{% endif %}{% if caller is defined %}<span class="ui-actions">{{ caller() }}</span>{% endif %}</div>
+{%- endmacro %}
+
+{# A note with a square coloured left edge: kind = info (accent), warn, bad #}
+{% macro note(text, kind='info') -%}
+<div class="ui-note{% if kind != 'info' %} ui-note-{{ kind }}{% endif %}">{{ text }}</div>
+{%- endmacro %}
+
+{# The Findings strip (parsers/findings.py builds the items; the loader hands every page `findings`): one row per finding, worst first, with the severity
+   badge, the title, the detail and - when another plugin shows more - an Open button that asks the parent for that
+   tab (data-tab / data-sub-tab) and hands it a search term (data-query) for the page's [data-ui-search] field
+   (diagnostics-ui.js: diagLinks). No items: nothing is rendered. #}
+{% macro findings(items, title='Findings') -%}
+{% if not items %}
+<div class="ui-note">Nothing to show for this tab: no finding and no data in the report.</div>
+{% else %}
+<section class="ui-findings" aria-label="{{ title }}">
+  <div class="ui-findings-head">{{ title }} <span class="ui-count-text">{{ items | length }}</span></div>
+  <ul class="ui-findings-list">
+  {% for f in items %}
+    <li class="ui-finding ui-finding-{{ f.severity }}">
+      {{ badge(f.badge, f.severity | upper) }}
+      <div class="ui-finding-body"><span class="ui-finding-title">{{ f.title }}</span>{% if f.detail %}<span class="ui-finding-detail">{{ f.detail }}</span>{% endif %}</div>
+      {% if f.link %}<button type="button" class="ui-link ui-finding-link" data-tab="{{ f.link.tab }}" data-sub-tab="{{ f.link.sub_tab or '' }}" data-query="{{ f.link.query or '' }}">Open</button>{% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{%- endmacro %}
+
+{# The compact filter bar of a table: ONE wrapping row (.ui-filterbar) of the search field (first), selects sized to
+   their content, number fields with their label in front, inline checkboxes, chips, and at the end the status
+   ("Showing ...") and the rows-per-page select. Labels sit inside or before a control, never above it.
+     {% call ui.filter_bar() %}
+       {{ ui.search('x-search', 'Search units (a regex works)') }}
+       {% call ui.select() %}<select class="ui-select" aria-label="State">...</select>{% endcall %}
+       {{ ui.numfield('x-cpu', '%CPU &ge;') }}
+       {{ ui.check('x-only', 'Only failed') }}
+       {% call ui.end() %}<span class="ui-status" id="x-status"></span>{% endcall %}
+     {% endcall %} #}
+{% macro filter_bar(id=None, extra='') -%}
+<div class="ui-filterbar {{ extra }}"{% if id %} id="{{ id }}"{% endif %}>{{ caller() }}</div>
+{%- endmacro %}
+{% macro toolbar(extra='', id=None) -%}
+<div class="ui-filterbar {{ extra }}"{% if id %} id="{{ id }}"{% endif %}>{{ caller() }}</div>
+{%- endmacro %}
+{# the search field of a page: the one [data-ui-search] the Findings links fill #}
+{% macro search(id, placeholder='Search', extra='', attrs='', label=None) -%}
+<label class="ui-field {{ extra }}">{{ icon('search') }}<input type="search" id="{{ id }}" class="ui-input" data-ui-search placeholder="{{ placeholder }}" aria-label="{{ label or placeholder }}" autocomplete="off" {{ attrs }}></label>
+{%- endmacro %}
+{# a number threshold: the label in front ("%CPU >=") #}
+{% macro numfield(id, label, attrs='', placeholder='0') -%}
+<label class="ui-numfield" for="{{ id }}">{{ label }}<input type="number" id="{{ id }}" class="ui-input" placeholder="{{ placeholder }}" aria-label="{{ label | striptags }}" {{ attrs }}></label>
+{%- endmacro %}
+{# an inline checkbox #}
+{% macro check(id, label, checked=False, attrs='') -%}
+<label class="ui-check-label" for="{{ id }}"><input type="checkbox" id="{{ id }}" class="ui-check"{% if checked %} checked{% endif %} {{ attrs }}>{{ label }}</label>
+{%- endmacro %}
+{# the right end of the bar (the status, rows per page, expand / collapse all) #}
+{% macro end() -%}
+<span class="ui-end">{{ caller() }}</span>
+{%- endmacro %}
+{# the rows-per-page select for the bar's end #}
+{% macro rows(id, sizes=(50, 100, 250, 500), selected=100, all=True, label='Rows per page') -%}
+<label class="ui-rows">{{ label }}<span class="ui-select-wrap ui-narrow"><select id="{{ id }}" class="ui-select" aria-label="{{ label }}">{% for n in sizes %}<option value="{{ n }}"{% if n == selected %} selected{% endif %}>{{ n }}</option>{% endfor %}{% if all %}<option value="-1">All</option>{% endif %}</select>{{ icon('chevron') }}</span></label>
+{%- endmacro %}
+{# Expand all / Collapse all for a table of expandable rows (data-table: the table's selector) #}
+{% macro xrow_all(table) -%}
+<button type="button" class="btn btn-secondary btn-sm" data-xrow-all="open" data-table="{{ table }}">Expand all</button><button type="button" class="btn btn-secondary btn-sm" data-xrow-all="close" data-table="{{ table }}">Collapse all</button>
+{%- endmacro %}
+
+{# The meter: a percentage bar coloured by its role (parsers/findings.level() gives ok / warn / bad from the shared
+   thresholds, so the bar and the Finding never disagree); text = the value printed after it #}
+{% macro meter(value, role='ok', text=None, max=100, title=None) -%}
+{% set pct = (100.0 * (value or 0) / (max or 100)) %}{% set pct = 100 if pct > 100 else (0 if pct < 0 else pct) %}
+<span class="ui-meter" data-role="{{ role or 'ok' }}" role="meter" aria-valuenow="{{ value or 0 }}" aria-valuemin="0" aria-valuemax="{{ max }}"{% if title %} title="{{ title }}"{% endif %}><span class="ui-meter-track"><span class="ui-meter-fill" style="width: {{ pct | round(1) }}%"></span></span><span class="ui-meter-value">{{ text if text is not none else (pct | round | int ~ '%') }}</span></span>
+{%- endmacro %}
+
+{# Expandable rows (diagnostics-ui.js: diagTables): the row carries class ui-xrow (the chevron cell is added by the
+   script when the template leaves it out) and is followed by its panel row:
+     <tr class="ui-xrow{% if bad %} ui-row-bad{% endif %}">{{ ui.xrow_cell() }}<td>...</td></tr>
+     {% call ui.xrow_panel(cols) %}{{ ui.kv([('Driver', d.driver, 'mono'), ...]) }}{% endcall %} #}
+{% macro xrow_th() -%}
+<th class="ui-xrow-th" aria-label="Details"></th>
+{%- endmacro %}
+{% macro xrow_cell() -%}
+<td class="ui-xrow-cell" data-label=""><button type="button" class="ui-xrow-btn" aria-expanded="false" aria-label="Details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></td>
+{%- endmacro %}
+{% macro xrow_panel(cols) -%}
+<tr class="ui-xrow-panel" hidden><td colspan="{{ cols }}" data-label=""><div class="ui-xrow-body">{{ caller() }}</div></td></tr>
+{%- endmacro %}
+{# the key/value grid: items = [(label, value), (label, value, 'mono'), (label, value, 'mono', copy=True)]; empty values skipped #}
+{% macro kv(items) -%}
+<dl class="ui-kv">{% for it in items %}{% if it[1] is not none and it[1] != '' and it[1] != '-' %}<div><dt>{{ it[0] }}</dt><dd{% if it | length > 2 and it[2] %} class="ui-{{ it[2] }}"{% endif %}>{{ it[1] }}{% if it | length > 3 and it[3] %}{{ copy(it[1]) }}{% endif %}</dd></div>{% endif %}{% endfor %}</dl>
+{%- endmacro %}
+{% macro kv_title(text) -%}
+<div class="ui-kv-title">{{ text }}</div>
+{%- endmacro %}
+{% macro copy(text) -%}
+<button type="button" class="btn btn-secondary ui-copy" data-copy="{{ text }}">Copy</button>
+{%- endmacro %}
+{# flag chips: items = [{name, on, bad}] (parsers give them) #}
+{% macro flags(items) -%}
+<div class="ui-flags">{% for f in items %}<span class="ui-flag{% if f.bad %} ui-flag-bad{% elif f.on %} ui-flag-on{% endif %}" title="{{ f.name }}{{ '+' if f.on else '-' }}">{{ f.name }}{{ '+' if f.on else '-' }}</span>{% endfor %}</div>
+{%- endmacro %}
+{# a cross-link button to another tab (diagLinks handles the click) #}
+{% macro open_tab(text, tab, sub_tab='', query='') -%}
+<button type="button" class="btn btn-secondary btn-sm ui-finding-link" data-tab="{{ tab }}" data-sub-tab="{{ sub_tab }}" data-query="{{ query }}">{{ text }}</button>
+{%- endmacro %}
+
+{# The row under a paged table: the status text (diagPager.status writes it) on the left, rows-per-page and the pager
+   on the right. {% call ui.pagebar('x-status', 'x-pager') %}<select class="ui-select" ...>{% endcall %}
+   The pager itself is drawn by diagPager.render(document.getElementById(pager_id), {...}). #}
+{% macro pagebar(status_id, pager_id, rows_label='Rows per page') -%}
+{% set rows_select = caller() %}
+<div class="ui-pagebar">
+  <div class="ui-status" id="{{ status_id }}" aria-live="polite"></div>
+  <div class="ui-pagebar-right">
+    <label class="ui-rows">{{ rows_label }}<span class="ui-select-wrap ui-narrow">{{ rows_select }}{{ icon('chevron') }}</span></label>
+    <nav class="ui-pager" id="{{ pager_id }}" aria-label="Pages" hidden></nav>
+  </div>
+</div>
+{%- endmacro %}
+
+{# A pager on its own (the page bar is the usual home) #}
+{% macro pager(id) -%}
+<nav class="ui-pager" id="{{ id }}" aria-label="Pages" hidden></nav>
+{%- endmacro %}
+
+{# A folded block (a legend, a reference, a raw dump): a details element on the shared design, open when asked.
+   {% call ui.fold('CPU C-states legend', open=True) %} ...content... {% endcall %} #}
+{% macro fold(title, open=False, extra='') -%}
+<details class="ui-details {{ extra }}"{% if open %} open{% endif %}><summary><span class="ui-card-title"><span>{{ title }}</span></span></summary>{{ caller() }}</details>
+{%- endmacro %}

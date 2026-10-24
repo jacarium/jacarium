@@ -2,7 +2,8 @@ import os
 import yaml
 import glob
 
-from parsers.mustgather._common import resolve_data_dir
+from parsers.findings import finding, recall, remember, sort_findings, no_data
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
 
 def parse(directory):
     result = []
@@ -22,7 +23,7 @@ def parse(directory):
         try:
             with open(filepath, "r") as f:
                 # YAML files may contain multiple documents (separated by ---)
-                docs = yaml.safe_load_all(f)
+                docs = safe_load_all(f)
 
                 for doc in docs:
                     if not doc:
@@ -39,7 +40,15 @@ def parse(directory):
         except Exception as e:
             result.append({"error": str(e), "file": filepath})
 
+    # degraded pools first, then the ones updating
+    result.sort(key=lambda p: (0 if p.get('degraded') == 'True' else (1 if p.get('updating') == 'True' else 2), p.get('name', '')))
+    remember(('mcp', directory), findings_for(result))
     return result
+
+
+def findings(directory):
+    # the parser's list, or the one way to say the gather holds nothing of this (never a GOOD without data)
+    return recall(('mcp', resolve_data_dir(directory)), lambda: parse(directory)) or [no_data('No MachineConfigPools in this must-gather', ['cluster-scoped-resources/machineconfiguration.openshift.io/machineconfigpools'], 'trimmed gather')]
 
 
 def parse_mcp(mcp):
@@ -87,3 +96,25 @@ def parse_mcp(mcp):
         "configuration_sources": status.get("configuration", {}).get("source", []),
         "raw": mcp
     }
+
+def findings_for(pools):
+    """The Findings strip: degraded pools (bad, with the degraded machines and the NodeDegraded message), pools
+    updating (info, with the progress), paused pools (warn), the pools' state when nothing is wrong."""
+    out = []
+    for p in pools:
+        if p.get('error'):
+            out.append(finding('warn', 'A MachineConfigPool could not be read', str(p.get('error'))[:200]))
+            continue
+        name = p.get('name', '?')
+        if p.get('degraded') == 'True':
+            msg = next((c.get('message') for c in p.get('conditions', []) if c.get('type') in ('NodeDegraded', 'RenderDegraded') and c.get('status') == 'True' and c.get('message')), '')
+            out.append(finding('bad', f"MachineConfigPool {name} is Degraded", f"{p.get('degraded_machine_count', 0)} of {p.get('machine_count', 0)} machines degraded" + (f": {msg[:200]}" if msg else ''), tab='compute', sub_tab='nodes', count=p.get('degraded_machine_count', 0)))
+        elif p.get('updating') == 'True':
+            out.append(finding('info', f"MachineConfigPool {name} is updating", f"{p.get('updated_machine_count', 0)} of {p.get('machine_count', 0)} machines updated, {p.get('unavailable_machine_count', 0)} unavailable"))
+        if p.get('paused'):
+            out.append(finding('warn', f"MachineConfigPool {name} is paused", 'no machine config rolls out to it while paused'))
+    if not pools:
+        out.append(finding('info', 'No MachineConfigPools in this must-gather'))
+    elif not any(f['severity'] in ('bad', 'warn') for f in out):
+        out.append(finding('good', f"{len(pools)} pools updated and not degraded"))
+    return sort_findings(out)

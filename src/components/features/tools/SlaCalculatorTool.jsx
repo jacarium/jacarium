@@ -127,7 +127,7 @@ export default function SlaCalculatorTool() {
                   onClick={() => handleSlaChange(value)}
                   className={`px-3 py-2 text-sm border transition-colors text-left ${
  slaPercent === value
- ?'bg-os-blue text-white border-os-blue'
+ ?'btn-selected'
  :'bg-os-card text-os-text-primary border-os-border hover:bg-os-card-secondary'
  }`}
                 >

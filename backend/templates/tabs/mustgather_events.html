@@ -1,3 +1,5 @@
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 <div id="eventPanel" class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm">
  <h3 class="text-lg font-medium mb-2">
@@ -7,13 +9,6 @@
  {% if data %}
  <canvas id="reasonChart"></canvas>
  {% else %}
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No event data found in this report</div>
- </div>
  {% endif %}
  </div>
  </div>
@@ -21,67 +16,47 @@
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-bell mr-2"></i> Events
  </h3>
- <div class="mb-2">
- <label class="inline-flex items-center text-xs font-semibold">
- <input type="checkbox" id="show-empty-namespaces" class="form-checkbox" />
- <span class="ml-2">Show Empty Namespaces</span>
- </label>
- </div>
- <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
- <div>
- <label for="eventNamespaceFilter" class="block text-xs font-semibold mb-1">Namespaces</label>
- <select id="eventNamespaceFilter"
- class="w-full px-3 py-2 text-sm border">
+ {% call ui.filter_bar() %}
+    <label class="ui-field">{{ ui.icon('search') }}<input autocomplete="off" data-ui-search aria-label="Search events" id="eventSearchInput" type="search" placeholder="Search events..."
+ class="ui-input"></label>
+    <label class="ui-rows">Namespaces<span class="ui-select-wrap"><select aria-label="Namespaces" id="eventNamespaceFilter"
+ class="ui-select">
  <option value="">All</option>
- </select>
- </div>
- <div>
- <label for="eventReasonFilter" class="block text-xs font-semibold mb-1">Reason</label>
- <select id="eventReasonFilter"
- class="w-full px-3 py-2 text-sm border">
+ </select>{{ ui.icon('chevron') }}</span></label>
+    <label class="ui-rows">Reason<span class="ui-select-wrap"><select aria-label="Reason" id="eventReasonFilter"
+ class="ui-select">
  <option value="">All</option>
- </select>
- </div>
- <div class="md:col-span-6">
- <label for="eventSearchInput" class="block text-xs font-semibold mb-1">Search All</label>
- <input id="eventSearchInput" type="text" placeholder="Search events..."
- class="w-full px-3 py-2 text-sm border"/>
- </div>
- </div>
- <div class="flex justify-between items-center mb-2">
- <div id="filteredEventCount" class="text-sm">Showing all events</div>
- <div class="flex items-center gap-2">
- <label class="text-xs font-semibold">Per Page:</label>
- <select id="eventPageSizeSelect" onchange="window.changeEventPageSize()" class="px-3 py-1 text-sm border">
+ </select>{{ ui.icon('chevron') }}</span></label>
+    <label class="ui-check-label" for="show-empty-namespaces"><input type="checkbox" id="show-empty-namespaces" class="ui-check">Show Empty Namespaces</label>
+    {% call ui.end() %}<span class="ui-status" id="filteredEventCount" aria-live="polite">Showing all events</span><label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select aria-label="Rows per page" id="eventPageSizeSelect" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { window.changeEventPageSize(); }) : window.changeEventPageSize()" class="ui-select">
  <option value="50">50</option>
  <option value="100" selected>100</option>
  <option value="250">250</option>
  <option value="500">500</option>
  <option value="-1">All</option>
- </select>
- </div>
- </div>
- <table class="min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
+ </select>{{ ui.icon('chevron') }}</span></label>{% endcall %}
+  {% endcall %}
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortEventsBy('namespace')">Namespace <i id="event-indicator-namespace" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortEventsBy('lastSeen')">Last Seen <i id="event-indicator-lastSeen" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortEventsBy('type')">Type <i id="event-indicator-type" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortEventsBy('reason')">Reason <i id="event-indicator-reason" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortEventsBy('object')">Object <i id="event-indicator-object" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortEventsBy('message')">Message <i id="event-indicator-message" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortEventsBy('namespace')">Namespace <i id="event-indicator-namespace" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortEventsBy('lastSeen')">Last Seen <i id="event-indicator-lastSeen" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortEventsBy('type')">Type <i id="event-indicator-type" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortEventsBy('reason')">Reason <i id="event-indicator-reason" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortEventsBy('object')">Object <i id="event-indicator-object" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortEventsBy('message')">Message <i id="event-indicator-message" class="ml-1 fas text-sm"></i></th>
  </tr>
  </thead>
  <tbody id="eventTableBody"></tbody>
  </table>
- <div id="eventPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ <nav id="eventPaginationControls" class="ui-pager" aria-label="Pages" hidden></nav>
  </div>
 </div>
 
 <div id="eventDetailsPanel" style="display: none;">
  <div class="space-y-4">
  <div class="mb-4">
- <button onclick="window.backFromEventModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ <button onclick="window.backFromEventModal()" class="btn btn-secondary flex items-center gap-2">
  Back
  </button>
  </div>
@@ -91,7 +66,7 @@
  <i class="fas fa-info-circle mr-2"></i> Event Details
  </h3>
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm" id="eventDetailsTable"></table>
+ <table class="ui-table" id="eventDetailsTable"></table>
  </div>
  </div>
 
@@ -104,7 +79,7 @@
  id="eventYamlFilter"
  type="text"
  placeholder="Filter YAML lines..."
- class="w-full px-3 py-2 text-sm border"
+ class="ui-input w-full"
  />
  </div>
  <div id="eventJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
@@ -215,6 +190,7 @@
  const el = document.getElementById("event-indicator-" + k);
 
  if (k === currentSort.key) {
+  window.diagTables.markSort(el, currentSort.direction > 0);
  el.className = `${baseClass} ${currentSort.direction > 0 ?"fa-sort-up" :"fa-sort-down"}`;
  } else {
  el.className = `${baseClass}`;
@@ -278,7 +254,7 @@
  if (events.length === 0) {
  tbody.innerHTML = `
  <tr>
- <td colspan="6" class="text-center py-4">No matching events found</td>
+ <td colspan="6" class="text-center">No matching events found</td>
  </tr>`;
  document.getElementById("filteredEventCount").textContent ="No events found.";
  updateEventPagination(0);
@@ -307,12 +283,12 @@
  });
  }
  row.innerHTML = `
- <td class="px-4 py-2">${ev.namespace}</td>
- <td class="px-4 py-2">${ev.lastSeen}</td>
- <td class="px-4 py-2">${ev.type}</td>
- <td class="px-4 py-2">${ev.reason}</td>
- <td class="px-4 py-2">${ev.object}</td>
- <td class="px-4 py-2 whitespace-normal wrap-break-word max-w-lg">${ev.message}</td>
+ <td>${ev.namespace}</td>
+ <td>${ev.lastSeen}</td>
+ <td>${ev.type}</td>
+ <td>${ev.reason}</td>
+ <td>${ev.object}</td>
+ <td class="whitespace-normal wrap-break-word max-w-lg">${ev.message}</td>
  `;
 
  tbody.appendChild(row);
@@ -322,35 +298,8 @@
  }
 
  function updateEventPagination(totalCount) {
- const container = document.getElementById("eventPaginationControls");
- if (!container) return;
-
- if (eventPageSize === -1 || totalCount <= eventPageSize) {
- container.innerHTML ="";
- return;
- }
-
- const totalPages = Math.ceil(totalCount / eventPageSize);
- let html ="";
-
- html += `<button onclick="window.goToEventPage(1)" ${eventCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${eventCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">First</button>`;
- html += `<button onclick="window.goToEventPage(${eventCurrentPage - 1})" ${eventCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${eventCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Prev</button>`;
-
- const startPage = Math.max(1, eventCurrentPage - 2);
- const endPage = Math.min(totalPages, eventCurrentPage + 2);
-
- for (let i = startPage; i <= endPage; i++) {
- if (i === eventCurrentPage) {
- html += `<button class="px-3 py-1 text-sm bg-blue-700 text-white font-bold current-page">${i}</button>`;
- } else {
- html += `<button onclick="window.goToEventPage(${i})" class="px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700">${i}</button>`;
- }
- }
-
- html += `<button onclick="window.goToEventPage(${eventCurrentPage + 1})" ${eventCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${eventCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Next</button>`;
- html += `<button onclick="window.goToEventPage(${totalPages})" ${eventCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${eventCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Last</button>`;
-
- container.innerHTML = html;
+   // the shared pager (diagPager): one page -> nothing drawn
+   window.diagPager.render(document.getElementById('eventPaginationControls'), { total: totalCount, page: eventCurrentPage, pageSize: eventPageSize, go: function (p) { window.goToEventPage(p); } });
  }
 
  window.goToEventPage = function(page) {
@@ -376,51 +325,16 @@
  }
  });
 
- const labels = Object.keys(reasonCounts);
- const data = Object.values(reasonCounts);
-
- const config = {
- type: 'bar',
- data: {
- labels,
- datasets: [{
- label: 'Event Count',
- data,
- backgroundColor: 'rgba(34,197,94,0.6)',
- borderColor: 'rgba(34,197,94,1)',
- borderWidth: 1
- }]
- },
- options: {
- responsive: true,
- animation: false,
- plugins: {
- legend: { display: false },
- tooltip: {
- callbacks: {
- label: ctx => ` ${ctx.raw} events`
- }
- }
- },
- scales: {
- x: {
- ticks: { color: diagnosticsThemeColor('text') },
- grid: { color: diagnosticsThemeColor('grid') }
- },
- y: {
- beginAtZero: true,
- ticks: { color: diagnosticsThemeColor('text') },
- grid: { color: diagnosticsThemeColor('grid') }
- }
- }
- }
- };
-
- const ctx = document.getElementById('reasonChart').getContext('2d');
- if (reasonChart) {
- reasonChart.destroy();
- }
- reasonChart = new Chart(ctx, config);
+ // one horizontal bar per reason, most frequent first (the shared category bars size the box by the row count);
+ // a Warning reason reads in the warn colour; a click filters the table to that reason
+ const warnReasons = new Set(events.filter((ev) => ev.type === 'Warning' && ev.reason).map((ev) => ev.reason));
+ const rows = Object.entries(reasonCounts).sort((x, y) => y[1] - x[1]).slice(0, 40).map(([reason, count]) => ({ name: reason, count, role: warnReasons.has(reason) ? 'warn' : 'ok', title: reason }));
+ const reasonSelect = document.getElementById('eventReasonFilter');
+ reasonChart = window.diagChart.categoryBars('reasonChart', rows, {
+ label: 'events',
+ tooltip: (r) => [r.count + ' event' + (r.count !== 1 ? 's' : '') + (warnReasons.has(r.name) ? ', Warning' : '')],
+ onRow: (r) => { if (!reasonSelect) return; reasonSelect.value = r.name; reasonSelect.dispatchEvent(new Event('change', { bubbles: true })); },
+ });
  }
 
  function showEventDetails(ev) {
@@ -453,13 +367,13 @@
  }, 0);
 
  eventDetailsTable.innerHTML = `
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Namespace:</td><td class="py-2">${ev.namespace}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Name:</td><td class="py-2">${ev.name}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Last Seen:</td><td class="py-2">${ev.lastSeen}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Type:</td><td class="py-2">${ev.type}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Reason:</td><td class="py-2">${ev.reason}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Object:</td><td class="py-2">${ev.object}</td></tr>
- <tr><td class="py-2 pr-4 font-semibold">Message:</td><td class="py-2">${ev.message}</td></tr>
+ <tr><td>Namespace:</td><td>${ev.namespace}</td></tr>
+ <tr><td>Name:</td><td>${ev.name}</td></tr>
+ <tr><td>Last Seen:</td><td>${ev.lastSeen}</td></tr>
+ <tr><td>Type:</td><td>${ev.type}</td></tr>
+ <tr><td>Reason:</td><td>${ev.reason}</td></tr>
+ <tr><td>Object:</td><td>${ev.object}</td></tr>
+ <tr><td>Message:</td><td>${ev.message}</td></tr>
  `;
 
  // Setup YAML filter

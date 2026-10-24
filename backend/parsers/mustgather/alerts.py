@@ -3,6 +3,8 @@ import json
 import re
 from datetime import datetime
 
+from parsers.findings import finding, sort_findings, no_data
+
 from parsers.mustgather._common import resolve_data_dir
 
 def parse(directory):
@@ -52,6 +54,7 @@ def parse(directory):
     rules_path = os.path.join(directory, "monitoring", "prometheus", "rules.json")
 
     if not os.path.exists(rules_path):
+        result['findings'] = [no_data('No alert rules in this must-gather', ['monitoring/prometheus/rules.json'], 'trimmed gather (the monitoring stack was not collected)')]
         return result
 
     try:
@@ -137,4 +140,32 @@ def parse(directory):
     except Exception as e:
         result['error'] = str(e)
 
+    # firing first, then pending; critical before warning before info; the longest-firing first
+    for key in ('all', 'firing'):
+        result[key].sort(key=lambda al: (STATE_RANK.get(al['state'], 3), SEVERITY_RANK.get(al['severity'], 3), al.get('active_since') or 'z'))
+    result['findings'] = findings_for(result)
     return result
+
+STATE_RANK = {'firing': 0, 'pending': 1, 'inactive': 2}
+SEVERITY_RANK = {'critical': 0, 'warning': 1, 'info': 2}
+
+
+def findings_for(result):
+    """The Findings strip: firing critical alerts (bad) and warnings (warn), each with its summary and namespace, the
+    pending ones (info), the counts when nothing fires. The Watchdog alert (it fires on purpose) is left out."""
+    out = []
+    firing = [al for al in result.get('firing', []) if al.get('name') != 'Watchdog']
+    for al in firing[:12]:
+        sev = 'bad' if al.get('severity') == 'critical' else ('warn' if al.get('severity') == 'warning' else 'info')
+        ns = al.get('namespace') or (al.get('labels') or {}).get('namespace') or ''
+        out.append(finding(sev, f"{al['name']} firing ({al.get('severity', '?')})" + (f" x{al['alerts_count']}" if al.get('alerts_count', 0) > 1 else ''), (al.get('summary') or al.get('description') or '')[:240] + (f" [{ns}]" if ns else ''), tab='workloads', sub_tab='pod', query=ns or None, count=al.get('alerts_count') or 1))
+    if len(firing) > 12:
+        out.append(finding('info', f"{len(firing) - 12} more alerts firing", ', '.join(al['name'] for al in firing[12:20]) + (' …' if len(firing) > 20 else ''), count=len(firing) - 12))
+    pending = [al for al in result.get('all', []) if al.get('state') == 'pending']
+    if pending:
+        out.append(finding('info', f"{len(pending)} alert{'s' if len(pending) != 1 else ''} pending", ', '.join(al['name'] for al in pending[:6]) + (' …' if len(pending) > 6 else ''), count=len(pending)))
+    if not result.get('all'):
+        out.append(finding('info', 'No alert rules in this must-gather', 'monitoring/prometheus/rules.json is missing'))
+    elif not firing:
+        out.append(finding('good', f"No alert firing ({len(result['all'])} rules evaluated)"))
+    return sort_findings(out)

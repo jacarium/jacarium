@@ -1,3 +1,5 @@
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 <div id="alertPanel" class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm w-full">
  <h3 class="text-lg font-medium mb-2">
@@ -9,13 +11,6 @@
  <canvas id="severityChart"></canvas>
  </div>
  {% else %}
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Firing Alerts</div>
- <div class="text-xs text-gray-500">No alerts currently firing</div>
- </div>
  {% endif %}
  </div>
  </div>
@@ -24,66 +19,46 @@
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-bell mr-2"></i> Alert Rules
  </h3>
- <div class="mb-2">
- <label class="inline-flex items-center text-xs font-semibold">
- <input type="checkbox" id="show-firing-only" class="form-checkbox" checked />
- <span class="ml-2">Show Firing Only</span>
- </label>
- </div>
- <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
- <div>
- <label for="alertSeverityFilter" class="block text-xs font-semibold mb-1">Severity</label>
- <select id="alertSeverityFilter" class="w-full px-3 py-2 text-sm border">
+ {% call ui.filter_bar() %}
+    <label class="ui-field">{{ ui.icon('search') }}<input autocomplete="off" data-ui-search aria-label="Search alerts" id="alertSearchInput" type="search" placeholder="Search alerts..." class="ui-input"></label>
+    <label class="ui-rows">Severity<span class="ui-select-wrap"><select aria-label="Severity" id="alertSeverityFilter" class="ui-select">
  <option value="">All</option>
- </select>
- </div>
- <div>
- <label for="alertStateFilter" class="block text-xs font-semibold mb-1">State</label>
- <select id="alertStateFilter" class="w-full px-3 py-2 text-sm border">
+ </select>{{ ui.icon('chevron') }}</span></label>
+    <label class="ui-rows">State<span class="ui-select-wrap"><select aria-label="State" id="alertStateFilter" class="ui-select">
  <option value="">All</option>
  <option value="firing">Firing</option>
  <option value="pending">Pending</option>
  <option value="inactive">Inactive</option>
- </select>
- </div>
- <div class="md:col-span-6">
- <label for="alertSearchInput" class="block text-xs font-semibold mb-1">Search All</label>
- <input id="alertSearchInput" type="text" placeholder="Search alerts..." class="w-full px-3 py-2 text-sm border"/>
- </div>
- </div>
- <div class="flex justify-between items-center mb-2">
- <div id="filteredAlertCount" class="text-sm">Showing all alerts</div>
- <div class="flex items-center gap-2">
- <label class="text-xs font-semibold">Per Page:</label>
- <select id="alertPageSizeSelect" onchange="window.changeAlertPageSize()" class="px-3 py-1 text-sm border">
+ </select>{{ ui.icon('chevron') }}</span></label>
+    <label class="ui-check-label" for="show-firing-only"><input type="checkbox" id="show-firing-only" class="ui-check" checked>Show Firing Only</label>
+    {% call ui.end() %}<span class="ui-status" id="filteredAlertCount" aria-live="polite">Showing all alerts</span><label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select aria-label="Rows per page" id="alertPageSizeSelect" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { window.changeAlertPageSize(); }) : window.changeAlertPageSize()" class="ui-select">
  <option value="50">50</option>
  <option value="100" selected>100</option>
  <option value="250">250</option>
  <option value="-1">All</option>
- </select>
- </div>
- </div>
- <table class="w-full min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
+ </select>{{ ui.icon('chevron') }}</span></label>{% endcall %}
+  {% endcall %}
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAlertsBy('name')">Rule <i id="alert-indicator-name" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAlertsBy('severity')">Severity <i id="alert-indicator-severity" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAlertsBy('state')">State <i id="alert-indicator-state" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAlertsBy('age')">Last Evaluation <i id="alert-indicator-age" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAlertsBy('alerts')">Alerts <i id="alert-indicator-alerts" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAlertsBy('activeSince')">Active Since <i id="alert-indicator-activeSince" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortAlertsBy('name')">Rule <i id="alert-indicator-name" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortAlertsBy('severity')">Severity <i id="alert-indicator-severity" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-sorted="descending" onclick="window.sortAlertsBy('state')">State <i id="alert-indicator-state" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortAlertsBy('age')">Last Evaluation <i id="alert-indicator-age" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortAlertsBy('alerts')">Alerts <i id="alert-indicator-alerts" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortAlertsBy('activeSince')">Active Since <i id="alert-indicator-activeSince" class="ml-1 fas text-sm"></i></th>
  </tr>
  </thead>
  <tbody id="alertTableBody"></tbody>
  </table>
- <div id="alertPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ <nav id="alertPaginationControls" class="ui-pager" aria-label="Pages" hidden></nav>
  </div>
 </div>
 
 <div id="alertDetailsPanel" style="display: none;">
  <div class="space-y-4">
  <div class="mb-4">
- <button onclick="window.backFromAlertModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ <button onclick="window.backFromAlertModal()" class="btn btn-secondary flex items-center gap-2">
  Back
  </button>
  </div>
@@ -93,7 +68,7 @@
  <i class="fas fa-info-circle mr-2"></i> Alert Details
  </h3>
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm" id="alertDetailsTable"></table>
+ <table class="ui-table" id="alertDetailsTable"></table>
  </div>
  </div>
 
@@ -123,7 +98,7 @@
  <i class="fas fa-file mr-2"></i> Alert Rule JSON
  </h2>
  <div class="mb-2">
- <input id="alertJsonFilter" type="text" placeholder="Filter JSON lines..." class="w-full px-3 py-2 text-sm border"/>
+ <input id="alertJsonFilter" type="text" placeholder="Filter JSON lines..." class="ui-input w-full"/>
  </div>
  <div id="alertJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
  </div>
@@ -266,12 +241,12 @@
  var activeSince = formatTimestamp(alert.active_since);
 
  row.innerHTML =
- '<td class="px-4 py-2">' + alert.name + '</td>' +
- '<td class="px-4 py-2">' + alert.severity + '</td>' +
- '<td class="px-4 py-2">' + alert.state + '</td>' +
- '<td class="px-4 py-2">' + age + '</td>' +
- '<td class="px-4 py-2">' + alert.alerts_count + '</td>' +
- '<td class="px-4 py-2">' + activeSince + '</td>';
+ '<td>' + alert.name + '</td>' +
+ '<td>' + alert.severity + '</td>' +
+ '<td>' + alert.state + '</td>' +
+ '<td>' + age + '</td>' +
+ '<td>' + alert.alerts_count + '</td>' +
+ '<td>' + activeSince + '</td>';
 
  row.onclick = function() { showAlertDetails(alert); };
  return row;
@@ -284,14 +259,14 @@
 
  var detailsTable = document.getElementById("alertDetailsTable");
  detailsTable.innerHTML =
- '<tr><td class="font-semibold pr-4 py-1">Name:</td><td>' + alert.name + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Group:</td><td>' + alert.group + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Severity:</td><td>' + alert.severity + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">State:</td><td>' + alert.state + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Last Evaluation:</td><td>' + calculateAge(alert.age_seconds) + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Query:</td><td class="font-mono text-xs break-all">' + alert.query + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Duration:</td><td>' + alert.duration + 's</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Last Evaluation:</td><td>' + formatTimestamp(alert.last_evaluation) + '</td></tr>';
+ '<tr><td>Name:</td><td>' + alert.name + '</td></tr>' +
+ '<tr><td>Group:</td><td>' + alert.group + '</td></tr>' +
+ '<tr><td>Severity:</td><td>' + alert.severity + '</td></tr>' +
+ '<tr><td>State:</td><td>' + alert.state + '</td></tr>' +
+ '<tr><td>Last Evaluation:</td><td>' + calculateAge(alert.age_seconds) + '</td></tr>' +
+ '<tr><td>Query:</td><td class="ui-mono break-all">' + alert.query + '</td></tr>' +
+ '<tr><td>Duration:</td><td>' + alert.duration + 's</td></tr>' +
+ '<tr><td>Last Evaluation:</td><td>' + formatTimestamp(alert.last_evaluation) + '</td></tr>';
 
  // Labels
  var labelsDiv = document.getElementById("alertLabelsTable");
@@ -322,11 +297,11 @@
  // Active alert instances
  var activeAlertsDiv = document.getElementById("activeAlertsTable");
  if (alert.alerts && alert.alerts.length > 0) {
- var activeHtml = '<div class="overflow-x-auto"><table class="min-w-full text-xs"><thead class="border-b"><tr>' +
- '<th class="px-4 py-2 text-left">Labels</th>' +
- '<th class="px-4 py-2 text-left">State</th>' +
- '<th class="px-4 py-2 text-left">Active At</th>' +
- '<th class="px-4 py-2 text-left">Value</th>' +
+ var activeHtml = '<div class="overflow-x-auto"><table class="ui-table"><thead><tr>' +
+ '<th>Labels</th>' +
+ '<th>State</th>' +
+ '<th>Active At</th>' +
+ '<th>Value</th>' +
  '</tr></thead><tbody>';
 
  alert.alerts.forEach(function(instance) {
@@ -337,11 +312,11 @@
  labelsHtml += '<div class="whitespace-nowrap"><span class="text-blue-700 dark:text-blue-300">' + key + '</span>=<span class="text-green-700 dark:text-green-300">"' + labels[key] + '"</span></div>';
  }
 
- activeHtml += '<tr class="border-b">' +
- '<td class="px-4 py-2 font-mono text-xs max-w-md wrap-break-word">' + labelsHtml + '</td>' +
- '<td class="px-4 py-2 whitespace-nowrap">' + instance.state + '</td>' +
- '<td class="px-4 py-2 whitespace-nowrap">' + formatTimestamp(instance.activeAt) + '</td>' +
- '<td class="px-4 py-2 whitespace-nowrap">' + (instance.value || '-') + '</td>' +
+ activeHtml += '<tr>' +
+ '<td class="ui-mono max-w-md wrap-break-word">' + labelsHtml + '</td>' +
+ '<td>' + instance.state + '</td>' +
+ '<td>' + formatTimestamp(instance.activeAt) + '</td>' +
+ '<td>' + (instance.value || '-') + '</td>' +
  '</tr>';
  });
  activeHtml += '</tbody></table></div>';
@@ -404,32 +379,8 @@
  }
 
  function renderAlertPaginationControls(totalAlerts) {
- var controls = document.getElementById("alertPaginationControls");
- if (alertPageSize === -1) {
- controls.innerHTML = "";
- return;
- }
-
- var totalPages = Math.ceil(totalAlerts / alertPageSize);
- var html = "";
-
- if (alertCurrentPage > 1) {
- html += '<button onclick="window.changeAlertPage(' + (alertCurrentPage - 1) + ')" class="px-3 py-1 border rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700">Previous</button>';
- }
-
- var startPage = Math.max(1, alertCurrentPage - 2);
- var endPage = Math.min(totalPages, alertCurrentPage + 2);
-
- for (var i = startPage; i <= endPage; i++) {
- var activeClass = i === alertCurrentPage ? "bg-blue-500 text-white current-page" : "border hover:bg-gray-100 dark:hover:bg-gray-700";
- html += '<button onclick="window.changeAlertPage(' + i + ')" class="px-3 py-1 rounded-sm ' + activeClass + '">' + i + '</button>';
- }
-
- if (alertCurrentPage < totalPages) {
- html += '<button onclick="window.changeAlertPage(' + (alertCurrentPage + 1) + ')" class="px-3 py-1 border rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700">Next</button>';
- }
-
- controls.innerHTML = html;
+   // the shared pager (diagPager): one page -> nothing drawn
+   window.diagPager.render(document.getElementById('alertPaginationControls'), { total: totalAlerts, page: alertCurrentPage, pageSize: alertPageSize, go: function (p) { changeAlertPage(p); } });
  }
 
  window.changeAlertPage = function(page) {
@@ -458,6 +409,7 @@
  ["name", "severity", "state", "age", "alerts", "activeSince"].forEach(function(key) {
  var indicator = document.getElementById("alert-indicator-" + key);
  if (currentSort.key === key) {
+  window.diagTables.markSort(indicator, currentSort.direction > 0);
  indicator.className = "ml-1 fas " + (currentSort.direction === 1 ? "fa-sort-up" : "fa-sort-down");
  } else {
  indicator.className = "ml-1 fas";
@@ -514,7 +466,7 @@
  if (severityCounts[severity]) {
  labels.push(severity);
  data.push(severityCounts[severity]);
- colors.push(colorMap[severity] || 'rgb(156, 163, 175)');
+ colors.push(({ critical: 'error', warning: 'warn', info: 'info' })[severity] || 'other');
  }
  });
 
@@ -523,19 +475,19 @@
  if (!severityOrder.includes(severity)) {
  labels.push(severity);
  data.push(severityCounts[severity]);
- colors.push('rgb(156, 163, 175)');
+ colors.push('other');
  }
  }
 
  var ctx = document.getElementById('severityChart');
- new Chart(ctx, {
+ window.diagChart.make(ctx, {
  type: 'bar',
  data: {
  labels: labels,
  datasets: [{
  label: 'Firing Alerts',
  data: data,
- backgroundColor: colors
+ roles: colors
  }]
  },
  options: {

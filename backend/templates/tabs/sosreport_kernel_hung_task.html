@@ -1,4 +1,6 @@
 {% from "tabs/_kernel_diag_macros.html" import icon, tag, stat, timeline, chips, stack, raw_block, copy_button, filters, empty %}
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 {#
   Kernel Hung Tasks: "INFO: task X:N blocked for more than N seconds"
   reports, grouped by the function the tasks are blocked in (the first
@@ -77,7 +79,6 @@
   {% endfor %}
   </div>
 {% else %}
-  {{ empty('No hung tasks', 'No "blocked for more than N seconds" report was found in the kernel logs of this report.', summary.sources) }}
 {% endif %}
 {% include "tabs/_kernel_diag.html" %}
 </div>

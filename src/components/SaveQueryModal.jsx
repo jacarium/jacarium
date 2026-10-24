@@ -98,7 +98,7 @@ export default function SaveQueryModal({ isOpen, onClose, onSave, currentJQL }) 
           <button
             onClick={handleSave}
             disabled={saving || !name.trim()}
-            className="flex items-center gap-2 px-4 py-2 bg-rh-red text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn btn-primary flex items-center gap-2 px-4 py-2"
           >
             {saving ? 'Saving...' : 'Save Query'}
           </button>

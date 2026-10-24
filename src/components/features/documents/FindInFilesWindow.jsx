@@ -383,7 +383,7 @@ export default function FindInFilesWindow({
             type="button"
             onClick={() => openResult(selected)}
             disabled={!selected}
-            className="px-3 py-1.5 text-sm rounded-sm bg-os-blue text-white hover:bg-os-blue-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="btn btn-primary px-3 py-1.5 text-sm"
           >
             Open in New Tab
           </button>

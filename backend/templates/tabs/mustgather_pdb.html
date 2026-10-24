@@ -1,63 +1,45 @@
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 <div id="pdbListPanel" class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm w-full">
 
- <div class="mb-2">
- <label class="inline-flex items-center text-xs font-semibold">
- <input type="checkbox" id="show-empty-namespaces" class="form-checkbox">
- <span class="ml-2">Show Empty Namespaces</span>
- </label>
- <label class="inline-flex items-center text-xs font-semibold ml-4">
- <input type="checkbox" id="show-only-problematic" class="form-checkbox" checked>
- <span class="ml-2">Show Only Problematic (minAvailable >= 1)</span>
- </label>
- </div>
- <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
- <div>
- <label for="pdbNamespaceFilter" class="block text-xs font-semibold mb-1">Namespaces</label>
- <select id="pdbNamespaceFilter" class="w-full px-3 py-2 text-sm border">
+ {% call ui.filter_bar() %}
+    <label class="ui-field">{{ ui.icon('search') }}<input autocomplete="off" data-ui-search aria-label="Search PDBs" id="search-input" type="search" placeholder="Search PDBs..." class="ui-input"></label>
+    <label class="ui-rows">Namespaces<span class="ui-select-wrap"><select aria-label="Namespaces" id="pdbNamespaceFilter" class="ui-select">
  <option value="">All</option>
- </select>
- </div>
- <div class="md:col-span-7">
- <label for="search-input" class="block text-xs font-semibold mb-1">Search All</label>
- <input id="search-input" type="text" placeholder="Search PDBs..." class="w-full px-3 py-2 text-sm border" />
- </div>
- </div>
- <div class="flex justify-between items-center mb-2">
- <div id="filteredPdbCount" class="text-sm">Showing all PDBs</div>
- <div class="flex items-center gap-2">
- <label class="text-xs font-semibold">Per Page:</label>
- <select id="pdbPageSizeSelect" onchange="window.changePdbPageSize()" class="px-3 py-1 text-sm border">
+ </select>{{ ui.icon('chevron') }}</span></label>
+    <label class="ui-check-label" for="show-empty-namespaces"><input type="checkbox" id="show-empty-namespaces" class="ui-check">Show empty namespaces</label>
+    <label class="ui-check-label" for="show-only-problematic"><input type="checkbox" id="show-only-problematic" class="ui-check">Only blocking / unhealthy</label>
+    {% call ui.end() %}<span class="ui-status" id="filteredPdbCount" aria-live="polite">Showing all PDBs</span><label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select aria-label="Rows per page" id="pdbPageSizeSelect" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { window.changePdbPageSize(); }) : window.changePdbPageSize()" class="ui-select">
  <option value="50">50</option>
  <option value="100" selected>100</option>
  <option value="250">250</option>
  <option value="-1">All</option>
- </select>
- </div>
- </div>
- <table class="w-full min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
+ </select>{{ ui.icon('chevron') }}</span></label>{% endcall %}
+  {% endcall %}
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('namespace')">Namespace <i id="pdb-indicator-namespace" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('name')">Name <i id="pdb-indicator-name" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('minAvailable')">Min Available <i id="pdb-indicator-minAvailable" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('maxUnavailable')">Max Unavailable <i id="pdb-indicator-maxUnavailable" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('currentHealthy')">Current/Desired Healthy <i id="pdb-indicator-currentHealthy" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('disruptionsAllowed')">Disruptions Allowed <i id="pdb-indicator-disruptionsAllowed" class="ml-1 fas text-sm"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortBy('status')">Status <i id="pdb-indicator-status" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortBy('namespace')">Namespace <i id="pdb-indicator-namespace" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortBy('name')">Name <i id="pdb-indicator-name" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer ui-num" onclick="window.sortBy('minAvailable')">Min available <i id="pdb-indicator-minAvailable" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer ui-num" onclick="window.sortBy('maxUnavailable')">Max unavailable <i id="pdb-indicator-maxUnavailable" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer ui-num" onclick="window.sortBy('currentHealthy')">Current / desired healthy <i id="pdb-indicator-currentHealthy" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer ui-num" onclick="window.sortBy('disruptionsAllowed')">Disruptions allowed <i id="pdb-indicator-disruptionsAllowed" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" onclick="window.sortBy('status')">Status <i id="pdb-indicator-status" class="ml-1 fas text-sm"></i></th>
  </tr>
  </thead>
  <tbody id="pdb-table-body">
  </tbody>
  </table>
- <div id="pdbPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ <nav id="pdbPaginationControls" class="ui-pager" aria-label="Pages" hidden></nav>
  </div>
 </div>
 
 <div id="pdbPanel" style="display: none;">
  <div class="space-y-4">
  <div class="mb-4">
- <button onclick="window.backFromPdbModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ <button onclick="window.backFromPdbModal()" class="btn btn-secondary flex items-center gap-2">
  Back
  </button>
  </div>
@@ -67,7 +49,7 @@
  <i class="fas fa-info-circle mr-2"></i> PDB Details
  </h2>
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm" id="pdbDetailsTable"></table>
+ <table class="ui-table" id="pdbDetailsTable"></table>
  </div>
  </div>
 
@@ -120,7 +102,7 @@
  id="pdbYamlFilter"
  type="text"
  placeholder="Filter YAML lines..."
- class="w-full px-3 py-2 text-sm border"
+ class="ui-input w-full"
  />
  </div>
  <div id="pdbJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
@@ -131,7 +113,8 @@
 <script>
 
  var pdbsData = {{ data | tojson }};
- var currentSort = { key: null, direction: 1 };
+ delete pdbsData.findings;
+ var currentSort = { key: 'status', direction: 1 };   // worst first on load (blocking, unhealthy, empty, ok)
  var pdbCurrentPage = 1;
  var pdbPageSize = 100;
 
@@ -154,16 +137,20 @@
  });
  }
 
+ // the parser's verdict (parsers/mustgather/pdb.py pdb_state): blocking = disruptionsAllowed 0, unhealthy = fewer
+ // healthy pods than desired, empty = selects no pod; the same rule the Findings strip uses
+ var STATE_RANK = { blocking: 0, unhealthy: 0, empty: 1, ok: 2 };
+ function pdbState(pdb) {
+ if (pdb._state) return pdb._state;
+ var st = pdb.status || {};
+ if (st.expectedPods === 0) return 'empty';
+ if ((st.desiredHealthy || 0) > 0 && (st.currentHealthy || 0) < st.desiredHealthy) return 'unhealthy';
+ if (st.disruptionsAllowed === 0) return 'blocking';
+ return 'ok';
+ }
  function isPdbProblematic(pdb) {
- var minAvailable = pdb.spec?.minAvailable;
- if (typeof minAvailable === 'number') {
- return minAvailable >= 1;
- }
- // Handle percentage strings like "50%"
- if (typeof minAvailable === 'string' && minAvailable.endsWith('%')) {
- return true; // Percentage-based might also block
- }
- return false;
+ var s = pdbState(pdb);
+ return s === 'blocking' || s === 'unhealthy';
  }
 
  function getAllPdbs() {
@@ -242,9 +229,7 @@
  case 'maxUnavailable': return pdb.spec?.maxUnavailable || '';
  case 'currentHealthy': return pdb.status?.currentHealthy || 0;
  case 'disruptionsAllowed': return pdb.status?.disruptionsAllowed || 0;
- case 'status':
- var condition = pdb.status?.conditions?.[0];
- return condition ? condition.status : '';
+ case 'status': return STATE_RANK[pdbState(pdb)];
  default: return '';
  }
  }
@@ -252,7 +237,7 @@
  function createPdbRow(item) {
  var pdb = item.data;
  var row = document.createElement("tr");
- row.className = "cursor-pointer border-b hover:bg-gray-50 dark:hover:bg-gray-800";
+ row.className = "cursor-pointer";
 
  var minAvailable = pdb.spec?.minAvailable !== undefined ? pdb.spec.minAvailable : '-';
  var maxUnavailable = pdb.spec?.maxUnavailable !== undefined ? pdb.spec.maxUnavailable : '-';
@@ -261,20 +246,21 @@
  var disruptionsAllowed = pdb.status?.disruptionsAllowed !== undefined ? pdb.status.disruptionsAllowed : '-';
 
  var condition = pdb.status?.conditions?.[0];
- var statusText = '';
- if (condition) {
- statusText = condition.type + ': ' + condition.status;
- }
-
- row.innerHTML =
- '<td class="px-4 py-2">' + item.namespace + '</td>' +
- '<td class="px-4 py-2">' + item.name + '</td>' +
- '<td class="px-4 py-2">' + minAvailable + '</td>' +
- '<td class="px-4 py-2">' + maxUnavailable + '</td>' +
- '<td class="px-4 py-2">' + currentHealthy + ' / ' + desiredHealthy + '</td>' +
- '<td class="px-4 py-2">' + disruptionsAllowed + '</td>' +
- '<td class="px-4 py-2">' + statusText + '</td>';
-
+ var conditionText = condition ? condition.type + ': ' + condition.status + (condition.reason ? ' (' + condition.reason + ')' : '') + (condition.message ? ' - ' + condition.message : '') : 'no condition recorded';
+ var state = pdbState(pdb);
+ var badgeKind = state === 'blocking' ? 'bad' : state === 'unhealthy' ? 'bad' : state === 'empty' ? 'muted' : 'ok';
+ var badgeText = state === 'blocking' ? 'Blocked' : state === 'unhealthy' ? 'Unhealthy' : state === 'empty' ? 'No pods' : 'Allowed';
+ if (state === 'blocking' || state === 'unhealthy') row.classList.add('ui-row-bad');
+ function cell(text, cls, title) { var td = document.createElement('td'); if (cls) td.className = cls; td.textContent = text; if (title) td.title = title; return td; }
+ row.appendChild(cell(item.namespace, 'ui-cmd', item.namespace));
+ row.appendChild(cell(item.name, 'ui-cmd', item.name));
+ row.appendChild(cell(minAvailable, 'ui-num'));
+ row.appendChild(cell(maxUnavailable, 'ui-num'));
+ var hc = cell(currentHealthy + ' / ' + desiredHealthy, 'ui-num', currentHealthy + ' healthy of ' + desiredHealthy + ' desired');
+ if (currentHealthy < desiredHealthy) hc.classList.add('ui-text-warn');
+ row.appendChild(hc);
+ row.appendChild(cell(disruptionsAllowed, 'ui-num'));
+ var sc = document.createElement('td'); var badge = document.createElement('span'); badge.className = 'ui-badge ui-badge-' + badgeKind; badge.textContent = badgeText; badge.title = conditionText; sc.appendChild(badge); row.appendChild(sc);
  row.onclick = function() { showPdbDetails(item.namespace, item.name); };
  return row;
  }
@@ -291,15 +277,15 @@
  var status = pdb.status || {};
 
  detailsTable.innerHTML =
- '<tr><td class="font-semibold pr-4 py-1">Name:</td><td>' + (metadata.name || '-') + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Namespace:</td><td>' + (metadata.namespace || '-') + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Min Available:</td><td>' + (spec.minAvailable !== undefined ? spec.minAvailable : '-') + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Max Unavailable:</td><td>' + (spec.maxUnavailable !== undefined ? spec.maxUnavailable : '-') + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Current Healthy:</td><td>' + (status.currentHealthy || '-') + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Desired Healthy:</td><td>' + (status.desiredHealthy || '-') + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Disruptions Allowed:</td><td>' + (status.disruptionsAllowed !== undefined ? status.disruptionsAllowed : '-') + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Expected Pods:</td><td>' + (status.expectedPods || '-') + '</td></tr>' +
- '<tr><td class="font-semibold pr-4 py-1">Created:</td><td>' + (metadata.creationTimestamp || '-') + '</td></tr>';
+ '<tr><td>Name:</td><td>' + (metadata.name || '-') + '</td></tr>' +
+ '<tr><td>Namespace:</td><td>' + (metadata.namespace || '-') + '</td></tr>' +
+ '<tr><td>Min Available:</td><td>' + (spec.minAvailable !== undefined ? spec.minAvailable : '-') + '</td></tr>' +
+ '<tr><td>Max Unavailable:</td><td>' + (spec.maxUnavailable !== undefined ? spec.maxUnavailable : '-') + '</td></tr>' +
+ '<tr><td>Current Healthy:</td><td>' + (status.currentHealthy || '-') + '</td></tr>' +
+ '<tr><td>Desired Healthy:</td><td>' + (status.desiredHealthy || '-') + '</td></tr>' +
+ '<tr><td>Disruptions Allowed:</td><td>' + (status.disruptionsAllowed !== undefined ? status.disruptionsAllowed : '-') + '</td></tr>' +
+ '<tr><td>Expected Pods:</td><td>' + (status.expectedPods || '-') + '</td></tr>' +
+ '<tr><td>Created:</td><td>' + (metadata.creationTimestamp || '-') + '</td></tr>';
 
  // Selector
  var selectorDiv = document.getElementById("pdbSelectorTable");
@@ -317,22 +303,22 @@
  // Conditions
  var conditionsDiv = document.getElementById("pdbConditionsTable");
  if (status.conditions && status.conditions.length > 0) {
- var conditionsHtml = '<table class="min-w-full"><thead class="border-b"><tr>' +
- '<th class="px-4 py-2 text-left">Type</th>' +
- '<th class="px-4 py-2 text-left">Status</th>' +
- '<th class="px-4 py-2 text-left">Reason</th>' +
- '<th class="px-4 py-2 text-left">Message</th>' +
- '<th class="px-4 py-2 text-left">Last Transition</th>' +
+ var conditionsHtml = '<table class="ui-table"><thead><tr>' +
+ '<th>Type</th>' +
+ '<th>Status</th>' +
+ '<th>Reason</th>' +
+ '<th>Message</th>' +
+ '<th>Last Transition</th>' +
  '</tr></thead><tbody>';
 
  status.conditions.forEach(function(condition) {
  var statusClass = condition.status === 'True' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
- conditionsHtml += '<tr class="border-b">' +
- '<td class="px-4 py-2">' + (condition.type || '-') + '</td>' +
- '<td class="px-4 py-2 ' + statusClass + ' font-semibold">' + (condition.status || '-') + '</td>' +
- '<td class="px-4 py-2">' + (condition.reason || '-') + '</td>' +
- '<td class="px-4 py-2 text-xs">' + (condition.message || '-') + '</td>' +
- '<td class="px-4 py-2 text-xs">' + (condition.lastTransitionTime || '-') + '</td>' +
+ conditionsHtml += '<tr>' +
+ '<td>' + (condition.type || '-') + '</td>' +
+ '<td class="' + statusClass + '">' + (condition.status || '-') + '</td>' +
+ '<td>' + (condition.reason || '-') + '</td>' +
+ '<td>' + (condition.message || '-') + '</td>' +
+ '<td>' + (condition.lastTransitionTime || '-') + '</td>' +
  '</tr>';
  });
  conditionsHtml += '</tbody></table>';
@@ -397,41 +383,20 @@
  };
 
  function updateFilteredCount(total, start, end) {
- var countDiv = document.getElementById("filteredPdbCount");
- if (pdbPageSize === -1) {
- countDiv.textContent = "Showing all " + total + " PDB(s)";
- } else {
- countDiv.textContent = "Showing " + (start + 1) + "-" + end + " of " + total + " PDB(s)";
- }
+ var all = getAllPdbs().length;
+ var filters = [];
+ if (showOnlyProblematicCheckbox.checked) filters.push('only blocking / unhealthy');
+ if (pdbNamespaceFilter.value) filters.push('namespace ' + pdbNamespaceFilter.value);
+ if (searchInput.value.trim()) filters.push('search "' + searchInput.value.trim() + '"');
+ var text = total === all ? (all + ' of ' + all + ' PDBs') : (total + ' of ' + all + ' shown');
+ if (pdbPageSize !== -1 && total > pdbPageSize) text = 'Showing ' + (start + 1) + '\u2013' + end + ' of ' + total + (total !== all ? ' (of ' + all + ')' : '') + ' PDBs';
+ if (filters.length) text += ' \u00b7 filter: ' + filters.join(', ');
+ document.getElementById("filteredPdbCount").textContent = text;
  }
 
  function renderPdbPaginationControls(totalPdbs) {
- var controls = document.getElementById("pdbPaginationControls");
- if (pdbPageSize === -1) {
- controls.innerHTML = "";
- return;
- }
-
- var totalPages = Math.ceil(totalPdbs / pdbPageSize);
- var html = "";
-
- if (pdbCurrentPage > 1) {
- html += '<button onclick="window.changePdbPage(' + (pdbCurrentPage - 1) + ')" class="px-3 py-1 border rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700">Previous</button>';
- }
-
- var startPage = Math.max(1, pdbCurrentPage - 2);
- var endPage = Math.min(totalPages, pdbCurrentPage + 2);
-
- for (var i = startPage; i <= endPage; i++) {
- var activeClass = i === pdbCurrentPage ? "bg-blue-500 text-white current-page" : "border hover:bg-gray-100 dark:hover:bg-gray-700";
- html += '<button onclick="window.changePdbPage(' + i + ')" class="px-3 py-1 rounded-sm ' + activeClass + '">' + i + '</button>';
- }
-
- if (pdbCurrentPage < totalPages) {
- html += '<button onclick="window.changePdbPage(' + (pdbCurrentPage + 1) + ')" class="px-3 py-1 border rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700">Next</button>';
- }
-
- controls.innerHTML = html;
+   // the shared pager (diagPager): one page -> nothing drawn
+   window.diagPager.render(document.getElementById('pdbPaginationControls'), { total: totalPdbs, page: pdbCurrentPage, pageSize: pdbPageSize, go: function (p) { changePdbPage(p); } });
  }
 
  window.changePdbPage = function(page) {
@@ -460,6 +425,7 @@
  ["namespace", "name", "minAvailable", "maxUnavailable", "currentHealthy", "disruptionsAllowed", "status"].forEach(function(key) {
  var indicator = document.getElementById("pdb-indicator-" + key);
  if (currentSort.key === key) {
+  window.diagTables.markSort(indicator, currentSort.direction > 0);
  indicator.className = "ml-1 fas " + (currentSort.direction === 1 ? "fa-sort-up" : "fa-sort-down");
  } else {
  indicator.className = "ml-1 fas";
@@ -484,8 +450,9 @@
  renderPdbTable();
  });
 
- // Initialize
+ // Initialize: the filter is on when a budget blocks (the user sees the problems first), off otherwise
  populateNamespaceFilter();
+ showOnlyProblematicCheckbox.checked = getAllPdbs().some(function (it) { return isPdbProblematic(it.data); });
  renderPdbTable();
 
 </script>

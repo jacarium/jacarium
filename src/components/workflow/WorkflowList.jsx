@@ -246,7 +246,7 @@ export default function WorkflowList({
               onClick={onToggleSelectionMode}
               className={`p-1.5 transition-colors ${
  selectionMode
- ?'bg-os-blue text-white hover:bg-os-blue-hover'
+ ?'btn-selected'
  :'hover:bg-os-card-secondary'
  }`}
               title={selectionMode ? 'Exit selection mode' : 'Select multiple'}

@@ -313,7 +313,7 @@ export default function SubstitutionCipherTool() {
           <button
             onClick={handleDeriveKey}
             disabled={!derivePlain || !deriveCipher}
-            className="px-4 py-2 bg-os-blue text-white text-sm rounded-sm hover:bg-os-blue-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="btn btn-primary px-4 py-2 text-sm"
           >
             Derive Key
           </button>
@@ -342,7 +342,7 @@ export default function SubstitutionCipherTool() {
               <button
                 onClick={handleAutoGuess}
                 disabled={!playgroundCipher}
-                className="px-3 py-1.5 bg-os-blue text-white text-xs rounded-sm hover:bg-os-blue-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="btn btn-primary px-3 py-1.5 text-xs"
               >
                 Auto-Guess by Frequency
               </button>

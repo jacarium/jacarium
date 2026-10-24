@@ -1,6 +1,37 @@
 import os
 import re
 
+from parsers.findings import finding, no_data
+
+def structure_details(lines):
+    """The 'Key: Value' lines of a DMI entry as fields, the 'Key:' lines with indented items as groups (Characteristics,
+    Flags, Strings), both in the entry's order."""
+    fields, groups = [], []
+    current = None
+    for raw in lines:
+        s = raw.strip()
+        if not s:
+            continue
+        indent = len(raw) - len(raw.lstrip('\t '))
+        if current is not None and indent > current[2]:
+            current[1].append(s)
+            continue
+        current = None
+        if s.endswith(':'):
+            current = [s[:-1].strip(), [], indent]
+            groups.append(current)
+        elif ':' in s:
+            k, v = s.split(':', 1)
+            if v.strip():
+                fields.append([k.strip(), v.strip()])
+            else:
+                current = [k.strip(), [], indent]
+                groups.append(current)
+        else:
+            fields.append(['', s])
+    return fields, [[g[0], g[1]] for g in groups]
+
+
 def parse_dmidecode(path):
     entries = []
     current_entry = None
@@ -144,6 +175,7 @@ def parse_dmidecode(path):
                     if summary_lc not in skip_summaries:
                         current_entry["status"] = determine_status(current_entry)
                         current_entry["summary_info"] = extract_summary_info(current_entry)
+                        current_entry["fields"], current_entry["groups"] = structure_details(current_entry["details"])
                         entries.append(current_entry)
                 current_entry = {
                     "summary": "",
@@ -178,6 +210,7 @@ def parse_dmidecode(path):
         if summary_lc not in skip_summaries:
             current_entry["status"] = determine_status(current_entry)
             current_entry["summary_info"] = extract_summary_info(current_entry)
+            current_entry["fields"], current_entry["groups"] = structure_details(current_entry["details"])
             entries.append(current_entry)
 
     return entries
@@ -199,4 +232,9 @@ def parse(directory):
         if os.path.isfile(path):
             result['dmidecode'] = parse_dmidecode(path)
             break
+    entries = result.get('dmidecode') or []
+    if entries:
+        result['findings'] = [finding('info', f"{len(entries)} DMI entries", 'the hardware inventory the firmware reports (dmidecode)')]
+    else:
+        result['findings'] = [no_data('No dmidecode capture in this report', ['sos_commands/hardware/dmidecode', 'dmidecode'], 'typical for a VM or a container host, or sos ran without the hardware plugin')]
     return result

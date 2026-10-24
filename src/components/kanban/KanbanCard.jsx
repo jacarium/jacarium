@@ -451,7 +451,7 @@ export default function KanbanCard({ card, onDelete, onDragStart, onRenameCard, 
                             e.preventDefault();
                             handleSelectAssignee(username);
                           }}
-                          className="w-full px-3 py-1.5 text-left text-xs text-os-text-primary hover:bg-blue-50 flex items-center gap-2"
+                          className="w-full px-3 py-1.5 text-left text-xs text-os-text-primary hover:bg-(--btn-quiet-bg-hover) flex items-center gap-2"
                         >
                           <User size={12} />
                           @{username}

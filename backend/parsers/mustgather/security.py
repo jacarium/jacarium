@@ -5,6 +5,7 @@ Expiration). Clicking the parent header loads this summary, which aggregates
 both sub-parsers: certificate counts by status, the certificates that need
 attention and the pending CSRs, with links to the detailed sub-tabs.
 """
+from parsers.findings import sort_findings
 from parsers.mustgather import csr as csr_parser
 from parsers.mustgather import tls_secrets as tls_parser
 
@@ -68,7 +69,16 @@ def _summarise_csr(requests):
 def parse(directory):
     tls = _summarise_tls(tls_parser.parse(directory) or [])
     csrs = _summarise_csr(csr_parser.parse(directory) or [])
+    findings = []
+    for mod in (tls_parser, csr_parser):
+        for f in (mod.findings(directory) if hasattr(mod, 'findings') else []):
+            f = dict(f)
+            f['title'] = ('TLS: ' if mod is tls_parser else 'CSR: ') + f['title']
+            if f.get('severity') in ('bad', 'warn') and not f.get('link'):
+                f['link'] = {'tab': 'security', 'sub_tab': 'tls_secrets' if mod is tls_parser else 'csr', 'query': ''}
+            findings.append(f)
     return {
+        "findings": sort_findings(findings),
         "tls": tls,
         "csr": csrs,
         "needs_attention": (

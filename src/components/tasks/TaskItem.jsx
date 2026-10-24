@@ -332,7 +332,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                             e.preventDefault();
                             handleSelectProject(projectName);
                           }}
-                          className="w-full px-3 py-1.5 text-left text-xs text-os-text-primary hover:bg-purple-50 dark:hover:bg-purple-900/20 flex items-center gap-2"
+                          className="w-full px-3 py-1.5 text-left text-xs text-os-text-primary hover:bg-(--btn-brand-tint) flex items-center gap-2"
                         >
                           <FolderOpen size={12} />
                           {projectName}
@@ -554,7 +554,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                 {isActive ? (
                   <button
                     onClick={handleStopTask}
-                    className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-red-50 text-red-700 border border-red-200/50 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/50 hover:bg-red-100 dark:hover:bg-red-900/30"
+                    className="btn btn-danger-soft text-[11px] px-1.5 py-0.5 flex items-center gap-1"
                     title="Stop task"
                   >
                     <Square size={11} />
@@ -563,7 +563,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                 ) : (
                   <button
                     onClick={handleStartTask}
-                    className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-green-50 text-green-700 border border-green-200/50 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800/50 hover:bg-green-100 dark:hover:bg-green-900/30"
+                    className="btn btn-success-soft text-[11px] px-1.5 py-0.5 flex items-center gap-1"
                     title="Start task"
                   >
                     Start
@@ -785,7 +785,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                             e.preventDefault();
                             onDenotate(task, annotation.description);
                           }}
-                          className="p-0.5 opacity-0 group-hover/annotation:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-sm transition-opacity text-red-500 dark:text-red-400 mt-0.5 shrink-0"
+                          className="btn btn-danger-ghost p-0.5 opacity-0 group-hover/annotation:opacity-100 transition-opacity mt-0.5 shrink-0"
                           title="Remove note"
                         >
                           <Trash2 size={10} />
@@ -842,7 +842,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
         {!isReadOnly && (
           <button
             onClick={() => onDelete?.(task)}
-            className="p-1 opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-sm transition-opacity text-red-500 dark:text-red-400 shrink-0"
+            className="btn btn-danger-ghost p-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
             title="Delete task"
           >
             <Trash2 size={14} />

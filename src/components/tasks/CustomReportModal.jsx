@@ -163,7 +163,7 @@ export default function CustomReportModal({ isOpen, onClose, onSubmit, editingRe
           <button
             type="submit"
             onClick={handleSubmit}
-            className="px-4 py-2 text-sm bg-os-blue text-white rounded-sm hover:bg-os-blue-hover transition-colors"
+            className="btn btn-primary px-4 py-2 text-sm"
           >
             {editingReport ? 'Save Changes' : 'Create Filter'}
           </button>

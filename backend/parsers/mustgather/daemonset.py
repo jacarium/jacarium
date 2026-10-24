@@ -4,7 +4,8 @@ import glob
 import re
 from datetime import datetime, timezone, timedelta
 
-from parsers.mustgather._common import resolve_data_dir
+from parsers.findings import finding, recall, remember, sort_findings, no_data
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
 
 def parse(directory):
     result = {}
@@ -56,7 +57,7 @@ def parse(directory):
             for filepath in daemonset_files:
                 try:
                     with open(filepath, "r") as f:
-                        yaml_content = yaml.safe_load(f)
+                        yaml_content = safe_load(f)
 
                     if yaml_content.get("kind") == "DaemonSetList" and "items" in yaml_content:
                         for item in yaml_content["items"]:
@@ -91,4 +92,35 @@ def parse(directory):
 
         result[namespace] = daemonset_json
 
+    remember(('daemonset', directory), findings_for(result))
     return result
+
+
+def findings(directory):
+    # the parser's list, or the one way to say the gather holds nothing of this (never a GOOD without data)
+    return recall(('daemonset', resolve_data_dir(directory)), lambda: parse(directory)) or [no_data('No daemonsets in this must-gather', ['namespaces/*/apps/daemonsets.yaml'], 'trimmed gather')]
+
+
+def findings_for(result):
+    """The Findings strip: daemonsets with pods unavailable (warn; bad when none is available) or misscheduled, the counts."""
+    out = []
+    total = 0
+    for ns, items in result.items():
+        for name, d in items.items():
+            if not isinstance(d, dict) or d.get("error") or d.get("kind") not in (None, "DaemonSet"):
+                continue
+            total += 1
+            status = d.get("status") or {}
+            want = int(status.get("desiredNumberScheduled") or 0)
+            avail = int(status.get("numberAvailable") or 0)
+            if want and avail == 0:
+                out.append(finding("bad", f"{ns}/{name}: 0 of {want} pods available", "the daemonset runs nowhere", tab="workloads", sub_tab="pod", query=name, count=want))
+            elif want and avail < want:
+                out.append(finding("warn", f"{ns}/{name}: {avail} of {want} pods available", f"{int(status.get('numberUnavailable') or (want - avail))} unavailable: a node missing it, often a NotReady or cordoned one", tab="workloads", sub_tab="pod", query=name, count=want - avail))
+            if int(status.get("numberMisscheduled") or 0):
+                out.append(finding("warn", f"{ns}/{name}: {status['numberMisscheduled']} pods misscheduled", "running on nodes they should not be on"))
+    if not total:
+        out.append(finding("info", "No daemonsets in this must-gather"))
+    elif not any(f["severity"] in ("bad", "warn") for f in out):
+        out.append(finding("good", f"{total} daemonsets fully available"))
+    return sort_findings(out)

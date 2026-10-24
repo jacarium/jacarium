@@ -19,6 +19,8 @@ template, the single-wrapper-directory unwrap applies, a missing or partial
 manifest gives an empty-state result (never an exception), and the Flask
 layer caches the result per directory and tab.
 """
+from parsers.findings import finding, sort_findings
+
 import json
 import os
 import re
@@ -118,7 +120,7 @@ def parse(directory):
         'summary': {}, 'plugins': [], 'rc_codes': [], 'gantt': False, 'notes': [],
     }
     if manifest is None:
-        return {'blame': result}
+        return {'blame': result, 'findings': [finding('info', 'No sos manifest in this report', reason or 'sos_reports/manifest.json is missing (sos before 4.0, or a trimmed report): nothing to blame')]}
     report = (manifest.get('components') or {}).get('report') if isinstance(manifest.get('components'), dict) else None
     sysinfo = (report or {}).get('sysinfo') if isinstance(report, dict) else None
     result.update({
@@ -144,7 +146,7 @@ def parse(directory):
         result['available'] = False
         result['reason'] = ('The manifest has no per-plugin timings (components.report.plugins): this sos version '
                             f'({result["version"] or "unknown"}) did not record them.')
-        return {'blame': result}
+        return {'blame': result, 'findings': [finding('info', 'No plugin timings in this manifest', result['reason'])]}
 
     plugins = []
     for name, info in list(plugins_raw.items())[:MAX_PLUGINS]:
@@ -185,7 +187,7 @@ def parse(directory):
     result['gantt'] = any(p['offset_start'] is not None for p in plugins)
     if plugin_total > total * 1.05 and total:
         result['notes'].append('The plugins\' times add up to more than the run: sos collects several plugins at once (--threads).')
-    return {'blame': result}
+    return {'blame': result, 'findings': findings_for(result['summary'], plugins)}
 
 
 def _plugin(name, info, run_start):
@@ -255,3 +257,18 @@ def fmt_seconds(secs):
     if secs < 3600:
         return f"{int(secs // 60)} min {secs % 60:.1f} s"
     return f"{int(secs // 3600)} h {int(secs % 3600 // 60)} min"
+
+def findings_for(summary, plugins):
+    """The Findings strip: plugins that hit their timeout (warn: their captures are incomplete), commands that failed
+    (info), the one plugin that took over half of the run (info), the totals when nothing is wrong."""
+    out = []
+    if summary.get('timeouts'):
+        names = summary.get('timeout_names') or []
+        out.append(finding('warn', f"{summary['timeouts']} plugin{'s' if summary['timeouts'] != 1 else ''} hit the timeout", ', '.join(names[:6]) + (' …' if len(names) > 6 else '') + ": their captures stop where sos gave up; a tab fed by them may be short", count=summary['timeouts']))
+    if summary.get('failed'):
+        out.append(finding('info', f"{summary['failed']} command{'s' if summary['failed'] != 1 else ''} failed", f"{summary.get('not_found', 0)} not found (a tool missing on the host)", count=summary['failed']))
+    if summary.get('slowest') and summary.get('slowest_share', 0) >= 50:
+        out.append(finding('info', f"{summary['slowest']} took {summary['slowest_share']:g}% of the run ({summary['slowest_time']})", 'one plugin dominated the collection time'))
+    if not any(f['severity'] in ('bad', 'warn') for f in out):
+        out.append(finding('good', f"{summary.get('plugins', 0)} plugins, {summary.get('commands', 0)} commands, no timeout"))
+    return sort_findings(out)

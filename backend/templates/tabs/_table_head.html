@@ -1,0 +1,29 @@
+{#
+  The one table header design of the diagnostics tabs, shared by the Log
+  Collection table (tabs/_log_collection.html, a real <table> whose <th>
+  cells get the rules) and the Audit events table (tabs/_audit.html, a
+  grid row of header cells so the event rows can stay <details> cards).
+  Imported inside the owning styles macro:
+    {% import "tabs/_table_head.html" as th %}{{ th.styles('.lc-table th') }}
+
+  styles(cell) takes the selector of the header cells; the sort buttons
+  inside them carry the lc-sort class on every page (lc-sorted for the
+  active column, lc-asc for an ascending one), so a header cell looks and
+  behaves the same wherever it is: the small uppercase muted label (12px,
+  the frame stylesheet's table size, which it forces on every th), the
+  secondary background with a border under it, the primary colour on the
+  active column and on hover, the same marker after the active label
+  (a small down-pointing triangle, up-pointing when ascending) and the
+  focus ring of the app. Numbers right-align through the frame's shared
+  .ui-num class on a <th> (Log Collection's Size) or the page's own cell
+  class on a grid header (Audit's au-num).
+#}
+{% macro styles(cell) -%}
+{{ cell }} { font-size: 12px; line-height: 1.45; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); font-weight: 600; text-align: left; padding: 6px 10px; background: var(--os-card-secondary, #f0f0f0); border-bottom: 1px solid var(--os-border, #d2d2d2); white-space: nowrap; }
+.lc-sort { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; text-align: inherit; cursor: pointer; }
+.lc-sort:hover { color: var(--os-text-primary, #151515); }
+.lc-sort:focus-visible { outline: 2px solid var(--os-blue, #0066cc); outline-offset: 2px; border-radius: 2px; }
+.lc-sort.lc-sorted { color: var(--os-text-primary, #151515); }
+.lc-sort.lc-sorted::after { content: " \25BE"; }
+.lc-sort.lc-sorted.lc-asc::after { content: " \25B4"; }
+{%- endmacro %}

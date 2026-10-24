@@ -1,7 +1,9 @@
 
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 <style>
  .bytes-info {
- color: #6b7280;
+ color: var(--os-text-secondary);
  font-size: 0.875rem;
  padding: 0.5rem;
  margin-top: 0.5rem;
@@ -12,35 +14,35 @@
 
 <div class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm">
- <div class="mb-4">
+ {% call ui.filter_bar() %}<label class="ui-check-label" for="filter-dropped-rx"><input class="ui-check" type="checkbox" id="filter-dropped-rx">Dropped RX</label><label class="ui-check-label" for="filter-dropped-tx"><input class="ui-check" type="checkbox" id="filter-dropped-tx">Dropped TX</label><label class="ui-check-label" for="filter-state-up"><input class="ui-check" type="checkbox" id="filter-state-up">State UP</label><label class="ui-check-label" for="filter-state-down"><input class="ui-check" type="checkbox" id="filter-state-down">State DOWN</label>{% call ui.end() %}<span class="ui-status" id="iface-count" aria-live="polite"></span>{% endcall %}{% endcall %}
+ {% if data.bonds %}
+ {#- the bonds (proc/net/bonding): mode, the slaves with their link state #}
+ <div class="ui-grid mb-4">
+ {% for name, bond in data.bonds.items() %}
+ <div class="ui-card">
+ {{ ui.card_title(name ~ ' - ' ~ (bond.mode or 'bond'), bond.slaves | length) }}
  <div class="flex flex-wrap gap-2">
- <label for="filter-dropped-rx">
- <input type="checkbox" id="filter-dropped-rx">
- Dropped RX
- </label>
- <label for="filter-dropped-tx">
- <input type="checkbox" id="filter-dropped-tx">
- Dropped TX
- </label>
- <label for="filter-state-up">
- <input type="checkbox" id="filter-state-up">
- State UP
- </label>
- <label for="filter-state-down">
- <input type="checkbox" id="filter-state-down">
- State DOWN
- </label>
+ {% for s in bond.slaves %}
+ <span class="ui-chip ui-static">{{ ui.badge('good' if s.mii_status | lower == 'up' else 'bad', s.mii_status or '?') }} {{ s.name }}{% if s.speed %} <span class="ui-muted">{{ s.speed }}</span>{% endif %}{% if s.failures %} <span class="ui-muted">{{ s.failures }} failures</span>{% endif %}</span>
+ {% endfor %}
  </div>
  </div>
+ {% endfor %}
+ </div>
+ {% endif %}
  {% if data.ip_info %}
- <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="interface-cards-container">
+ <div class="ui-grid-charts" id="interface-cards-container">
  {% for iface, stats in data.ip_info.items() %}
- <div class="interface-card p-4 rounded-lg shadow-inner"
+ <div class="interface-card p-4 rounded-lg shadow-inner" data-chart-card
  data-dropped-rx="{{ stats['RX'].get('dropped', 0) }}"
  data-dropped-tx="{{ stats['TX'].get('dropped', 0) }}"
  data-state="{{ stats['State'] | lower }}">
 
- <h4 class="text-sm font-semibold mb-3">{{ iface }} mtu {{ stats['MTU'] if stats['MTU'] else 'UNKNOWN' }} state {{ stats['State'] if stats['State'] else 'UNKNOWN' }}</h4>
+ <h4 class="text-sm font-semibold mb-1">{{ iface }} mtu {{ stats['MTU'] if stats['MTU'] else 'UNKNOWN' }} {{ ui.badge('good' if stats['State'] == 'UP' else ('bad' if stats['State'] == 'DOWN' else 'muted'), stats['State'] if stats['State'] else 'UNKNOWN') }}{% if stats.get('master') %} <span class="ui-muted">slave of {{ stats['master'] }}</span>{% endif %}</h4>
+ {%- set eth = stats.get('ethtool') or {} %}
+ {% if stats.get('addresses') or eth.get('driver') %}
+ <div class="text-xs ui-muted mb-2">{% if stats.get('addresses') %}{{ stats['addresses'] | join(', ') }}{% endif %}{% if eth.get('driver') %}{% if stats.get('addresses') %} &middot; {% endif %}{{ eth['driver'] }}{% if eth.get('version') %} {{ eth['version'] }}{% endif %}{% if eth.get('firmware-version') %}, firmware {{ eth['firmware-version'] }}{% endif %}{% endif %}</div>
+ {% endif %}
  <div class="h-48 mb-2">
  <canvas id="chart-{{ loop.index }}-main"></canvas>
  </div>
@@ -65,13 +67,6 @@
  {% endfor %}
  </div>
  {% else %}
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No network statistics found in this report</div>
- </div>
  {% endif %}
  </div>
 </div>
@@ -128,7 +123,7 @@
  if (filterStateDOWNEl) filterStateDOWNEl.addEventListener("change", updateInterfaceVisibility);
 
  {% for iface, stats in data.ip_info.items() %}
- charts.push(new Chart(document.getElementById('chart-{{ loop.index }}-main').getContext('2d'), {
+ charts.push(window.diagChart.make(document.getElementById('chart-{{ loop.index }}-main').getContext('2d'), {
  type: 'bar',
  data: {
  labels: ['Packets', 'Errors', 'Dropped'],
@@ -207,7 +202,7 @@
 
  {% set outer_loop_index = loop.index %}
  {% for vf_name, vf_stats in stats.get('VFs', {}).items() %}
- charts.push(new Chart(document.getElementById('chart-{{ outer_loop_index }}-vf-{{ loop.index0 }}').getContext('2d'), {
+ charts.push(window.diagChart.make(document.getElementById('chart-{{ outer_loop_index }}-vf-{{ loop.index0 }}').getContext('2d'), {
  type: 'bar',
  data: {
  labels: ['Packets', 'Dropped'],

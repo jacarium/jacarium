@@ -4,6 +4,34 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.3.6
+
+_2026-10-24_
+
+### [DIAGNOSTICS]
+
+Every Diagnostics page opens with a Findings strip: problems first, worst first, with links to the related page; missing data is explained there and never reported as all clear
+
+One design across every Diagnostics page: compact filter bars, rounded tables with sort markers, expandable rows, one pager, readable chips and meters coloured by the same thresholds as the findings
+
+Charts stay inside their cards, show every label, size their bars to the number of categories and use the same colours as the badges; long gaps in time series show as a marked break
+
+Audit for must-gather: search every API audit event by user, verb, resource, namespace, status, category and time, with request bodies and what changed when they were recorded
+
+Processes, Services, PCI, Disk Usage, Scheduler Debug, C-States, SAR, Log Viewer, Pod Disruption Budget and Pods per node reworked for troubleshooting
+
+Parser fixes for RHEL 7 to 9 and OCP 4 outputs: PCI, SAR (12-hour locales, RHEL 9 files), Scheduler Debug, LVM, free, ps threads, Pacemaker, HAProxy and cgroup v2
+
+### [UI]
+
+Buttons share one set of theme colours with readable contrast in every theme
+
+### [SECURITY]
+
+Updated body-parser, Electron, fast-uri, undici and zod for newly published advisories
+
+The app's own HTTPS requests refuse certificates from the compromised eMudhra intermediates
+
 ## What's New in v3.3.5
 
 _2026-10-23_

@@ -463,7 +463,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="btn btn-primary px-6 py-2"
                 >
                   {uploading ? 'Uploading...' : 'Browse Files'}
                 </button>
@@ -656,7 +656,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
                             e.stopPropagation();
                             handleSelectImage(item.filename);
                           }}
-                          className="pointer-events-auto px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-sm shadow-sm"
+                          className="btn btn-primary pointer-events-auto px-3 py-1.5 text-xs"
                         >
                           Insert
                         </button>
@@ -721,7 +721,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
                   </span>
                   <button
                     onClick={() => setShowBulkDeleteModal(true)}
-                    className="px-3 py-1.5 text-sm text-white bg-red-600 hover:bg-red-700 rounded-sm transition-colors flex items-center gap-1.5"
+                    className="btn btn-danger-solid px-3 py-1.5 text-sm flex items-center gap-1.5"
                   >
                     Delete Selected
                   </button>
@@ -814,7 +814,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
               handleDelete(contextMenu.item.id, contextMenu.item.filename);
               setContextMenu(null);
             }}
-            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+            className="w-full px-4 py-2 text-left text-sm text-(--btn-danger-fg) hover:bg-(--btn-danger-bg-hover) flex items-center gap-2"
           >
             <MenuItemIcon action="delete" danger />
             Delete
@@ -867,7 +867,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
                 e.stopPropagation();
                 handleSelectImage(previewImage.filename);
               }}
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-sm shadow-lg"
+              className="btn btn-primary absolute bottom-6 left-1/2 -translate-x-1/2 px-5 py-2 text-sm shadow-lg"
             >
               Insert into Document
             </button>
@@ -923,7 +923,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
               </button>
               <button
                 onClick={handleTagEditorSave}
-                className="px-3 py-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-sm transition-colors"
+                className="btn btn-primary px-3 py-1.5 text-sm"
               >
                 Save
               </button>

@@ -171,7 +171,7 @@ export default function SaveTemplateModal({ isOpen, onClose, onSave, currentJQL,
                 </select>
                 <button
                   onClick={() => setShowNewCategory(true)}
-                  className="flex items-center gap-2 px-3 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors"
+                  className="btn btn-primary flex items-center gap-2 px-3 py-2 text-sm"
                   title="Create new category"
                 >
                   New
@@ -214,7 +214,7 @@ export default function SaveTemplateModal({ isOpen, onClose, onSave, currentJQL,
                     onClick={() => setIcon(iconName)}
                     className={`p-3 border transition-all bg-os-modal flex items-center justify-center ${
  icon === iconName
- ?'border-os-blue bg-blue-50 dark:bg-blue-900/20'
+ ?'btn-selected-soft'
  :'border-os-input-border hover:border-os-blue hover:bg-os-card-secondary'
  }`}
                     title={iconName}
@@ -293,7 +293,7 @@ export default function SaveTemplateModal({ isOpen, onClose, onSave, currentJQL,
             <button
               onClick={handleSave}
               disabled={saving || !name.trim() || (!category && !newCategory.trim())}
-              className="flex items-center gap-2 px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
+              className="btn btn-primary flex items-center gap-2 px-4 py-2 text-sm"
             >
               {saving ? 'Saving...' : 'Save Template'}
             </button>

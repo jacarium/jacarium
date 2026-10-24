@@ -1,6 +1,8 @@
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 <div id="podListPanel" class="grid grid-cols-1 gap-4">
- <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
- <div class="panel rounded-lg shadow-sm">
+ <div class="ui-grid-charts ui-grid-2">
+ <div class="panel rounded-lg shadow-sm" data-chart-card>
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-server mr-2"></i> Pods per Node
  </h3>
@@ -8,18 +10,11 @@
  {% if data %}
  <canvas id="podsPerNodeChart" height="150"></canvas>
  {% else %}
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No pod distribution data found</div>
- </div>
  {% endif %}
  </div>
  </div>
 
- <div class="panel rounded-lg shadow-sm">
+ <div class="panel rounded-lg shadow-sm" data-chart-card>
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-traffic-light mr-2"></i> Pods per Status
  </h3>
@@ -27,13 +22,6 @@
  {% if data %}
  <canvas id="podsPerStatusChart" height="150"></canvas>
  {% else %}
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No pod status data found</div>
- </div>
  {% endif %}
  </div>
  </div>
@@ -43,79 +31,56 @@
  <i class="fas fa-box mr-2"></i> Pods
  </h3>
 
- <div class="mb-2">
- <label class="inline-flex items-center text-xs font-semibold">
- <input type="checkbox" id="show-empty-namespaces" class="form-checkbox">
- <span class="ml-2">Show Empty Namespaces</span>
- </label>
- </div>
- <div class="mb-4 grid grid-cols-1 md:grid-cols-8 gap-2">
- <div>
- <label for="filter-namespace" class="block text-xs font-semibold mb-1">Namespaces</label>
- <select id="filter-namespace" class="w-full px-3 py-2 text-sm border">
+ {% call ui.filter_bar() %}
+    <label class="ui-field">{{ ui.icon('search') }}<input autocomplete="off" data-ui-search aria-label="Search pods" id="search-input" type="search" placeholder="Search pods..." class="ui-input"></label>
+    <label class="ui-rows">Namespaces<span class="ui-select-wrap"><select aria-label="Namespaces" id="filter-namespace" class="ui-select">
  <option value="">All</option>
- </select>
- </div>
- <div>
- <label for="filter-node" class="block text-xs font-semibold mb-1">Nodes</label>
- <select id="filter-node" class="w-full px-3 py-2 text-sm border">
+ </select>{{ ui.icon('chevron') }}</span></label>
+    <label class="ui-rows">Nodes<span class="ui-select-wrap"><select aria-label="Nodes" id="filter-node" class="ui-select">
  <option value="">All</option>
- </select>
- </div>
- <div>
- <label for="filter-status" class="block text-xs font-semibold mb-1">Status</label>
- <select id="filter-status" class="w-full px-3 py-2 text-sm border">
+ </select>{{ ui.icon('chevron') }}</span></label>
+    <label class="ui-rows">Status<span class="ui-select-wrap"><select aria-label="Status" id="filter-status" class="ui-select">
  <option value="">All</option>
- </select>
- </div>
- <div class="md:col-span-5">
- <label for="search-input" class="block text-xs font-semibold mb-1">Search All</label>
- <input id="search-input" type="text" placeholder="Search pods..." class="w-full px-3 py-2 text-sm border" />
- </div>
- </div>
+ </select>{{ ui.icon('chevron') }}</span></label>
+    <label class="ui-check-label" for="show-empty-namespaces"><input type="checkbox" id="show-empty-namespaces" class="ui-check">Show Empty Namespaces</label>
+  {% endcall %}
 
  {% if data %}
- <div class="flex justify-between items-center mb-2">
- <div id="filteredPodCount" class="text-sm">Showing all entries</div>
- <div class="flex items-center gap-2">
- <label class="text-xs font-semibold">Per Page:</label>
- <select id="podPageSizeSelect" onchange="window.changePodPageSize()" class="px-3 py-1 text-sm border">
+ <div class="ui-pagebar"><span class="ui-status" id="filteredPodCount" aria-live="polite">Showing all entries</span><div class="ui-pagebar-right"><label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select aria-label="Rows per page" id="podPageSizeSelect" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { window.changePodPageSize(); }) : window.changePodPageSize()" class="ui-select">
  <option value="50">50</option>
  <option value="100" selected>100</option>
  <option value="250">250</option>
  <option value="500">500</option>
  <option value="-1">All</option>
- </select>
- </div>
- </div>
- <table class="min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
+ </select>{{ ui.icon('chevron') }}</span></label></div></div>
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left cursor-pointer" data-key="namespace">
+ <th class="cursor-pointer" data-key="namespace" data-sorted="ascending">
  Namespace <i id="pod-indicator-namespace" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" data-key="name">
+ <th class="cursor-pointer" data-key="name">
  Name <i id="pod-indicator-name" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" data-key="node">
+ <th class="cursor-pointer" data-key="node">
  Node <i id="pod-indicator-node" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" data-key="conditions">
+ <th class="cursor-pointer" data-key="conditions">
  Conditions <i id="pod-indicator-conditions" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" data-key="ready">
+ <th class="cursor-pointer" data-key="ready">
  Ready <i id="pod-indicator-ready" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" data-key="restarts">
+ <th class="cursor-pointer" data-key="restarts">
  Restarts <i id="pod-indicator-restarts" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" data-key="status">
+ <th class="cursor-pointer" data-key="status">
  Status <i id="pod-indicator-status" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" data-key="ip">
+ <th class="cursor-pointer" data-key="ip">
  IP <i id="pod-indicator-ip" class="ml-1 fas text-sm"></i>
  </th>
- <th class="px-4 py-2 text-left cursor-pointer" data-key="age">
+ <th class="cursor-pointer" data-key="age">
  Age <i id="pod-indicator-age" class="ml-1 fas text-sm"></i>
  </th>
  </tr>
@@ -123,15 +88,8 @@
  <tbody id="pod-table-body">
  </tbody>
  </table>
- <div id="podPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ <nav id="podPaginationControls" class="ui-pager" aria-label="Pages" hidden></nav>
  {% else %}
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No pod data found in this report</div>
- </div>
  {% endif %}
  </div>
 </div>
@@ -139,7 +97,7 @@
 <div id="podPanel" style="display: none;">
  <div class="space-y-4">
  <div class="mb-4">
- <button onclick="window.backFromPodModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ <button onclick="window.backFromPodModal()" class="btn btn-secondary flex items-center gap-2">
  Back
  </button>
  </div>
@@ -161,7 +119,7 @@
  id="podYamlFilter"
  type="text"
  placeholder="Filter YAML lines..."
- class="w-full px-3 py-2 text-sm border"
+ class="ui-input w-full"
  />
  </div>
  <div id="jsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
@@ -174,6 +132,9 @@
  // DATA & STATE MANAGEMENT
  // ============================================================================
  const podData = {{ data | tojson }};
+ const nodeMeta = podData._nodes || { rows: [], phases: [] };   // the parser's per-node summary (short names, roles, capacity)
+ delete podData._nodes;
+ delete podData.findings;
  let flattenedPods = [];
  let currentSort = { key: null, direction: 1 };
  let podCurrentPage = 1;
@@ -277,7 +238,8 @@
  function flattenPodData(showEmpty = false) {
  const pods = [];
 
- Object.entries(podData).forEach(([namespace, podList]) => {
+ // the namespaces in alphabetical order (the Namespace header carries the marker for it)
+ Object.entries(podData).sort((a, b) => a[0].localeCompare(b[0])).forEach(([namespace, podList]) => {
  const podEntries = Object.entries(podList || {});
 
  // Add placeholder for empty namespaces
@@ -391,6 +353,7 @@
  const icon = document.getElementById(`pod-indicator-${key}`);
  if (icon) {
  icon.classList.add('fa', currentSort.direction === 1 ? 'fa-caret-up' : 'fa-caret-down');
+ window.diagTables.markSort(icon, currentSort.direction === 1);
  }
 
  renderTable(filterPods(searchInput.value));
@@ -411,6 +374,7 @@
  * Render pods table with pagination
  */
  function renderTable(pods) {
+ if (!tableBody) return;   // no pods in the gather: the Findings strip says so
  const totalCount = pods.length;
  const start = podPageSize === -1 ? 0 : (podCurrentPage - 1) * podPageSize;
  const end = podPageSize === -1 ? totalCount : Math.min(start + podPageSize, totalCount);
@@ -424,22 +388,22 @@
 
  if (pod.name === 'No Pods') {
  row.innerHTML = `
- <td class="px-4 py-2">${pod.namespace}</td>
- <td class="px-4 py-2" colspan="8">No Pods</td>
+ <td>${pod.namespace}</td>
+ <td colspan="8">No Pods</td>
  `;
  row.style.cursor = 'default';
  } else {
  row.className += " cursor-pointer";
  row.innerHTML = `
- <td class="px-4 py-2">${pod.namespace}</td>
- <td class="px-4 py-2">${pod.name}</td>
- <td class="px-4 py-2">${pod.node}</td>
- <td class="px-4 py-2">${pod.conditions}</td>
- <td class="px-4 py-2">${pod.ready}</td>
- <td class="px-4 py-2">${pod.restarts}</td>
- <td class="px-4 py-2">${pod.status}</td>
- <td class="px-4 py-2">${pod.ip}</td>
- <td class="px-4 py-2">${pod.age}</td>
+ <td>${pod.namespace}</td>
+ <td>${pod.name}</td>
+ <td>${pod.node}</td>
+ <td>${pod.conditions}</td>
+ <td>${pod.ready}</td>
+ <td>${pod.restarts}</td>
+ <td>${pod.status}</td>
+ <td>${pod.ip}</td>
+ <td>${pod.age}</td>
  `;
  row.addEventListener('click', () => {
  console.log('Row clicked for pod:', pod.name);
@@ -468,35 +432,8 @@
  * Update pagination controls
  */
  function updatePodPagination(totalCount) {
- const container = document.getElementById("podPaginationControls");
- if (!container) return;
-
- if (podPageSize === -1 || totalCount <= podPageSize) {
- container.innerHTML ="";
- return;
- }
-
- const totalPages = Math.ceil(totalCount / podPageSize);
- let html ="";
-
- html += `<button onclick="window.goToPodPage(1)" ${podCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${podCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">First</button>`;
- html += `<button onclick="window.goToPodPage(${podCurrentPage - 1})" ${podCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 text-sm ${podCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Prev</button>`;
-
- const startPage = Math.max(1, podCurrentPage - 2);
- const endPage = Math.min(totalPages, podCurrentPage + 2);
-
- for (let i = startPage; i <= endPage; i++) {
- if (i === podCurrentPage) {
- html += `<button class="px-3 py-1 text-sm bg-blue-700 text-white font-bold current-page">${i}</button>`;
- } else {
- html += `<button onclick="window.goToPodPage(${i})" class="px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700">${i}</button>`;
- }
- }
-
- html += `<button onclick="window.goToPodPage(${podCurrentPage + 1})" ${podCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${podCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Next</button>`;
- html += `<button onclick="window.goToPodPage(${totalPages})" ${podCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 text-sm ${podCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}">Last</button>`;
-
- container.innerHTML = html;
+   // the shared pager (diagPager): one page -> nothing drawn
+   window.diagPager.render(document.getElementById('podPaginationControls'), { total: totalCount, page: podCurrentPage, pageSize: podPageSize, go: function (p) { window.goToPodPage(p); } });
  }
 
  // ============================================================================
@@ -561,54 +498,59 @@
  }
  };
 
- // Pods per node chart
- if (podsPerNodeChart) {
- podsPerNodeChart.data.labels = Object.keys(nodeCounts);
- podsPerNodeChart.data.datasets[0].data = Object.values(nodeCounts);
- podsPerNodeChart.update();
- } else {
- podsPerNodeChart = new Chart(document.getElementById("podsPerNodeChart").getContext("2d"), {
- type:"bar",
- data: {
- labels: Object.keys(nodeCounts),
- datasets: [{
- label:"Pods",
- data: Object.values(nodeCounts),
- backgroundColor:"rgba(34, 197, 94, 0.7)",
- borderColor:"rgba(34, 197, 94, 1)",
- borderWidth: 1
- }]
- },
- options: chartOptions
+ // Pods per node: one horizontal bar per node, most pods first, stacked by phase (Running = ok, Pending = warn,
+ // Failed / crash-looping = bad, Succeeded / Completed = muted), the short node name with its role, the capacity
+ // marker from the node's allocatable pods (parsers/mustgather/pod.py per_node), a click filters the table to the node
+ const PHASE_OF = (status) => {
+ const s = String(status || '');
+ if (s === 'Running') return 'Running';
+ if (s === 'Succeeded' || s === 'Completed') return 'Succeeded';
+ if (s === 'Pending' || s === 'ContainerCreating' || s === 'PodInitializing' || s === 'Init') return 'Pending';
+ if (s === 'Unknown' || s === '-') return 'Unknown';
+ return 'Failed';
+ };
+ const PHASE_ROLE = { Running: 'ok', Pending: 'warn', Failed: 'bad', Unknown: 'warn', Succeeded: 'muted' };
+ const metaByName = {};
+ (nodeMeta.rows || []).forEach((r) => { metaByName[r.name] = r; });
+ const perNode = {};
+ pods.forEach((pod) => {
+ if (!pod.node || !pod.node.trim() || pod.name === 'No Pods') return;
+ const m = metaByName[pod.node] || {};
+ const r = perNode[pod.node] || (perNode[pod.node] = { name: (m.short || pod.node) + (m.role ? ' \u00b7 ' + m.role : ''), node: pod.node, title: pod.node + (m.role ? ' (' + m.role + ')' : ''), count: 0, values: {}, capacity: m.capacity || null });
+ r.count += 1;
+ const ph = PHASE_OF(pod.status);
+ r.values[ph] = (r.values[ph] || 0) + 1;
  });
- }
+ const nodeRows = Object.values(perNode).sort((a, b) => b.count - a.count || a.node.localeCompare(b.node));
+ const phases = ['Running', 'Pending', 'Failed', 'Unknown', 'Succeeded'].filter((p) => nodeRows.some((r) => r.values[p]));
+ podsPerNodeChart = window.diagChart.categoryBars('podsPerNodeChart', nodeRows, {
+ stacks: phases.map((p) => ({ key: p, label: p, role: PHASE_ROLE[p] })),
+ value: (r, k) => r.values[k] || 0,
+ capacity: (r) => r.capacity,
+ tooltip: (r) => [r.count + ' pods on ' + r.node],
+ onRow: (r) => { filterNode.value = r.node; filterNode.dispatchEvent(new Event('change')); },
+ });
 
  // Pods per status chart
  const labels = Object.keys(statusCounts);
- const backgroundColors = labels.map(label =>
- (label ==="Running" || label ==="Completed") ?"rgba(34, 197, 94, 0.7)" :"rgba(220, 38, 38, 0.7)"
- );
- const borderColors = labels.map(label =>
- (label ==="Running" || label ==="Completed") ?"rgba(34, 197, 94, 1)" :"rgba(220, 38, 38, 1)"
- );
+ const roles = labels.map(label => (label === "Running" || label === "Completed") ? "good" : "error");
 
  if (podsPerStatusChart) {
  podsPerStatusChart.data.labels = labels;
  podsPerStatusChart.data.datasets[0].data = Object.values(statusCounts);
- podsPerStatusChart.data.datasets[0].backgroundColor = backgroundColors;
- podsPerStatusChart.data.datasets[0].borderColor = borderColors;
+ podsPerStatusChart.data.datasets[0].roles = roles;
+ window.diagChart.retheme();
  podsPerStatusChart.update();
  } else {
- podsPerStatusChart = new Chart(document.getElementById("podsPerStatusChart").getContext("2d"), {
+ podsPerStatusChart = window.diagChart.make(document.getElementById("podsPerStatusChart"), {
  type:"bar",
  data: {
  labels,
  datasets: [{
  label:"Pods",
  data: Object.values(statusCounts),
- backgroundColor: backgroundColors,
- borderColor: borderColors,
- borderWidth: 1
+ roles: roles,
+ borderWidth: 0
  }]
  },
  options: chartOptions
@@ -698,27 +640,21 @@
 
  if (containerStatuses.length === 0) {
  detailsTable.innerHTML = `
- <div class="flex flex-col items-center justify-center py-8 text-center">
- <svg class="shrink-0 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 3rem; max-height: 3rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-sm font-medium text-gray-900 mb-1">No Data Available</div>
- <div class="text-xs text-gray-500">No container data found</div>
- </div>`;
+ `;
  } else {
  let tableHTML = `
  <div class="text-sm mb-2">Showing ${containerStatuses.length} container(s)</div>
- <table class="min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left">Name</th>
- <th class="px-4 py-2 text-left">Ready</th>
- <th class="px-4 py-2 text-left">Container ID</th>
- <th class="px-4 py-2 text-left">Image</th>
- <th class="px-4 py-2 text-left">Image ID</th>
- <th class="px-4 py-2 text-left">Restart Count</th>
- <th class="px-4 py-2 text-left">Started</th>
- <th class="px-4 py-2 text-left">Start Time</th>
+ <th>Name</th>
+ <th>Ready</th>
+ <th>Container ID</th>
+ <th>Image</th>
+ <th>Image ID</th>
+ <th>Restart Count</th>
+ <th>Started</th>
+ <th>Start Time</th>
  </tr>
  </thead>
  <tbody>`;
@@ -726,15 +662,15 @@
  containerStatuses.forEach(cs => {
  const startTime = cs.state?.running?.startedAt || 'N/A';
  tableHTML += `
- <tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-4 py-2">${cs.name}</td>
- <td class="px-4 py-2">${cs.ready ? 'Yes' : 'No'}</td>
- <td class="px-4 py-2 break-all">${cs.containerID || 'N/A'}</td>
- <td class="px-4 py-2 break-all">${cs.image}</td>
- <td class="px-4 py-2 break-all">${cs.imageID}</td>
- <td class="px-4 py-2">${cs.restartCount}</td>
- <td class="px-4 py-2">${cs.started ? 'Yes' : 'No'}</td>
- <td class="px-4 py-2">${startTime}</td>
+ <tr>
+ <td>${cs.name}</td>
+ <td>${cs.ready ? 'Yes' : 'No'}</td>
+ <td class="break-all">${cs.containerID || 'N/A'}</td>
+ <td class="break-all">${cs.image}</td>
+ <td class="break-all">${cs.imageID}</td>
+ <td>${cs.restartCount}</td>
+ <td>${cs.started ? 'Yes' : 'No'}</td>
+ <td>${startTime}</td>
  </tr>`;
  });
 

@@ -12,6 +12,7 @@ its trace events for tabs/sosreport_kernel_stack_traces.html:
   stack_traces.traces   the flat per-event list in the shape the earlier
                         template and the tests read (kept as is)
 """
+from parsers.findings import finding, no_data, sort_findings
 from collections import Counter
 
 from . import kernel_log as kl
@@ -23,7 +24,7 @@ def parse(directory):
     groups = _groups(events)
     summary = _summary(events, groups, scan)
     legacy = [_legacy(e) for e in events]
-    return {'stack_traces': {'traces': legacy, 'summary': summary, 'groups': groups}}
+    return {'stack_traces': {'traces': legacy, 'summary': summary, 'groups': groups}, 'findings': findings_for(summary, scan)}
 
 
 def _groups(events):
@@ -112,3 +113,18 @@ def _legacy(ev):
         'comm': ev['comm'], 'kernel_version': ev['kernel'], 'hardware': ev['hardware'],
         'type': ev['type_key'], 'sources': ev['sources'],
     }
+
+def findings_for(summary, scan):
+    """The Findings strip: the traces by type (BUG / Oops / lockups / RCU stalls are bad, WARNINGs warn) with the
+    counts and the last one; no trace (good, with the sources scanned); no kernel log (info)."""
+    if not scan['sources']:
+        return [no_data('No kernel log in this report', ['sos_commands/logs/journalctl*', 'sos_commands/kernel/dmesg*', 'var/log/messages*', 'var/log/dmesg*'], 'no journal capture, dmesg or syslog: the kernel tabs have nothing to read')]
+    out = []
+    for t in summary.get('types') or []:
+        sev = 'bad' if t.get('severity') == 'critical' else 'warn'
+        out.append(finding(sev, f"{t['count']} {t['label']}{'s' if t['count'] != 1 and not t['label'].endswith('s') else ''}", f"the last at {summary.get('last', '')}; {summary.get('groups', 0)} distinct call sites in all", count=t['count']))
+    if summary.get('capped'):
+        out.append(finding('info', 'The kernel log scan was capped', 'more traces than the scan keeps: the oldest are not counted'))
+    if not out:
+        out.append(finding('good', 'No kernel stack traces: no WARNING, BUG, Oops, lockup or RCU stall in the kernel logs', 'scanned: ' + ', '.join(scan['sources'])))
+    return sort_findings(out)

@@ -315,7 +315,7 @@ export default function ExportProgressModal({ isOpen, onClose, job }) {
           ) : (
             <button
               onClick={handleClose}
-              className="px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors rounded-sm"
+              className="btn btn-primary px-4 py-2 text-sm"
             >
               {status === 'success' ? 'Done' : 'Close'}
             </button>

@@ -1242,7 +1242,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
               }}
               className={`px-3 py-1.5 text-xs rounded border ${
                 aiGridMode === 'standard'
-                  ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-950'
+                  ? 'btn-selected-soft'
                   : 'bg-os-card border-os-border text-os-text-secondary'
               }`}
             >
@@ -1255,7 +1255,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
               }}
               className={`px-3 py-1.5 text-xs rounded border ${
                 aiGridMode === 'ai-generated'
-                  ? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-950'
+                  ? 'btn-brand-soft'
                   : 'bg-os-card border-os-border text-os-text-secondary'
               }`}
             >
@@ -1271,7 +1271,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
               }}
               className={`px-3 py-1.5 text-xs rounded border ${
                 aiGridMode === 'custom'
-                  ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-950'
+                  ? 'btn-selected-soft'
                   : 'bg-os-card border-os-border text-os-text-secondary'
               }`}
             >
@@ -1303,7 +1303,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                   onClick={() => toggleCategory(quizType.id)}
                   className={`px-2 py-2 text-left text-xs border rounded transition-all flex items-center gap-2 ${
                     isSelected
-                      ? 'bg-blue-50 border-2 border-blue-500 dark:bg-blue-950'
+                      ? 'btn btn-selected-soft border-2'
                       : 'bg-os-card border-os-border hover:bg-os-card-secondary'
                   }`}
                 >
@@ -1357,7 +1357,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                       }}
                       className={`px-3 py-1.5 text-xs rounded border ${
                         category.inputMode === 'topic'
-                          ? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-950'
+                          ? 'btn-brand-soft'
                           : 'bg-os-card border-os-border text-os-text-secondary'
                       }`}
                     >
@@ -1371,7 +1371,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                       }}
                       className={`px-3 py-1.5 text-xs rounded border ${
                         category.inputMode === 'url'
-                          ? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-950'
+                          ? 'btn-brand-soft'
                           : 'bg-os-card border-os-border text-os-text-secondary'
                       }`}
                     >
@@ -1385,7 +1385,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                       }}
                       className={`px-3 py-1.5 text-xs rounded border ${
                         category.inputMode === 'file'
-                          ? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-950'
+                          ? 'btn-brand-soft'
                           : 'bg-os-card border-os-border text-os-text-secondary'
                       }`}
                     >
@@ -1516,7 +1516,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                   return false;
                 })
               }
-              className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-sm text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              className="btn btn-brand w-full px-3 py-2 text-sm flex items-center justify-center gap-2"
             >
               <Sparkles size={14} />
               {isGenerating ? 'Generating...' : 'Generate Grid Questions'}
@@ -1530,14 +1530,14 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
               <div className="flex gap-2">
                 <button
                   onClick={downloadAIGridAsJSON}
-                  className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-sm text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                  className="btn btn-primary flex-1 px-3 py-2 text-sm flex items-center justify-center gap-2"
                 >
                   <Download size={14} />
                   Download JSON
                 </button>
                 <button
                   onClick={showSaveGridDialog}
-                  className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-sm text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                  className="btn btn-success flex-1 px-3 py-2 text-sm flex items-center justify-center gap-2"
                 >
                   <Save size={14} />
                   Save as Custom
@@ -1557,7 +1557,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
               </h3>
               <button
                 onClick={importGridFromJSON}
-                className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-sm text-xs transition-colors flex items-center gap-1"
+                className="btn btn-primary px-2 py-1 text-xs flex items-center gap-1"
               >
                 <Upload size={12} />
                 Import JSON
@@ -1591,13 +1591,13 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                     <div className="flex gap-2 ml-2">
                       <button
                         onClick={() => loadCustomGrid(grid)}
-                        className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-sm text-xs transition-colors"
+                        className="btn btn-primary px-2 py-1 text-xs"
                       >
                         Load
                       </button>
                       <button
                         onClick={() => deleteCustomGridHandler(grid.id)}
-                        className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded-sm text-xs transition-colors"
+                        className="btn btn-danger-solid px-2 py-1 text-xs"
                       >
                         <Trash2 size={12} />
                       </button>
@@ -1616,7 +1616,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
             (aiGridMode === 'ai-generated' && !aiGeneratedBoard) ||
             (aiGridMode === 'custom' && !aiGeneratedBoard)
           }
-          className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-sm text-sm font-medium transition-colors flex items-center justify-center gap-2 mt-4"
+          className="btn btn-primary w-full px-3 py-2 text-sm flex items-center justify-center gap-2 mt-4"
         >
           <Play size={16} />
           {isSinglePlayer ? 'Start Grid' : 'Create Lobby'}
@@ -1861,7 +1861,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
             <button
               onClick={() => buzzIn()}
               disabled={!canBuzz}
-              className="w-full px-4 py-3 bg-red-600 hover:bg-red-700 disabled:bg-os-card-secondary disabled:text-os-text-muted disabled:cursor-not-allowed text-white rounded-sm text-sm font-bold transition-colors shadow-md hover:shadow-lg"
+              className="btn btn-danger-solid w-full px-4 py-3 text-sm font-bold shadow-md hover:shadow-lg"
             >
               {canBuzz ? 'Buzz In' : 'Waiting for Buzz Window...'}
             </button>
@@ -1915,7 +1915,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                 <button
                   onClick={submitGridAnswer}
                   disabled={!myAnswer.trim()}
-                  className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-os-card-secondary disabled:text-os-text-muted disabled:cursor-not-allowed text-white rounded-sm text-sm font-medium transition-colors"
+                  className="btn btn-primary w-full px-4 py-2 text-sm"
                 >
                   Submit Answer
                 </button>
@@ -2135,7 +2135,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
               <button
                 onClick={saveAIGridAsCustom}
                 disabled={!saveGridName.trim()}
-                className="px-4 py-2 bg-green-600 text-white rounded-sm hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="btn btn-success px-4 py-2"
               >
                 Save
               </button>

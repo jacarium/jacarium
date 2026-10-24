@@ -860,7 +860,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
                 <button
                   onClick={() => requestDeleteConversation(currentConversationId)}
                   disabled={conversations.length === 1 && conversationIsEmpty(currentConversation)}
-                  className="p-1.5 text-os-text-muted hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="btn btn-danger-ghost p-1.5 text-os-text-muted disabled:opacity-30"
                   title={conversations.length === 1 ? (conversationIsEmpty(currentConversation) ? 'Nothing to clear' : 'Clear conversation') : 'Delete conversation'}
                   aria-label={conversations.length === 1 ? 'Clear conversation' : 'Delete conversation'}
                   data-testid="ai-chat-delete"
@@ -1002,7 +1002,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
                         e.stopPropagation();
                         requestDeleteConversation(conv.id);
                       }}
-                      className="p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-sm"
+                      className="btn btn-danger-ghost p-1"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -1033,7 +1033,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
                   <div
                     className={`ai-chat-message max-w-[85%] rounded-lg px-4 py-2 wrap-break-word ${
  msg.role ==='user'
- ?'bg-blue-600 text-white'
+ ?'btn-selected'
  :'bg-os-card-secondary text-os-text-primary'
  }`}
                   >
@@ -1090,10 +1090,10 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
                     : <span className="text-blue-700/70 dark:text-blue-300/70 shrink-0" data-testid="ai-context-summary">{r.edited ? '\u00b7 edited' : r.hidden ? `\u00b7 ${r.hidden} hidden` : ''}</span>}
                 </div>
                 <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => setEditingContextId(ctx.id)} className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800/40 rounded-sm transition-colors shrink-0" title="What the AI receives" aria-label="What the AI receives" data-testid="ai-context-eye">
+                  <button type="button" onClick={() => setEditingContextId(ctx.id)} className="btn btn-quiet p-1 shrink-0" title="What the AI receives" aria-label="What the AI receives" data-testid="ai-context-eye">
                     <Eye size={14} className="text-blue-600 dark:text-blue-300" />
                   </button>
-                  <button type="button" onClick={() => removeContext(ctx.id)} className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800/40 rounded-sm transition-colors shrink-0" title="Remove context" aria-label="Remove context" data-testid="ai-context-remove">
+                  <button type="button" onClick={() => removeContext(ctx.id)} className="btn btn-quiet p-1 shrink-0" title="Remove context" aria-label="Remove context" data-testid="ai-context-remove">
                     <X size={14} className="text-blue-600 dark:text-blue-300" />
                   </button>
                 </div>

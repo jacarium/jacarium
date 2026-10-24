@@ -2,6 +2,10 @@ import os
 import re
 import xml.etree.ElementTree as ET
 
+from parsers.findings import finding, sort_findings
+
+from ._common import parse_free as _parse_free, read_text, report_root
+
 def parse(directory):
     result = {}
 
@@ -166,19 +170,7 @@ def parse(directory):
         return {}
 
     def parse_free(path):
-        lines = read_lines(path)
-        for line in lines:
-            if line.startswith("Mem:"):
-                fields = line.split()
-                return {
-                    "total": round(int(fields[1]) / 1024, 2),
-                    "used": round(int(fields[2]) / 1024, 2),
-                    "free": round(int(fields[3]) / 1024, 2),
-                    "shared": round(int(fields[4]) / 1024, 2),
-                    "buff_cache": round(int(fields[5]) / 1024, 2),
-                    "available": round(int(fields[6]) / 1024, 2)
-                }
-        return {}
+        return _parse_free(path, unit='GiB')
 
     def read_file(path):
         try:
@@ -232,8 +224,7 @@ def parse(directory):
         cpu_range_regex = r'^\d+(-\d+)?(,\d+(-\d+)?)*$'
         single_digit_regex = r'^\d+$'
 
-        with open(path) as f:
-            content = f.read().strip()
+        content = read_text(path).strip()   # '' when the report has no proc/cmdline (it used to raise)
 
         pairs = {}
         for item in content.split():
@@ -565,11 +556,7 @@ def parse(directory):
         return interfaces
 
 
-    entries = os.listdir(directory)
-    if len(entries) == 1:
-        inner = os.path.join(directory, entries[0])
-        if os.path.isdir(inner):
-            directory = inner
+    directory = report_root(directory)
 
     result['cmdline'] = parse_cmdline(os.path.join(directory, 'proc', 'cmdline'))
     result['ovs_config'] = parse_ovs_config(os.path.join(directory, 'sos_commands', 'openvswitch', 'ovs-vsctl_-t_5_get_Open_vSwitch_._other_config'))
@@ -593,5 +580,47 @@ def parse(directory):
     raw_cpuinfo = read_key_value_file(os.path.join(directory, 'sos_commands', 'processor', 'lscpu'))
     result['cpuinfo'] = postprocess_cpuinfo(raw_cpuinfo)
     result['free_memory'] = parse_free(os.path.join(directory, 'sos_commands', 'memory', 'free_-m'))
+    result['findings'] = findings_for(result)
 
     return result
+
+RE_PCT = re.compile(r'\(\s*([\d.]+)\s*%\s*\)')
+
+
+def _pct(value):
+    """The percentage pmd-stats-show prints after a cycle count ("12345 (93.21%)"), or None."""
+    m = RE_PCT.search(str(value or ''))
+    return float(m.group(1)) if m else None
+
+
+def findings_for(result):
+    """The Findings strip: PMD threads busy over 90% of their cycles (warn; bad at 98%), receive queues over 80% of a
+    PMD (warn), PMD threads with no queue (info), no DPDK captures (info)."""
+    out = []
+    threads = result.get('pmd_stats') or []
+    if not threads and not result.get('ovs_config'):
+        return [finding('info', 'No Open vSwitch / DPDK captures in this report', 'ovs-appctl dpif-netdev/pmd-stats-show and the Open_vSwitch other_config are missing: not a DPDK host, or sos ran without the openvswitch plugin')]
+    busy = []
+    for t in threads:
+        pct = _pct(t.get('processing_cycles'))
+        if pct is not None and pct >= 90:
+            busy.append((t, pct))
+    if busy:
+        busy.sort(key=lambda x: -x[1])
+        out.append(finding('bad' if busy[0][1] >= 98 else 'warn', f"{len(busy)} PMD thread{'s' if len(busy) != 1 else ''} over 90% busy", ', '.join(f"numa {t['numa_id']} core {t['core_id']}: {p:g}%" for t, p in busy[:6]) + (' …' if len(busy) > 6 else '') + "; packets queue up on its ports", count=len(busy)))
+    hot = []
+    idle = []
+    for t in threads:
+        ports = t.get('ports') or []
+        if not ports:
+            idle.append(t)
+        for p in ports:
+            if p.get('enabled', True) and p.get('pmd_usage_percent', 0) >= 80:
+                hot.append((t, p))
+    if hot:
+        out.append(finding('warn', f"{len(hot)} receive queue{'s' if len(hot) != 1 else ''} over 80% of a PMD", ', '.join(f"{p['port']} q{p['queue_id']}: {p['pmd_usage_percent']}% (core {t['core_id']})" for t, p in hot[:6]) + (' …' if len(hot) > 6 else ''), count=len(hot)))
+    if idle and threads:
+        out.append(finding('info', f"{len(idle)} PMD thread{'s' if len(idle) != 1 else ''} with no receive queue", ', '.join(f"numa {t['numa_id']} core {t['core_id']}" for t in idle[:6]) + "; a core reserved for nothing"))
+    if threads and not any(f['severity'] in ('bad', 'warn') for f in out):
+        out.append(finding('good', f"{len(threads)} PMD threads, none over 90% busy, no queue over 80%"))
+    return sort_findings(out)

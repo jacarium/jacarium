@@ -14,6 +14,7 @@ forms). This module shapes them for tabs/sosreport_kernel_oom_killer.html:
   oom_killer   the raw blocks, one string each, as the earlier template and
                the tests read them (kept as is)
 """
+from parsers.findings import finding, no_data, sort_findings
 from collections import Counter
 
 from . import kernel_log as kl
@@ -34,6 +35,7 @@ def parse(directory):
     return {
         'oom_killer': ['\n'.join(b['raw']) + '\n' for b in blocks],
         'oom_summary': _summary(blocks, events, scan),
+        'findings': findings_for(_summary(blocks, events, scan), scan),
         'oom_events': events,
     }
 
@@ -164,3 +166,18 @@ def _summary(blocks, events, scan):
         'timeline': kl.timeline(blocks, 'Kills per day' if per_day else 'Kills per hour'),
         'sources': scan['sources'], 'capped': scan['capped'],
     }
+
+def findings_for(summary, scan):
+    """The Findings strip: the OOM kills (bad) with the victims and the cgroups, the largest victim and the last
+    kill; none (good, with the sources scanned); no kernel log (info)."""
+    if not scan['sources']:
+        return [no_data('No kernel log in this report', ['sos_commands/logs/journalctl*', 'sos_commands/kernel/dmesg*', 'var/log/messages*', 'var/log/dmesg*'], 'no journal capture, dmesg or syslog: the kernel tabs have nothing to read')]
+    out = []
+    if summary.get('kills'):
+        victims = ', '.join(f"{v.get('name', '?')} ({v.get('count', '')}x)" for v in (summary.get('victims') or [])[:4])
+        out.append(finding('bad', f"{summary['kills']} OOM kill{'s' if summary['kills'] != 1 else ''}", f"the last at {summary.get('last', '')}; victims: {victims or '?'}" + (f"; the largest {summary['largest']}" if summary.get('largest') else ''), tab='cgroups', sub_tab='cgroups_memory', count=summary['kills']))
+    if summary.get('capped'):
+        out.append(finding('info', 'The kernel log scan was capped', 'more kills than the scan keeps: the oldest are not counted'))
+    if not out:
+        out.append(finding('good', 'No OOM kill in the kernel logs', 'scanned: ' + ', '.join(scan['sources'])))
+    return sort_findings(out)

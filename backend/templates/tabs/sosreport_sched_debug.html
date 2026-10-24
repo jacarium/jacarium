@@ -1,228 +1,107 @@
-<div class="grid grid-cols-1 gap-4">
- <div class="panel rounded-lg shadow-sm">
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
+<div class="ui-grid-charts">
+ <div class="panel rounded-lg shadow-sm" data-chart-card data-wide>
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-microchip mr-2"></i> CPU Core Switches
  </h3>
  {% if data.sched and data.sched.per_cpu %}
  <canvas id="nrSwitchesChart" height="80"></canvas>
- {% else %}
- <div class="empty-state">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
- </svg>
- <div class="empty-state-title">No Data Available</div>
- <div class="empty-state-description">No scheduler data found in this report</div>
- </div>
  {% endif %}
  </div>
 
- <div class="panel rounded-lg shadow-sm">
+ <div class="panel rounded-lg shadow-sm" data-chart-card data-wide>
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-microchip mr-2"></i> CPU Core Running Tasks
  </h3>
  {% if data.sched and data.sched.per_cpu %}
  <canvas id="nrRunningChart" height="80"></canvas>
- {% else %}
- <div class="empty-state">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
- </svg>
- <div class="empty-state-title">No Data Available</div>
- <div class="empty-state-description">No scheduler data found in this report</div>
- </div>
  {% endif %}
  </div>
 
- <div class="panel rounded-lg shadow-sm">
+ <div class="panel rounded-lg shadow-sm" data-chart-card data-wide>
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-microchip mr-2"></i> CPU Core Average Idle Time
  </h3>
  {% if data.sched and data.sched.per_cpu %}
  <canvas id="avgIdleChart" height="80"></canvas>
- {% else %}
- <div class="empty-state">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
- </svg>
- <div class="empty-state-title">No Data Available</div>
- <div class="empty-state-description">No scheduler data found in this report</div>
- </div>
  {% endif %}
  </div>
+</div>
+<div class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm">
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-table mr-2"></i> CPU Runnable Tasks Summary
  </h3>
  <div class="mb-4">
- <div>
- <label class="block text-xs font-semibold mb-1">Search All</label>
- <input type="text" id="processFilter" oninput="window.filterProcesses()"
- class="w-full px-3 py-2 text-sm rounded-sm border focus:outline-hidden focus:ring-2">
- </div>
  {% if data.sched and data.sched.per_cpu %}
- <div class="flex justify-between items-center mb-2 mt-4">
- <div id="cpuFilteredCount"class="text-sm">Showing all {{ data.sched.per_cpu | length }} CPUs</div>
- <div class="flex items-center gap-2">
- <label class="text-xs font-semibold">Per Page:</label>
- <select id="cpuPageSizeSelect" onchange="window.changeCpuPageSize()" class="px-3 py-1 text-white text-sm rounded-md">
+ {% call ui.filter_bar() %}<label class="ui-field">{{ ui.icon('search') }}<input type="search" id="processFilter" oninput="window.diagBusy ? window.diagBusy.filter(this, function () { window.filterProcesses(); }) : window.filterProcesses()"
+ class="ui-input" placeholder="Search CPUs and their tasks" aria-label="Search CPUs" autocomplete="off"></label>{% call ui.end() %}<span class="ui-status" id="cpuFilteredCount" aria-live="polite"></span><label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select id="cpuPageSizeSelect" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { window.changeCpuPageSize(); }) : window.changeCpuPageSize()" class="ui-select" aria-label="Rows per page">
  <option value="10">10</option>
  <option value="25" selected>25</option>
  <option value="50">50</option>
  <option value="100">100</option>
  <option value="-1">All</option>
- </select>
- </div>
- </div>
- {% endif %}
- <table id="cpuTable" class="min-w-full text-sm rounded-lg">
- <thead class="border-b">
+ </select>{{ ui.icon('chevron') }}</span></label>{% endcall %}{% endcall %}
+ <table id="cpuTable" class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCpuTable(0)">CPU <i id="cpu-indicator-0" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCpuTable(1, true)">Total Tasks <i id="cpu-indicator-1" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortCpuTable(2, true)">Context Switches <i id="cpu-indicator-2" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left">Task States</th>
- <th class="px-4 py-2 text-left">Executing PID</th>
- <th class="px-4 py-2 text-left">Top Switches</th>
- <th class="px-4 py-2 text-left">Top Tasks (ns)</th>
- <th class="px-4 py-2 text-left">Wait Tasks (ns)</th>
+ <th class="cursor-pointer" data-sorted="ascending" onclick="window.sortCpuTable(0)">CPU <i id="cpu-indicator-0" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="window.sortCpuTable(1, true)">Total Tasks <i id="cpu-indicator-1" class="fas text-sm ml-1"></i></th>
+ <th class="cursor-pointer" onclick="window.sortCpuTable(2, true)">Context Switches <i id="cpu-indicator-2" class="fas text-sm ml-1"></i></th>
+ <th>Task States</th>
+ <th>Executing PID</th>
+ <th>Top Switches</th>
+ <th>Top Tasks (ms)</th>
+ <th>Waited 1+ ms</th>
  </tr>
  </thead>
  <tbody>
  {% if data.sched and data.sched.per_cpu %}
  {% for cpuId, cpuInfo in data.sched.per_cpu.items() %}
  <tr >
- <td class="px-4 py-2">{{ cpuId }}</td>
- <td class="px-4 py-2">{{ cpuInfo.summary.total_tasks }}</td>
- <td class="px-4 py-2">{{ cpuInfo.summary.total_switches }}</td>
- <td class="px-4 py-2">
- <div id="stateValues" class="flex flex-wrap gap-2 text-sm mb-2">
- {% for state, count in cpuInfo.summary.state_counts.items() %}
- <div class="px-3 py-1 rounded-full shadow-sm text-xs">
- {{ state }}: {{ count }}
- </div>
- {% endfor %}
- </div>
- </td>
- <td class="px-4 py-2">{{ cpuInfo.summary.cpu_info.curr_pid }}</td>
- <td class="px-4 py-2">
- {% for switch in cpuInfo.summary.top_switch_tasks %}
- {{ switch.name }} (pid {{ switch.pid }}): {{"%.2f"|format(switch.switches) }}<br>
- {% endfor %}
- </td>
- <td class="px-4 py-2">
- {% for task in cpuInfo.summary.top_exec_tasks %}
- {{ task.name }} (pid {{ task.pid }}): {{"%.2f"|format(task.sum_exec) }}<br>
- {% endfor %}
- </td>
- <td class="px-4 py-2">
- {% if cpuInfo.summary.high_wait_tasks %}
- {% for task in cpuInfo.summary.high_wait_tasks %}
- {{ task.name }} (pid {{ task.pid }}): {{"%.2f"|format(task.wait_time) }}<br>
- {% endfor %}
- {% else %}
- <span>-</span>
- {% endif %}
- </td>
+ <td>{{ cpuId }}</td>
+ <td>{{ cpuInfo.summary.total_tasks }}</td>
+ <td>{{ cpuInfo.summary.total_switches }}</td>
+ <td class="ui-nowrap"><span class="ui-chips">{% for state, count in cpuInfo.summary.state_counts.items() %}<span class="ui-chip ui-static" title="{{ count }} task{{ 's' if count != 1 else '' }} in state {{ state }}">{{ state }} {{ count }}</span>{% endfor %}</span></td>
+ <td>{{ cpuInfo.summary.cpu_info.curr_pid }}</td>
+ {#- one line per cell: the top three, the whole list in the title (the all-tasks table below has every row) #}
+ {% set sw = cpuInfo.summary.top_switch_tasks %}
+ <td class="ui-cmd" title="{% for s in sw %}{{ s.name }} (pid {{ s.pid }}): {{ '%.0f'|format(s.switches) }}{{ '; ' if not loop.last }}{% endfor %}">{% for s in sw[:3] %}{{ s.name }} {{ '%.0f'|format(s.switches) }}{{ ', ' if not loop.last }}{% endfor %}{% if sw|length > 3 %} …{% endif %}</td>
+ {% set ex = cpuInfo.summary.top_exec_tasks %}
+ <td class="ui-cmd" title="{% for t in ex %}{{ t.name }} (pid {{ t.pid }}): {{ '%.2f'|format(t.sum_exec) }} ms{{ '; ' if not loop.last }}{% endfor %}">{% for t in ex[:3] %}{{ t.name }} {{ '%.0f'|format(t.sum_exec) }}{{ ', ' if not loop.last }}{% endfor %}{% if ex|length > 3 %} …{% endif %}</td>
+ {% set hw = cpuInfo.summary.high_wait_tasks %}
+ <td class="ui-cmd" title="{% for t in hw %}{{ t.name }} (pid {{ t.pid }}): {{ '%.2f'|format(t.wait_time) }} ms{{ '; ' if not loop.last }}{% endfor %}">{% if hw %}{% for t in hw[:3] %}{{ t.name }} {{ '%.1f'|format(t.wait_time) }} ms{{ ', ' if not loop.last }}{% endfor %}{% if hw|length > 3 %} …{% endif %}{% else %}-{% endif %}</td>
  </tr>
  {% endfor %}
- {% else %}
+ {% endif %}
+ </tbody>
+ </table>
+ <nav id="cpuPaginationControls" class="ui-pager" aria-label="Pages" hidden></nav>
+ {% endif %}
+ </div>
+ </div>
+ {# the reference: one card, one table - the task states, what they mean and how CFS treats them #}
+ <div class="panel rounded-lg shadow-sm">
+ <h3 class="text-lg font-medium mb-2">
+ <i class="fas fa-question-circle mr-2"></i> Task states
+ </h3>
+ <div class="ui-table-wrap">
+ <table class="ui-table">
+ <thead>
  <tr>
- <td colspan="9">
- <div class="empty-state" style="padding: 2rem 1rem;">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="empty-state-title">No Data Available</div>
- <div class="empty-state-description">No CPU scheduler statistics found</div>
- </div>
- </td>
- </tr>
- {% endif %}
- </tbody>
- </table>
- <div id="cpuPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
- </div>
- </div>
- <div class="flex flex-col lg:flex-row gap-6">
- <div class="panel rounded-lg shadow-sm flex-1">
- <h3 class="text-lg font-medium mb-2">
- <i class="fas fa-question-circle mr-2"></i> Task States Explained
- </h3>
- <table class="min-w-full text-sm mb-4">
- <thead>
- <tr class="border-b">
- <th class="px-3 py-2 text-left">State</th>
- <th class="px-3 py-2 text-left">Meaning</th>
- <th class="px-3 py-2 text-left">Description</th>
+ <th>State</th>
+ <th>Meaning</th>
+ <th>What it is</th>
+ <th>Effect on CFS</th>
  </tr>
  </thead>
  <tbody>
- <tr >
- <td class="px-3 py-1">R</td>
- <td class="px-3 py-1">Runnable</td>
- <td class="px-3 py-1">Ready to run, on the runqueue, not currently executing.</td>
- </tr>
- <tr >
- <td class="px-3 py-1">&gt;R</td>
- <td class="px-3 py-1">Running</td>
- <td class="px-3 py-1">Currently executing on CPU, consuming CPU time.</td>
- </tr>
- <tr >
- <td class="px-3 py-1">S</td>
- <td class="px-3 py-1">Sleeping</td>
- <td class="px-3 py-1">Waiting for an event (I/O, timer), not using CPU.</td>
- </tr>
- <tr >
- <td class="px-3 py-1">I</td>
- <td class="px-3 py-1">Idle</td>
- <td class="px-3 py-1">Idle process.</td>
- </tr>
- <tr >
- <td class="px-3 py-1">D</td>
- <td class="px-3 py-1">I/O Wait</td>
- <td class="px-3 py-1">The process is waiting on a resource (usually I/O) and cannot be interrupted, even by signals.<br>Common causes:
- <ul>
- <li>Waiting for disk I/O</li>
- <li>NFS/network storage stalls</li>
- <li>Faulty drivers</li>
- <li>Memory pressure with swap</li>
- </ul></td>
- </tr>
- </tbody>
- </table>
- </div>
- <div class="panel rounded-lg shadow-sm flex-1">
- <h3 class="text-lg font-medium mb-2">
- <i class="fas fa-question-circle mr-2"></i> Impact on CFS
- </h3>
- <table class="min-w-full text-sm">
- <thead>
- <tr class="border-b">
- <th class="px-3 py-2 text-left">State</th>
- <th class="px-3 py-2 text-left">Effect on CFS</th>
- </tr>
- </thead>
- <tbody>
- <tr >
- <td class="px-3 py-1">&gt;R</td>
- <td class="px-3 py-1">Actively scheduled by CFS, currently executing.</td>
- </tr>
- <tr >
- <td class="px-3 py-1">R</td>
- <td class="px-3 py-1">In the runqueue, competes for CPU based on vruntime.</td>
- </tr>
- <tr >
- <td class="px-3 py-1">S</td>
- <td class="px-3 py-1">Not on the runqueue; ignored by CFS until wakeup.</td>
- </tr>
- <tr >
- <td class="px-3 py-1">I</td>
- <td class="px-3 py-1">Ignored by CFS until runnable; can affect load average.</td>
- </tr>
- <tr >
- <td class="px-3 py-1">D</td>
- <td class="px-3 py-1">Ignored by CFS until runnable; can affect load average.</td>
- </tr>
+ <tr><td>&gt;R</td><td>Running</td><td>Executing on the CPU, consuming CPU time.</td><td>Actively scheduled by CFS, the task on the CPU now.</td></tr>
+ <tr><td>R</td><td>Runnable</td><td>Ready to run, on the run queue, waiting for its turn.</td><td>In the run queue, competes for the CPU by vruntime.</td></tr>
+ <tr><td>S</td><td>Sleeping</td><td>Waiting for an event (I/O, a timer), not using the CPU.</td><td>Not on the run queue; ignored by CFS until it wakes.</td></tr>
+ <tr><td>I</td><td>Idle</td><td>An idle kernel thread.</td><td>Ignored by CFS until runnable; does not count towards the load average.</td></tr>
+ <tr><td>D</td><td>I/O wait</td><td>Waiting on a resource (usually I/O) and not interruptible, even by a signal: disk I/O, an NFS or network storage stall, a faulty driver, memory pressure with swap.</td><td>Ignored by CFS until runnable; counts towards the load average.</td></tr>
  </tbody>
  </table>
  </div>
@@ -232,61 +111,40 @@
  <i class="fas fa-tasks mr-2"></i> CPU Runnable Tasks
  </h3>
  <div class="mb-4">
- <div class="grid grid-cols-1 md:grid-cols-8 gap-4 mb-4">
- <div>
- <label class="block text-xs font-semibold mb-1">CPU ID</label>
- <input type="number" id="cpuIdFilter" oninput="window.filterAllProcesses()"
- class="w-full px-3 py-2 text-sm rounded-md text-white"
- placeholder="">
- </div>
- <div>
- <label class="block text-xs font-semibold mb-1">STAT</label>
- <select id="statAllFilter" onchange="window.filterAllProcesses()"
- class="w-full px-3 py-2 text-white text-sm rounded-md appearance-none focus:outline-hidden focus:ring-2 transition duration-300 ease-in-out">
+ {% if data.sched and data.sched.per_cpu %}
+ {% call ui.filter_bar() %}<label class="ui-field">{{ ui.icon('search') }}<input type="search" id="processFilterAll" data-ui-search oninput="window.diagBusy ? window.diagBusy.filter(this, function () { window.filterAllProcesses(); }) : window.filterAllProcesses()"
+ class="ui-input" aria-label="Search tasks" autocomplete="off"
+ placeholder="Search tasks"></label><label class="ui-numfield" for="cpuIdFilter">CPU<input type="number" id="cpuIdFilter" oninput="window.diagBusy ? window.diagBusy.filter(this, function () { window.filterAllProcesses(); }) : window.filterAllProcesses()"
+ class="ui-input" aria-label="CPU"
+ placeholder="any"></label><label class="ui-select-wrap"><select id="statAllFilter" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { window.filterAllProcesses(); }) : window.filterAllProcesses()"
+ class="ui-select" aria-label="State">
  <option value="">All</option>
  {% for s in ['D','I','R','>R','S','T','t','Z','X'] %}
  <option value="{{ s }}">{{ s }}</option>
  {% endfor %}
- </select>
- </div>
- <div class="md:col-span-6">
- <label class="block text-xs font-semibold mb-1">Search All</label>
- <input type="text" id="processFilterAll" oninput="window.filterAllProcesses()"
- class="w-full px-3 py-2 text-sm rounded-sm border focus:outline-hidden focus:ring-2"
- placeholder="">
- </div>
- </div>
- {% if data.sched and data.sched.per_cpu %}
- <div class="flex justify-between items-center mb-2">
- <div id="filteredAllCount"class="text-sm">Showing all {{ data.sched.per_cpu.values() | map(attribute='tasks') | map('length') | sum }} tasks</div>
- <div class="flex items-center gap-2">
- <label class="text-xs font-semibold">Per Page:</label>
- <select id="allTasksPageSizeSelect" onchange="window.changeAllTasksPageSize()" class="px-3 py-1 text-white text-sm rounded-md">
+ </select>{{ ui.icon('chevron') }}</label>{% call ui.end() %}<span class="ui-status" id="filteredAllCount" aria-live="polite"></span><label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select id="allTasksPageSizeSelect" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { window.changeAllTasksPageSize(); }) : window.changeAllTasksPageSize()" class="ui-select" aria-label="Rows per page">
  <option value="50">50</option>
  <option value="100" selected>100</option>
  <option value="250">250</option>
  <option value="500">500</option>
  <option value="1000">1000</option>
  <option value="-1">All</option>
- </select>
- </div>
- </div>
- {% endif %}
- <table class="min-w-full text-sm rounded-lg" id="allCpuTasksTable">
- <thead class="border-b">
+ </select>{{ ui.icon('chevron') }}</span></label>{% endcall %}{% endcall %}
+ <table class="ui-table" id="allCpuTasksTable">
+ <thead>
  <tr>
- <th data-key="CPU" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(0)">CPU <i id="alltasks-indicator-0" class="fas text-sm ml-1"></i></th>
- <th data-key="PID" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(1)">PID <i id="alltasks-indicator-1" class="fas text-sm ml-1"></i></th>
- <th data-key="Name" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(2)">Name <i id="alltasks-indicator-2" class="fas text-sm ml-1"></i></th>
- <th data-key="State" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(3)">State <i id="alltasks-indicator-3" class="fas text-sm ml-1"></i></th>
- <th data-key="Priority" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(4)">Priority <i id="alltasks-indicator-4" class="fas text-sm ml-1"></i></th>
- <th data-key="Tree-Key" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(5)">Tree-Key <i id="alltasks-indicator-5" class="fas text-sm ml-1"></i></th>
- <th data-key="Switches" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(6)">Switches <i id="alltasks-indicator-6" class="fas text-sm ml-1"></i></th>
- <th data-key="Wait Time" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(7)">Wait Time <i id="alltasks-indicator-7" class="fas text-sm ml-1"></i></th>
- <th data-key="Exec Time" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(8)">Exec Time <i id="alltasks-indicator-8" class="fas text-sm ml-1"></i></th>
- <th data-key="Sleep Time" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(9)">Sleep Time <i id="alltasks-indicator-9" class="fas text-sm ml-1"></i></th>
- <th data-key="Block Time" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(10)">Block Time <i id="alltasks-indicator-9" class="fas text-sm ml-1"></i></th>
- <th data-key="Group" class="px-4 py-2 text-left cursor-pointer" onclick="window.sortAllCpuTasks(11)">Group <i id="alltasks-indicator-10" class="fas text-sm ml-1"></i></th>
+ <th data-key="CPU" class="cursor-pointer" data-sorted="ascending" onclick="window.sortAllCpuTasks(0)">CPU <i id="alltasks-indicator-0" class="fas text-sm ml-1"></i></th>
+ <th data-key="PID" class="cursor-pointer" onclick="window.sortAllCpuTasks(1)">PID <i id="alltasks-indicator-1" class="fas text-sm ml-1"></i></th>
+ <th data-key="Name" class="cursor-pointer" onclick="window.sortAllCpuTasks(2)">Name <i id="alltasks-indicator-2" class="fas text-sm ml-1"></i></th>
+ <th data-key="State" class="cursor-pointer" onclick="window.sortAllCpuTasks(3)">State <i id="alltasks-indicator-3" class="fas text-sm ml-1"></i></th>
+ <th data-key="Priority" class="cursor-pointer" onclick="window.sortAllCpuTasks(4)">Priority <i id="alltasks-indicator-4" class="fas text-sm ml-1"></i></th>
+ <th data-key="Tree-Key" class="cursor-pointer" onclick="window.sortAllCpuTasks(5)">Tree-Key <i id="alltasks-indicator-5" class="fas text-sm ml-1"></i></th>
+ <th data-key="Switches" class="cursor-pointer" onclick="window.sortAllCpuTasks(6)">Switches <i id="alltasks-indicator-6" class="fas text-sm ml-1"></i></th>
+ <th data-key="Wait Time" class="cursor-pointer" onclick="window.sortAllCpuTasks(7)">Wait Time <i id="alltasks-indicator-7" class="fas text-sm ml-1"></i></th>
+ <th data-key="Exec Time" class="cursor-pointer" onclick="window.sortAllCpuTasks(8)">Exec Time <i id="alltasks-indicator-8" class="fas text-sm ml-1"></i></th>
+ <th data-key="Sleep Time" class="cursor-pointer" onclick="window.sortAllCpuTasks(9)">Sleep Time <i id="alltasks-indicator-9" class="fas text-sm ml-1"></i></th>
+ <th data-key="Block Time" class="cursor-pointer" onclick="window.sortAllCpuTasks(10)">Block Time <i id="alltasks-indicator-9" class="fas text-sm ml-1"></i></th>
+ <th data-key="Group" class="cursor-pointer" onclick="window.sortAllCpuTasks(11)">Group <i id="alltasks-indicator-10" class="fas text-sm ml-1"></i></th>
  </tr>
  </thead>
  <tbody>
@@ -294,37 +152,26 @@
  {% for cpuId, cpuInfo in data.sched.per_cpu.items() %}
  {% for task in cpuInfo.tasks %}
  <tr >
- <td class="px-4 py-2">{{ cpuId }}</td>
- <td class="px-4 py-2">{{ task.pid }}</td>
- <td class="px-4 py-2">{{ task.name }}</td>
- <td class="px-4 py-2">{{ task.state }}</td>
- <td class="px-4 py-2">{{ task.prio }}</td>
- <td class="px-4 py-2">{{ task.tree_key }}</td>
- <td class="px-4 py-2">{{ task.switches }}</td>
- <td class="px-4 py-2">{{"%.2f"|format(task.wait_time) }}</td>
- <td class="px-4 py-2">{{"%.2f"|format(task.sum_exec) }}</td>
- <td class="px-4 py-2">{{"%.2f"|format(task.sum_sleep) }}</td>
- <td class="px-4 py-2">{{"%.2f"|format(task.sum_block) }}</td>
- <td class="px-4 py-2 whitespace-normal wrap-break-word max-w-lg">{{ task.group }}</td>
+ <td>{{ cpuId }}</td>
+ <td>{{ task.pid }}</td>
+ <td>{{ task.name }}</td>
+ <td>{{ task.state }}</td>
+ <td>{{ task.prio }}</td>
+ <td>{{ task.tree_key }}</td>
+ <td>{{ task.switches }}</td>
+ <td>{{"%.2f"|format(task.wait_time) }}</td>
+ <td>{{"%.2f"|format(task.sum_exec) }}</td>
+ <td>{{"%.2f"|format(task.sum_sleep) }}</td>
+ <td>{{"%.2f"|format(task.sum_block) }}</td>
+ <td class="whitespace-normal wrap-break-word max-w-lg">{{ task.group }}</td>
  </tr>
  {% endfor %}
  {% endfor %}
- {% else %}
- <tr>
- <td colspan="12">
- <div class="empty-state" style="padding: 2rem 1rem;">
- <svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 shrink-0" style="max-width: 3rem; max-height: 3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="empty-state-title">No Data Available</div>
- <div class="empty-state-description">No task scheduler data found</div>
- </div>
- </td>
- </tr>
  {% endif %}
  </tbody>
  </table>
- <div id="allTasksPaginationControls" class="flex justify-center items-center gap-2 mt-4"></div>
+ <nav id="allTasksPaginationControls" class="ui-pager" aria-label="Pages" hidden></nav>
+ {% endif %}
  </div>
  </div>
 
@@ -338,12 +185,18 @@
  var nrSwitchesData = [];
  var nrRunningData = [];
  var avgIdleData = [];
+ // the outliers the parser marked (far above the median switches, 4+ runnable, near-zero idle) read in the warn colour
+ var switchRoles = [], runningRoles = [], idleRoles = [];
 
  Object.entries(perCpuData).forEach(([cpuId, cpuInfo]) => {
  labels.push('CPU#' + cpuId);
  nrSwitchesData.push(cpuInfo.cpu_info['nr_switches'] || 0);
  nrRunningData.push(cpuInfo.cpu_info['nr_running'] || 0);
  avgIdleData.push(cpuInfo.cpu_info['avg_idle'] || 0);
+ const o = cpuInfo.cpu_info.outlier || {};
+ switchRoles.push(o.switches ? 'warn' : 'ok');
+ runningRoles.push(o.running ? 'warn' : 'ok');
+ idleRoles.push(o.idle ? 'warn' : 'ok');
  });
 
  var cpuSortKey = null;
@@ -431,36 +284,9 @@
  }
 
  window.updateCpuPagination = function(totalCount) {
- const container = document.getElementById("cpuPaginationControls");
- if (!container) return;
-
- if (cpuPageSize === -1 || totalCount <= cpuPageSize) {
- container.innerHTML ="";
- return;
- }
-
- const totalPages = Math.ceil(totalCount / cpuPageSize);
- let html ="";
-
- html += `<button onclick="window.goToCpuPage(1)" ${cpuCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${cpuCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">First</button>`;
- html += `<button onclick="window.goToCpuPage(${cpuCurrentPage - 1})" ${cpuCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${cpuCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">Prev</button>`;
-
- const startPage = Math.max(1, cpuCurrentPage - 2);
- const endPage = Math.min(totalPages, cpuCurrentPage + 2);
-
- for (let i = startPage; i <= endPage; i++) {
- if (i === cpuCurrentPage) {
- html += `<button class="px-3 py-1 rounded-sm text-white font-bold border-2 current-page">${i}</button>`;
- } else {
- html += `<button onclick="window.goToCpuPage(${i})" class="px-3 py-1 rounded-sm text-white">${i}</button>`;
- }
- }
-
- html += `<button onclick="window.goToCpuPage(${cpuCurrentPage + 1})" ${cpuCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${cpuCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">Next</button>`;
- html += `<button onclick="window.goToCpuPage(${totalPages})" ${cpuCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${cpuCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">Last</button>`;
-
- container.innerHTML = html;
- }
+   // the shared pager (diagPager): one page -> nothing drawn
+   window.diagPager.render(document.getElementById('cpuPaginationControls'), { total: totalCount, page: cpuCurrentPage, pageSize: cpuPageSize, go: function (p) { window.goToCpuPage(p); } });
+ };
 
  window.goToCpuPage = function(page) {
  cpuCurrentPage = page;
@@ -517,6 +343,7 @@
 
  function updateCpuSortIndicator(colIndex, ascending) {
  const indicator = document.getElementById(`cpu-indicator-${colIndex}`);
+ window.diagTables.markSort(indicator, ascending);
  if (ascending) {
  indicator.classList.remove('fa-caret-down');
  indicator.classList.add('fa-caret-up');
@@ -534,18 +361,18 @@
  }
  }
  }
- function createBarChart(ctxId, label, data, bgColor, borderColor) {
+ function createBarChart(ctxId, label, data, roles) {
  const ctx = document.getElementById(ctxId).getContext('2d');
- return new Chart(ctx, {
+ return window.diagChart.make(ctx, {
  type: 'bar',
+ logWhenSpread: true,
+ wide: true,
  data: {
  labels: labels,
  datasets: [{
  label: label,
  data: data,
- backgroundColor: bgColor,
- borderColor: borderColor,
- borderWidth: 1,
+ roles: roles,
  }]
  },
  options: {
@@ -661,36 +488,9 @@
  }
 
  window.updateAllTasksPagination = function(totalCount) {
- const container = document.getElementById("allTasksPaginationControls");
- if (!container) return;
-
- if (allTasksPageSize === -1 || totalCount <= allTasksPageSize) {
- container.innerHTML ="";
- return;
- }
-
- const totalPages = Math.ceil(totalCount / allTasksPageSize);
- let html ="";
-
- html += `<button onclick="window.goToAllTasksPage(1)" ${allTasksCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${allTasksCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">First</button>`;
- html += `<button onclick="window.goToAllTasksPage(${allTasksCurrentPage - 1})" ${allTasksCurrentPage === 1 ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${allTasksCurrentPage === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">Prev</button>`;
-
- const startPage = Math.max(1, allTasksCurrentPage - 2);
- const endPage = Math.min(totalPages, allTasksCurrentPage + 2);
-
- for (let i = startPage; i <= endPage; i++) {
- if (i === allTasksCurrentPage) {
- html += `<button class="px-3 py-1 rounded-sm text-white font-bold border-2 current-page">${i}</button>`;
- } else {
- html += `<button onclick="window.goToAllTasksPage(${i})" class="px-3 py-1 rounded-sm text-white">${i}</button>`;
- }
- }
-
- html += `<button onclick="window.goToAllTasksPage(${allTasksCurrentPage + 1})" ${allTasksCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${allTasksCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">Next</button>`;
- html += `<button onclick="window.goToAllTasksPage(${totalPages})" ${allTasksCurrentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 rounded-sm ${allTasksCurrentPage === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ' text-white '}">Last</button>`;
-
- container.innerHTML = html;
- }
+   // the shared pager (diagPager): one page -> nothing drawn
+   window.diagPager.render(document.getElementById('allTasksPaginationControls'), { total: totalCount, page: allTasksCurrentPage, pageSize: allTasksPageSize, go: function (p) { window.goToAllTasksPage(p); } });
+ };
 
  window.goToAllTasksPage = function(page) {
  allTasksCurrentPage = page;
@@ -741,6 +541,7 @@
 
  function updateAllTasksSortIndicator(colIndex, ascending) {
  const indicator = document.getElementById(`alltasks-indicator-${colIndex}`);
+ window.diagTables.markSort(indicator, ascending);
  if (indicator) {
  indicator.classList.remove('fa-caret-up', 'fa-caret-down');
  indicator.classList.add(ascending ? 'fa-caret-up' : 'fa-caret-down');
@@ -760,9 +561,9 @@
  window.sortCpuTable = sortCpuTable;
  window.sortAllCpuTasks = sortAllCpuTasks;
 
- let nrSwitchesChart = createBarChart('nrSwitchesChart', 'Number of Switches', nrSwitchesData, 'rgba(255, 215, 0, 0.7)', 'rgba(255, 215, 0, 1)');
- let nrRunningChart = createBarChart('nrRunningChart', 'Number of Running', nrRunningData, 'rgba(34, 139, 34, 0.7)', 'rgba(34, 139, 34, 1)');
- let avgIdleChart = createBarChart('avgIdleChart', 'Average Idle Time', avgIdleData, 'rgba(70, 130, 180, 0.7)', 'rgba(70, 130, 180, 1)');
+ let nrSwitchesChart = createBarChart('nrSwitchesChart', 'Number of Switches', nrSwitchesData, switchRoles);
+ let nrRunningChart = createBarChart('nrRunningChart', 'Number of Running', nrRunningData, runningRoles);
+ let avgIdleChart = createBarChart('avgIdleChart', 'Average Idle Time', avgIdleData, idleRoles);
 
  // Initialize pagination
  window.filterProcesses();
@@ -777,9 +578,9 @@
  if (nrRunningChart) nrRunningChart.destroy();
  if (avgIdleChart) avgIdleChart.destroy();
 
- nrSwitchesChart = createBarChart('nrSwitchesChart', 'Number of Switches', nrSwitchesData, 'rgba(255, 215, 0, 0.7)', 'rgba(255, 215, 0, 1)');
- nrRunningChart = createBarChart('nrRunningChart', 'Number of Running', nrRunningData, 'rgba(34, 139, 34, 0.7)', 'rgba(34, 139, 34, 1)');
- avgIdleChart = createBarChart('avgIdleChart', 'Average Idle Time', avgIdleData, 'rgba(70, 130, 180, 0.7)', 'rgba(70, 130, 180, 1)');
+ nrSwitchesChart = createBarChart('nrSwitchesChart', 'Number of Switches', nrSwitchesData, switchRoles);
+ nrRunningChart = createBarChart('nrRunningChart', 'Number of Running', nrRunningData, runningRoles);
+ avgIdleChart = createBarChart('avgIdleChart', 'Average Idle Time', avgIdleData, idleRoles);
  }
  });
  });

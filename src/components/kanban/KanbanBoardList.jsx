@@ -527,7 +527,7 @@ export default function KanbanBoardList({
               onClick={onToggleSelectionMode}
               className={`p-1.5 transition-colors ${
  selectionMode
- ?'bg-os-blue text-white hover:bg-os-blue-hover'
+ ?'btn-selected'
  :'hover:bg-os-card-secondary'
  }`}
               title={selectionMode ? 'Exit selection mode' : 'Select multiple'}
@@ -999,7 +999,7 @@ export default function KanbanBoardList({
                 closeMenu();
               }}
               className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors ${
- sortBy ==='date'?'bg-os-blue text-white':'hover:bg-os-card-secondary'
+ sortBy ==='date'?'btn-selected':'hover:bg-os-card-secondary'
  }`}
             >
               <MenuItemIcon action="sortByDate" className={sortBy === 'date' ? 'text-white' : 'text-os-text-secondary'} />
@@ -1011,7 +1011,7 @@ export default function KanbanBoardList({
                 closeMenu();
               }}
               className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors ${
- sortBy ==='title'?'bg-os-blue text-white':'hover:bg-os-card-secondary'
+ sortBy ==='title'?'btn-selected':'hover:bg-os-card-secondary'
  }`}
             >
               <MenuItemIcon action="sortByTitle" className={sortBy === 'title' ? 'text-white' : 'text-os-text-secondary'} />

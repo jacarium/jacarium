@@ -51,6 +51,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { launchDocumentsApp, sleep } from './helpers/live-documents-app.mjs';
+import { COLOR_PROBE } from './helpers/color.mjs';
 
 const PORT = Number(process.env.SMOKE_PORT || 5217);
 const SHOTS_DIR = process.env.THEME_SHOTS_DIR || path.join(tmpdir(), 'jacarium-theme-shots');
@@ -66,23 +67,8 @@ function check(name, ok, detail = '') {
 // "effective background" that composites every ancestor's background.
 const PROBE = `(() => {
   if (window.__probe) return true;
-  const parse = (s) => {
-    const m = /rgba?\\(([^)]+)\\)/.exec(s || '');
-    if (m) {
-      const p = m[1].split(/[\\s,\\/]+/).filter(Boolean).map(Number);
-      return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1];
-    }
-    // Tailwind 4 compiles opacity modifiers (bg-amber-900/20) to color-mix(),
-    // which Chrome reports in modern colour syntax (oklab(), color(srgb ...));
-    // resolve those by painting the colour onto a canvas.
-    if (!s || s === 'transparent') return null;
-    const ctx = (window.__probeCanvas ||= document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
-    ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = '#010203'; ctx.fillStyle = s;
-    if (ctx.fillStyle === '#010203') return null; // unparseable
-    ctx.fillRect(0, 0, 1, 1);
-    const d = ctx.getImageData(0, 0, 1, 1).data;
-    return d[3] === 0 ? null : [d[0], d[1], d[2], d[3] / 255];
-  };
+  // every colour syntax Chrome reports (rgb, oklch, oklab, color(), color-mix results) through the shared helper
+  const parse = ${COLOR_PROBE}.parse;
   const lum = ([r, g, b]) => {
     const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
     return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);

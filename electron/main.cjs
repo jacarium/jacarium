@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, shell, Menu, dialog } = require('electron');
+const certDistrust = require('./cert-distrust.cjs');
 const path = require('path');
 
 // The icon of every window (title bar, task switcher and the docks that do
@@ -2019,6 +2020,7 @@ ipcMain.handle('jira-fetch', async (event, endpoint, options = {}) => {
       hostname: url.hostname,
       path: url.pathname + url.search,
       method: options.method || 'GET',
+      checkServerIdentity: certDistrust.checkServerIdentity,   // the distrust list (electron/cert-distrust.cjs)
       headers: {
         'Authorization': authHeader,
         'Content-Type': 'application/json',

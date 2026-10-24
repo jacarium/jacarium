@@ -156,7 +156,7 @@ export default function TemplateSidebar({ isOpen, onTemplateSelect, onRefresh })
                           </ListRow>
                           <button
                             onClick={(e) => handleDelete(template.id, e)}
-                            className="absolute right-2 top-3 opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-600 rounded-sm transition-all"
+                            className="btn btn-danger-ghost absolute right-2 top-3 opacity-0 group-hover:opacity-100 p-1.5"
                             title="Delete template"
                           >
                             <Trash2 size={14} className="text-os-text-primary" />

@@ -59,7 +59,7 @@ export default function ShareLinkModal({ isOpen, onClose, gameUrl, gameMode }) {
         <div className="flex gap-2">
           <button
             onClick={handleCopy}
-            className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-sm text-sm transition-colors flex items-center justify-center gap-2"
+            className="btn btn-primary flex-1 px-3 py-2 text-sm flex items-center justify-center gap-2"
           >
             {copied ? (
               <>

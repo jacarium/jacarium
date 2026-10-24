@@ -82,7 +82,7 @@ export default function FunctionEditModal({ func, onSave, onClose }) {
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-os-blue text-white text-sm rounded-sm hover:bg-blue-600 transition-colors"
+            className="btn btn-primary px-4 py-2 text-sm"
           >
             Save
           </button>

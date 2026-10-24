@@ -82,7 +82,7 @@ export default function CategorySelector({
               setNewCategoryName('');
               onChange('');
             }}
-            className="flex items-center gap-2 px-3 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors"
+            className="btn btn-primary flex items-center gap-2 px-3 py-2 text-sm"
             title="Create new category"
           >
             New

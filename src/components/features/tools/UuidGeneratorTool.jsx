@@ -80,7 +80,7 @@ export default function UuidGeneratorTool() {
         <div>
           <button
             onClick={handleGenerate}
-            className="flex items-center gap-2 px-4 py-2 bg-os-blue text-white text-sm rounded-sm hover:bg-os-blue-hover transition-colors"
+            className="btn btn-primary flex items-center gap-2 px-4 py-2 text-sm"
           >
             Generate UUID{count > 1 ? 's' : ''}
           </button>

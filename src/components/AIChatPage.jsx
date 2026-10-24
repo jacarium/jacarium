@@ -1305,7 +1305,7 @@ export default function AIChatPage() {
                   })()}
 
                   <button
-                    className="mt-4 w-full py-2 text-xs text-blue-600 bg-blue-500 hover:bg-blue-500/20/10 rounded-sm transition-colors"
+                    className="btn btn-primary mt-4 w-full py-2 text-xs"
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowDatasetModal(true);
@@ -1498,7 +1498,7 @@ export default function AIChatPage() {
               <button
                 onClick={handleSendMessage}
                 disabled={!inputMessage.trim() || backendStatus === 'offline' || noModelsConfigured}
-                className="px-6 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                className="btn btn-primary px-6 flex items-center justify-center"
               >
                 <Send size={18} />
               </button>

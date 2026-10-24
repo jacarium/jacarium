@@ -539,7 +539,7 @@ export default function TimeZoneConverterTool() {
                 </div>
                 <button
                   onClick={() => handleRemoveTimezone(timezone)}
-                  className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-sm transition-colors shrink-0"
+                  className="btn btn-danger-ghost p-1 shrink-0"
                   title="Remove timezone"
                 >
                   <Trash2 size={12} className="text-red-600 dark:text-red-400" />

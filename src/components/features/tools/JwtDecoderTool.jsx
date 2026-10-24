@@ -103,7 +103,7 @@ export default function JwtDecoderTool() {
           </div>
           <textarea value={token} onChange={(e) => setToken(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." className="w-full h-32 px-3 py-2 bg-os-card border border-os-border rounded-sm text-os-text-primary font-mono text-sm resize-none focus:outline-hidden focus:ring-2 focus:ring-os-blue placeholder:text-os-text-muted" />
         </div>
-        <button onClick={handleDecode} disabled={!token} className="px-4 py-2 bg-os-blue text-white text-sm rounded-sm hover:bg-os-blue-hover disabled:opacity-50 transition-colors">Decode</button>
+        <button onClick={handleDecode} disabled={!token} className="btn btn-primary px-4 py-2 text-sm">Decode</button>
         {error && <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm text-sm text-red-600 dark:text-red-400">{error}</div>}
         <div>
           <label className="block text-sm text-os-text-primary mb-2">Header</label>

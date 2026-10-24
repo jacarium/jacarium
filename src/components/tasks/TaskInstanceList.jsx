@@ -541,7 +541,7 @@ export default function TaskInstanceList({
                 closeMenu();
               }}
               className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors ${
- sortBy ==='date'?'bg-os-blue text-white':'hover:bg-os-card-secondary'
+ sortBy ==='date'?'btn-selected':'hover:bg-os-card-secondary'
  }`}
             >
               <MenuItemIcon action="sortByDate" className={sortBy === 'date' ? 'text-white' : 'text-os-text-secondary'} />
@@ -553,7 +553,7 @@ export default function TaskInstanceList({
                 closeMenu();
               }}
               className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors ${
- sortBy ==='name'?'bg-os-blue text-white':'hover:bg-os-card-secondary'
+ sortBy ==='name'?'btn-selected':'hover:bg-os-card-secondary'
  }`}
             >
               <MenuItemIcon action="sortByTitle" className={sortBy === 'name' ? 'text-white' : 'text-os-text-secondary'} />

@@ -228,7 +228,7 @@ export default function DateTimePicker({
  p-2 text-xs transition-colors
  ${!day.isCurrentMonth ?'text-os-text-muted opacity-40':'text-os-text-primary'}
  ${day.isSelected
- ?'bg-os-blue text-white'
+ ?'btn-selected'
  : day.isToday
  ?'bg-os-card-secondary'
  :'hover:bg-os-card-secondary'
@@ -331,7 +331,7 @@ export default function DateTimePicker({
             <button
               type="button"
               onClick={closeMenu}
-              className="flex-1 px-3 py-1.5 text-xs text-os-blue hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-sm transition-colors"
+              className="btn btn-quiet flex-1 px-3 py-1.5 text-xs"
             >
               Done
             </button>

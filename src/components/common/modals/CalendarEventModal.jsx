@@ -520,7 +520,7 @@ export default function CalendarEventModal({
               onClose();
               // Open settings modal - this would need to be passed as a prop or handled differently
             }}
-            className="px-4 py-2 bg-os-blue text-white rounded-sm hover:bg-os-blue-hover text-sm"
+            className="btn btn-primary px-4 py-2 text-sm"
           >
             Go to Settings
           </button>
@@ -541,7 +541,7 @@ export default function CalendarEventModal({
           <button
             onClick={handleAuthenticate}
             disabled={authenticating}
-            className="px-4 py-2 bg-os-blue text-white rounded-sm hover:bg-os-blue-hover text-sm disabled:opacity-50"
+            className="btn btn-primary px-4 py-2 text-sm"
           >
             {authenticating ? 'Authenticating...' : 'Sign in with Google'}
           </button>
@@ -804,7 +804,7 @@ export default function CalendarEventModal({
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-os-blue text-white rounded-sm hover:bg-os-blue-hover text-sm disabled:opacity-50"
+            className="btn btn-primary px-4 py-2 text-sm"
           >
             {loading ? 'Saving...' : (mode === 'edit' ? 'Update Event' : 'Create Event')}
           </button>

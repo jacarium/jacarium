@@ -43,11 +43,12 @@ const COMPOSER_FOCUS = { blue: 'focus:ring-2 focus:ring-blue-500 focus:border-bl
 export function chatComposerInputClass(accent = 'blue') {
   return `${COMPOSER_BASE} ${COMPOSER_FOCUS[accent] || COMPOSER_FOCUS.blue}`;
 }
-const SEND_ACCENT = { blue: 'bg-blue-600 hover:bg-blue-700', purple: 'bg-purple-600 hover:bg-purple-700' };
+// The send button: the primary tokens, or the brand (violet) accent of the team chat
+const SEND_ACCENT = { blue: 'btn btn-primary', purple: 'btn btn-brand' };
 export function ChatSendButton({ accent = 'blue', title = 'Send message', className = '', ...props }) {
   return (
     <button type="button" title={title} aria-label={title} {...props}
-      className={`px-4 py-2 text-white rounded-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-[76px] ${SEND_ACCENT[accent] || SEND_ACCENT.blue} ${className}`}>
+      className={`px-4 py-2 h-[76px] ${SEND_ACCENT[accent] || SEND_ACCENT.blue} ${className}`}>
       <Send size={18} />
     </button>
   );
@@ -123,7 +124,7 @@ export function Toggle({ checked, onChange, label, hint, disabled = false, testI
   return (
     <label className={`sc-toggle flex items-start gap-3 ${disabled ? 'opacity-70' : 'cursor-pointer'} ${className}`}>
       <button type="button" role="switch" aria-checked={!!checked} disabled={disabled} data-testid={testId} onClick={() => onChange?.(!checked)}
-        className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full border transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 ${checked ? 'bg-blue-600 border-blue-600' : 'bg-os-card-secondary border-os-input-border'}`}>
+        className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full border transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 ${checked ? 'bg-(--btn-selected-bg) border-(--btn-selected-bg)' : 'bg-os-card-secondary border-os-input-border'}`}>
         <span className={`absolute left-0 top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
       </button>
       <span className="min-w-0">
@@ -138,17 +139,17 @@ export function Toggle({ checked, onChange, label, hint, disabled = false, testI
 /* Buttons                                                             */
 /* ------------------------------------------------------------------ */
 
-const BTN = 'inline-flex items-center justify-center gap-2 rounded-sm transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40';
+// The colours come from the shared .btn classes (src/index.css, "Buttons": the --btn-<role>-* theme tokens); only the sizes are utilities here
 const BTN_SIZE = { sm: 'px-2.5 py-1 text-xs', md: 'px-3 py-1.5 text-xs', lg: 'px-4 py-2 text-sm' };
 export const BUTTON = {
-  primary: `sc-btn sc-btn-primary ${BTN} ${BTN_SIZE.md} bg-blue-600 hover:bg-blue-700 text-white`,
-  secondary: `sc-btn sc-btn-secondary ${BTN} ${BTN_SIZE.md} bg-os-modal border border-os-input-border text-os-text-primary hover:bg-os-card-secondary`,
-  danger: `sc-btn sc-btn-danger ${BTN} ${BTN_SIZE.md} bg-os-modal border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20`,
-  dangerSolid: `sc-btn sc-btn-danger-solid ${BTN} ${BTN_SIZE.md} bg-red-600 hover:bg-red-700 text-white`,
-  warning: `sc-btn sc-btn-warning ${BTN} ${BTN_SIZE.md} bg-amber-600 hover:bg-amber-700 text-white`,
-  success: `sc-btn sc-btn-success ${BTN} ${BTN_SIZE.md} bg-green-600 hover:bg-green-700 text-white`,
-  ghost: `sc-btn sc-btn-ghost ${BTN} ${BTN_SIZE.md} text-os-text-secondary hover:bg-os-card-secondary hover:text-os-text-primary`,
-  link: `sc-btn sc-btn-link inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 rounded-sm`,
+  primary: `sc-btn sc-btn-primary btn btn-primary ${BTN_SIZE.md}`,
+  secondary: `sc-btn sc-btn-secondary btn btn-secondary ${BTN_SIZE.md}`,
+  danger: `sc-btn sc-btn-danger btn btn-danger ${BTN_SIZE.md}`,
+  dangerSolid: `sc-btn sc-btn-danger-solid btn btn-danger-solid ${BTN_SIZE.md}`,
+  warning: `sc-btn sc-btn-warning btn btn-warning ${BTN_SIZE.md}`,
+  success: `sc-btn sc-btn-success btn btn-success ${BTN_SIZE.md}`,
+  ghost: `sc-btn sc-btn-ghost btn btn-ghost ${BTN_SIZE.md}`,
+  link: `sc-btn sc-btn-link inline-flex items-center gap-1 text-os-blue hover:underline focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 rounded-sm`,
 };
 
 /**
@@ -164,7 +165,7 @@ export function Button({ variant = 'secondary', size = 'md', children, className
 
 /** An icon-only button: `label` becomes the aria-label and the tooltip. */
 export function IconButton({ icon: Icon, label, size = 16, variant = 'ghost', className = '', type = 'button', children, ...props }) {
-  const tone = variant === 'danger' ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20' : variant === 'primary' ? 'bg-blue-600 text-white hover:bg-blue-700' : 'text-os-text-secondary hover:text-os-text-primary hover:bg-os-card-secondary';
+  const tone = variant === 'danger' ? 'btn btn-danger-ghost' : variant === 'primary' ? 'btn btn-primary' : 'text-os-text-secondary hover:text-os-text-primary hover:bg-os-card-secondary';
   return (
     <button type={type} aria-label={label} title={label} {...props} className={`sc-icon-btn inline-flex items-center justify-center p-1.5 rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 ${tone} ${className}`}>
       {Icon ? <Icon size={size} /> : children}
@@ -183,7 +184,7 @@ export function Segmented({ options, value, onChange, size = 'md', className = '
     <div className={`sc-segmented inline-flex rounded-sm border border-os-input-border overflow-hidden ${className}`} role="group" data-testid={testId}>
       {options.map((o) => (
         <button key={o.id} type="button" aria-pressed={value === o.id} onClick={() => onChange(o.id)} title={o.title}
-          className={`${size === 'sm' ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-xs'} transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 ${value === o.id ? 'bg-blue-600 text-white' : 'bg-os-modal text-os-text-secondary hover:bg-os-card-secondary hover:text-os-text-primary'}`}>
+          className={`${size === 'sm' ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-xs'} transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 ${value === o.id ? 'btn-selected' : 'bg-os-modal text-os-text-secondary hover:bg-os-card-secondary hover:text-os-text-primary'}`}>
           {o.label}
         </button>
       ))}

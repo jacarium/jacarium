@@ -35,7 +35,7 @@ function BooleanVariableNode({ data, isConnectable }) {
           disabled={data.isReadOnly}
           className={`nodrag w-full px-3 py-2 text-sm border-2 transition-colors mt-2 ${
             value
-              ? 'bg-green-50 border-green-500 text-green-700'
+              ? 'btn-success-soft'
               : 'bg-os-card-secondary border-os-input-border text-os-text-secondary'
           } disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-sm`}
         >

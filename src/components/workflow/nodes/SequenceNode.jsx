@@ -38,7 +38,7 @@ function SequenceNode({ data, isConnectable }) {
               <button
                 onClick={() => outputCount > MIN_OUTPUTS && setOutputCount(outputCount - 1)}
                 disabled={outputCount <= MIN_OUTPUTS}
-                className="nodrag p-1 hover:bg-red-50 rounded-sm text-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="btn btn-danger-ghost nodrag p-1 disabled:opacity-30"
                 title="Remove output"
               >
                 <Trash2 size={14} />
@@ -49,7 +49,7 @@ function SequenceNode({ data, isConnectable }) {
               <button
                 onClick={() => outputCount < MAX_OUTPUTS && setOutputCount(outputCount + 1)}
                 disabled={outputCount >= MAX_OUTPUTS}
-                className="nodrag p-1 hover:bg-green-50 rounded-sm text-green-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="btn btn-success-ghost nodrag p-1 disabled:opacity-30"
                 title="Add output"
               >
                 <Plus size={14} />

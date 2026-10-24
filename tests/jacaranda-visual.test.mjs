@@ -18,6 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { launchDocumentsApp, sleep } from './helpers/live-documents-app.mjs';
 import { dismissWhatsNew } from './helpers/visual-snapshots.mjs';
+import { same as sameColor } from './helpers/color.mjs';
 
 const OUT = process.env.JACARANDA_SHOTS_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'jacaranda-shots-'));
 fs.mkdirSync(OUT, { recursive: true });
@@ -64,8 +65,7 @@ const probe = () => ev(`(() => {
     blank: !text,
   };
 })()`);
-const hexToRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-const same = (rgbString, hex) => { const a = (rgbString.match(/\d+/g) || []).slice(0, 3).map(Number); const b = hexToRgb(hex); return a.length === 3 && a.every((v, i) => v === b[i]); };
+const same = (cssColor, hex) => sameColor(cssColor, hex);   // any computed syntax against the hex (tests/helpers/color.mjs)
 
 // The contrast rule is enforced for the theme under test (Jacaranda); the light theme and the neutral dark
 // are unchanged by it and only reported (their known soft spots: muted text on secondary surfaces).

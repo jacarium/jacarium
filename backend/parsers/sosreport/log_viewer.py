@@ -1908,6 +1908,13 @@ def _initial_date_range(available_logs):
 
 def parse(directory):
     """Initial parse - list available log files"""
+    result = _parse(directory)
+    result['findings'] = findings_for(result)
+    return result
+
+
+def _parse(directory):
+    """Initial parse - list available log files"""
     print(f"[Log Viewer] Parsing directory: {directory}")
 
     result = {
@@ -2290,3 +2297,20 @@ def parse_date_range(directory, start_date_str, end_date_str, log_paths=None, li
                         break
 
     return result
+
+
+def findings_for(result):
+    """The Findings strip of the Log Viewer: what there is to open (the files, their span), the unreadable ones
+    (warn), the way to work (pick files, a date range, Load); no log at all (info)."""
+    from parsers.findings import finding, no_data, sort_findings
+    logs = result.get('available_logs') or []
+    bad = result.get('unavailable_logs') or []
+    out = []
+    if not logs and not bad:
+        return [no_data('No log file to open in this report', ['sos_commands/logs/journalctl*', 'var/log/*'], 'the Log Viewer reads the journal captures and var/log')]
+    if bad:
+        out.append(finding('warn', f"{len(bad)} log file{'s' if len(bad) != 1 else ''} cannot be opened", ', '.join(b.get('name', '?') for b in bad[:4]) + (' \u2026' if len(bad) > 4 else '') + ': dangling symlinks or unreadable files in the report', count=len(bad)))
+    rng = result.get('date_range') or {}
+    span = f", {rng['start']} to {rng['end']}" if rng.get('start') and rng.get('end') else ''
+    out.append(finding('info', f"{len(logs)} log file{'s' if len(logs) != 1 else ''} to open{span}", 'pick the files and a date range, then Load Logs; the search, the severity and the process filters work on what is loaded'))
+    return sort_findings(out)

@@ -10,6 +10,15 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from glob import glob
 
+from parsers.findings import finding, sort_findings
+
+from ._common import first_existing, report_root, report_year
+
+# where a report keeps the HAProxy log: the OSP container layout first, then a plain host's
+LOG_DIRS = ('var/log/containers/haproxy', 'var/log/haproxy', 'var/log')
+# the configuration: the OSP container's puppet-generated copy, else a plain host's
+CONFIG_PATHS = ('var/lib/config-data/puppet-generated/haproxy/etc/haproxy/haproxy.cfg', 'etc/haproxy/haproxy.cfg')
+
 
 def parse_haproxy_config(config_path):
     """Parse haproxy.cfg and extract backend/frontend information"""
@@ -157,8 +166,10 @@ def parse_haproxy_config(config_path):
     return config
 
 
-def parse_single_log_file(log_file):
-    """Parse a single HAProxy log file and return issues and timestamps"""
+def parse_single_log_file(log_file, year=None):
+    """Parse a single HAProxy log file and return issues and timestamps.
+    The syslog timestamps carry no year: `year` is the report's (see
+    _common.report_year); without it the current year is assumed."""
     issues = {
         'backend_down': [],
         'server_down': [],
@@ -174,7 +185,7 @@ def parse_single_log_file(log_file):
     termination_states = defaultdict(list)
 
     all_timestamps = []
-    current_year = datetime.now().year
+    current_year = year or datetime.now().year
 
     # Patterns to match
     patterns = {
@@ -188,7 +199,7 @@ def parse_single_log_file(log_file):
         # Match status code after the five timing values
         'http_status': re.compile(r'-?\d+/-?\d+/-?\d+/-?\d+/-?\d+\s+(\d{3})\s+'),
         # Termination state for HTTP mode: Tq/Tw/Tc/Tr/Tt <status_code> <bytes> <state>
-        'termination_state_http': re.compile(r'-?\d+/-?\d+/-?\d+/-?\d+/-?\d+\s+\d{3}\s+\d+\s+([a-zA-Z\-]{2})\s+'),
+        'termination_state_http': re.compile(r'-?\d+/-?\d+/-?\d+/-?\d+/-?\d+\s+\d{3}\s+\d+\s+(?:\S+\s+\S+\s+)?([a-zA-Z\-]{2})[a-zA-Z\-]{0,2}\s+'),   # the two captured cookies ('-' when none) sit before the 4-letter state
         # Termination state for TCP mode: Tc/Tw/Tt <bytes> <state> (only 3 timing values, no status code)
         'termination_state_tcp': re.compile(r'-?\d+/-?\d+/-?\d+\s+\d+\s+([a-zA-Z\-]{2})\s+')
     }
@@ -316,6 +327,19 @@ def parse_single_log_file(log_file):
     return issues, all_timestamps
 
 
+def _report_of(log_dir):
+    """The report directory a haproxy log directory sits in (var/log/containers/haproxy, or var/log)."""
+    d = os.path.normpath(log_dir)
+    for _ in range(5):
+        if os.path.isdir(os.path.join(d, 'sos_commands')) or os.path.isfile(os.path.join(d, 'date')):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    return os.path.normpath(log_dir)
+
+
 def get_available_log_files(log_dir):
     """Get list of available HAProxy log files"""
     if not os.path.exists(log_dir):
@@ -330,8 +354,12 @@ def get_available_log_files(log_dir):
         return None
 
 
-def parse_haproxy_logs(log_dir, file_name='haproxy.log'):
-    """Parse a specific haproxy log file or all files if file_name is '__all__'"""
+def parse_haproxy_logs(log_dir, file_name='haproxy.log', year=None):
+    """Parse a specific haproxy log file or all files if file_name is '__all__'
+    (`year`: the report's year for the timestamps, see parse_single_log_file;
+    when not given it is read from the report the log directory belongs to)"""
+    if year is None:
+        year = report_year(_report_of(log_dir))
 
     # Handle "All" option - combine all log files
     if file_name == '__all__':
@@ -345,7 +373,7 @@ def parse_haproxy_logs(log_dir, file_name='haproxy.log'):
 
         for log_file in available_files:
             log_path = os.path.join(log_dir, log_file)
-            issues, timestamps = parse_single_log_file(log_path)
+            issues, timestamps = parse_single_log_file(log_path, year)
 
             if issues and timestamps:
                 # Merge issues
@@ -376,7 +404,7 @@ def parse_haproxy_logs(log_dir, file_name='haproxy.log'):
     if not os.path.exists(log_path):
         return None
 
-    issues, all_timestamps = parse_single_log_file(log_path)
+    issues, all_timestamps = parse_single_log_file(log_path, year)
 
     if issues and all_timestamps:
         return {
@@ -472,6 +500,7 @@ def aggregate_issues_by_time(issues, all_timestamps):
 
 
 def parse(sosreport_path):
+    sosreport_path = report_root(sosreport_path)
     """Main parser function for HAProxy"""
     result = {
         'config': None,
@@ -479,22 +508,15 @@ def parse(sosreport_path):
         'current_log': None
     }
 
-    # Parse configuration
-    config_path = os.path.join(
-        sosreport_path,
-        'var/lib/config-data/puppet-generated/haproxy/etc/haproxy/haproxy.cfg'
-    )
+    # Parse configuration (the container copy, else the plain host's file)
+    config_path = first_existing(sosreport_path, *CONFIG_PATHS) or os.path.join(sosreport_path, CONFIG_PATHS[0])
 
     config = parse_haproxy_config(config_path)
     if config:
         result['config'] = config
 
     # Get list of available log files and parse only haproxy.log
-    log_dir = os.path.join(
-        sosreport_path,
-        'var/log/containers/haproxy'
-    )
-
+    log_dir = haproxy_log_dir(sosreport_path)
     available_files = get_available_log_files(log_dir)
     if available_files:
         result['log_files'] = available_files
@@ -502,4 +524,66 @@ def parse(sosreport_path):
         default_file = 'haproxy.log' if 'haproxy.log' in available_files else available_files[0]
         result['current_log'] = parse_haproxy_logs(log_dir, default_file)
 
+    result['findings'] = findings_for(result)
     return result
+
+def haproxy_log_dir(sosreport_path):
+    """The first directory of LOG_DIRS that holds a haproxy.log* file (else the container layout's path)."""
+    root = report_root(sosreport_path)
+    for rel in LOG_DIRS:
+        d = os.path.join(root, rel)
+        if get_available_log_files(d):
+            return d
+    return os.path.join(root, LOG_DIRS[0])
+
+
+def _series_total(ts, key):
+    try:
+        return int(sum(ts['data'].get(key, [])))
+    except (TypeError, KeyError, AttributeError):
+        return 0
+
+
+def findings_for(result):
+    """The Findings strip: backends with no server, servers reported DOWN and backends without a server left in the
+    log, the 5xx share of the answers, the abnormal session terminations; no config (info)."""
+    out = []
+    config = result.get('config')
+    if not config:
+        return [finding('info', 'No HAProxy configuration in this report', 'etc/haproxy/haproxy.cfg (or the container copy) is missing')]
+    for name, be in (config.get('backends') or {}).items():
+        servers = be.get('servers') or []
+        if not servers and name not in (config.get('frontends') or {}):
+            out.append(finding('bad', f"Backend {name} has no server", "every request routed to it gets a 503"))
+        elif servers and all(s.get('backup') for s in servers):
+            out.append(finding('warn', f"Backend {name} has backup servers only", ', '.join(s['name'] for s in servers)))
+    log = result.get('current_log') or {}
+    issues = log.get('issues') or {}
+    ts = log.get('time_series') or {}
+    backends_down = {i['backend'] for i in issues.get('backend_down', [])}
+    for b in sorted(backends_down):
+        out.append(finding('bad', f"Backend {b} had no server available", "in the log: every request to it failed while it lasted", count=len(issues.get('backend_down', []))))
+    servers_down = {}
+    for i in issues.get('server_down', []):
+        servers_down[f"{i['backend']}/{i['server']}"] = servers_down.get(f"{i['backend']}/{i['server']}", 0) + 1
+    if servers_down:
+        names = ', '.join(f"{k} ({v}x)" for k, v in sorted(servers_down.items(), key=lambda kv: -kv[1])[:6])
+        out.append(finding('warn' if not backends_down else 'info', f"{len(servers_down)} server{'s' if len(servers_down) != 1 else ''} went DOWN", names + (' …' if len(servers_down) > 6 else ''), count=len(servers_down)))
+    codes = ts.get('http_status_codes') or []
+    total = sum(_series_total(ts, f'http_{c}') for c in codes)
+    bad5 = sum(_series_total(ts, f'http_{c}') for c in codes if str(c).startswith('5'))
+    if total:
+        share = 100.0 * bad5 / total
+        if share >= 5:
+            out.append(finding('bad' if share >= 20 else 'warn', f"{share:.1f}% of the answers were 5xx ({bad5:,} of {total:,})".replace(',', '\u202f'), "server errors seen by the clients; the backends above say where", count=int(share)))
+        else:
+            out.append(finding('info', f"{total:,} HTTP answers, {share:.1f}% 5xx".replace(',', '\u202f'), ', '.join(f"{c}: {_series_total(ts, f'http_{c}'):,}".replace(',', '\u202f') for c in codes[:6])))
+    terms = {k[5:]: _series_total(ts, k) for k in (ts.get('data') or {}) if k.startswith('term_')}
+    terms = {k: v for k, v in terms.items() if v}
+    if terms:
+        out.append(finding('info', f"{sum(terms.values()):,} sessions ended abnormally".replace(',', '\u202f'), ', '.join(f"{k}: {v:,}".replace(',', '\u202f') for k, v in sorted(terms.items(), key=lambda kv: -kv[1])[:6]) + " (termination state codes; sH = server timeout, SC = server refused, cD = client idle)"))
+    if not result.get('log_files'):
+        out.append(finding('info', 'No HAProxy log in this report', 'looked in ' + ', '.join(LOG_DIRS)))
+    if not any(f['severity'] in ('bad', 'warn') for f in out):
+        out.append(finding('good', f"{len(config.get('frontends') or {})} frontends, {len(config.get('backends') or {})} backends, every backend has a server, no backend without a server in the log"))
+    return sort_findings(out)

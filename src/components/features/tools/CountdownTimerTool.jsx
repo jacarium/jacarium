@@ -133,14 +133,14 @@ export default function CountdownTimerTool() {
             <button
               onClick={handleStart}
               disabled={timeLeft === 0 && hours === 0 && minutes === 0 && seconds === 0}
-              className="px-6 py-3 bg-os-blue text-white text-sm rounded-sm hover:bg-os-blue-hover disabled:opacity-50 transition-colors"
+              className="btn btn-primary px-6 py-3 text-sm"
             >
               {timeLeft > 0 ? 'Resume' : 'Start'}
             </button>
           ) : (
             <button
               onClick={handlePause}
-              className="px-6 py-3 bg-yellow-500 text-white text-sm rounded-sm hover:bg-yellow-600 transition-colors"
+              className="btn btn-warning px-6 py-3 text-sm"
             >
               Pause
             </button>

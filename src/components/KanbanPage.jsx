@@ -1688,7 +1688,7 @@ export default function KanbanPage() {
               {boards.length === 0 && (
                 <button
                   onClick={handleCreateBoard}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover rounded-sm transition-colors shadow-xs"
+                  className="btn btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm"
                 >
                   Create Board
                 </button>
@@ -1850,7 +1850,7 @@ export default function KanbanPage() {
             <button
               onClick={performBulkMove}
               disabled={!moveCategoryName}
-              className="px-4 py-2 text-sm bg-os-blue hover:bg-os-blue-hover text-white rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn btn-primary px-4 py-2 text-sm"
             >
               Move
             </button>

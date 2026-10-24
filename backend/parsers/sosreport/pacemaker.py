@@ -5,6 +5,10 @@ Parses Pacemaker cluster status, resources, and configuration
 
 import os
 import re
+
+from parsers.findings import finding, sort_findings
+
+from ._common import report_root
 from collections import defaultdict
 
 
@@ -43,9 +47,21 @@ def parse_pcs_status(status_path):
                     if 'Stack:' in line:
                         result['stack'] = line.split('Stack:')[1].strip()
 
-                # Node section
-                if line.startswith('Node List:') or line.startswith('Online:') or line.startswith('Offline:'):
+                # Node section: "Node List:" (pcs 0.10+, the entries bulleted) or the bare "Online:" / "OFFLINE:"
+                # lines of pcs 0.9 (RHEL 7); a node in standby, maintenance or UNCLEAN has its own "Node X: state" line
+                nline = line[2:] if line.startswith('* ') else line
+                if nline.startswith('Node List:') or nline.startswith('Online:') or nline.startswith('Offline:') or nline.startswith('OFFLINE:') or nline.startswith('Node ') or nline.startswith('RemoteOnline:') or nline.startswith('RemoteOFFLINE:') or nline.startswith('GuestOnline:'):
                     current_section = 'nodes'
+                    line = nline
+                    node_state = re.match(r'^Node\s+(\S+?):\s*(.+)$', line)
+                    if node_state and 'List' not in node_state.group(1):
+                        state = node_state.group(2).strip()
+                        result['nodes'].append({
+                            'name': node_state.group(1),
+                            'status': 'unclean' if 'UNCLEAN' in state.upper() else ('standby' if 'standby' in state.lower() else ('maintenance' if 'maintenance' in state.lower() else state.lower())),
+                            'detail': state,
+                            'resources': []
+                        })
 
                     # Parse online/offline nodes
                     if 'Online:' in line:
@@ -84,7 +100,7 @@ def parse_pcs_status(status_path):
                     # * openstack-cinder-volume	(systemd:openstack-cinder-volume):	Started overcloud-controller-1
                     # * Clone Set: haproxy-bundle [haproxy-bundle-podman-0]
 
-                    resource_match = re.match(r'\*\s+(\S+)\s+\(([^)]+)\):\s+(\S+)(?:\s+(\S+))?', line)
+                    resource_match = re.match(r'(?:\*\s+)?(\S+)\s+\(([^)]+)\):\s+(\S+)(?:\s+(\S+))?', line)
                     if resource_match:
                         resource_name = resource_match.group(1)
                         resource_type = resource_match.group(2)
@@ -100,7 +116,7 @@ def parse_pcs_status(status_path):
                         })
 
                     # Match clone/master resources
-                    clone_match = re.match(r'\*\s+(Clone Set|Master/Slave Set):\s+(\S+)\s+\[([^\]]+)\]', line)
+                    clone_match = re.match(r'(?:\*\s+)?(Clone Set|Master/Slave Set|Promotable Clone Set|Resource Group):\s+(\S+)\s*\[?([^\]]*)\]?', line)
                     if clone_match:
                         clone_type = clone_match.group(1)
                         clone_name = clone_match.group(2)
@@ -124,7 +140,7 @@ def parse_pcs_status(status_path):
                 if current_section == 'failures' and line and not line.startswith('---'):
                     # Parse failure lines
                     # Format: * resource_action_interval on node 'status' (code): details
-                    failure_match = re.match(r'\*\s+(\S+)\s+on\s+(\S+)\s+(.+)', line)
+                    failure_match = re.match(r'(?:\*\s+)?(\S+)\s+on\s+(\S+)\s+(.+)', line)
                     if failure_match:
                         resource_action = failure_match.group(1)
                         node = failure_match.group(2)
@@ -421,6 +437,7 @@ def parse_pcs_stonith_history(history_path):
 
 def parse(sosreport_path):
     """Main parser function for Pacemaker"""
+    sosreport_path = report_root(sosreport_path)
     result = {
         'status': None,
         'crm_mon': None,
@@ -477,4 +494,40 @@ def parse(sosreport_path):
                         resource['config'] = config_data
                         break
 
+    result['findings'] = findings_for(result)
     return result
+
+def findings_for(result):
+    """The Findings strip: nodes offline / unclean (bad) or in standby / maintenance (warn), resources stopped or
+    failed (bad, linked to the Log Viewer with the resource's name), failed actions (bad), quorum lost (bad),
+    fencing disabled (warn), fencing history entries (warn), a cluster with no captures at all (info)."""
+    out = []
+    status = result.get('status') or {}
+    if not any(result.get(k) for k in ('status', 'crm_mon', 'config', 'properties', 'quorum', 'stonith_history')):
+        return [finding('info', 'No Pacemaker captures in this report', 'sos_commands/pacemaker is missing: the host is not a cluster node, or sos ran without the pacemaker plugin')]
+    for n in status.get('nodes', []):
+        st = n.get('status')
+        if st in ('offline', 'unclean'):
+            out.append(finding('bad', f"Node {n['name']} is {st}", n.get('detail', '') or ('the cluster lost it; its resources moved or stopped' if st == 'offline' else 'the cluster cannot tell its state: fencing pending'), tab='log_collection', sub_tab='log_viewer', query='pacemaker'))
+        elif st in ('standby', 'maintenance'):
+            out.append(finding('warn', f"Node {n['name']} is in {st}", n.get('detail', '') or 'it runs no resources until taken out of standby'))
+    for r in status.get('resources', []):
+        st = (r.get('status') or '').lower()
+        if st in ('stopped', 'failed', 'blocked') or 'fail' in st:
+            out.append(finding('bad', f"Resource {r['name']} is {r.get('status')}", f"{r.get('type', '')}" + (f" on {r['node']}" if r.get('node') else ''), tab='log_collection', sub_tab='log_viewer', query=r['name']))
+    for f in status.get('failures', []):
+        out.append(finding('bad', f"{f['resource']}: {f['action']} failed on {f['node']}", f"{f.get('message', '')}", tab='log_collection', sub_tab='log_viewer', query=f['resource']))
+    quorum = result.get('quorum') or {}
+    if quorum.get('quorate') is False:
+        out.append(finding('bad', 'The cluster has no quorum', 'resources are stopped or frozen until enough nodes return'))
+    config = result.get('config') or {}
+    if config.get('stonith_enabled') is False:
+        out.append(finding('warn', 'Fencing is disabled (stonith-enabled=false)', 'a node that stops answering cannot be fenced: data on shared storage is at risk'))
+    history = result.get('stonith_history') or {}
+    if history.get('has_history'):
+        n = sum(1 for l in history.get('raw_output', []) if l.strip() and not l.lower().startswith('no fence'))
+        out.append(finding('warn', f"Fencing history has {n} entr{'ies' if n != 1 else 'y'}", 'a node was fenced (or a fence failed): see the history for when and why', count=n))
+    if not any(f['severity'] in ('bad', 'warn') for f in out):
+        nodes = status.get('nodes', [])
+        out.append(finding('good', f"{len(nodes)} node{'s' if len(nodes) != 1 else ''} online, {len(status.get('resources', []))} resources started, no failed action" + (", quorate" if quorum.get('quorate') else '')))
+    return sort_findings(out)

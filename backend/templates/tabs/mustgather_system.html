@@ -1,3 +1,5 @@
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 <div id="operatorListPanel" class="space-y-4">
  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
  <div class="panel rounded-lg shadow-sm">
@@ -58,34 +60,28 @@
  </h3>
 
  <div class="mb-2">
- <input id="operatorSearchInput" type="text" placeholder="Search operators..." class="w-full px-3 py-2 text-sm border" />
+ <input id="operatorSearchInput" type="text" placeholder="Search operators..." class="ui-input w-full" />
  </div>
 
- <div class="flex justify-between items-center mb-2">
- <div id="filteredOperatorCount" class="text-sm">Showing all operators</div>
- <div class="flex items-center gap-2">
- <label class="text-xs font-semibold">Per Page:</label>
- <select id="operatorPageSizeSelect" onchange="window.changeOperatorPageSize()" class="px-3 py-1 text-sm border">
+ <div class="ui-pagebar"><span class="ui-status" id="filteredOperatorCount" aria-live="polite">Showing all operators</span><div class="ui-pagebar-right"><label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select aria-label="Rows per page" id="operatorPageSizeSelect" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { window.changeOperatorPageSize(); }) : window.changeOperatorPageSize()" class="ui-select">
  <option value="25">25</option>
  <option value="50" selected>50</option>
  <option value="100">100</option>
  <option value="-1">All</option>
- </select>
- </div>
- </div>
- <table class="w-full min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
+ </select>{{ ui.icon('chevron') }}</span></label></div></div>
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortOperatorsBy('name')">Name</th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortOperatorsBy('available')">Available</th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortOperatorsBy('progressing')">Progressing</th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortOperatorsBy('degraded')">Degraded</th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="window.sortOperatorsBy('lastTransitionTime')">Last Transition</th>
+ <th class="cursor-pointer" data-sorted="ascending" onclick="window.sortOperatorsBy('name')">Name</th>
+ <th class="cursor-pointer" onclick="window.sortOperatorsBy('available')">Available</th>
+ <th class="cursor-pointer" onclick="window.sortOperatorsBy('progressing')">Progressing</th>
+ <th class="cursor-pointer" onclick="window.sortOperatorsBy('degraded')">Degraded</th>
+ <th class="cursor-pointer" onclick="window.sortOperatorsBy('lastTransitionTime')">Last Transition</th>
  </tr>
  </thead>
  <tbody id="operator-table-body"></tbody>
  </table>
- <div id="operatorPaginationButtons" class="flex justify-center items-center gap-2 mt-4"></div>
+ <nav id="operatorPaginationButtons" class="ui-pager" aria-label="Pages" hidden></nav>
  </div>
 </div>
 
@@ -93,7 +89,7 @@
 <div id="operatorPanel" style="display: none;">
  <div class="space-y-4">
  <div class="mb-4">
- <button onclick="window.backFromOperatorModal()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors">
+ <button onclick="window.backFromOperatorModal()" class="btn btn-secondary flex items-center gap-2">
  Back
  </button>
  </div>
@@ -103,7 +99,7 @@
  <i class="fas fa-info-circle mr-2"></i> Operator Details
  </h2>
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm" id="operatorDetailsTable"></table>
+ <table class="ui-table" id="operatorDetailsTable"></table>
  </div>
  </div>
 
@@ -123,7 +119,7 @@
  id="operatorYamlFilter"
  type="text"
  placeholder="Filter YAML lines..."
- class="w-full px-3 py-2 text-sm border"
+ class="ui-input w-full"
  />
  </div>
  <div id="operatorJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
@@ -203,11 +199,11 @@
  :"N/A";
 
  row.innerHTML = `
- <td class="px-4 py-2">${op.name}</td>
- <td class="px-4 py-2">${op.available}</td>
- <td class="px-4 py-2">${op.progressing}</td>
- <td class="px-4 py-2">${op.degraded}</td>
- <td class="px-4 py-2">${lastTransitionDisplay}</td>
+ <td>${op.name}</td>
+ <td>${op.available}</td>
+ <td>${op.progressing}</td>
+ <td>${op.degraded}</td>
+ <td>${lastTransitionDisplay}</td>
  `;
 
  row.addEventListener("click", () => {
@@ -225,46 +221,8 @@
  }
 
  function updateOperatorPagination(totalCount) {
- const totalPages = operatorPageSize === -1 ? 1 : Math.ceil(totalCount / operatorPageSize);
- const container = document.getElementById("operatorPaginationButtons");
- container.innerHTML ="";
-
- if (totalPages <= 1) return;
-
- const prevBtn = document.createElement("button");
- prevBtn.textContent ="Previous";
- prevBtn.className = operatorCurrentPage === 1
- ? "px-3 py-1 text-sm bg-gray-300 text-gray-500 cursor-not-allowed"
- : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
- prevBtn.disabled = operatorCurrentPage === 1;
- prevBtn.onclick = () => operatorCurrentPage > 1 && window.goToOperatorPage(operatorCurrentPage - 1);
- container.appendChild(prevBtn);
-
- const maxButtons = 5;
- let startPage = Math.max(1, operatorCurrentPage - Math.floor(maxButtons / 2));
- let endPage = Math.min(totalPages, startPage + maxButtons - 1);
- if (endPage - startPage < maxButtons - 1) {
- startPage = Math.max(1, endPage - maxButtons + 1);
- }
-
- for (let i = startPage; i <= endPage; i++) {
- const btn = document.createElement("button");
- btn.textContent = i;
- btn.className = i === operatorCurrentPage
- ? "px-3 py-1 text-sm bg-blue-700 text-white font-bold current-page"
- : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
- btn.onclick = () => window.goToOperatorPage(i);
- container.appendChild(btn);
- }
-
- const nextBtn = document.createElement("button");
- nextBtn.textContent ="Next";
- nextBtn.className = operatorCurrentPage === totalPages
- ? "px-3 py-1 text-sm bg-gray-300 text-gray-500 cursor-not-allowed"
- : "px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700";
- nextBtn.disabled = operatorCurrentPage === totalPages;
- nextBtn.onclick = () => operatorCurrentPage < totalPages && window.goToOperatorPage(operatorCurrentPage + 1);
- container.appendChild(nextBtn);
+   // the shared pager (diagPager): one page -> nothing drawn
+   window.diagPager.render(document.getElementById('operatorPaginationButtons'), { total: totalCount, page: operatorCurrentPage, pageSize: operatorPageSize, go: function (p) { window.goToOperatorPage(p); } });
  }
 
  window.goToOperatorPage = function(page) {
@@ -321,6 +279,8 @@
  currentOperatorSort.key = key;
  currentOperatorSort.direction = 1;
  }
+ var th = Array.prototype.find.call(document.querySelectorAll('th[onclick]'), function (h) { return (h.getAttribute('onclick') || '').indexOf("'" + key + "'") >= 0; });
+ if (th) window.diagTables.markSort(th, currentOperatorSort.direction === 1);
  operatorCurrentPage = 1;
  applyOperatorFiltersAndRender();
  }
@@ -355,10 +315,10 @@
  }, 0);
 
  operatorDetailsTable.innerHTML = `
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Name:</td><td class="py-2">${op.name}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Available:</td><td class="py-2">${op.available}</td></tr>
- <tr class="border-b"><td class="py-2 pr-4 font-semibold">Progressing:</td><td class="py-2">${op.progressing}</td></tr>
- <tr><td class="py-2 pr-4 font-semibold">Degraded:</td><td class="py-2">${op.degraded}</td></tr>
+ <tr><td>Name:</td><td>${op.name}</td></tr>
+ <tr><td>Available:</td><td>${op.available}</td></tr>
+ <tr><td>Progressing:</td><td>${op.progressing}</td></tr>
+ <tr><td>Degraded:</td><td>${op.degraded}</td></tr>
  `;
 
  const conditions = op.raw?.status?.conditions || [];
@@ -379,27 +339,27 @@
 
  let tableHTML =
  `<div class="text-sm mb-2">Showing ${conditions.length} condition(s)</div>` +
- '<table class="w-full min-w-full text-sm rounded-lg shadow-md">' +
- '<thead class="border-b">' +
+ '<table class="ui-table">' +
+ '<thead>' +
  '<tr>' +
- '<th class="px-4 py-2 text-left">Type</th>' +
- '<th class="px-4 py-2 text-left">Status</th>' +
- '<th class="px-4 py-2 text-left">Reason</th>' +
- '<th class="px-4 py-2 text-left">Message</th>' +
- '<th class="px-4 py-2 text-left">Last Updated</th>' +
- '<th class="px-4 py-2 text-left">Last Transition</th>' +
+ '<th>Type</th>' +
+ '<th>Status</th>' +
+ '<th>Reason</th>' +
+ '<th>Message</th>' +
+ '<th>Last Updated</th>' +
+ '<th>Last Transition</th>' +
  '</tr>' +
  '</thead>' +
  '<tbody>';
 
  for (const cond of conditions) {
  tableHTML +=
- '<tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-800">' +
- `<td class="px-4 py-2">${cond.type}</td>` +
- `<td class="px-4 py-2">${cond.status}</td>` +
- `<td class="px-4 py-2">${cond.reason || ''}</td>` +
- `<td class="px-4 py-2 break-all">${cond.message || ''}</td>` +
- `<td class="px-4 py-2">${cond.lastUpdateTime ? new Date(cond.lastUpdateTime).toLocaleString('en-US', {
+ '<tr>' +
+ `<td>${cond.type}</td>` +
+ `<td>${cond.status}</td>` +
+ `<td>${cond.reason || ''}</td>` +
+ `<td class="break-all">${cond.message || ''}</td>` +
+ `<td>${cond.lastUpdateTime ? new Date(cond.lastUpdateTime).toLocaleString('en-US', {
      month: 'short',
      day: '2-digit',
      year: 'numeric',
@@ -408,7 +368,7 @@
      timeZone: 'UTC',
      timeZoneName: 'short'
    }) : ''}</td>` +
- `<td class="px-4 py-2">${cond.lastTransitionTime ? new Date(cond.lastTransitionTime).toLocaleString('en-US', {
+ `<td>${cond.lastTransitionTime ? new Date(cond.lastTransitionTime).toLocaleString('en-US', {
      month: 'short',
      day: '2-digit',
      year: 'numeric',

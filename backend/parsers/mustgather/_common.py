@@ -76,3 +76,38 @@ def resolve_data_dir(directory):
                 return os.path.join(directory, entry)
 
     return directory
+
+# ---------------------------------------------------------------------------
+# YAML: libyaml's C loader when PyYAML was built with it (5-10x faster on the
+# multi-megabyte pod and event dumps of a large cluster), the pure one else;
+# both are the SafeLoader (no object construction from untrusted documents).
+# ---------------------------------------------------------------------------
+import yaml  # noqa: E402
+
+_LOADER = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
+
+
+def safe_load(stream):
+    return yaml.load(stream, Loader=_LOADER)
+
+
+def safe_load_all(stream):
+    return yaml.load_all(stream, Loader=_LOADER)
+
+
+def collection_time(directory):
+    """The must-gather's collection time (UTC) from its `timestamp` file, else now."""
+    import re
+    from datetime import datetime, timedelta, timezone
+    p = os.path.join(directory, 'timestamp')
+    try:
+        with open(p, 'r', encoding='utf-8', errors='replace') as f:
+            first = f.readline().strip()
+        m = re.match(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\.?\d* ([+-]\d{4})', first)
+        if m:
+            sign = 1 if m.group(2)[0] == '+' else -1
+            off = timedelta(hours=sign * int(m.group(2)[1:3]), minutes=sign * int(m.group(2)[3:5]))
+            return datetime.fromisoformat(m.group(1).replace(' ', 'T')).replace(tzinfo=timezone.utc) - off
+    except OSError:
+        pass
+    return datetime.now(timezone.utc)

@@ -336,7 +336,7 @@ export default function TaskInstanceManager({ isOpen, onClose }) {
                     type="button"
                     onClick={handleValidate}
                     disabled={loading}
-                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-os-text-primary rounded-sm transition-colors disabled:opacity-50"
+                    className="btn btn-primary px-3 py-2"
                   >
                     Validate
                   </button>
@@ -404,7 +404,7 @@ export default function TaskInstanceManager({ isOpen, onClose }) {
                           type="button"
                           onClick={handleInitialize}
                           disabled={loading}
-                          className="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-os-text-primary text-sm rounded-sm transition-colors disabled:opacity-50"
+                          className="btn btn-primary mt-2 px-3 py-1 text-sm"
                         >
                           Initialize Instance
                         </button>
@@ -450,7 +450,7 @@ export default function TaskInstanceManager({ isOpen, onClose }) {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-os-text-primary rounded-sm transition-colors disabled:opacity-50"
+                  className="btn btn-primary flex-1 px-4 py-2"
                 >
                   {loading ? 'Saving...' : editingInstance ? 'Update Instance' : 'Create Instance'}
                 </button>

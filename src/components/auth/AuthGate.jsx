@@ -100,7 +100,7 @@ export function SetupPage({ onDone = () => window.location.reload() }) {
         <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="new-password" hint="At least 8 characters." />
         <Field label="Password again" type="password" value={confirm} onChange={setConfirm} autoComplete="new-password" />
         <ErrorBox error={error} />
-        <button type="submit" disabled={busy} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-sm disabled:opacity-50">
+        <button type="submit" disabled={busy} className="btn btn-primary w-full flex items-center justify-center gap-2 px-4 py-2 text-sm">
           Create the administrator account
         </button>
       </form>
@@ -138,7 +138,7 @@ export function LoginPage({ onDone = () => window.location.reload() }) {
         <Field label="Username" value={username} onChange={setUsername} autoFocus autoComplete="username" />
         <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="current-password" />
         <ErrorBox error={error} />
-        <button type="submit" disabled={busy} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-sm disabled:opacity-50">
+        <button type="submit" disabled={busy} className="btn btn-primary w-full flex items-center justify-center gap-2 px-4 py-2 text-sm">
           Sign in
         </button>
         <p className="text-[11px] text-os-text-muted" data-testid="download-desktop-hint">
@@ -181,7 +181,7 @@ export function ChangePasswordPage({ user, onDone = () => window.location.reload
         <Field label="New password (8+ characters)" type="password" value={next} onChange={setNext} autoComplete="new-password" />
         <Field label="New password again" type="password" value={again} onChange={setAgain} autoComplete="new-password" />
         <ErrorBox error={error} />
-        <button type="submit" disabled={busy || next.length < 8 || !current} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-sm disabled:opacity-50">
+        <button type="submit" disabled={busy || next.length < 8 || !current} className="btn btn-primary w-full flex items-center justify-center gap-2 px-4 py-2 text-sm">
           Save password
         </button>
         <button type="button" onClick={() => logout().finally(onDone)} className="w-full px-4 py-2 text-xs text-os-text-secondary hover:bg-os-card-secondary rounded-sm">Sign out instead</button>
@@ -228,7 +228,7 @@ export function LegacyImportPage({ user, onDone = () => window.location.reload()
       {progress && <p className="text-xs text-os-text-muted font-mono">{progress}</p>}
       <ErrorBox error={error} />
       <div className="flex gap-2">
-        <button onClick={() => decide(true)} disabled={busy} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-sm disabled:opacity-50" data-testid="legacy-import">
+        <button onClick={() => decide(true)} disabled={busy} className="btn btn-primary flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm" data-testid="legacy-import">
           Import into my account
         </button>
         <button onClick={() => decide(false)} disabled={busy} className="px-4 py-2 text-sm text-os-text-secondary hover:bg-os-card-secondary border border-os-border rounded-sm disabled:opacity-50" data-testid="legacy-skip">

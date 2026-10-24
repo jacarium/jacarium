@@ -19,10 +19,22 @@
   it (it toggles, filters by textContent, copies textContent).
 #}
 <style>
-/* --- Layout ---------------------------------------------------------- */
-.kd { font-size: 13px; line-height: 1.45; color: var(--os-text-primary, #151515); }
-.kd *, .kd *::before, .kd *::after { box-sizing: border-box; }
+/* The kernel tabs' own layout (the strip, the timeline, the incident rows, the stack block); the controls, buttons, badges, chips, the table and
+   the empty state are the shared ui-* rules of backend/static/styles.css */
 .kd .kd-mono, .kd code, .kd pre { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); }
+.kd-filters .ui-field.kd-grow { flex: 1 1 200px; }
+.kd-shown { font-size: 12px; color: var(--os-text-secondary); white-space: nowrap; margin-left: auto; }
+.ui-chip.kd-chip-mono { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); font-size: 11.5px; }
+.kd-chip-muted { opacity: 0.6; }
+.kd-tag svg { width: 12px; height: 12px; }
+.kd-empty-sources { font-size: 12px; }
+table.kd-table tr.kd-killed td { font-weight: 600; }
+table.kd-table tr.kd-killed td:first-child { box-shadow: inset 3px 0 0 var(--chart-bad); }
+table.kd-table td.kd-name { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); }
+/* --- Layout ---------------------------------------------------------- */
+
+
+
 
 /* Summary strip */
 .kd-strip { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; padding: 12px; margin-bottom: 12px; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-sm, 8px); background: var(--os-card-secondary, #f0f0f0); }
@@ -44,41 +56,41 @@
 .kd-tl-labels span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Chip rows (types, modules, processes, cgroups) */
-.kd-chips { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; min-width: 0; }
-.kd-chips-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); margin-right: 2px; }
-.kd-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 1px 8px; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-chip, 6px); background: var(--os-card, #fff); font-size: 12px; min-width: 0; }
-.kd-chip > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kd-chip .kd-count { color: var(--os-text-secondary, #6a6e73); font-variant-numeric: tabular-nums; }
-.kd-chip.kd-chip-mono { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); font-size: 11.5px; }
-.kd-chip-muted { opacity: 0.6; }
+
+
+
+
+
+
+
 
 /* Type badge: fixed severity colours + a label (never colour alone) */
-.kd-tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: var(--radius-chip, 6px); font-size: 11px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; border: 1px solid transparent; }
-.kd-tag svg { width: 12px; height: 12px; }
-.kd-sev-critical { background: rgba(220, 38, 38, 0.15); color: #dc2626; border-color: rgba(220, 38, 38, 0.3); }
-.kd-sev-warning { background: rgba(245, 158, 11, 0.15); color: #d97706; border-color: rgba(245, 158, 11, 0.35); }
-.dark .kd-sev-warning { color: #f59e0b; }
-.kd-sev-info { background: rgba(59, 130, 246, 0.15); color: #2563eb; border-color: rgba(59, 130, 246, 0.3); }
-.dark .kd-sev-info { color: #60a5fa; }
-.kd-sev-neutral { background: rgba(107, 114, 128, 0.15); color: var(--os-text-secondary, #6b7280); border-color: rgba(107, 114, 128, 0.3); }
+
+
+
+
+
+
+
+
 
 /* Filter row */
 .kd-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
-.kd-field { position: relative; display: flex; align-items: center; min-width: 0; }
-.kd-field.kd-grow { flex: 1 1 200px; }
-.kd-field > svg { position: absolute; left: 9px; width: 14px; height: 14px; color: var(--os-text-secondary, #6a6e73); pointer-events: none; }
+
+
+
 /* (the frame's styles.css pins every input's padding and radius with
    !important at id+attribute specificity; these id+class+class rules win) */
-.kd .kd-input, .kd .kd-select, #diagnostics-content .kd .kd-input, #diagnostics-content .kd .kd-select { height: 32px; width: 100%; padding: 0 10px 0 30px !important; border: 1px solid var(--os-input-border, var(--os-border, #d2d2d2)) !important; border-radius: var(--radius-control, 8px) !important; background: var(--os-input-bg, var(--os-card, #fff)); color: var(--os-text-primary, #151515); font: inherit; font-size: 13px !important; line-height: 30px !important; }
-.kd .kd-select, #diagnostics-content .kd .kd-select { padding: 0 26px 0 10px !important; appearance: none; -webkit-appearance: none; width: auto; cursor: pointer; background-image: none !important; } /* the frame's select arrow (styles.css) would double the kd chevron */
-.kd-select-wrap > svg { left: auto; right: 8px; }
-.kd-input:focus, .kd-select:focus { outline: 2px solid var(--os-blue, #0066cc); outline-offset: -1px; }
-.kd-shown { font-size: 12px; color: var(--os-text-secondary, #6a6e73); white-space: nowrap; margin-left: auto; }
-.kd-btn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-control, 8px); background: var(--os-card, #fff); color: var(--os-text-primary, #151515); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
-.kd-btn:hover { background: var(--os-card-secondary, #f0f0f0); }
-.kd-btn svg { width: 13px; height: 13px; }
-.kd-btn.kd-done { color: var(--os-blue, #0066cc); border-color: var(--os-blue, #0066cc); }
-.kd-link { background: none; border: 0; padding: 0; color: var(--os-blue, #0066cc); font: inherit; font-size: 12px; cursor: pointer; }
+
+ /* the frame's select arrow (styles.css) would double the kd chevron */
+
+
+
+
+
+
+
+
 
 /* Rows: a <details> each; the summary is the one-line incident. The
    coloured left edge is SQUARE (no radius on the accent side); the right
@@ -86,8 +98,8 @@
 .kd-list { display: flex; flex-direction: column; gap: 6px; }
 .kd-row { border: 1px solid var(--os-border, #d2d2d2); border-left-width: 3px; border-radius: 0 var(--radius-sm, 8px) var(--radius-sm, 8px) 0; background: var(--os-card, #fff); min-width: 0; }
 .kd-row.kd-sev-critical, .kd-row.kd-sev-warning, .kd-row.kd-sev-info, .kd-row.kd-sev-neutral { background: var(--os-card, #fff); color: inherit; }
-.kd-row.kd-sev-critical { border-left-color: #dc2626; }
-.kd-row.kd-sev-warning { border-left-color: #f59e0b; }
+.kd-row.kd-sev-critical { border-left-color: var(--chart-bad); }
+.kd-row.kd-sev-warning { border-left-color: var(--chart-warn); }
 .kd-row.kd-sev-info { border-left-color: #3b82f6; }
 .kd-row.kd-sev-neutral { border-left-color: var(--os-text-muted, #8a8d93); }
 .kd-row[hidden] { display: none; }
@@ -121,30 +133,30 @@
 .kd-stack { margin: 0; padding: 8px 10px; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-xs, 6px); background: var(--os-code-bg, #f6f8fa); font-size: 12px; line-height: 1.5; overflow-x: auto; white-space: pre; tab-size: 4; }
 .kd-stack .kd-frame { display: block; }
 .kd-frame-unreliable { opacity: 0.5; }
-.kd-frame-fault { font-weight: 700; color: #dc2626; }
-.kd-frame-mark { color: #dc2626; font-weight: 700; }
+.kd-frame-fault { font-weight: 700; color: var(--btn-danger-fg); }
+.kd-frame-mark { color: var(--btn-danger-fg); font-weight: 700; }
 .kd-frame-mod { color: var(--os-code-title, #6639ba); }
-.kd-code-fault { font-weight: 700; color: #dc2626; background: rgba(220, 38, 38, 0.15); border-radius: 3px; padding: 0 2px; }
+.kd-code-fault { font-weight: 700; color: var(--btn-danger-fg); background: color-mix(in srgb, var(--chart-bad) 15%, transparent); border-radius: 3px; padding: 0 2px; }
 .kd-raw { max-height: 360px; overflow: auto; }
 .kd-code { white-space: pre-wrap; overflow-wrap: anywhere; }  /* bytes, not symbols: wrap so the faulting byte stays in view */
 
 /* Top-N table (OOM task dump) */
-.kd-table-wrap { overflow-x: auto; border: 1px solid var(--os-border, #d2d2d2); border-radius: var(--radius-xs, 6px); }
-.kd-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.kd-table th, .kd-table td { padding: 4px 8px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--os-border, #d2d2d2); }
-.kd-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary, #6a6e73); font-weight: 600; cursor: pointer; user-select: none; background: var(--os-card-secondary, #f0f0f0); }
-.kd-table th.kd-sorted::after { content: " \25BE"; }
-.kd-table td.kd-num, .kd-table th.kd-num { text-align: right; font-variant-numeric: tabular-nums; }
-.kd-table tbody tr:last-child td { border-bottom: 0; }
+
+
+
+
+
+
+
 .kd-table tr.kd-killed td { font-weight: 600; }
-.kd-table tr.kd-killed td:first-child { box-shadow: inset 3px 0 0 #dc2626; }
-.kd-table td.kd-name { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); }  /* names stay whole; the table scrolls sideways when narrow */
+.kd-table tr.kd-killed td:first-child { box-shadow: inset 3px 0 0 var(--chart-bad); }
+  /* names stay whole; the table scrolls sideways when narrow */
 
 /* Empty state */
-.kd-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 36px 12px; text-align: center; color: var(--os-text-secondary, #6a6e73); }
-.kd-empty svg { width: 36px; height: 36px; opacity: 0.6; }
-.kd-empty-title { font-weight: 600; color: var(--os-text-primary, #151515); }
-.kd-empty-sources { font-size: 12px; }
+
+
+
+
 
 @media (max-width: 480px) {
   .kd-row-side { align-items: flex-start; }
@@ -225,8 +237,8 @@
     headers.forEach((th, idx) => th.addEventListener('click', () => {
       const numeric = th.classList.contains('kd-num');
       const desc = !(th.dataset.dir === 'desc');
-      headers.forEach((h) => { h.classList.remove('kd-sorted'); delete h.dataset.dir; });
-      th.classList.add('kd-sorted'); th.dataset.dir = desc ? 'desc' : 'asc';
+      headers.forEach((h) => { h.classList.remove('kd-sorted'); h.removeAttribute('aria-sort'); delete h.dataset.dir; });
+      th.classList.add('kd-sorted'); th.setAttribute('aria-sort', desc ? 'descending' : 'ascending'); th.dataset.dir = desc ? 'desc' : 'asc';
       const trs = Array.from(body.querySelectorAll('tr'));
       trs.sort((a, b) => {
         const ca = a.children[idx], cb = b.children[idx];

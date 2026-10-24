@@ -19,6 +19,7 @@ This module shapes them for tabs/sosreport_kernel_hung_task.html:
 """
 import os
 import re
+from parsers.findings import finding, no_data, sort_findings
 from collections import Counter
 
 from . import kernel_log as kl
@@ -33,7 +34,7 @@ def parse(directory):
     groups = _groups(tasks)
     summary = _summary(events, tasks, groups, scan, _threshold(kl.report_root(directory), events))
     legacy = [_legacy(e) for e in events]
-    return {'hung_tasks': legacy, 'hung_summary': summary, 'hung_groups': groups}
+    return {'hung_tasks': legacy, 'hung_summary': summary, 'hung_groups': groups, 'findings': findings_for(summary, groups, scan)}
 
 
 def _threshold(directory, events):
@@ -179,3 +180,18 @@ def _legacy(ev):
             'raw': ev['raw'], 'blocked_in': ev['blocked_in']['text'] if ev['blocked_in'] else None, 'sources': ev['sources'],
         },
     }
+
+def findings_for(summary, groups, scan):
+    """The Findings strip: the hung-task reports (bad) with the tasks, the blocking functions and the longest block;
+    none (good, with the sources scanned); no kernel log (info)."""
+    if not scan['sources']:
+        return [no_data('No kernel log in this report', ['sos_commands/logs/journalctl*', 'sos_commands/kernel/dmesg*', 'var/log/messages*', 'var/log/dmesg*'], 'no journal capture, dmesg or syslog: the kernel tabs have nothing to read')]
+    out = []
+    if summary.get('reports'):
+        where = ', '.join(f"{g.get('name', g.get('function', '?'))} ({g.get('count', len(g.get('tasks', [])))})" for g in groups[:4]) if groups else ''
+        out.append(finding('bad', f"{summary['reports']} hung-task report{'s' if summary['reports'] != 1 else ''} on {summary['tasks']} task{'s' if summary['tasks'] != 1 else ''}", f"blocked for up to {summary.get('longest', 0)} s (timeout {summary.get('threshold', 0)} s), the last at {summary.get('last', '')}" + (f"; blocked in {where}" if where else ''), count=summary['reports']))
+    if summary.get('capped'):
+        out.append(finding('info', 'The kernel log scan was capped', 'more reports than the scan keeps: the oldest are not counted'))
+    if not out:
+        out.append(finding('good', 'No hung task: no "blocked for more than N seconds" report in the kernel logs', 'scanned: ' + ', '.join(scan['sources'])))
+    return sort_findings(out)

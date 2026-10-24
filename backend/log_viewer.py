@@ -171,7 +171,7 @@ PARSERS = {
         },
         'log_collection': {
             'module': 'parsers.sosreport.log_collection',
-            'icon': 'fas fa-folder-open',
+            'icon': 'fas fa-stream',
             'label': 'Log Collection',
             'sub_tabs': {
                 # The Log Viewer keeps its id: /load_tab and /get_tab_data
@@ -285,10 +285,16 @@ PARSERS = {
                 },
             }
         },
+        # The API audit logs (audit_logs/): one page, an explorer over every event
+        'audit': {
+            'module': 'parsers.mustgather.audit',
+            'icon': 'fas fa-shield-alt',
+            'label': 'Audit'
+        },
         # Last on purpose: the sizes of what the must-gather holds
         'log_collection': {
             'module': 'parsers.mustgather.log_collection',
-            'icon': 'fas fa-folder-open',
+            'icon': 'fas fa-stream',
             'label': 'Log Collection'
         },
     }
@@ -499,15 +505,16 @@ def load_tab():
     else:
         template = f"tabs/{report_type}_{tab}.html"
 
+    # the parser module (needed on a cache hit too: the Findings strip is read from it)
+    if sub_tab:
+        module_path = PARSERS[report_type][tab]['sub_tabs'][sub_tab]['module']
+    else:
+        module_path = PARSERS[report_type][tab]['module']
+
     if cache_key in parsed_cache:
         data = parsed_cache[cache_key]
     else:
         try:
-            if sub_tab:
-                module_path = PARSERS[report_type][tab]['sub_tabs'][sub_tab]['module']
-            else:
-                module_path = PARSERS[report_type][tab]['module']
-
             module = importlib.import_module(module_path)
             data = module.parse(uploaded_dir)
 
@@ -516,8 +523,87 @@ def load_tab():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    html = render_template(template, data=data, directory=uploaded_dir)
+    html = render_template(template, data=data, directory=uploaded_dir, findings=_findings_for(cache_key, module_path, uploaded_dir, data))
     return jsonify({"html": html})
+
+
+def _findings_for(cache_key, module_path, directory, data):
+    """The Findings strip of a tab (parsers/findings.py): the parser's findings(directory) when it defines one (the
+    SAR tabs, whose parse() result is the chart's data keyed by day), else the `findings` list in the parsed data.
+    Cached next to the parsed data."""
+    key = cache_key + ':findings'
+    if key in parsed_cache:
+        return parsed_cache[key]
+    items = []
+    try:
+        module = importlib.import_module(module_path)
+        if hasattr(module, 'findings'):
+            items = module.findings(directory) or []
+        elif isinstance(data, dict):
+            items = data.get('findings') or []
+    except Exception:  # noqa: BLE001 - a findings error never takes the page down
+        items = []
+    parsed_cache[key] = items
+    return items
+
+
+@log_viewer.route("/audit_event_body", methods=["POST"])
+def audit_event_body():
+    """The unmasked request or response body of one sampled audit event
+    (the Audit pages' per-event Reveal). Served from the scan's in-memory
+    store only, never from a page's HTML; the directory goes through the
+    same containment as every tab."""
+    data = request.json or {}
+    directory, refusal = _report_directory(data.get("directory"))
+    if refusal:
+        return refusal
+    part = data.get("part")
+    if part not in ("request", "response"):
+        return jsonify({"error": "part must be request or response"}), 400
+    from parsers.mustgather import audit_logs
+    text = audit_logs.body(directory, str(data.get("audit_id") or ""), part)
+    if text is None:
+        return jsonify({"error": "no such sampled event body"}), 404
+    return jsonify({"body": text})
+
+
+@log_viewer.route("/audit_events_search", methods=["POST"])
+def audit_events_search():
+    """Audit > Events: the on-demand search over the audit files
+    (parsers/mustgather/audit_search.py). The directory goes through the
+    same containment as every tab; the query is validated field by field
+    (plain substrings, known verbs, a status class or code, a time range,
+    a limit up to 1000, a cursor from an earlier answer) and a bad one is
+    a 400; the events come back masked."""
+    data = request.json if isinstance(request.json, dict) else {}
+    directory, refusal = _report_directory(data.get("directory"))
+    if refusal:
+        return refusal
+    from parsers.mustgather import audit_search
+    raw = data.get("query") if isinstance(data.get("query"), dict) else {k: v for k, v in data.items() if k != "directory"}
+    base_day, first_ts = audit_search.capture_bounds(directory)
+    query, error = audit_search.validate(raw, base_day, first_ts)
+    if error:
+        return jsonify({"error": error}), 400
+    result = audit_search.search(directory, query)
+    if not result.get("ok"):
+        return jsonify(result), 429 if result.get("error") == "busy" else 409
+    return jsonify(result)
+
+
+@log_viewer.route("/audit_events_cancel", methods=["POST"])
+def audit_events_cancel():
+    """Audit > Events: the page's Cancel button. Stops the directory's running
+    search (what a newer search for the same directory does by itself): the
+    scan raises out at its next check and answers cancelled, which the page
+    has already dropped. The directory goes through the same containment."""
+    data = request.json if isinstance(request.json, dict) else {}
+    directory, refusal = _report_directory(data.get("directory"))
+    if refusal:
+        return refusal
+    from parsers.mustgather import audit_search
+    audit_search.cancel(directory)
+    return jsonify({"ok": True})
 
 
 @log_viewer.route("/get_tab_data", methods=["POST"])
@@ -533,15 +619,16 @@ def get_tab_data():
 
     cache_key = f"{uploaded_dir}:{report_type}:{tab}:{sub_tab if sub_tab else 'main'}"
 
+    # the parser module (needed on a cache hit too: the Findings strip is read from it)
+    if sub_tab:
+        module_path = PARSERS[report_type][tab]['sub_tabs'][sub_tab]['module']
+    else:
+        module_path = PARSERS[report_type][tab]['module']
+
     if cache_key in parsed_cache:
         data = parsed_cache[cache_key]
     else:
         try:
-            if sub_tab:
-                module_path = PARSERS[report_type][tab]['sub_tabs'][sub_tab]['module']
-            else:
-                module_path = PARSERS[report_type][tab]['module']
-
             module = importlib.import_module(module_path)
             data = module.parse(uploaded_dir)
 
@@ -720,8 +807,8 @@ def parse_haproxy_log():
         # Import haproxy parser
         from parsers.sosreport import haproxy
 
-        log_dir = os.path.join(uploaded_dir, 'var/log/containers/haproxy')
-        log_data = haproxy.parse_haproxy_logs(log_dir, log_file)
+        log_dir = haproxy.haproxy_log_dir(uploaded_dir)   # the container layout, else a plain host's var/log
+        log_data = haproxy.parse_haproxy_logs(log_dir, log_file)   # the parser dates the lines with the report's year
 
         if log_data:
             return jsonify({"data": log_data})

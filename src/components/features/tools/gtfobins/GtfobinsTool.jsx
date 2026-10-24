@@ -269,7 +269,7 @@ export default function GtfobinsTool() {
             </button>
             <button
               onClick={() => setEditingExecutable(null)}
-              className="px-3 py-1.5 flex items-center gap-2 bg-os-blue text-white rounded-sm hover:bg-blue-600 text-sm transition-colors"
+              className="btn btn-primary px-3 py-1.5 flex items-center gap-2 text-sm"
             >
                Executable
             </button>
@@ -349,7 +349,7 @@ export default function GtfobinsTool() {
                     title={tooltip}
                     className={`px-3 py-1.5 border text-sm transition-colors ${
  active
- ?'bg-blue-50 dark:bg-blue-900/20 border-os-blue text-os-blue'
+ ?'btn-selected-soft'
  :'bg-os-card border-os-border text-os-text-secondary hover:bg-os-card-secondary'
  }`}
                   >
@@ -385,7 +385,7 @@ export default function GtfobinsTool() {
               {selectedFunctionMeta && (
                 <button
                   onClick={() => setSelectedFunction(null)}
-                  className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/20 text-os-blue border border-os-border rounded-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                  className="btn btn-selected-soft flex items-center gap-1 px-2 py-1 text-xs"
                 >
                   {selectedFunctionMeta.label}
                   <X size={12} />
@@ -394,7 +394,7 @@ export default function GtfobinsTool() {
               {selectedContextMeta && (
                 <button
                   onClick={() => setSelectedContext(null)}
-                  className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/20 text-os-blue border border-os-border rounded-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                  className="btn btn-selected-soft flex items-center gap-1 px-2 py-1 text-xs"
                 >
                   {selectedContextMeta.label}
                   <X size={12} />

@@ -87,7 +87,7 @@ function BeginPlayNode({ data, isConnectable }) {
                 {!isReadOnly && (
                   <button
                     onClick={() => handleRemoveInput(inputName)}
-                    className="nodrag p-0.5 hover:bg-red-50 rounded-sm"
+                    className="btn btn-danger-ghost nodrag p-0.5"
                     title="Remove input"
                   >
                     <X size={12} className="text-red-600" />
@@ -114,7 +114,7 @@ function BeginPlayNode({ data, isConnectable }) {
               <button
                 onClick={handleAddInput}
                 disabled={!newInputName.trim()}
-                className="nodrag p-1 bg-purple-600 text-white rounded-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn btn-brand nodrag p-1"
                 title="Add input"
               >
                 <Plus size={14} />

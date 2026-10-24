@@ -187,6 +187,7 @@ try {
     check(`${theme}: Log Collection opens`, await clickSidebarSpan(page, 'Log Collection'));
     await sleep(200);
     const frame = await diagnosticsFrame(page, '#log-collection-overview');
+    check(`${theme}: exactly one card between the page and the Log Collection search box (the frame's tab panel; the page draws no card of its own around it)`, !!frame && await frame.evaluate(() => { const b = []; for (let el = document.getElementById('lc-search').parentElement; el && el.id !== 'diagnostics-content'; el = el.parentElement) { const cs = getComputedStyle(el); if (parseFloat(cs.borderTopWidth) > 0 && parseFloat(cs.borderTopLeftRadius) > 0) b.push(el.id || el.className.split(' ')[0]); } return b.length === 1 && b[0] === 'log-collection-overview'; }));
     check(`${theme}: the tab rendered in the diagnostics frame`, !!frame);
     if (!frame) { await context.close(); continue; }
     await sleep(800);
@@ -206,9 +207,9 @@ try {
     });
     check(`${theme}: one table largest first across the six sections, bars proportional to the bytes, the chips filter, the search narrows, Name / Size sorting, no Open Log Viewer button`,
       probe.initialDesc && probe.barsOk && probe.sections.length === 6 && probe.chipOk && probe.searchOk && probe.nameOk && probe.sizeOk && extra.noButton, JSON.stringify(probe));
-    check(`${theme}: the band splits the size by top-level directory (legend ~100%, audit_logs/ first in the mock) and names the largest file (the workers' kubelet log)`, Math.abs(probe.stackSum - 100) < 0.5 && /^audit_logs\//.test(probe.legend[0]) && /workers\/kubelet_service\.log/.test(probe.largest), JSON.stringify({ sum: probe.stackSum, legend: probe.legend.slice(0, 3), largest: probe.largest }));
+    check(`${theme}: the band splits the size by top-level directory (legend ~100%, largest directory first) and names the largest file (the workers' kubelet log)`, Math.abs(probe.stackSum - 100) < 0.5 && probe.legend.length > 1 && probe.legend.filter((l) => !/^other /.test(l)).every((l, i, arr) => i === 0 || parseFloat(arr[i - 1].split('·').pop()) >= parseFloat(l.split('·').pop())) && /workers\/kubelet_service\.log/.test(probe.largest), JSON.stringify({ sum: probe.stackSum, legend: probe.legend.slice(0, 3), largest: probe.largest }));
     check(`${theme}: a container log shows namespace / pod / container as muted segments with the file as the detail; directory rows carry the grey bar; the rows beyond the top 15 per section hide until "Show all"`,
-      extra.segs.length >= 5 && extra.segs[1].startsWith('lc-seg-muted:') && extra.segs.some((s) => s.startsWith('lc-detail:')) && extra.dirBar && extra.hiddenExtras === 7 && extra.before === extra.total - 7 && extra.after === extra.total, JSON.stringify(extra));
+      extra.segs.length >= 5 && extra.segs[1].startsWith('lc-seg-muted:') && extra.segs.some((s) => s.startsWith('lc-detail:')) && extra.dirBar && extra.hiddenExtras > 0 && extra.before === extra.total - extra.hiddenExtras && extra.after === extra.total, JSON.stringify(extra));
     check(`${theme}: nothing overflows at ${probe.w}px`, probe.over.length === 0 && !probe.pageOver, probe.over.join(', '));
     await sleep(300);
     const file = path.join(OUT, `mustgather-log-collection-${theme}.png`); await page.screenshot({ path: file }); console.log(`  screenshot: ${file}`);

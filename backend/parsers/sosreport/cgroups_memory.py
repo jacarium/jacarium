@@ -1,6 +1,10 @@
 import os
 from collections import defaultdict
 
+from parsers.findings import finding, human_bytes, sort_findings
+
+from ._common import parse_free, parse_ps_file, report_root  # noqa: F401 - shared with Processes and System
+
 def read_cgroup_file(path):
     try:
         with open(path, 'r') as f:
@@ -52,82 +56,6 @@ def merge_dicts(d1, d2):
             result[key] = v1 if v2 is None else v2 if v1 is None else (v1, v2)
     return result
 
-
-def parse_ps_file(ps_path, variant="ps_auxwwwm"):
-    processes = []
-
-    standard_headers = [
-        "USER", "LABEL", "PID", "PPID", "%CPU", "%MEM", "VSZ", "RSS", "TTY",
-        "STAT", "START", "TIME", "COMMAND"
-    ]
-
-    try:
-        with open(ps_path, "r") as f:
-            lines = f.readlines()
-
-        if not lines:
-            return {"headers": standard_headers, "processes": []}
-
-        header_line = lines[0].strip()
-        raw_headers = header_line.split()
-
-        header_map = {h: i for i, h in enumerate(raw_headers)}
-        expected_fields = len(raw_headers)
-
-        for required in ["PID", "%CPU", "COMMAND"]:
-            if required not in header_map:
-                return {"error": f"Missing expected header: {required}", "headers": standard_headers, "processes": []}
-
-        pid_index = header_map["PID"]
-        cpu_index = header_map["%CPU"]
-        command_index = header_map["COMMAND"]
-
-        raw_headers.insert(pid_index + 1, "PPID")
-
-        last_pid = None
-        last_cmd = None
-
-        for line in lines[1:]:
-            line = line.strip()
-            if not line:
-                continue
-
-            parts = line.split(None, expected_fields - 1)
-            if len(parts) < expected_fields:
-                parts += ['-'] * (expected_fields - len(parts))
-
-            pid = parts[pid_index]
-            cmd = parts[command_index]
-
-            is_thread = pid == '-'
-
-            if not is_thread:
-                last_pid = pid
-                if cmd != '-':
-                    last_cmd = cmd
-
-            ppid = last_pid if is_thread else '-'
-            parts.insert(pid_index + 1, ppid)
-
-            if is_thread and (cmd == '-' or not cmd.strip()):
-                parts[-1] = last_cmd or '-'
-
-            full_data = dict(zip(raw_headers, parts))
-            normalized = {h: full_data.get(h, '-') for h in standard_headers}
-
-            processes.append(normalized)
-
-        return {
-            "headers": standard_headers,
-            "processes": processes
-        }
-
-    except Exception as e:
-        return {
-            "error": str(e),
-            "headers": standard_headers,
-            "processes": []
-        }
 
 def build_sysfs_cgroup_pid_index(directory):
     base_path = os.path.join(directory, "sys/fs/cgroup/memory")
@@ -204,28 +132,24 @@ def parse(directory):
         except Exception:
             return []
 
-    def parse_free(path):
-        lines = read_lines(path)
-        for line in lines:
-            if line.startswith("Mem:"):
-                fields = line.split()
-                return {
-                    "total": round(int(fields[1])),
-                    "used": round(int(fields[2])),
-                    "free": round(int(fields[3])),
-                    "shared": round(int(fields[4])),
-                    "buff_cache": round(int(fields[5])),
-                    "available": round(int(fields[6]))
-                }
-        return {}
-
+    directory = report_root(directory)
     memory_path = os.path.join(directory, "sys/fs/cgroup/memory")
-    if not os.path.exists(memory_path):
+    unified = os.path.join(directory, "sys/fs/cgroup")
+    if os.path.isdir(memory_path):
+        memory_data = parse_cgroup_dir(memory_path, {"memory.usage_in_bytes", "memory.limit_in_bytes"})
+        cgroup_version = 1
+    elif os.path.isfile(os.path.join(unified, 'cgroup.controllers')):
+        # cgroup v2 (RHEL 9+, OCP nodes): one tree, memory.current / memory.max, mapped onto the v1 names the page reads
+        memory_data = parse_cgroup2_memory(unified)
+        cgroup_version = 2
+    else:
+        _FINDINGS[directory] = [finding('info', 'No memory cgroup tree in this report', 'sys/fs/cgroup/memory (v1) and sys/fs/cgroup/cgroup.controllers (v2) are both missing')]
         return result
 
     result['free_memory'] = parse_free(os.path.join(directory, 'sos_commands', 'memory', 'free_-m'))
-    memory_data = parse_cgroup_dir(memory_path, {"memory.usage_in_bytes", "memory.limit_in_bytes"})
     memory_data = calculate_memory_usage_stats(memory_data)
+    # the page reads the result as {dataset: {...}, free_memory}: the strip is served by findings() (the loader asks)
+    _FINDINGS[directory] = findings_for(memory_data, result['free_memory'])
 
     ps_variants = {
         "ps_auxwwwm": "sos_commands/process/ps_auxwwwm",
@@ -243,6 +167,66 @@ def parse(directory):
 
         result[variant] = {
             "cgroup_data": enriched,
+            "cgroup_version": cgroup_version,
         }
 
     return result
+
+
+_FINDINGS = {}
+
+
+def findings(directory):
+    """The Findings strip of the page (the loader calls it after parse(); on a cache hit parse() runs again)."""
+    root = report_root(directory)
+    if root not in _FINDINGS:
+        parse(directory)
+    return _FINDINGS.get(root, [])
+
+def parse_cgroup2_memory(base_dir):
+    """The unified hierarchy's memory accounting as the v1 shape: memory.current -> memory.usage_in_bytes,
+    memory.max ('max' = no limit -> -1) -> memory.limit_in_bytes, nested like the directories."""
+    def walk(d):
+        node = {}
+        cur = read_cgroup_file(os.path.join(d, 'memory.current'))
+        mx = read_cgroup_file(os.path.join(d, 'memory.max'))
+        if cur is not None and cur.isdigit():
+            node['memory.usage_in_bytes'] = int(cur)
+        if mx is not None:
+            node['memory.limit_in_bytes'] = int(mx) if mx.isdigit() else -1
+        try:
+            children = sorted(e for e in os.listdir(d) if os.path.isdir(os.path.join(d, e)))
+        except OSError:
+            children = []
+        for e in children:
+            node[e] = walk(os.path.join(d, e))
+        return node
+    return walk(base_dir)
+
+
+def findings_for(memory_data, free_memory):
+    """The Findings strip: cgroups at 90% (warn) / 97% (bad) of their memory limit, the largest consumers under a
+    limit, the host's own pressure from `free`."""
+    out = []
+    rows = []
+
+    def recurse(node, path):
+        for k, v in node.items():
+            if isinstance(v, dict):
+                recurse(v, f"{path}/{k}" if path else f"/{k}")
+        usage, limit, pct = node.get('memory.usage_in_bytes'), node.get('memory.limit_in_bytes'), node.get('memory.usage_percent')
+        if isinstance(usage, int) and isinstance(limit, int) and limit > 0 and pct is not None:
+            rows.append((path or '/', usage, limit, pct))
+    recurse(memory_data, '')
+    rows.sort(key=lambda r: -r[3])
+    near = [r for r in rows if r[3] >= 90]
+    for path, usage, limit, pct in near[:8]:
+        out.append(finding('bad' if pct >= 97 else 'warn', f"{path} at {pct:.1f}% of its memory limit", f"{human_bytes(usage)} of {human_bytes(limit)}: the next allocation over the limit is reclaimed or OOM-killed inside the cgroup", tab='kernel', sub_tab='kernel_oom_killer', count=int(pct)))
+    if len(near) > 8:
+        out.append(finding('warn', f"{len(near) - 8} more cgroups over 90% of their limit", ', '.join(r[0] for r in near[8:14]) + (' …' if len(near) > 14 else ''), count=len(near) - 8))
+    limited = [r for r in rows if r[3] < 90]
+    if limited:
+        out.append(finding('info', f"{len(rows)} cgroups with a memory limit", "the largest: " + ', '.join(f"{p} ({human_bytes(u)}, {pct:g}%)" for p, u, l, pct in limited[:3])))
+    if not any(f['severity'] in ('bad', 'warn') for f in out):
+        out.append(finding('good', "No cgroup near its memory limit"))
+    return sort_findings(out)

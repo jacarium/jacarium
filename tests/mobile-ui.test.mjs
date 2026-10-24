@@ -31,6 +31,7 @@ import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { reapOnExit } from './helpers/reap.mjs';
+import { COLOR_PROBE } from './helpers/color.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const req = createRequire(path.join(REPO, 'package.json'));
@@ -412,8 +413,8 @@ try {
   // lines. Jacaranda is the dark theme, "light" the light one. The helpers
   // are installed on the window once per page.
   const MEASURE = `window.__measure = (() => {
-    const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
-    const parse = (c) => { if (!c || c === 'transparent') return { r: 0, g: 0, b: 0, a: 0 }; ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = '#000'; ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data; return { r, g, b, a: a / 255 }; };
+    const C = ${COLOR_PROBE};   // the shared colour helper: any syntax Chrome reports (rgb, oklch, color-mix results)
+    const parse = (c) => { const v = C.parse(c); return v ? { r: v[0], g: v[1], b: v[2], a: v[3] } : { r: 0, g: 0, b: 0, a: 0 }; };
     const lum = ({ r, g, b }) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
     const over = (top, under) => ({ r: top.r * top.a + under.r * (1 - top.a), g: top.g * top.a + under.g * (1 - top.a), b: top.b * top.a + under.b * (1 - top.a), a: 1 });
     const ratio = (a, b) => { const [h, l] = [lum(a), lum(b)].sort((x, y) => y - x); return Math.round(((h + 0.05) / (l + 0.05)) * 100) / 100; };

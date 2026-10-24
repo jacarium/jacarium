@@ -3,7 +3,8 @@ import yaml
 import glob
 from datetime import datetime, timezone
 
-from parsers.mustgather._common import resolve_data_dir
+from parsers.findings import finding, recall, remember, sort_findings, no_data
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
 
 def parse(directory):
     result = []
@@ -66,7 +67,7 @@ def parse(directory):
     for filepath in secrets_files:
         try:
             with open(filepath, "r") as f:
-                data = yaml.safe_load(f)
+                data = safe_load(f)
 
             if not data:
                 continue
@@ -131,4 +132,32 @@ def parse(directory):
         except Exception as e:
             result.append({"error": str(e), "file": filepath})
 
+    # expired first, then expiring soonest
+    result.sort(key=lambda t: (0 if t.get('status') == 'Expired' else (1 if t.get('status') == 'Expiring Soon' else 2), t.get('days_left', 0)))
+    remember(('tls_secrets', directory), findings_for(result))
     return result
+
+
+def findings(directory):
+    # the parser's list, or the one way to say the gather holds nothing of this (never a GOOD without data)
+    return recall(('tls_secrets', resolve_data_dir(directory)), lambda: parse(directory)) or [no_data('No TLS secrets in this must-gather', ['namespaces/*/core/secrets.yaml'], 'secrets are not collected by default; trimmed gather')]
+
+
+def findings_for(secrets):
+    """The Findings strip: expired certificates (bad), ones expiring within 30 days (warn) and within 60 (info), the
+    counts."""
+    out = []
+    expired = [t for t in secrets if t.get('status') == 'Expired']
+    soon = [t for t in secrets if t.get('status') == 'Expiring Soon' and t.get('days_left', 99) <= 30]
+    later = [t for t in secrets if t.get('status') == 'Expiring Soon' and t.get('days_left', 0) > 30]
+    if expired:
+        out.append(finding('bad', f"{len(expired)} certificate{'s' if len(expired) != 1 else ''} expired", ', '.join(f"{t['namespace']}/{t['name']} ({t['days_display']})" for t in expired[:5]) + (' …' if len(expired) > 5 else ''), count=len(expired)))
+    if soon:
+        out.append(finding('warn', f"{len(soon)} certificate{'s' if len(soon) != 1 else ''} expire within 30 days", ', '.join(f"{t['namespace']}/{t['name']} ({t['days_display']})" for t in soon[:5]) + (' …' if len(soon) > 5 else ''), count=len(soon)))
+    if later:
+        out.append(finding('info', f"{len(later)} certificate{'s' if len(later) != 1 else ''} expire within 60 days", ', '.join(f"{t['namespace']}/{t['name']} ({t['days_display']})" for t in later[:5]) + (' …' if len(later) > 5 else ''), count=len(later)))
+    if not secrets:
+        out.append(finding('info', 'No certificate secrets in this must-gather', 'no secret carries the auth.openshift.io/certificate-not-after annotation'))
+    elif not any(f['severity'] in ('bad', 'warn') for f in out):
+        out.append(finding('good', f"{len(secrets)} certificates, none expired or expiring within 30 days"))
+    return sort_findings(out)

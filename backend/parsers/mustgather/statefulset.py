@@ -4,7 +4,8 @@ import glob
 import re
 from datetime import datetime, timezone, timedelta
 
-from parsers.mustgather._common import resolve_data_dir
+from parsers.findings import finding, recall, remember, sort_findings, no_data
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
 
 def parse(directory):
     result = {}
@@ -56,7 +57,7 @@ def parse(directory):
             for filepath in statefulset_files:
                 try:
                     with open(filepath, "r") as f:
-                        yaml_content = yaml.safe_load(f)
+                        yaml_content = safe_load(f)
 
                     if yaml_content.get("kind") == "StatefulSetList" and "items" in yaml_content:
                         for item in yaml_content["items"]:
@@ -91,4 +92,33 @@ def parse(directory):
 
         result[namespace] = statefulset_json
 
+    remember(('statefulset', directory), findings_for(result))
     return result
+
+
+def findings(directory):
+    # the parser's list, or the one way to say the gather holds nothing of this (never a GOOD without data)
+    return recall(('statefulset', resolve_data_dir(directory)), lambda: parse(directory)) or [no_data('No statefulsets in this must-gather', ['namespaces/*/apps/statefulsets.yaml'], 'trimmed gather')]
+
+
+def findings_for(result):
+    """The Findings strip: statefulsets with fewer ready replicas than wanted (warn; bad when none is ready), the counts."""
+    out = []
+    total = 0
+    for ns, items in result.items():
+        for name, d in items.items():
+            if not isinstance(d, dict) or d.get("error") or d.get("kind") not in (None, "StatefulSet"):
+                continue
+            total += 1
+            spec, status = d.get("spec") or {}, d.get("status") or {}
+            want = int(spec.get("replicas") if spec.get("replicas") is not None else 1)
+            ready = int(status.get("readyReplicas") or 0)
+            if want and ready == 0:
+                out.append(finding("bad", f"{ns}/{name}: 0 of {want} replicas ready", "the statefulset serves nothing", tab="workloads", sub_tab="pod", query=name, count=want))
+            elif want and ready < want:
+                out.append(finding("warn", f"{ns}/{name}: {ready} of {want} replicas ready", "a pod not ready (a volume, a probe); ordinal pods start one after another", tab="workloads", sub_tab="pod", query=name, count=want - ready))
+    if not total:
+        out.append(finding("info", "No statefulsets in this must-gather"))
+    elif not any(f["severity"] in ("bad", "warn") for f in out):
+        out.append(finding("good", f"{total} statefulsets with every replica ready"))
+    return sort_findings(out)

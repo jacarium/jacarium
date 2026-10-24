@@ -191,7 +191,7 @@ export default function CreateCustomFieldsModal({ isOpen, onClose, onFieldsCreat
             </button>
             <button
               onClick={handleCreate}
-              className="flex items-center gap-2 px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors shadow-xs"
+              className="btn btn-primary flex items-center gap-2 px-4 py-2 text-sm"
             >
               Create {selectedCount > 0 ? `${selectedCount} Field${selectedCount > 1 ? 's' : ''}` : 'Fields'}
             </button>

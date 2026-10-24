@@ -86,7 +86,7 @@ export default function CalendarToolbar({
           onClick={() => onViewModeChange && onViewModeChange('day')}
           className={`px-3 py-1 text-xs transition-colors border-r border-os-border ${
  viewMode ==='day'
- ?'bg-os-blue text-white'
+ ?'btn-selected'
  :'bg-os-card text-os-text-primary hover:bg-os-card-hover'
  }`}
         >
@@ -96,7 +96,7 @@ export default function CalendarToolbar({
           onClick={() => onViewModeChange && onViewModeChange('week')}
           className={`px-3 py-1 text-xs transition-colors border-r border-os-border ${
  viewMode ==='week'
- ?'bg-os-blue text-white'
+ ?'btn-selected'
  :'bg-os-card text-os-text-primary hover:bg-os-card-hover'
  }`}
         >
@@ -106,7 +106,7 @@ export default function CalendarToolbar({
           onClick={() => onViewModeChange && onViewModeChange('month')}
           className={`px-3 py-1 text-xs transition-colors ${
  viewMode ==='month'
- ?'bg-os-blue text-white'
+ ?'btn-selected'
  :'bg-os-card text-os-text-primary hover:bg-os-card-hover'
  }`}
         >

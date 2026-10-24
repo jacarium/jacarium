@@ -274,7 +274,7 @@ export default function AskAIPopup({
                   setSelectedResponse('');
                   setTimeout(() => promptRef.current?.focus(), 0);
                 }}
-                className="p-1 hover:bg-purple-200 rounded-sm transition-colors"
+                className="btn btn-brand-ghost p-1"
                 title="Clear response"
               >
                 <Trash2 size={14} className="text-purple-700" />
@@ -282,7 +282,7 @@ export default function AskAIPopup({
             )}
             <button
               onClick={onCancel}
-              className="p-1 hover:bg-purple-200 rounded-sm transition-colors"
+              className="btn btn-brand-ghost p-1"
               title="Close"
             >
               <X size={14} className="text-purple-700" />
@@ -365,7 +365,7 @@ export default function AskAIPopup({
             <button
               onClick={handleSubmit}
               disabled={!editableSelectedText.trim() || loading || backendStatus === 'offline'}
-              className="flex-1 px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-sm transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn btn-brand flex-1 px-3 py-1.5 text-xs flex items-center justify-center gap-1.5"
               title={backendStatus === 'offline' ? 'Backend service is not running' : 'Ask AI (Enter)'}
             >
               {loading ? 'Asking...' : 'Ask AI'}
@@ -375,7 +375,7 @@ export default function AskAIPopup({
               <button
                 onClick={() => handleInsert(true)}
                 disabled={!selectedResponse}
-                className="flex-1 px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded-sm transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn btn-success flex-1 px-3 py-1.5 text-xs flex items-center justify-center gap-1.5"
                 title={selectedResponse ? 'Insert selected text' : 'Select text in the response to insert'}
               >
                 <Check size={14} />

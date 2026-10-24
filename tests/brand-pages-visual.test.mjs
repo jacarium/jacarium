@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { launchDocumentsApp, REPO, sleep } from './helpers/live-documents-app.mjs';
 import { dismissWhatsNew } from './helpers/visual-snapshots.mjs';
+import { parseCssColor } from './helpers/color.mjs';
 
 const VITE_PORT = 5173;
 const FLASK_PORT = 8080;
@@ -59,7 +60,7 @@ const shot = async (name) => { const f = path.join(outDir, `${name}.png`); const
 const setSize = (w, h, mobile = false) => app.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile });
 const setTheme = async (theme) => { await app.evaluate(`document.documentElement.classList.${theme === 'dark' ? 'add' : 'remove'}('dark')`); await sleep(300); };
 const noMotion = () => app.evaluate(`(() => { const s = document.createElement('style'); s.textContent = '*, *::before, *::after { transition: none !important; animation: none !important; caret-color: transparent !important; }'; document.head.appendChild(s); })()`);
-const rgb = (s) => (s.match(/\d+(\.\d+)?/g) || []).slice(0, 3).map(Number);
+const rgb = (s) => (parseCssColor(s) || []).slice(0, 3);   // any computed syntax (tests/helpers/color.mjs)
 const near = (a, b, tol = 3) => a.length === 3 && a.every((v, i) => Math.abs(v - b[i]) <= tol);
 const clickText = (text) => app.evaluate(`(() => { const b = Array.from(document.querySelectorAll('button')).find((el) => el.textContent.trim() === ${JSON.stringify(text)}); if (!b) return false; b.click(); return true; })()`);
 

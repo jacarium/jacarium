@@ -736,7 +736,7 @@ export default function SentenceBuilderTool() {
           <button
             onClick={loadWords}
             disabled={allWords.length === 0}
-            className="px-4 py-2 bg-os-blue text-white text-sm rounded-sm hover:bg-os-blue-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="btn btn-primary px-4 py-2 text-sm"
           >
             Load Words
           </button>

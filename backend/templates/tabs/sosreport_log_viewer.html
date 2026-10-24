@@ -1,3 +1,5 @@
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 <div class="panel rounded-lg shadow-sm">
   <script>
     console.log('[Log Viewer] Initial data:', {{ data | tojson }});
@@ -7,13 +9,13 @@
 
   <!-- Charts -->
   <div id="charts-panel" class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div class="panel rounded-lg shadow-sm p-3">
+    <div class="panel rounded-lg shadow-sm p-3" data-chart-card hidden>
       <h3 class="text-sm font-medium mb-2">
         <i class="fas fa-chart-bar mr-2"></i> Logs per Process
       </h3>
       <canvas id="processChart" style="max-height: 250px;"></canvas>
     </div>
-    <div class="panel rounded-lg shadow-sm p-3">
+    <div class="panel rounded-lg shadow-sm p-3" data-chart-card hidden>
       <h3 class="text-sm font-medium mb-2">
         <i class="fas fa-chart-bar mr-2"></i> Logs per Severity
       </h3>
@@ -26,7 +28,7 @@
        actions, the status) and one filter row. Styled by the lv-* rules in
        the style block below, not by utility classes: inside the app's
        diagnostics frame only the app's own compiled Tailwind is available,
-       and classes used by this template alone (h-1.5, top-1/2, bg-blue-500,
+       and classes used by this template alone (h-1.5, top-1/2, the slider
        ...) are not in it - which is how the slider lost its track. The
        rules read the app's tokens, so both themes and the standalone Flask
        page look the same. Every element id is part of the contract with
@@ -41,18 +43,18 @@
             <button
               id="single-date-button"
               type="button"
-              class="px-3 py-1.5 text-xs border rounded-sm transition-colors bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+              class="btn btn-secondary"
             >
               <span id="single-date-display">Select Range</span>
             </button>
             <div id="date-calendar" class="hidden fixed z-50 border rounded-lg shadow-lg p-3 min-w-[280px] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600">
               <!-- Header -->
               <div class="flex items-center justify-between mb-3">
-                <button type="button" id="cal-prev-month" class="p-1 rounded-sm transition-colors text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <button type="button" id="cal-prev-month" class="btn btn-secondary">
                   <i class="fas fa-chevron-left text-xs"></i>
                 </button>
                 <div class="text-sm font-medium" id="cal-month-year"></div>
-                <button type="button" id="cal-next-month" class="p-1 rounded-sm transition-colors text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <button type="button" id="cal-next-month" class="btn btn-secondary">
                   <i class="fas fa-chevron-right text-xs"></i>
                 </button>
               </div>
@@ -70,10 +72,10 @@
               <div id="cal-grid" class="grid grid-cols-7 gap-1"></div>
               <!-- Action buttons -->
               <div class="mt-3 pt-3 flex gap-2 border-t border-gray-200 dark:border-gray-700">
-                <button type="button" id="cal-today" class="flex-1 px-3 py-1.5 text-xs rounded-sm transition-colors bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600">
+                <button type="button" id="cal-today" class="btn btn-secondary flex-1">
                   Today
                 </button>
-                <button type="button" id="cal-clear" class="flex-1 px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-sm transition-colors">
+                <button type="button" id="cal-clear" class="btn btn-secondary flex-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
                   Clear
                 </button>
               </div>
@@ -106,7 +108,7 @@
         <button
           type="button"
           id="log-file-dropdown-btn"
-          class="lv-control lv-button lv-files-btn"
+          class="btn btn-secondary btn-sm lv-control lv-button lv-files-btn"
           title="The log files to read"
         >
           <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
@@ -126,7 +128,7 @@
               type="text"
               id="log-file-search"
               placeholder="Search log files..."
-              class="w-full px-3 py-1.5 text-sm border rounded-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              class="ui-input w-full"
               autocomplete="off"
             />
           </div>
@@ -137,7 +139,7 @@
             <label class="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer log-file-item" data-log-name="{{ log.name | lower }}">
               <input
                 type="checkbox"
-                class="log-file-checkbox"
+                class="ui-check log-file-checkbox"
                 data-path="{{ log.path }}"
                 data-name="{{ log.name }}"
                 {% if log.type == 'system' %}checked{% endif %}
@@ -171,14 +173,14 @@
             <button
               type="button"
               id="select-all-logs"
-              class="flex-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-sm transition-colors"
+              class="btn btn-secondary flex-1"
             >
               Select All
             </button>
             <button
               type="button"
               id="clear-all-logs"
-              class="flex-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-sm transition-colors"
+              class="btn btn-secondary flex-1"
             >
               Clear All
             </button>
@@ -187,13 +189,13 @@
       </div>
 
       <div class="lv-actions">
-        <button id="get-range-btn" type="button" class="lv-control lv-button" title="Read the earliest and latest timestamps of the selected files into the slider">
+        <button id="get-range-btn" type="button" class="btn btn-secondary btn-sm lv-control lv-button" title="Read the earliest and latest timestamps of the selected files into the slider">
           Get Date Range
         </button>
-        <button id="load-logs-btn" type="button" class="lv-control lv-button lv-primary" title="Read the selected files for the selected dates">
+        <button id="load-logs-btn" type="button" class="btn btn-primary btn-sm lv-control lv-button lv-primary" title="Read the selected files for the selected dates">
           Load Logs
         </button>
-        <button id="export-csv-btn" type="button" class="lv-control lv-button" disabled title="Download the rows the filters currently show, as CSV">
+        <button id="export-csv-btn" type="button" class="btn btn-secondary btn-sm lv-control lv-button" disabled title="Download the rows the filters currently show, as CSV">
           <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           Export CSV
         </button>
@@ -214,30 +216,31 @@
 
   <!-- Filter Controls: the two text filters (a leading icon each, the syntax in their tooltips), the two selects -->
   <div id="filter-panel" class="lv-filters mb-3">
-    <label class="lv-field lv-grow">
+    <label class="ui-field lv-field lv-grow">
       <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
       <input
         type="text"
         id="log-search"
+        data-ui-search
         placeholder="Search logs"
         title="Show rows matching any of these terms. Several terms: separate them with commas - a row matches any of them. An exact phrase: put it in quotes, e.g. &quot;connection refused&quot;. A literal quote or comma: escape it with a backslash (\&quot;). Matching ignores case and covers every column."
-        class="lv-control lv-input"
+        class="ui-input lv-control lv-input"
         autocomplete="off"
       />
     </label>
-    <label class="lv-field lv-grow">
+    <label class="ui-field lv-field lv-grow">
       <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"></path></svg>
       <input
         type="text"
         id="log-exclude"
         placeholder="Filter out"
         title="Hide rows matching any of these terms. Several terms: separate them with commas - a row matches any of them. An exact phrase: put it in quotes, e.g. &quot;connection refused&quot;. A literal quote or comma: escape it with a backslash (\&quot;). Matching ignores case and covers every column."
-        class="lv-control lv-input"
+        class="ui-input lv-control lv-input"
         autocomplete="off"
       />
     </label>
-    <span class="lv-field lv-select-wrap">
-      <select id="severity-filter" class="lv-control lv-select" title="Only rows of this level">
+    <span class="ui-select-wrap lv-field lv-select-wrap">
+      <select id="severity-filter" class="ui-select lv-control lv-select" title="Only rows of this level">
         <option value="">All Levels</option>
         <option value="critical">Critical</option>
         <option value="error">Error</option>
@@ -248,8 +251,8 @@
       </select>
       <svg class="lv-icon lv-icon-sm lv-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
     </span>
-    <span class="lv-field lv-select-wrap">
-      <select id="process-filter" class="lv-control lv-select" title="Only rows of this process (the processes in the loaded logs)">
+    <span class="ui-select-wrap lv-field lv-select-wrap">
+      <select id="process-filter" class="ui-select lv-control lv-select" title="Only rows of this process (the processes in the loaded logs)">
         <option value="">All Processes</option>
       </select>
       <svg class="lv-icon lv-icon-sm lv-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
@@ -264,22 +267,22 @@
     </div>
 
     <div class="overflow-x-auto">
-      <table class="min-w-full text-xs">
-        <thead class="border-b">
+      <table class="ui-table">
+        <thead>
           <tr>
-            <th class="px-3 py-2 text-left font-medium cursor-pointer" onclick="sortTable(0)" style="width: 140px;">
+            <th class="cursor-pointer" data-sorted="ascending" onclick="sortTable(0)" style="width: 140px;">
               Timestamp <i id="sort-0" class="fas fa-sort ml-1 opacity-50"></i>
             </th>
-            <th class="px-3 py-2 text-left font-medium cursor-pointer" onclick="sortTable(1)" style="width: 90px;">
+            <th class="cursor-pointer" onclick="sortTable(1)" style="width: 90px;">
               Level <i id="sort-1" class="fas fa-sort ml-1 opacity-50"></i>
             </th>
-            <th class="px-3 py-2 text-left font-medium cursor-pointer" onclick="sortTable(2)" style="width: 150px;">
+            <th class="cursor-pointer" onclick="sortTable(2)" style="width: 150px;">
               Hostname <i id="sort-2" class="fas fa-sort ml-1 opacity-50"></i>
             </th>
-            <th class="px-3 py-2 text-left font-medium cursor-pointer" onclick="sortTable(3)" style="width: 180px;">
+            <th class="cursor-pointer" onclick="sortTable(3)" style="width: 180px;">
               Process <i id="sort-3" class="fas fa-sort ml-1 opacity-50"></i>
             </th>
-            <th class="px-3 py-2 text-left font-medium">
+            <th>
               Message
             </th>
           </tr>
@@ -290,18 +293,18 @@
     </div>
 
     <!-- Pagination Controls -->
-    <div class="flex justify-between items-center mt-3 text-xs">
-      <div id="entry-count" class="opacity-70"></div>
-      <div class="flex gap-2 items-center">
-        <span class="opacity-70">Rows per page:</span>
-        <select id="page-size" class="px-2 py-1 text-xs border rounded-sm" onchange="changePageSize()">
+    <!-- the page bar: the status on the left, rows per page and the shared pager on the right -->
+    <div class="ui-pagebar">
+      <div id="entry-count" class="ui-status" aria-live="polite"></div>
+      <div class="ui-pagebar-right">
+        <label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select id="page-size" class="ui-select" aria-label="Rows per page" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { changePageSize(); }) : changePageSize()">
           <option value="50">50</option>
           <option value="100" selected>100</option>
           <option value="250">250</option>
           <option value="500">500</option>
           <option value="-1">All</option>
-        </select>
-        <div id="pagination-controls" class="flex items-center gap-2"></div>
+        </select><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></label>
+        <nav id="pagination-controls" class="ui-pager" aria-label="Pages" hidden></nav>
       </div>
     </div>
 
@@ -338,7 +341,7 @@
         <div class="flex justify-center">
           <button
             id="alert-modal-ok"
-            class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-sm transition-colors font-medium"
+            class="btn btn-primary bg-purple-600 hover:bg-purple-700"
           >
             OK
           </button>
@@ -440,10 +443,12 @@
 
   // Loading state for abort functionality
   let isLoading = false;
+  let busyHandle = null;   // the shared busy state (diagBusy) of the running load / range read
   let currentReader = null;
 
   // Update selection display
   function updateSelectionDisplay() {
+    if (!logFileSelectionDisplay) return;   // a report without logs has no file picker (the Findings strip says so)
     const checkboxes = document.querySelectorAll('.log-file-checkbox:checked');
     const count = checkboxes.length;
 
@@ -581,15 +586,18 @@
   console.log('[DatePicker] maxDate (normalized to midnight UTC):', maxDate);
   console.log('[DatePicker] totalDays:', totalDays);
 
-  // Initialize date sliders
+  // Initialize date sliders (a report without logs has none: the Findings strip says so)
+  if (dateSliderStart && dateSliderEnd) {
   dateSliderStart.min = 0;
   dateSliderStart.max = totalDays;
   dateSliderStart.value = 0;
   dateSliderEnd.min = 0;
   dateSliderEnd.max = totalDays;
   dateSliderEnd.value = totalDays;
+  }
 
   function updateDateLabel() {
+    if (!dateSliderStart || !dateSliderEnd) return;   // no logs, no date picker
     const startDays = parseInt(dateSliderStart.value);
     const endDays = parseInt(dateSliderEnd.value);
 
@@ -646,6 +654,7 @@
 
   // Dual slider interaction handler
   function setupDualSlider(container, startSlider, endSlider, updateCallback) {
+    if (!container || !startSlider || !endSlider) return;   // no logs, no slider
     let activeSlider = null;
     let isDragging = false;
 
@@ -829,7 +838,7 @@
       let btnClass = 'p-2 text-xs rounded-sm transition-colors ';
 
       if (isStart || isEnd || inRange) {
-        btnClass += 'bg-blue-500 text-white font-medium';
+        btnClass += 'btn-selected font-medium';
       } else if (isToday) {
         btnClass += 'bg-gray-200 dark:bg-gray-700 font-medium';
       } else {
@@ -1017,11 +1026,14 @@
       .slice(0, 15);
 
     // Store full names for tooltips
-    const fullNames = sortedProcesses.length > 0 ? sortedProcesses.map(p => p[0]) : ['No Data'];
+    const processCard = document.getElementById('processChart') && document.getElementById('processChart').closest('[data-chart-card]');
+    if (processCard) processCard.hidden = sortedProcesses.length === 0;   // no logs loaded: no chart card (the strip says what to do)
+    if (sortedProcesses.length === 0) return;
+    const fullNames = sortedProcesses.map(p => p[0]);
 
     // Truncate labels for display
     const labels = fullNames.map(name => truncateMiddle(name, 30));
-    const data = sortedProcesses.length > 0 ? sortedProcesses.map(p => p[1]) : [0];
+    const data = sortedProcesses.map(p => p[1]);
 
     const config = {
       type: 'bar',
@@ -1067,11 +1079,11 @@
       }
     };
 
-    const ctx = document.getElementById('processChart').getContext('2d');
+    const ctx = document.getElementById('processChart'); if (!ctx) return;
     if (processChart) {
       processChart.destroy();
     }
-    processChart = new Chart(ctx, config);
+    processChart = window.diagChart.make(ctx, config);
   }
 
   function updateSeverityChart(entries) {
@@ -1090,53 +1102,43 @@
       }
     });
 
-    const labels = entries.length > 0 ? Object.keys(severityCounts) : ['No Data'];
-    const data = entries.length > 0 ? Object.values(severityCounts) : [0];
+    const severityCard = document.getElementById('severityChart') && document.getElementById('severityChart').closest('[data-chart-card]');
+    if (severityCard) severityCard.hidden = entries.length === 0;
+    if (entries.length === 0) return;
+    const labels = Object.keys(severityCounts);
+    const data = Object.values(severityCounts);
 
-    const colors = {
-      critical: 'rgba(220, 38, 38, 0.6)',
-      error: 'rgba(239, 68, 68, 0.6)',
-      warning: 'rgba(245, 158, 11, 0.6)',
-      info: 'rgba(59, 130, 246, 0.6)',
-      debug: 'rgba(107, 114, 128, 0.6)',
-      other: 'rgba(107, 114, 128, 0.6)',
-      'No Data': 'rgba(107, 114, 128, 0.2)'
-    };
-
-    const borderColors = {
-      critical: 'rgba(220, 38, 38, 1)',
-      error: 'rgba(239, 68, 68, 1)',
-      warning: 'rgba(245, 158, 11, 1)',
-      info: 'rgba(59, 130, 246, 1)',
-      debug: 'rgba(107, 114, 128, 1)',
-      other: 'rgba(107, 114, 128, 1)',
-      'No Data': 'rgba(107, 114, 128, 0.4)'
-    };
-
-    const backgroundColors = labels.map(label => colors[label] || colors['No Data']);
-    const borderColorsList = labels.map(label => borderColors[label] || borderColors['No Data']);
-
+    // the severities in the badge colours (critical / error = bad, warning = the warn token the WARN badge uses,
+    // info = the accent, debug / other muted), the count on each bar, a click filters the table to that level
     const config = {
       type: 'bar',
+      valueLabels: true,
       data: {
-        labels: labels.map(l => l === 'No Data' ? l : l.charAt(0).toUpperCase() + l.slice(1)),
+        labels: labels.map(l => l.charAt(0).toUpperCase() + l.slice(1)),
         datasets: [{
           label: 'Log Count',
           data,
-          backgroundColor: backgroundColors,
-          borderColor: borderColorsList,
-          borderWidth: 1
+          roles: labels.map((l) => ({ critical: 'bad', error: 'bad', warning: 'warn', info: 'info', debug: 'muted', other: 'muted' })[l] || 'muted'),
+          borderWidth: 0
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
+        onClick: (evt, items, c) => {
+          const pts = c.getElementsAtEventForMode(evt, 'index', { intersect: false }, false);
+          if (!pts.length || !severityFilter) return;
+          const level = labels[pts[0].index];
+          severityFilter.value = severityFilter.value === level ? '' : level;
+          severityFilter.dispatchEvent(new Event('change', { bubbles: true }));
+        },
         plugins: {
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: ctx => ` ${ctx.raw} logs`
+              label: ctx => ` ${ctx.raw} logs`,
+              afterBody: () => ['click: filter to this level']
             }
           }
         },
@@ -1154,11 +1156,11 @@
       }
     };
 
-    const ctx = document.getElementById('severityChart').getContext('2d');
+    const ctx = document.getElementById('severityChart'); if (!ctx) return;
     if (severityChart) {
       severityChart.destroy();
     }
-    severityChart = new Chart(ctx, config);
+    severityChart = window.diagChart.make(ctx, config);
   }
 
   async function getBackendUrl() {
@@ -1182,8 +1184,8 @@
       return;
     }
 
-    getRangeBtn.disabled = true;
-    getRangeBtn.textContent = 'Getting range...';
+    const rangeBusy = window.diagBusy ? window.diagBusy.start(getRangeBtn, { label: 'Getting range…', bar: document.querySelector('.lv-toolbar') || document.querySelector('.lv-header') }) : null;
+    if (!rangeBusy) { getRangeBtn.disabled = true; getRangeBtn.textContent = 'Getting range…'; }
 
     try {
       // Backend calls are proxied through the trusted parent window: this
@@ -1249,8 +1251,7 @@
 
       showAlert('Error Getting Date Range', error.message, 'error');
     } finally {
-      getRangeBtn.disabled = false;
-      getRangeBtn.textContent = 'Get Date Range';
+      if (rangeBusy) rangeBusy.done('Date range read'); else { getRangeBtn.disabled = false; getRangeBtn.textContent = 'Get Date Range'; }
     }
   });
 
@@ -1295,9 +1296,11 @@
 
     isLoading = true;
     loadLogsBtn.textContent = 'Abort Loading';
-    loadLogsBtn.classList.add('bg-red-500', 'hover:bg-red-600', 'text-white');
+    loadLogsBtn.classList.add('btn-danger-solid'); loadLogsBtn.classList.remove('btn-primary');
     loadingIndicator?.classList.remove('hidden');
-    loadingIndicator.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Loading logs...';
+    loadingIndicator.textContent = 'Loading logs…';
+    if (busyHandle) busyHandle.done('');
+    busyHandle = window.diagBusy ? window.diagBusy.start(null, { label: 'Loading logs…', table: document.getElementById('log-table-container'), bar: document.querySelector('.lv-toolbar') || document.querySelector('.lv-header'), cancel: abortLoading }) : null;
     logsLoadedInfo?.classList.add('hidden');
 
     // Reset state
@@ -1384,8 +1387,9 @@
       isLoading = false;
       currentReader = null;
       loadLogsBtn.textContent = 'Load Logs';
-      loadLogsBtn.classList.remove('bg-red-500', 'hover:bg-red-600', 'text-white');
+      loadLogsBtn.classList.remove('btn-danger-solid'); loadLogsBtn.classList.add('btn-primary');
       loadingIndicator?.classList.add('hidden');
+      if (busyHandle) { busyHandle.done(allEntries.length ? `${allEntries.length.toLocaleString()} entries loaded` : 'No entries'); busyHandle = null; }
     }
   }
 
@@ -1396,8 +1400,9 @@
       currentReader = null;
       isLoading = false;
       loadLogsBtn.textContent = 'Load Logs';
-      loadLogsBtn.classList.remove('bg-red-500', 'hover:bg-red-600', 'text-white');
+      loadLogsBtn.classList.remove('btn-danger-solid'); loadLogsBtn.classList.add('btn-primary');
       loadingIndicator?.classList.add('hidden');
+      if (busyHandle) { busyHandle.cancel(); busyHandle = null; }
 
       if (allEntries.length > 0) {
         // the filters as set apply to what was loaded before the abort
@@ -1561,9 +1566,11 @@
       logTableBody.innerHTML = '';
       noResults?.classList.remove('hidden');
       const none = allEntries.length ? `No entries (filtered from ${allEntries.length.toLocaleString()})` : 'No entries';
-      entryCount.textContent = none;
-      document.getElementById('entry-count-top').textContent = none;
-      pageInfo.textContent = '';
+      // a filter typed (or handed over by a cross-link) before any log is loaded: the counters are not on the page yet
+      if (entryCount) entryCount.textContent = none;
+      const top = document.getElementById('entry-count-top');
+      if (top) top.textContent = none;
+      if (pageInfo) pageInfo.textContent = '';
       return;
     }
 
@@ -1581,14 +1588,14 @@
       const processDisplay = entry.pid ? `${entry.process}[${entry.pid}]` : entry.process;
 
       return `
-        <tr class="border-b" data-severity="${entry.severity}">
-          <td class="px-3 py-2 font-mono whitespace-nowrap align-top">${entry.timestamp}</td>
-          <td class="px-3 py-2 align-top">
-            <span class="severity-badge severity-${entry.severity}">${entry.severity}</span>
+        <tr data-severity="${entry.severity}">
+          <td class="ui-mono align-top">${entry.timestamp}</td>
+          <td class="align-top">
+            <span class="ui-badge ui-badge-${({critical: 'bad', error: 'bad', warning: 'warn', notice: 'info', info: 'info'})[entry.severity] || 'muted'} severity-badge severity-${entry.severity}">${entry.severity}</span>
           </td>
-          <td class="px-3 py-2 align-top opacity-70">${entry.hostname || ''}</td>
-          <td class="px-3 py-2 align-top opacity-70 font-mono">${processDisplay || ''}</td>
-          <td class="px-3 py-2 font-mono whitespace-pre-wrap" style="word-break: break-word;">${escapedMessage}</td>
+          <td class="align-top opacity-70">${entry.hostname || ''}</td>
+          <td class="align-top opacity-70 ui-mono">${processDisplay || ''}</td>
+          <td class="ui-mono whitespace-pre-wrap" style="word-break: break-word;">${escapedMessage}</td>
         </tr>
       `;
     }).join('');
@@ -1602,56 +1609,8 @@
   }
 
   function updatePagination() {
-    const controls = document.getElementById('pagination-controls');
-
-    if (pageSize === -1 || filteredEntries.length <= pageSize) {
-      controls.innerHTML = '';
-      return;
-    }
-
-    const totalPages = Math.ceil(filteredEntries.length / pageSize);
-    const maxButtons = 7;
-
-    let startPage = Math.max(1, currentPage + 1 - Math.floor(maxButtons / 2));
-    let endPage = Math.min(totalPages, startPage + maxButtons - 1);
-
-    if (endPage - startPage < maxButtons - 1) {
-      startPage = Math.max(1, endPage - maxButtons + 1);
-    }
-
-    let html = '';
-
-    html += `<button onclick="goToPage(1)" ${currentPage === 0 ? 'disabled' : ''}
-      class="px-3 py-1 text-sm rounded-sm ${currentPage === 0 ? 'bg-gray-600 text-gray-400' : 'text-white'}">
-      First</button>`;
-
-    html += `<button onclick="goToPage(${currentPage})" ${currentPage === 0 ? 'disabled' : ''}
-      class="px-3 py-1 text-sm rounded-sm ${currentPage === 0 ? 'bg-gray-600 text-gray-400' : 'text-white'}">
-      Prev</button>`;
-
-    if (startPage > 1) {
-      html += '<span class="px-2">...</span>';
-    }
-
-    for (let i = startPage; i <= endPage; i++) {
-      html += `<button onclick="goToPage(${i})"
-        class="px-3 py-1 text-sm rounded-sm ${i === currentPage + 1 ? 'bg-blue-600 text-white current-page' : 'text-white'}">
-        ${i}</button>`;
-    }
-
-    if (endPage < totalPages) {
-      html += '<span class="px-2">...</span>';
-    }
-
-    html += `<button onclick="goToPage(${currentPage + 2})" ${currentPage >= totalPages - 1 ? 'disabled' : ''}
-      class="px-3 py-1 text-sm rounded-sm ${currentPage >= totalPages - 1 ? 'bg-gray-600 text-gray-400' : 'text-white'}">
-      Next</button>`;
-
-    html += `<button onclick="goToPage(${totalPages})" ${currentPage >= totalPages - 1 ? 'disabled' : ''}
-      class="px-3 py-1 text-sm rounded-sm ${currentPage >= totalPages - 1 ? 'bg-gray-600 text-gray-400' : 'text-white'}">
-      Last</button>`;
-
-    controls.innerHTML = html;
+    // the shared pager: 1-based pages for the reader, goToPage(n) takes the page number
+    window.diagPager.render(document.getElementById('pagination-controls'), { total: filteredEntries.length, page: currentPage + 1, pageSize: pageSize, go: function (p) { goToPage(p); } });
   }
 
   window.sortTable = function(col) {
@@ -1671,6 +1630,7 @@
     // Set current sort icon
     const icon = document.getElementById(`sort-${col}`);
     icon.className = `fas fa-sort-${sortAscending ? 'up' : 'down'} ml-1`;
+    window.diagTables.markSort(icon, sortAscending);
 
     filteredEntries.sort((a, b) => {
       let valA, valB;
@@ -1776,45 +1736,9 @@
 </script>
 
 <style>
-.severity-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: capitalize;
-}
-
-.severity-critical {
-  background-color: rgba(220, 38, 38, 0.15);
-  color: #dc2626;
-  border: 1px solid rgba(220, 38, 38, 0.3);
-}
-
-.severity-error {
-  background-color: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.3);
-}
-
-.severity-warning {
-  background-color: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-.severity-info {
-  background-color: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
-  border: 1px solid rgba(59, 130, 246, 0.3);
-}
-
-.severity-debug,
-.severity-other {
-  background-color: rgba(107, 114, 128, 0.15);
-  color: #6b7280;
-  border: 1px solid rgba(107, 114, 128, 0.3);
-}
+/* The Log Viewer's own layout (the slider, the file list, the table rows); the controls, buttons and badges are the shared ui-* rules of
+   backend/static/styles.css, the loading state the shared diagBusy */
+.lv-files-btn { min-width: 220px; max-width: 320px; }
 
 /* --- The header: slider, toolbar, filter row (lv-*) -------------------
    Plain rules on the app's tokens (with fallbacks for the standalone page):
@@ -1896,42 +1820,12 @@
 .lv-actions,
 .lv-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .lv-filters { padding: 0 12px; }
-.lv-status { margin-left: auto; display: flex; align-items: center; min-height: 32px; font-size: 12px; white-space: nowrap; }
-.lv-control {
-  height: 32px;
-  box-sizing: border-box;
-  font-size: 13px;
-  line-height: 1;
-  border: 1px solid var(--os-border, #d1d5db);
-  border-radius: var(--radius-sm, 4px);
-  background: var(--os-card-secondary, #f3f4f6);
-  color: var(--os-text-primary, #111827);
-}
-.lv-button { display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; white-space: nowrap; cursor: pointer; }
-.lv-button:disabled { opacity: 0.5; cursor: default; }
+.lv-status { margin-left: auto; display: flex; align-items: center; min-height: 30px; font-size: 12px; white-space: nowrap; }
+
 .lv-files-btn { min-width: 220px; max-width: 320px; }
-#diagnostics-content button.lv-primary,
-button.lv-primary { background: var(--os-blue, #3b82f6) !important; color: #ffffff !important; border-color: var(--os-blue, #3b82f6) !important; }
-#diagnostics-content button.lv-primary:hover,
-button.lv-primary:hover { background: var(--os-blue-hover, #2563eb) !important; border-color: var(--os-blue-hover, #2563eb) !important; }
-/* the loading state the script sets on Load Logs ("Abort Loading") */
-#diagnostics-content .lv-button.bg-red-500,
-.lv-button.bg-red-500 { background: var(--os-red, #dc2626) !important; color: #ffffff !important; border-color: var(--os-red, #dc2626) !important; }
-.lv-field { position: relative; display: flex; align-items: center; }
+
 .lv-grow { flex: 1 1 220px; min-width: 180px; }
-.lv-field > .lv-icon { position: absolute; left: 10px; opacity: 0.6; pointer-events: none; }
-/* the padding clears the leading icon; backend/static/styles.css pads the frame's text
-   inputs with "#diagnostics-content input[type=text] { padding: ... !important }", so this
-   rule carries the id too (and the plain form for the standalone page) */
-#diagnostics-content .lv-filters input.lv-input,
-.lv-filters input.lv-input { width: 100%; padding: 0 10px 0 32px !important; line-height: 30px; }
-.lv-input::placeholder { opacity: 0.7; }
-/* the selects: no native chrome (its text sat low in the 32px box), the text on the inputs'
-   line (line-height 30px inside the 1px borders), the chevron drawn like the field icons */
-#diagnostics-content .lv-filters select.lv-select,
-.lv-filters select.lv-select { -webkit-appearance: none; appearance: none; padding: 0 28px 0 10px !important; line-height: 30px; min-width: 140px; width: 100%; background-image: none !important; }
-.lv-select-wrap { flex: 0 0 auto; }
-.lv-field > .lv-select-chevron { left: auto; right: 10px; }
+
 .lv-icon { width: 14px; height: 14px; flex: 0 0 auto; }
 .lv-icon-sm { width: 12px; height: 12px; }
 

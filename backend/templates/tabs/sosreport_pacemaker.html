@@ -1,3 +1,5 @@
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
 {% if data.status or data.crm_mon or data.config or data.properties or data.quorum or data.stonith_history %}
 <div class="grid grid-cols-1 gap-4">
  <!-- Cluster Configuration & Details -->
@@ -9,33 +11,30 @@
  </h3>
  </div>
 
+ {% call ui.filter_bar() %}{% call ui.end() %}{{ ui.xrow_all('#pcs-config') }}{% endcall %}{% endcall %}
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm">
- <thead class="border-b">
+ <table class="ui-table" id="pcs-config">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left w-8"></th>
- <th class="px-4 py-2 text-left">Section</th>
- <th class="px-4 py-2 text-left">Details</th>
+ <th class="ui-xrow-th" aria-label="Details"></th>
+ <th>Section</th>
+ <th>Details</th>
  </tr>
  </thead>
  <tbody>
  <!-- Pacemaker Status -->
  {% if data.status and data.status.raw_output %}
- <tr class="config-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ <tr class="config-entry ui-xrow"
  data-index="status">
- <td class="px-4 py-2">
- <i class="fas fa-caret-right expand-icon"></i>
- </td>
- <td class="px-4 py-2 font-semibold">
+ <td class="ui-xrow-cell" data-label=""><button type="button" class="ui-xrow-btn" aria-expanded="false" aria-label="Details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></td>
+ <td>
  <i class="fas fa-heartbeat mr-2"></i>Pacemaker Status
  </td>
- <td class="px-4 py-2 text-xs">Full pcs status output</td>
+ <td>Full pcs status output</td>
  </tr>
- <tr class="config-details hidden" data-parent="status">
- <td colspan="3" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
- <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
- <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Pacemaker Status:</h4>
- <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{% for line in data.status.raw_output %}{{ line }}
+ <tr class="config-details ui-xrow-panel" hidden data-parent="status">
+ <td colspan="4" data-label="">
+ <div class="ui-xrow-body"><div class="ui-kv-title">Pacemaker Status</div><pre>{% for line in data.status.raw_output %}{{ line }}
 {% endfor %}</pre>
  </div>
  </td>
@@ -44,18 +43,16 @@
 
  <!-- All Cluster Properties -->
  {% if data.properties and data.properties.properties %}
- <tr class="config-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ <tr class="config-entry ui-xrow"
  data-index="all-properties">
- <td class="px-4 py-2">
- <i class="fas fa-caret-right expand-icon"></i>
- </td>
- <td class="px-4 py-2 font-semibold">
+ <td class="ui-xrow-cell" data-label=""><button type="button" class="ui-xrow-btn" aria-expanded="false" aria-label="Details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></td>
+ <td>
  <i class="fas fa-list mr-2"></i>All Cluster Properties
  </td>
- <td class="px-4 py-2 text-xs">{{ data.properties.properties|length }} properties</td>
+ <td>{{ data.properties.properties|length }} properties</td>
  </tr>
- <tr class="config-details hidden" data-parent="all-properties">
- <td colspan="3" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+ <tr class="config-details ui-xrow-panel" hidden data-parent="all-properties">
+ <td colspan="4" data-label="">
  <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
  <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">All Cluster Properties:</h4>
  <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -73,21 +70,17 @@
 
  <!-- Quorum Details -->
  {% if data.quorum and data.quorum.raw_output %}
- <tr class="config-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ <tr class="config-entry ui-xrow"
  data-index="quorum-details">
- <td class="px-4 py-2">
- <i class="fas fa-caret-right expand-icon"></i>
- </td>
- <td class="px-4 py-2 font-semibold">
+ <td class="ui-xrow-cell" data-label=""><button type="button" class="ui-xrow-btn" aria-expanded="false" aria-label="Details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></td>
+ <td>
  <i class="fas fa-vote-yea mr-2"></i>Quorum Details
  </td>
- <td class="px-4 py-2 text-xs">Full quorum status output</td>
+ <td>Full quorum status output</td>
  </tr>
- <tr class="config-details hidden" data-parent="quorum-details">
- <td colspan="3" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
- <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
- <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Quorum Status Output:</h4>
- <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{% for line in data.quorum.raw_output %}{{ line }}
+ <tr class="config-details ui-xrow-panel" hidden data-parent="quorum-details">
+ <td colspan="4" data-label="">
+ <div class="ui-xrow-body"><div class="ui-kv-title">Quorum Status Output</div><pre>{% for line in data.quorum.raw_output %}{{ line }}
 {% endfor %}</pre>
  </div>
  </td>
@@ -96,21 +89,17 @@
 
  <!-- STONITH History -->
  {% if data.stonith_history and data.stonith_history.raw_output %}
- <tr class="config-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ <tr class="config-entry ui-xrow"
  data-index="stonith-history">
- <td class="px-4 py-2">
- <i class="fas fa-caret-right expand-icon"></i>
- </td>
- <td class="px-4 py-2 font-semibold">
+ <td class="ui-xrow-cell" data-label=""><button type="button" class="ui-xrow-btn" aria-expanded="false" aria-label="Details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></td>
+ <td>
  <i class="fas fa-history mr-2"></i>STONITH History
  </td>
- <td class="px-4 py-2 text-xs">Fence action history</td>
+ <td>Fence action history</td>
  </tr>
- <tr class="config-details hidden" data-parent="stonith-history">
- <td colspan="3" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
- <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
- <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">STONITH History:</h4>
- <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{% for line in data.stonith_history.raw_output %}{{ line }}
+ <tr class="config-details ui-xrow-panel" hidden data-parent="stonith-history">
+ <td colspan="4" data-label="">
+ <div class="ui-xrow-body"><div class="ui-kv-title">STONITH History</div><pre>{% for line in data.stonith_history.raw_output %}{{ line }}
 {% endfor %}</pre>
  </div>
  </td>
@@ -119,21 +108,17 @@
 
  <!-- Raw Configuration -->
  {% if data.config and data.config.raw_config %}
- <tr class="config-entry hover:bg-os-card-secondary cursor-pointer border-b transition-colors"
+ <tr class="config-entry ui-xrow"
  data-index="raw">
- <td class="px-4 py-2">
- <i class="fas fa-caret-right expand-icon"></i>
- </td>
- <td class="px-4 py-2 font-semibold">
+ <td class="ui-xrow-cell" data-label=""><button type="button" class="ui-xrow-btn" aria-expanded="false" aria-label="Details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></td>
+ <td>
  <i class="fas fa-file-alt mr-2"></i>Full Configuration
  </td>
- <td class="px-4 py-2 text-xs">Complete pcs config output</td>
+ <td>Complete pcs config output</td>
  </tr>
- <tr class="config-details hidden" data-parent="raw">
- <td colspan="3" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
- <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
- <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Full Configuration:</h4>
- <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{% for line in data.config.raw_config %}{{ line }}
+ <tr class="config-details ui-xrow-panel" hidden data-parent="raw">
+ <td colspan="4" data-label="">
+ <div class="ui-xrow-body"><div class="ui-kv-title">Full Configuration</div><pre>{% for line in data.config.raw_config %}{{ line }}
 {% endfor %}</pre>
  </div>
  </td>
@@ -152,18 +137,18 @@
  <i class="fas fa-server mr-2"></i> Node Status
  </h3>
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm">
- <thead class="border-b">
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left">Node</th>
- <th class="px-4 py-2 text-left">Status</th>
+ <th>Node</th>
+ <th>Status</th>
  </tr>
  </thead>
  <tbody>
  {% for node in data.status.nodes %}
- <tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-4 py-2 font-semibold">{{ node.name }}</td>
- <td class="px-4 py-2">
+ <tr>
+ <td>{{ node.name }}</td>
+ <td>
  <span class="px-2 py-1 rounded-sm text-xs {% if node.status == 'online' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200{% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200{% endif %}">
  <i class="fas fa-{% if node.status == 'online' %}check-circle{% else %}times-circle{% endif %} mr-1"></i>{{ node.status|upper }}
  </span>
@@ -182,37 +167,27 @@
  <h3 class="text-lg font-medium mb-4">
  <i class="fas fa-cubes mr-2"></i> Resources
  </h3>
- <div class="mb-4">
- <input type="text" id="resource-filter"
- class="w-full px-3 py-2 text-sm rounded-sm border"
- placeholder="Filter resources..."
- autocomplete="off">
- </div>
- <p id="resource-count" class="text-xs mb-2"></p>
+ {% call ui.filter_bar() %}<label class="ui-field">{{ ui.icon('search') }}<input type="search" id="resource-filter" class="ui-input" placeholder="Search resources (a regex works)" aria-label="Search resources" autocomplete="off"></label>{% call ui.end() %}<span class="ui-status" id="resource-count" aria-live="polite"></span>{{ ui.xrow_all('#resource-container') }}{% endcall %}{% endcall %}
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm">
- <thead class="border-b">
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left w-8"></th>
- <th class="px-4 py-2 text-left">Resource</th>
- <th class="px-4 py-2 text-left">Type</th>
- <th class="px-4 py-2 text-left">Status</th>
- <th class="px-4 py-2 text-left">Node</th>
+ <th class="ui-xrow-th" aria-label="Details"></th>
+ <th>Resource</th>
+ <th>Type</th>
+ <th>Status</th>
+ <th>Node</th>
  </tr>
  </thead>
  <tbody id="resource-container">
  {% for resource in data.status.resources %}
- <tr class="resource-entry border-b hover:bg-gray-50 dark:hover:bg-gray-800 {% if resource.config %}cursor-pointer{% endif %}"
+ <tr class="resource-entry{% if resource.config %} ui-xrow{% endif %}"
  data-name="{{ resource.name|lower }}"
  data-index="{{ loop.index0 }}">
- <td class="px-4 py-2">
- {% if resource.config %}
- <i class="fas fa-caret-right expand-icon"></i>
- {% endif %}
- </td>
- <td class="px-4 py-2 font-mono font-semibold">{{ resource.name }}</td>
- <td class="px-4 py-2 text-xs">{{ resource.type }}</td>
- <td class="px-4 py-2">
+ {% if resource.config %}<td class="ui-xrow-cell" data-label=""><button type="button" class="ui-xrow-btn" aria-expanded="false" aria-label="Details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></td>{% else %}<td class="ui-xrow-cell" data-label=""></td>{% endif %}
+ <td class="ui-mono">{{ resource.name }}</td>
+ <td>{{ resource.type }}</td>
+ <td>
  <span class="px-2 py-1 rounded text-xs
  {% if resource.status in ['Started', 'Active', 'Master'] %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200
  {% elif resource.status in ['Stopped', 'Slave'] %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200
@@ -220,14 +195,12 @@
  {{ resource.status }}
  </span>
  </td>
- <td class="px-4 py-2">{{ resource.node or '-' }}</td>
+ <td>{{ resource.node or '-' }}</td>
  </tr>
  {% if resource.config %}
- <tr class="resource-details hidden" data-parent="{{ loop.index0 }}">
- <td colspan="5" class="px-4 py-3 bg-gray-50 dark:bg-gray-800">
- <div class="bg-white dark:bg-gray-900 p-3 rounded-sm border border-gray-200 dark:border-gray-700">
- <h4 class="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Resource Configuration:</h4>
- <pre class="text-xs whitespace-pre-wrap text-gray-900 dark:text-gray-100 font-mono">{{ resource.config }}</pre>
+ <tr class="resource-details ui-xrow-panel" hidden data-parent="{{ loop.index0 }}">
+ <td colspan="6" data-label=""
+ <div class="ui-xrow-body"><div class="ui-kv-title">Resource Configuration</div><pre>{{ resource.config }}</pre>
  </div>
  </td>
  </tr>
@@ -245,32 +218,26 @@
  <h3 class="text-lg font-medium mb-4">
  <i class="fas fa-exclamation-triangle mr-2"></i> Failed Actions
  </h3>
- <div class="mb-4">
- <input type="text" id="failure-filter"
- class="w-full px-3 py-2 text-sm rounded-sm border"
- placeholder="Filter failed actions..."
- autocomplete="off">
- </div>
- <p id="failure-count" class="text-xs mb-2"></p>
+ {% call ui.filter_bar() %}<label class="ui-field">{{ ui.icon('search') }}<input type="search" id="failure-filter" class="ui-input" placeholder="Search failed actions (a regex works)" aria-label="Search failed actions" autocomplete="off"></label>{% call ui.end() %}<span class="ui-status" id="failure-count" aria-live="polite"></span>{% endcall %}{% endcall %}
  <div class="overflow-x-auto">
- <table class="min-w-full text-sm">
- <thead class="border-b">
+ <table class="ui-table">
+ <thead>
  <tr>
- <th class="px-4 py-2 text-left">Resource</th>
- <th class="px-4 py-2 text-left">Action</th>
- <th class="px-4 py-2 text-left">Node</th>
- <th class="px-4 py-2 text-left">Exit Code</th>
- <th class="px-4 py-2 text-left">Message</th>
+ <th>Resource</th>
+ <th>Action</th>
+ <th>Node</th>
+ <th>Exit Code</th>
+ <th>Message</th>
  </tr>
  </thead>
  <tbody id="failure-container">
  {% for failure in data.status.failures %}
- <tr class="failure-entry border-b hover:bg-gray-50 dark:hover:bg-gray-800">
- <td class="px-4 py-2 font-mono">{{ failure.resource }}</td>
- <td class="px-4 py-2">{{ failure.action }}</td>
- <td class="px-4 py-2">{{ failure.node }}</td>
- <td class="px-4 py-2 font-mono">{{ failure.exit_code }}</td>
- <td class="px-4 py-2 text-xs whitespace-normal wrap-break-word max-w-lg">{{ failure.message }}</td>
+ <tr class="failure-entry">
+ <td class="ui-mono">{{ failure.resource }}</td>
+ <td>{{ failure.action }}</td>
+ <td>{{ failure.node }}</td>
+ <td class="ui-mono">{{ failure.exit_code }}</td>
+ <td class="whitespace-normal wrap-break-word max-w-lg">{{ failure.message }}</td>
  </tr>
  {% endfor %}
  </tbody>
@@ -322,19 +289,8 @@
  regex ? regex.test(combinedText) : combinedText.includes(query)
  );
 
- if (matches) {
- entry.removeAttribute('hidden');
- // Always remove filter attribute from details row when parent is shown
- // The expand/collapse state is controlled by the 'hidden' class, not the attribute
- if (detailsRow) {
- detailsRow.removeAttribute('hidden');
- }
- } else {
- entry.setAttribute('hidden', '');
- if (detailsRow) {
- detailsRow.setAttribute('hidden', '');
- }
- }
+ entry.hidden = !matches;
+ if (detailsRow) detailsRow.hidden = !matches || !entry.classList.contains('ui-open');
  });
 
  updateResourceCount();
@@ -344,23 +300,7 @@
  updateResourceCount();
  }
 
- // Handle resource row clicks to expand/collapse configuration
- if (resourceContainer) {
- resourceContainer.querySelectorAll('.resource-entry').forEach(row => {
- row.addEventListener('click', function() {
- const index = this.dataset.index;
- const detailsRow = document.querySelector(`.resource-details[data-parent="${index}"]`);
- const icon = this.querySelector('.expand-icon');
-
- if (detailsRow && icon) {
- const isHidden = detailsRow.classList.contains('hidden');
- detailsRow.classList.toggle('hidden');
- icon.classList.toggle('fa-caret-right', !isHidden);
- icon.classList.toggle('fa-caret-down', isHidden);
- }
- });
- });
- }
+ // the rows open through the shared expandable-row component (diagTables)
 
  // Failed actions filtering
  const failureFilter = document.getElementById('failure-filter');
@@ -407,30 +347,8 @@
  updateFailureCount();
  }
 
- // Expandable config sections
- const configEntries = document.querySelectorAll('.config-entry');
- configEntries.forEach(row => {
- row.addEventListener('click', function() {
- const detailsRow = this.nextElementSibling;
- const icon = this.querySelector('.expand-icon');
-
- if (detailsRow && detailsRow.classList.contains('config-details')) {
- const isHidden = detailsRow.classList.contains('hidden');
- detailsRow.classList.toggle('hidden');
- icon.classList.toggle('fa-caret-right', !isHidden);
- icon.classList.toggle('fa-caret-down', isHidden);
- }
- });
- });
  })();
 </script>
 
 {% else %}
-<div class="flex flex-col items-center justify-center py-12 text-center">
- <svg class="shrink-0 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="max-width: 4rem; max-height: 4rem;">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
- </svg>
- <div class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No Pacemaker Data Available</div>
- <div class="text-sm text-gray-500 dark:text-gray-400">No Pacemaker cluster information found in this sosreport</div>
-</div>
 {% endif %}

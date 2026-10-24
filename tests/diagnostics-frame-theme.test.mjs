@@ -59,7 +59,7 @@ const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
   }
   check('no template picks chart colours with a dark-class ternary (they ask diagnosticsThemeColor)', ternaries.length === 0, ternaries.join(', '));
   const page = read('src/components/DiagnosticsPage.jsx');
-  check('DiagnosticsPage mirrors class + data-theme + data-dark-variant + data-gradient into the frame and watches all four', /attributeFilter: \['class', 'data-theme', 'data-dark-variant', 'data-gradient'\]/.test(page) && /diagnosticsThemeColor/.test(page) && /__diagnosticsThemeApplied/.test(page));
+  check('DiagnosticsPage mirrors class + data-theme + data-dark-variant + data-gradient into the frame and watches all four', /attributeFilter: \['class', 'data-theme', 'data-dark-variant', 'data-gradient', 'style'\]/.test(page) && /diagnosticsThemeColor/.test(page) && /__diagnosticsThemeApplied/.test(page));
   check('the standalone Flask dashboard defines the same colour helper for the templates', /diagnosticsThemeColor/.test(read('backend/templates/layout.html')));
 }
 

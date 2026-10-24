@@ -1,0 +1,356 @@
+{#
+  Audit (parsers/mustgather/audit.py for the vocabulary and the whole
+  capture's aggregates, parsers/mustgather/audit_search.py behind
+  /audit_events_search for the rows): one page, an explorer over EVERY
+  audit event, the successes too. Top to bottom: the filter bar (every
+  filter always visible, in rows), the active filters as removable tags,
+  one status line, the histogram (requests and errors over time, a broken
+  axis across holes) and the slim status / verb bars (clickable: a
+  filter), the event rows (newest first; expand to the facts, the
+  what-changed chips and diffs, the masked bodies with Reveal, the raw
+  event), "Load older".
+
+  Every filter is a set of values (OR within a field, AND across fields):
+  a text box takes `create,delete` or `"a b","c, d"` (quotes for spaces or
+  commas, \" inside), Enter or Search turns the text into tags; a select
+  is an additive picker: a pick adds a tag, the select returns to "Any
+  ...", picked options are marked. Each tag's x removes that value; the
+  quick time range is single. Until a filter is set the visuals draw from
+  the cached scan's aggregates (the first paint is instant); with a
+  filter they follow the search. The rows are built by the shared
+  events_script(). The app's own page title says "Audit" and the frame's
+  tab panel is the page's one card: no heading and no card of its own.
+#}
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
+{% import "tabs/_audit.html" as au %}
+{% set e = data.audit or {} %}
+{% set t = e.totals or {} %}
+<div class="panel rounded-lg shadow-sm au" id="audit-events" data-directory="{{ directory }}">
+{{ au.styles() }}
+<style>
+/* the frame's own tab panel (#diagnostics-content .panel) is the page's one card: the content sits in it directly, no second card */
+#audit-events .ae-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+#audit-events #ae-search { margin-left: auto; }
+#audit-events .ae-rows { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+#audit-events .ae-foot { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+#audit-events .ae-note { font-size: 12px; color: var(--os-text-secondary, #6a6e73); }
+#audit-events .ae-what { align-items: center; }
+</style>
+{% if e.available %}
+  {% set notip = 'No request bodies recorded in these audit logs' %}
+  <div class="ae-main" id="audit-events-card">
+    <div class="ae-rows" id="audit-events-form">
+      <div class="au-search">
+        <label class="ui-field au-wide">{{ au.icon('search') }}<input type="search" class="ui-input" id="ae-q" placeholder="Search: time (13:4), user, verb, resource, name, IP, agent, reason, URI; several: a,b or &quot;a b&quot;,&quot;c, d&quot;" aria-label="Search"></label>
+        <label class="ui-field">{{ au.icon('search') }}<input type="search" class="ui-input" id="ae-user" list="ae-users" placeholder="User (also groups and impersonation)" aria-label="User" title="Matches the username, the user's groups and the impersonated identity"></label>
+        <datalist id="ae-users">{% for u in e.users %}<option value="{{ u }}"></option>{% endfor %}</datalist>
+        <label class="ui-select-wrap au-narrow"><select class="ui-select" id="ae-verb" aria-label="Verb">
+          <option value="">Any verb</option>
+          {% for v in ['get', 'list', 'watch', 'create', 'update', 'patch', 'delete', 'deletecollection'] %}<option value="{{ v }}">{{ v }}</option>{% endfor %}
+        </select>{{ au.icon('select') }}</label>
+        <label class="ui-field">{{ au.icon('search') }}<input type="search" class="ui-input" id="ae-resource" list="ae-resources" placeholder="Resource (group/resource[/sub])" aria-label="Resource"></label>
+        <datalist id="ae-resources">{% for r in e.resources %}<option value="{{ r }}"></option>{% endfor %}</datalist>
+        <label class="ui-field">{{ au.icon('search') }}<input type="search" class="ui-input" id="ae-namespace" list="ae-namespaces" placeholder="Namespace" aria-label="Namespace"></label>
+        <datalist id="ae-namespaces">{% for n in e.namespaces %}<option value="{{ n }}"></option>{% endfor %}</datalist>
+        <label class="ui-field">{{ au.icon('search') }}<input type="search" class="ui-input" id="ae-name" placeholder="Name" aria-label="Name"></label>
+      </div>
+      <div class="au-search">
+        <label class="ui-select-wrap au-narrow"><select class="ui-select" id="ae-status" aria-label="Status">
+          <option value="">Any status</option><option value="ok">ok (&lt; 400)</option><option value="error">errors (4xx/5xx)</option>
+          <option value="2xx">2xx</option><option value="3xx">3xx</option><option value="4xx">4xx</option><option value="5xx">5xx</option>
+          {% for c in [200, 201, 202, 204, 302, 400, 401, 403, 404, 409, 410, 422, 429, 500, 503, 504] %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+        </select>{{ au.icon('select') }}</label>
+        <label class="ui-select-wrap"><select class="ui-select" id="ae-category" aria-label="Category">
+          <option value="">Any category</option>
+          <option value="sensitive_deletes">Sensitive deletes</option>
+          <option value="rbac_changes">RBAC changes</option>
+          <option value="secret_reads">Secret reads (non-system users)</option>
+          <option value="impersonation">Impersonation</option>
+          <option value="deprecated">Deprecated APIs</option>
+          <option value="changes"{% if not e.bodies %} disabled title="{{ notip }}"{% endif %}>Changes (writes with bodies)</option>
+        </select>{{ au.icon('select') }}</label>
+        <label class="ui-select-wrap au-narrow"><select class="ui-select" id="ae-range" aria-label="Time range">
+          <option value="">Whole capture</option><option value="first15">First 15 min</option><option value="last5">Last 5 min</option><option value="last15">Last 15 min</option><option value="last60">Last hour</option>
+        </select>{{ au.icon('select') }}</label>
+        <label class="ui-select-wrap au-narrow"><select class="ui-select" id="ae-apiserver" aria-label="Apiserver"><option value="">Any apiserver</option>{% for a in e.apiservers %}<option value="{{ a }}">{{ a }}</option>{% endfor %}</select>{{ au.icon('select') }}</label>
+        <label class="ui-select-wrap au-narrow"><select class="ui-select" id="ae-node" aria-label="Node"><option value="">Any node</option>{% for n in e.nodes %}<option value="{{ n }}">{{ n }}</option>{% endfor %}</select>{{ au.icon('select') }}</label>
+        <label class="ui-field">{{ au.icon('search') }}<input type="search" class="ui-input" id="ae-ip" placeholder="Source IP" aria-label="Source IP"></label>
+        <label class="ui-field">{{ au.icon('search') }}<input type="search" class="ui-input" id="ae-agent" list="ae-agents" placeholder="User agent" aria-label="User agent"></label>
+        <datalist id="ae-agents">{% for g in e.agents %}<option value="{{ g }}"></option>{% endfor %}</datalist>
+        <label class="ui-field">{{ au.icon('search') }}<input type="search" class="ui-input" id="ae-text" placeholder="URI contains" aria-label="URI contains"></label>
+      </div>
+      <div class="au-search ae-what" id="audit-events-bodyfilters"{% if not e.bodies %} data-disabled="1"{% endif %}>
+        <label class="au-check"><input class="ui-check" type="checkbox" id="ae-stage"> all stages (watches and started requests too)</label>
+        <span class="au-label">What changed</span>
+        <label class="au-check{% if not e.bodies %} au-off{% endif %}"{% if not e.bodies %} title="{{ notip }}"{% endif %}><input class="ui-check" type="checkbox" id="ae-hasbody"{% if not e.bodies %} disabled{% endif %}> has a body</label>
+        <label class="ui-field"{% if not e.bodies %} title="{{ notip }}"{% endif %}>{{ au.icon('search') }}<input type="search" class="ui-input" id="ae-field" placeholder="changed field (spec.replicas, image)" aria-label="Changed field"{% if not e.bodies %} disabled{% endif %}></label>
+        <label class="ui-select-wrap au-narrow"{% if not e.bodies %} title="{{ notip }}"{% endif %}><select class="ui-select" id="ae-ctype" aria-label="Change type"{% if not e.bodies %} disabled{% endif %}><option value="">Any change type</option>{% for ct in e.change_types %}<option value="{{ ct }}">{{ ct }}</option>{% endfor %}</select>{{ au.icon('select') }}</label>
+        <label class="ui-select-wrap au-narrow"><select class="ui-select" id="ae-limit" aria-label="Newest N"><option value="100">newest 100</option><option value="200" selected>newest 200</option><option value="500">newest 500</option><option value="1000">newest 1000</option></select>{{ au.icon('select') }}</label>
+        <button type="button" class="btn btn-secondary btn-sm" id="ae-search">Search</button>
+      </div>
+    </div>
+    <div class="ui-chips au-chips" id="audit-events-chips" hidden></div>
+    <div class="ui-status au-status" id="audit-events-status">Searching the newest events&hellip;</div>
+    <div class="au-visuals" id="audit-events-visuals">
+      <div class="au-visual au-visual-wide">
+        <div class="au-visual-title"><span>Requests over time</span><span id="audit-events-hist-step"></span><span class="au-legend"><span style="--swatch: var(--chart-ok, #0066cc)">ok</span><span style="--swatch: var(--chart-bad, #dc2626)">errors (4xx/5xx)</span></span></div>
+        <div class="au-hist" id="audit-events-hist-wrap"><canvas id="audit-events-hist" height="110"></canvas></div>
+        <div class="au-more au-hist-note" id="audit-events-hist-note"></div>
+      </div>
+      <div class="au-visual"><div class="au-visual-title"><span>Status codes</span><span id="audit-events-codes-note"></span></div><div class="au-bars" id="audit-events-codes-wrap"><canvas id="audit-events-codes"></canvas></div></div>
+      <div class="au-visual"><div class="au-visual-title"><span>Verbs</span><span class="au-legend"><span style="--swatch: var(--chart-ok, #0066cc)">ok</span><span style="--swatch: var(--chart-bad, #dc2626)">errors</span></span></div><div class="au-bars" id="audit-events-verbs-wrap"><canvas id="audit-events-verbs"></canvas></div></div>
+    </div>
+    <div class="ae-note" id="audit-events-note" hidden></div>
+    <div class="au-search au-sort-narrow" id="audit-events-sort-narrow">
+      <span class="au-label">Sort by</span>
+      <label class="ui-select-wrap au-narrow"><select class="ui-select" id="ae-sort" aria-label="Sort by">
+        <option value="time">newest first</option><option value="time_asc">oldest first</option><option value="latency">slowest first</option><option value="latency_asc">fastest first</option>
+        <option value="status">status, highest first</option><option value="status_asc">status, lowest first</option><option value="user">user A to Z</option><option value="user_desc">user Z to A</option>
+        <option value="verb">verb A to Z</option><option value="verb_desc">verb Z to A</option><option value="object">object A to Z</option><option value="object_desc">object Z to A</option>
+      </select>{{ au.icon('select') }}</label>
+    </div>
+    <div class="au-ev-head" id="audit-events-head" role="row">
+      <span class="au-th" role="columnheader"><button type="button" class="lc-sort" data-sort="time" title="Sort by time">When</button></span>
+      <span class="au-th" role="columnheader"><button type="button" class="lc-sort" data-sort="user" title="Sort by user">Who</button></span>
+      <span class="au-th" role="columnheader"><button type="button" class="lc-sort" data-sort="verb" title="Sort by verb">Verb</button></span>
+      <span class="au-th" role="columnheader"><button type="button" class="lc-sort" data-sort="object" title="Sort by object (resource / namespace / name)">Object</button></span>
+      <span class="au-th au-num" role="columnheader"><button type="button" class="lc-sort" data-sort="latency" title="Sort by latency (stageTimestamp - requestReceivedTimestamp); watches and requests without a latency sort last">Latency</button></span>
+      <span class="au-th" role="columnheader"><button type="button" class="lc-sort" data-sort="status" title="Sort by status code">Status</button></span>
+      <span class="au-th" role="columnheader">From</span>
+    </div>
+    <div class="au-events" id="audit-events-list" aria-busy="false"></div>
+    <div class="ae-foot">
+      <button type="button" class="btn btn-secondary btn-sm" id="audit-events-more" hidden>Load older</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="audit-events-count-all" hidden>Count all</button>
+    </div>
+      </div>
+  {{ au.chart_script() }}
+  {{ au.events_script() }}
+  <script>
+  (() => {
+    const E = window.auEvents;
+    const root = document.getElementById('audit-events');
+    const RANGE = { first: {{ e.time.first | tojson }}, last: {{ e.time.last | tojson }} };
+    // the whole capture's aggregates from the cached scan: the visuals until a filter is set
+    const SCAN = {{ {'timeline': e.timeline, 'codes': e.scan.codes, 'verbs': e.scan.verbs} | tojson }};
+    const $ = (id) => document.getElementById(id);
+    const list = $('audit-events-list'), status = $('audit-events-status'), more = $('audit-events-more'), countAll = $('audit-events-count-all'), note = $('audit-events-note'), chips = $('audit-events-chips');
+    const head = $('audit-events-head'), narrow = $('audit-events-sort-narrow'), searchBtn = $('ae-search');
+    // The filter model: every field a list of values (OR within, AND across); the text boxes feed it on Enter / Search, the selects on a pick
+    const TEXT = { q: 'ae-q', user: 'ae-user', resource: 'ae-resource', namespace: 'ae-namespace', name: 'ae-name', ip: 'ae-ip', agent: 'ae-agent', text: 'ae-text', changed_field: 'ae-field' };
+    const PICK = { verbs: 'ae-verb', status: 'ae-status', category: 'ae-category', apiserver: 'ae-apiserver', node: 'ae-node', change_types: 'ae-ctype' };
+    const LABEL = { q: 'search', user: 'user', verbs: 'verb', resource: 'resource', namespace: 'namespace', name: 'name', status: 'status', category: 'category', apiserver: 'apiserver', node: 'node', ip: 'ip', agent: 'agent', text: 'uri', changed_field: 'changed field', change_types: 'change type', from: 'from', to: 'to', stage: 'stage', has_body: 'has body' };
+    const CAT_LABEL = { sensitive_deletes: 'Sensitive deletes', rbac_changes: 'RBAC changes', secret_reads: 'Secret reads', impersonation: 'Impersonation', deprecated: 'Deprecated APIs', changes: 'Changes' };
+    const tags = {};
+    Object.keys(TEXT).concat(Object.keys(PICK)).forEach((k) => { tags[k] = []; });
+    let range = null;   // {from, to} from a histogram click or the quick range, shown as from / to tags
+    let sort = 'time';  // 'time' | 'time_asc' | 'latency' | 'latency_asc' | 'status' ... the server sorts ALL matches, the page shows the best N
+    let shownSort = 'time';   // the sort of the rows on show: the header goes back to it when a sort's search is cancelled or fails
+    const DEFAULT_DIR = { time: 'desc', latency: 'desc', status: 'desc', user: 'asc', verb: 'asc', object: 'asc' };
+    const showSort = () => {
+      const [field, dir] = sort.split('_'); const asc = (dir || DEFAULT_DIR[field]) === 'asc';
+      root.querySelectorAll('#audit-events-head .lc-sort[data-sort]').forEach((b) => {
+        const on = b.dataset.sort === field; b.classList.toggle('lc-sorted', on); b.classList.toggle('lc-asc', on && asc);
+        const cell = b.closest('.au-th'); if (on) cell.setAttribute('aria-sort', asc ? 'ascending' : 'descending'); else cell.removeAttribute('aria-sort');
+      });
+      const sel = $('ae-sort'); const want = field + (asc ? '_asc' : '_desc'); const opt = Array.from(sel.options).find((o) => o.value === want || (o.value === field && (dir || DEFAULT_DIR[field]) === DEFAULT_DIR[field]));
+      sel.value = opt ? opt.value : field;
+    };
+    let cursor = '', lastQuery = null, shown = 0, lastRes = null, lastHist = null;
+    // 'create,delete' / '"a b","c, d"' -> the values (the backend splits the same way)
+    const splitValues = (text) => {
+      const out = []; let cur = '', quoted = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (quoted) { if (c === '\\' && text[i + 1] === '"') { cur += '"'; i++; continue; } if (c === '"') { quoted = false; continue; } cur += c; }
+        else if (c === '"') quoted = true;
+        else if (c === ',') { out.push(cur); cur = ''; }
+        else cur += c;
+      }
+      out.push(cur);
+      return out.map((v) => v.trim()).filter((v, i, a) => v && a.indexOf(v) === i).slice(0, 20);
+    };
+    const addTags = (field, values) => { let added = false; for (const v of values) { if (!tags[field].some((t) => t.toLowerCase() === v.toLowerCase())) { tags[field].push(v); added = true; } } return added; };
+    // the text boxes: Enter or Search turns the text into tags
+    const takeText = () => { let changed = false; for (const [k, id] of Object.entries(TEXT)) { const el = $(id); if (el.disabled) continue; const vals = splitValues(el.value); if (vals.length) { if (addTags(k, vals)) changed = true; el.value = ''; } } return changed; };
+    // the selects: an additive pick, back to "Any ..." after each, the picked options marked
+    const markPicked = () => {
+      for (const [k, id] of Object.entries(PICK)) {
+        const sel = $(id);
+        Array.from(sel.options).forEach((o) => { if (!o.value) return; const picked = tags[k].some((t) => t.toLowerCase() === o.value.toLowerCase()); if (picked && !o.dataset.label) o.dataset.label = o.textContent; o.textContent = picked ? '✓ ' + (o.dataset.label || o.textContent) : (o.dataset.label || o.textContent); o.disabled = picked || o.dataset.off === '1'; });
+        sel.value = '';
+      }
+    };
+    root.querySelectorAll('#ae-category option[disabled]').forEach((o) => { o.dataset.off = '1'; });
+    // "YYYY-MM-DD HH:MM:SS" arithmetic on the capture's own stamps, so the quick ranges need no date handling
+    const minus = (stamp, minutes) => { const d = new Date(stamp.replace(' ', 'T') + 'Z'); d.setUTCMinutes(d.getUTCMinutes() - minutes); return d.toISOString().slice(0, 19).replace('T', ' '); };
+    const plus = (stamp, minutes) => minus(stamp, -minutes);
+    const query = () => {
+      const q = {};
+      for (const k of Object.keys(TEXT)) if (tags[k].length) q[k] = tags[k].slice();
+      for (const k of Object.keys(PICK)) if (tags[k].length) q[k] = tags[k].slice();
+      if (range) { q.from = range.from; q.to = range.to; }
+      q.limit = Number($('ae-limit').value) || 200;
+      if (sort !== 'time') q.sort = sort;
+      if ($('ae-stage').checked) q.stage = 'all';
+      if ($('ae-hasbody').checked) q.has_body = true;
+      return q;
+    };
+    const filtered = (q) => Object.keys(q).some((k) => k !== 'limit');
+    const LABELS = CAT_LABEL;
+    // the active filters as tags: one per value, its x removes that value; from / to, stage, groups, has body as one each
+    const describe = (q) => {
+      chips.textContent = '';
+      let n = 0;
+      const chip = (field, text, remove, value) => {
+        const c = E.el('button', 'ui-chip au-chip ui-on'); c.type = 'button'; c.dataset.filter = field; c.dataset.value = value === undefined ? text : value; c.title = LABEL[field] + ': ' + text + ' (click to remove this value)';
+        c.appendChild(E.el('span', 'ui-chip-key au-chip-key', LABEL[field] + ': ')); c.appendChild(E.el('span', 'ui-chip-text au-chip-text', text)); c.appendChild(E.el('span', 'ui-chip-x au-chip-x', '×'));
+        c.addEventListener('click', () => { remove(); run(); });
+        chips.appendChild(c); n++;
+      };
+      for (const k of Object.keys(TEXT).concat(Object.keys(PICK))) tags[k].forEach((v) => chip(k, k === 'category' ? (CAT_LABEL[v] || v) : v, () => { tags[k] = tags[k].filter((x) => x !== v); }, v));
+      if (q.from) chip('from', q.from, () => { range = null; $('ae-range').value = ''; });
+      if (q.to) chip('to', q.to, () => { range = null; $('ae-range').value = ''; });
+      if (q.stage) chip('stage', 'all', () => { $('ae-stage').checked = false; });
+      if (q.has_body) chip('has_body', 'yes', () => { $('ae-hasbody').checked = false; });
+      chips.hidden = n === 0;
+    };
+    // The visuals: from the scan's whole-capture aggregates until a filter is set, then from the search's counts over the matches
+    // the status bars in the chart roles: 5xx and 403 bad, other 4xx warn, 2xx ok, the rest muted
+    const codeColour = (r) => { const c = Number(r.name) || 0; const P = window.diagChart.palette(); return c >= 500 || c === 403 ? P.bad : c >= 400 ? P.warn : c >= 200 && c < 300 ? P.ok : P.muted; };
+    const onBucket = (b) => {
+      if (!b || !b.t) return;
+      const step = (lastHist && (lastHist.step_seconds || lastHist.step_minutes * 60)) || 60;
+      const from = b.t.replace('T', ' ') + (b.t.length === 16 ? ':00' : '');
+      const d = new Date(from.replace(' ', 'T') + 'Z'); d.setUTCSeconds(d.getUTCSeconds() + step - 1);
+      range = { from, to: d.toISOString().slice(0, 19).replace('T', ' ') };
+      $('ae-range').value = '';
+      run();
+    };
+    const visuals = (hist, codes, verbs, scope) => {
+      lastHist = hist;
+      const stepSec = hist && (hist.step_seconds || (hist.step_minutes ? hist.step_minutes * 60 : 0));
+      $('audit-events-hist-step').textContent = (stepSec ? 'per ' + E.stepText(stepSec) : '') + (scope ? ' · ' + scope : '');
+      $('audit-events-codes-note').textContent = scope || '';
+      E.histogram($('audit-events-hist'), hist, onBucket);
+      E.bars($('audit-events-codes'), codes || [], codeColour, (r) => { addTags('status', [r.name]); run(); });
+      E.bars($('audit-events-verbs'), verbs || [], null, (r) => { addTags('verbs', [r.name]); run(); });
+    };
+    const scanHistogram = () => {
+      const tl = SCAN.timeline;
+      if (!tl) return { buckets: [], step_minutes: 1 };
+      return { step_minutes: tl.step_minutes, step_seconds: tl.step_seconds || tl.step_minutes * 60, gaps: tl.gaps, windows: tl.windows, buckets: tl.buckets.map((b) => b.gap ? b : { t: b.t, label: b.label, n: b.total, errors: b.errors, start: b.start, window: b.window, gap: false }) };
+    };
+    // The sticky header in the app: the frame never scrolls (the diagnostics pane does, and tells the frame where its viewport is:
+    // window.diagnosticsViewport, the diagnosticsviewport event), so position: sticky alone cannot hold the header at the top of the
+    // view; it follows the viewport's top with a transform while the rows pass under it, and stops at the end of the list
+    const stick = () => {
+      const v = window.diagnosticsViewport;
+      if (!v || !head.offsetHeight) return;
+      head.style.transform = '';
+      const top = head.getBoundingClientRect().top;   // its natural place (no scroll in the frame: document coordinates)
+      const end = list.getBoundingClientRect().bottom - head.offsetHeight;
+      const shift = Math.max(0, Math.min(v.top, end) - top);
+      head.style.transform = shift > 0 ? 'translateY(' + shift + 'px)' : '';
+    };
+    window.addEventListener('diagnosticsviewport', stick);
+    // The busy state is the shared diagBusy (backend/static/diagnostics-ui.js): the clicked header's marker becomes a spinner, Load older /
+    // Count all read "Loading…", Search shows one, the table dims under the progress bar of the sticky header (the Sort by row when the
+    // header is hidden), after 300 ms the floating pill with the elapsed time and Cancel, errors in the same pill with Retry, the live region
+    let busyHandle = null, lastOpts = null;
+    const busy = (on, opts) => {
+      const trigger = opts && opts.trigger;
+      if (!on) { if (busyHandle) { busyHandle.done(''); busyHandle = null; } return; }
+      const triggerEl = trigger instanceof Element ? trigger : trigger === 'search' ? searchBtn : trigger === 'more' ? more : trigger === 'countAll' ? countAll : trigger === 'narrow' ? narrow.querySelector('.au-label') : null;
+      if (trigger === 'more' || trigger === 'countAll') triggerEl.hidden = false;
+      busyHandle = window.diagBusy.start(triggerEl, { label: opts && opts.append ? 'Loading older events…' : 'Searching…', table: list, bar: head.offsetHeight ? head : narrow, cancel: () => E.cancel(), scroll: opts && opts.keepHead ? (head.offsetHeight ? head : narrow) : null });
+    };
+    async function run(opts) {
+      const append = !!(opts && opts.append);
+      if (opts && opts.sort) sort = opts.sort;   // Retry: the sort the failed search was asked for
+      lastOpts = Object.assign({}, opts, { sort });
+      if (!append) takeText();
+      markPicked();
+      const q = append ? Object.assign({}, lastQuery, { cursor }) : query();
+      if (opts && opts.countAll) { q.count_all = true; q.count = true; }
+      if (!append) { lastQuery = q; cursor = ''; shown = 0; describe(q); }
+      status.classList.add('ui-busy'); status.textContent = append ? 'Loading older events…' : 'Searching…'; more.hidden = true; countAll.hidden = true;
+      busy(true, opts);
+      const res = await E.search(q);
+      if (res.stale) return;
+      status.classList.remove('ui-busy');
+      if (res.cancelled) {
+        if (busyHandle) { busyHandle.cancel(); busyHandle = null; }
+        status.textContent = 'Search cancelled.' + (shown ? ' The earlier rows stay.' : '');
+        if (append) more.hidden = false; if (opts && opts.countAll) countAll.hidden = false;
+        sort = shownSort; showSort();
+        return;
+      }
+      if (!res.ok) {
+        const msg = (res.json && (res.json.error || res.json.message)) ? 'Search failed: ' + (res.json.message || res.json.error) : 'Search failed (' + res.status + ')';
+        status.textContent = msg;
+        if (busyHandle) { busyHandle.fail(msg, () => run(lastOpts)); busyHandle = null; }
+        if (append) more.hidden = false; if (opts && opts.countAll) countAll.hidden = false;
+        sort = shownSort; showSort();
+        return;
+      }
+      const j = res.json;
+      E.render(list, j.events, { append });
+      shown += j.events.length;
+      if (!shown) list.appendChild(E.el('div', 'au-list-empty', 'No event matches these filters.'));
+      lastRes = append ? Object.assign({}, lastRes, { json: Object.assign({}, lastRes.json, { scanned_files: j.scanned_files, seconds: j.seconds }) }) : res;
+      const label = (q.category && q.category.length === 1) ? (LABELS[q.category[0]] || 'Events') : 'Events';
+      status.textContent = E.statusText(lastRes, label, shown).replace(' · showing the newest ', j.sort === 'time_desc' ? ' · showing the newest ' : j.sort === 'time_asc' ? ' · showing the oldest ' : ' · showing ').replace(' · showing', (j.sort_text && j.sort !== 'time_desc' ? ' · ' + j.sort_text : '') + ' · showing');
+      shownSort = sort; showSort();
+      if (!append) {
+        if (filtered(q)) visuals(j.histogram, j.codes, j.verbs, 'the ' + E.fmt(j.total) + ' matches' + (j.partial ? ' counted so far' : ''));
+        else visuals(scanHistogram(), SCAN.codes, SCAN.verbs, '');
+        root.dataset.scope = filtered(q) ? 'search' : 'scan';
+      }
+      cursor = j.cursor;
+      more.hidden = !(j.has_more && j.events.length);
+      countAll.hidden = !(lastRes.json.partial && !append);
+      note.textContent = j.stage === 'all' ? 'All stages: watches appear twice (started and completed).' : ''; note.hidden = !note.textContent;
+      // a sort from the header: the view stays at the table, the header at its top (diagBusy's scroll option)
+      head.style.transform = '';
+      if (busyHandle) { busyHandle.done(E.fmt(shown) + ' events loaded'); busyHandle = null; }
+      stick();
+      root.dataset.loaded = String(shown);
+    }
+    $('ae-search').addEventListener('click', () => run({ trigger: 'search' }));
+    for (const [k, id] of Object.entries(TEXT)) {
+      const el = $(id);
+      el.setAttribute('autocomplete', 'off');
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); run({ trigger: 'search' }); }
+        else if (ev.key === 'Backspace' && !el.value && tags[k].length) { tags[k].pop(); run(); }   // an empty box: Backspace drops the field's last tag
+      });
+    }
+    for (const [k, id] of Object.entries(PICK)) $(id).addEventListener('change', () => { const v = $(id).value; if (!v) return; addTags(k, [v]); run(); });
+    $('ae-range').addEventListener('change', () => {
+      const quick = $('ae-range').value;
+      range = null;
+      if (quick && RANGE.first && RANGE.last) range = quick === 'first15' ? { from: RANGE.first, to: plus(RANGE.first, 15) } : { from: minus(RANGE.last, Number(quick.slice(4))), to: RANGE.last };
+      run();
+    });
+    $('ae-limit').addEventListener('change', () => run());
+    // the header: a click sorts by that column (its default direction), a second click reverses it; the narrow select does the same
+    root.querySelectorAll('#audit-events-head .lc-sort[data-sort]').forEach((b) => b.addEventListener('click', () => {
+      const field = b.dataset.sort; const [cur, dir] = sort.split('_'); const curAsc = (dir || DEFAULT_DIR[cur]) === 'asc';
+      const asc = cur === field ? !curAsc : DEFAULT_DIR[field] === 'asc';
+      sort = field + (asc ? '_asc' : '_desc'); run({ trigger: b, keepHead: true });
+    }));
+    $('ae-sort').addEventListener('change', () => { const v = $('ae-sort').value; const [field, dir] = v.split('_'); sort = field + '_' + (dir || DEFAULT_DIR[field]); run({ trigger: 'narrow', keepHead: true }); });
+    showSort();
+    root.querySelectorAll('#audit-events-bodyfilters input[type="checkbox"]').forEach((c) => c.addEventListener('change', () => run()));
+    more.addEventListener('click', () => run({ append: true, trigger: 'more' }));
+    countAll.addEventListener('click', () => run({ countAll: true, trigger: 'countAll' }));
+    window.auTags = tags;
+    run();
+  })();
+  </script>
+{% else %}
+  {{ au.empty('No audit logs', e.reason or 'This must-gather carries no audit_logs/ with API server audit events.') }}
+{% endif %}
+</div>

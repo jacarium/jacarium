@@ -84,7 +84,7 @@ export default function WhoisLookupTool() {
               onClick={handleLookup}
               disabled={!whoisAvailable || !domain || loading}
               title={whoisAvailable ? undefined : desktopOnly('WHOIS lookup')}
-              className="px-4 py-2 bg-os-blue text-white text-sm rounded-sm hover:bg-os-blue-hover disabled:opacity-50 transition-colors"
+              className="btn btn-primary px-4 py-2 text-sm"
             >
               {loading ? 'Looking up...' : 'Lookup'}
             </button>

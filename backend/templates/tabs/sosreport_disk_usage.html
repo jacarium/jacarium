@@ -1,161 +1,80 @@
- <div class="panel rounded-lg shadow-sm">
- <div class="mb-4">
- <input type="text" id="mountFilter" onkeyup="filterMounts()" placeholder="Filter mounts..."
- class="w-full px-3 py-2 text-sm rounded-sm border focus:outline-hidden focus:ring-2">
- </div>
- <div class="overflow-x-auto">
- <table id="mountsTable" class="min-w-full text-sm rounded-lg shadow-md">
- <thead class="border-b">
- <tr>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(0)">Filesystem <i id="indicator-0" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(1, true)">Size <i id="indicator-1" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(2, true)">Used <i id="indicator-2" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(3, true)">Available <i id="indicator-3" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(4)">Mounted on <i id="indicator-4" class="fas text-sm ml-1"></i></th>
- <th class="px-4 py-2 text-left cursor-pointer" onclick="sortTable(5, false, true)">Use % <i id="indicator-5" class="fas text-sm ml-1"></i></th>
- </tr>
- </thead>
- <tbody>
- {% for entry in data.df.df %}
- <tr class="border-b hover:bg-gray-50">
- <td class="px-4 py-2">{{ entry.filesystem }}</td>
- <td class="px-4 py-2" data-bytes="{{ entry.size }}">{{ entry.size }}</td>
- <td class="px-4 py-2" data-bytes="{{ entry.used }}">{{ entry.used }}</td>
- <td class="px-4 py-2" data-bytes="{{ entry.available }}">{{ entry.available }}</td>
- <td class="px-4 py-2">{{ entry.mounted }}</td>
- <td class="px-4 py-2 w-48">
- {% if entry.used_percent != '-' %}
- <div class="flex items-center space-x-2">
- <div class="flex-1 bg-gray-300 h-4 overflow-hidden rounded-sm">
- <div class="h-4
- {% if entry.used_percent|replace('%','')|int >= 90 %}bg-red-600
- {% elif entry.used_percent|replace('%','')|int >= 70 %}bg-yellow-500
- {% else %}bg-green-600{% endif %}"
- style="width: {{ entry.used_percent }};">
- </div>
- </div>
- <div class="text-xs text-gray-900 whitespace-nowrap font-medium">
- {{ entry.used_percent }}
- </div>
- </div>
- {% else %}
- <div class="text-xs text-right text-gray-900 mt-1">{{ entry.used_percent }}</div>
- {% endif %}
- </td>
- </tr>
- {% endfor %}
- </tbody>
- </table>
- </div>
- </div>
+{#
+  Storage > Disk Usage (parsers/sosreport/disk_usage.py): the Findings strip, the filter bar (search, the count),
+  the mounts table worst first (the parser's order, marked on the Use % header) with the shared meter for the use
+  and the inodes (the roles from the same thresholds as the Findings: parsers/findings.THRESHOLDS); the inodes column
+  only when the report has the inode table (the INFO finding says when it has not).
+#}
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
+{% if data.df.df %}
+{% set inodes = data.df.inodes %}
+<div class="panel rounded-lg shadow-sm">
+  {% call ui.filter_bar() %}
+    {{ ui.search('mountFilter', 'Search filesystems and mount points') }}
+    {% call ui.end() %}<span class="ui-status" id="mountCount" aria-live="polite"></span>{% endcall %}
+  {% endcall %}
+  <div class="ui-table-wrap">
+    <table id="mountsTable" class="ui-table">
+      <thead>
+        <tr>
+          <th data-key="filesystem">Filesystem</th>
+          <th data-key="mounted">Mounted on</th>
+          <th data-key="size" class="ui-num">Size</th>
+          <th data-key="used" class="ui-num">Used</th>
+          <th data-key="available" class="ui-num">Available</th>
+          <th data-key="pct" data-sorted="descending">Use %</th>
+          {% if inodes %}<th data-key="ipct">Inodes</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in data.df.df %}
+        <tr class="{% if entry.role == 'bad' %}ui-row-bad{% elif entry.role == 'warn' %}ui-row-warn{% endif %}{% if entry.pseudo %} ui-muted{% endif %}" data-size="{{ entry.size }}" data-used="{{ entry.used }}" data-available="{{ entry.available }}" data-pct="{{ entry.pct if entry.pct is not none else -1 }}" data-ipct="{{ entry.ipct if entry.ipct is not none else -1 }}">
+          <td class="ui-mono">{{ entry.filesystem }}{% if entry.pseudo %} <span class="ui-muted">(pseudo)</span>{% endif %}</td>
+          <td class="ui-mono">{{ entry.mounted }}</td>
+          <td class="ui-num">{{ entry.size_text }}</td>
+          <td class="ui-num">{{ entry.used_text }}</td>
+          <td class="ui-num">{{ entry.available_text }}</td>
+          <td>{% if entry.pct is not none %}{{ ui.meter(entry.pct, entry.role, entry.used_percent, title=entry.used_text ~ ' of ' ~ entry.size_text) }}{% else %}<span class="ui-muted">-</span>{% endif %}</td>
+          {% if inodes %}<td>{% if entry.ipct is not none %}{{ ui.meter(entry.ipct, entry.irole, entry.iuse_percent, title=(entry.iused ~ ' of ' ~ entry.inodes ~ ' inodes') if entry.inodes else none) }}{% else %}<span class="ui-muted">-</span>{% endif %}</td>{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
+{% endif %}
+
 <script>
- function filterMounts() {
- const input = document.getElementById("mountFilter");
- const filter = input.value.toLowerCase();
- const table = document.getElementById("mountsTable");
- const rows = table.getElementsByTagName("tr");
-
- for (let i = 1; i < rows.length; i++) {
- const cells = rows[i].getElementsByTagName("td");
- let rowMatches = false;
-
- for (let j = 0; j < cells.length; j++) {
- const cellText = cells[j].textContent || cells[j].innerText;
- if (cellText.toLowerCase().includes(filter)) {
- rowMatches = true;
- break;
- }
- }
-
- rows[i].style.display = rowMatches ?"" :"none";
- }
- }
-
- function formatBytes(kbytes) {
- let bytes = kbytes * 1024;
- if (bytes === 0) return '0 B';
- const k = 1024;
- const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
- const i = Math.floor(Math.log(bytes) / Math.log(k));
- const value = bytes / Math.pow(k, i);
- return value.toFixed(2) + ' ' + sizes[i];
- }
-
- document.querySelectorAll('td[data-bytes]').forEach(td => {
- const bytes = parseFloat(td.getAttribute('data-bytes')) || 0;
- td.textContent = formatBytes(bytes);
- });
-
- var currentSortColumn = currentSortColumn || null;
- var sortDirection = sortDirection || {};
-
- function sortTable(colIndex, useDataBytes = false, isPercent = false) {
- const table = document.getElementById("mountsTable");
- const tbody = table.querySelector("tbody");
- const rows = Array.from(tbody.querySelectorAll("tr"));
- const key = `${colIndex}-${useDataBytes}-${isPercent}`;
-
- if (currentSortColumn !== key) {
- currentSortColumn = key;
- sortDirection[key] = true;
- resetIndicators();
- } else {
- sortDirection[key] = !sortDirection[key];
- }
-
- updateSortIndicator(colIndex, sortDirection[key]);
-
- rows.sort((a, b) => {
- const cellA = a.children[colIndex];
- const cellB = b.children[colIndex];
-
- let valA = useDataBytes ? parseFloat(cellA.dataset.bytes || 0) :
- isPercent ? parseFloat(cellA.textContent.replace('%', '').trim()) :
- cellA.textContent.toLowerCase().trim();
-
- let valB = useDataBytes ? parseFloat(cellB.dataset.bytes || 0) :
- isPercent ? parseFloat(cellB.textContent.replace('%', '').trim()) :
- cellB.textContent.toLowerCase().trim();
-
- if (isPercent) {
- if (valA === '-' || isNaN(valA)) valA = -1;
- if (valB === '-' || isNaN(valB)) valB = -1;
- }
-
- if (valA < valB) return sortDirection[key] ? -1 : 1;
- if (valA > valB) return sortDirection[key] ? 1 : -1;
- return 0;
- });
-
- rows.forEach(row => tbody.appendChild(row));
- }
-
- function updateSortIndicator(colIndex, ascending) {
- const indicator = document.getElementById(`indicator-${colIndex}`);
- if (ascending) {
- indicator.classList.remove('fa-caret-down');
- indicator.classList.add('fa-caret-up');
- } else {
- indicator.classList.remove('fa-caret-up');
- indicator.classList.add('fa-caret-down');
- }
- }
-
- function resetIndicators() {
- for (let i = 0; i < 6; i++) {
- const indicator = document.getElementById(`indicator-${i}`);
- if (indicator) {
- indicator.classList.remove('fa-caret-up', 'fa-caret-down');
- }
- }
- }
-
- window.filterMounts = filterMounts;
- window.sortTable = sortTable;
-
- sortTable(5, false, true);
- sortTable(5, false, true);
+(function () {
+  var table = document.getElementById('mountsTable');
+  if (!table) return;
+  var tbody = table.querySelector('tbody');
+  var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+  var input = document.getElementById('mountFilter');
+  var count = document.getElementById('mountCount');
+  var NUM = { size: 1, used: 1, available: 1, pct: 1, ipct: 1 };
+  var COL = { filesystem: 0, mounted: 1 };
+  var sortKey = 'pct', sortAsc = false;
+  function value(r, key) { return NUM[key] ? (parseFloat(r.getAttribute('data-' + key)) || 0) : (r.children[COL[key]] ? r.children[COL[key]].textContent.trim().toLowerCase() : ''); }
+  function filter() {
+    var q = input.value.trim().toLowerCase();
+    var shown = 0;
+    rows.forEach(function (r) { var ok = !q || r.textContent.toLowerCase().indexOf(q) >= 0; r.hidden = !ok; if (ok) shown += 1; });
+    count.textContent = 'Showing ' + shown + ' of ' + rows.length + ' filesystems';
+  }
+  table.querySelectorAll('thead th[data-key]').forEach(function (th) {
+    th.classList.add('cursor-pointer');
+    th.addEventListener('click', function () {
+      var key = th.getAttribute('data-key');
+      if (sortKey === key) sortAsc = !sortAsc; else { sortKey = key; sortAsc = !NUM[key]; }
+      window.diagTables.markSort(th, sortAsc);
+      var dir = sortAsc ? 1 : -1;
+      rows.sort(function (a, b) { var va = value(a, key), vb = value(b, key); return va < vb ? -dir : va > vb ? dir : 0; });
+      rows.forEach(function (r) { tbody.appendChild(r); });
+    });
+  });
+  input.addEventListener('input', function () { if (window.diagBusy) window.diagBusy.filter(input, filter); else filter(); });
+  window.filterMounts = filter;
+  filter();
+})();
 </script>
-
-

@@ -172,7 +172,7 @@ export default function EngineTemplateModal({
               </select>
               <button
                 onClick={() => setShowNewCategory(true)}
-                className="flex items-center gap-2 px-3 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover rounded-sm transition-colors"
+                className="btn btn-primary flex items-center gap-2 px-3 py-2 text-sm"
                 title="Create new category"
               >
                 New
@@ -217,7 +217,7 @@ export default function EngineTemplateModal({
           <button
             onClick={handleSave}
             disabled={!name.trim() || !urlTemplate.trim() || (!category && !newCategoryName.trim())}
-            className="flex items-center gap-2 px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
+            className="btn btn-primary flex items-center gap-2 px-4 py-2 text-sm"
           >
             {template ? 'Save Changes' : 'Create Search'}
           </button>

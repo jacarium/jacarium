@@ -238,7 +238,7 @@ export default function QuickTasks({
           </div>
           <button
             onClick={handleClose}
-            className="p-1 hover:bg-purple-200 dark:hover:bg-purple-800/30 rounded-sm transition-colors"
+            className="btn btn-brand-ghost p-1"
             title="Close (Esc)"
           >
             <X size={16} className="text-purple-700 dark:text-purple-300" />
@@ -350,7 +350,7 @@ export default function QuickTasks({
           <button
             onClick={handleSubmit}
             disabled={!instancesLoaded || noInstances || submitting}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm rounded-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="btn btn-brand flex items-center justify-center gap-2 px-4 py-2 text-sm"
             title={noInstances ? 'Create a TaskWarrior instance on the Tasks page first' : 'Create task (Enter)'}
             data-testid="quick-tasks-submit"
           >

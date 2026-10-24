@@ -260,7 +260,7 @@ export default function TaskReportsPage() {
                   sort: 'priority-,due+',
                 });
               }}
-              className="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 flex items-center gap-2"
+              className="btn btn-primary px-4 py-2 flex items-center gap-2"
             >
               <span className="text-sm font-medium">Create Custom Report</span>
             </button>
@@ -423,7 +423,7 @@ export default function TaskReportsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 flex items-center justify-center gap-2"
+                  className="btn btn-primary flex-1 px-4 py-2 flex items-center justify-center gap-2"
                 >
                   {editingReport ? 'Update Report' : 'Create Report'}
                 </button>
@@ -479,7 +479,7 @@ function ReportCard({ report, isCustom, isExecuting, isExpanded, results, onExec
           <button
             onClick={onExecute}
             disabled={isExecuting}
-            className="flex-1 px-3 py-2 bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+            className="btn btn-primary flex-1 px-3 py-2 flex items-center justify-center gap-2 text-sm"
           >
             
             {isExecuting ? 'Running...' : 'Run Report'}

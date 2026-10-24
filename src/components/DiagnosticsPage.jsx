@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { FileText, FolderOpen, Loader, AlertCircle, X, ChevronRight, Monitor, ListChecks, Cpu, Server, Gauge, Settings, Cloud, HardDrive, Layers, PieChart, Network, TrendingUp, GitFork, BarChart, MemoryStick, AlertTriangle, Hourglass, Skull, Bell, Box, Briefcase, Boxes } from 'lucide-react';
 // import Breadcrumbs from './Breadcrumbs'; // Commented out - can be restored later
 import ResizableSidebar from './ResizableSidebar';
@@ -13,6 +13,9 @@ import { onBackendInfo } from '../utils/platform';
 // Relative path on purpose: chart.js's package "exports" map does not expose
 // dist/chart.umd.js, so the bare specifier cannot be resolved by Vite.
 import chartUmdSource from '../../node_modules/chart.js/dist/chart.umd.js?raw';
+// The shared frame script (the busy state and the chart helper every plugin uses): one file, inlined into every
+// tab's frame after Chart.js and the theme bridge; the standalone Flask dashboard links the same file.
+import diagnosticsUiSource from '../../backend/static/diagnostics-ui.js?raw';
 
 // The app's current theme, read LIVE from the DOM: ThemeContext toggles the
 // `dark` class on <html> and sets data-theme / data-dark-variant /
@@ -23,13 +26,17 @@ import chartUmdSource from '../../node_modules/chart.js/dist/chart.umd.js?raw';
 // whole set is mirrored onto the frame's <html> so the tokens resolve inside
 // the frame exactly as outside (Jacaranda violet vs neutral grey, light).
 function appTheme() {
-  if (typeof document === 'undefined') return { dark: false, theme: null, darkVariant: null, gradient: null };
+  if (typeof document === 'undefined') return { dark: false, theme: null, darkVariant: null, gradient: null, vars: {} };
   const root = document.documentElement;
+  // the custom properties set inline on <html> (a runtime override of a token, e.g. --btn-primary-bg): the frame gets them too
+  const vars = {};
+  for (let i = 0; i < root.style.length; i++) { const n = root.style[i]; if (n.startsWith('--')) vars[n] = root.style.getPropertyValue(n); }
   return {
     dark: root.classList.contains('dark'),
     theme: root.getAttribute('data-theme'),
     darkVariant: root.getAttribute('data-dark-variant'),
     gradient: root.getAttribute('data-gradient'),
+    vars,
   };
 }
 
@@ -67,6 +74,9 @@ const escapeAttr = (value) => String(value).replace(/&/g, '&amp;').replace(/"/g,
 function getDiagnosticsChartScriptTag() {
   return `<script>${chartUmdSource}</script>`;
 }
+function getDiagnosticsUiScriptTag() {
+  return `<script>${diagnosticsUiSource}</script>`;
+}
 
 // Normalize a tab fragment before embedding it in the iframe srcdoc.
 //
@@ -97,7 +107,7 @@ function normalizeFragmentHtml(html) {
 // not listed here is refused - a malicious diagnostic payload must NOT be able
 // to reach sensitive authenticated routes (e.g. /api/execute-ssh) through this
 // channel. One-shot POSTs vs streamed (SSE) responses are allowlisted separately.
-const DIAGNOSTICS_API_ALLOWLIST = new Set(['/get_log_date_range', '/parse_haproxy_log']);
+const DIAGNOSTICS_API_ALLOWLIST = new Set(['/get_log_date_range', '/parse_haproxy_log', '/audit_event_body', '/audit_events_search', '/audit_events_cancel']);
 const DIAGNOSTICS_API_STREAM_ALLOWLIST = new Set(['/parse_log_viewer_stream']);
 
 function buildDiagnosticsSrcDoc(fragmentHtml, theme) {
@@ -211,6 +221,8 @@ ${getDiagnosticsChartScriptTag()}
         chart.update('none');
       } catch (e) { /* a chart mid-destroy: leave it */ }
     });
+    // the helper's charts: every series colour and fill resolved again (no black fill after a switch)
+    if (window.diagChart && window.diagChart.retheme) { try { window.diagChart.retheme(); } catch (e) { /* a chart mid-destroy */ } }
     return instances.length;
   }
   window.diagnosticsApplyTheme = applyThemeToCharts;
@@ -251,9 +263,35 @@ ${getDiagnosticsChartScriptTag()}
     });
   };
   // Ask the page to show another tab of the same report, e.g. an overview
-  // linking to one of its sub-tabs: diagnosticsOpenTab('security', 'csr').
-  window.diagnosticsOpenTab = function (tab, subTab) {
-    parent.postMessage({ __diagnosticsApi: true, dir: 'up', type: 'open-tab', tab: tab, subTab: subTab || null }, '*');
+  // linking to one of its sub-tabs: diagnosticsOpenTab('security', 'csr'). A
+  // query is handed to the new page once it is up (diagLinks.applyQuery puts
+  // it into the page's [data-ui-search] field): a Findings row's "Open".
+  window.diagnosticsOpenTab = function (tab, subTab, query) {
+    parent.postMessage({ __diagnosticsApi: true, dir: 'up', type: 'open-tab', tab: tab, subTab: subTab || null, query: query ? String(query).slice(0, 200) : null }, '*');
+  };
+  // Where the diagnostics pane's viewport lies over this frame. The frame never
+  // scrolls (the pane does, and sizes the frame to its content), so a template's
+  // sticky header or floating control cannot hold its place on its own: the
+  // parent posts the viewport's top (in frame coordinates, negative while the
+  // frame starts below it) and height on every scroll and resize; the frame
+  // mirrors them into window.diagnosticsViewport, the --frame-view-top /
+  // --frame-view-height / --frame-view-bottom custom properties on <html>
+  // (--frame-view-bottom clamped to the frame's own height, for a control
+  // pinned to the bottom of the view) and a 'diagnosticsviewport' event.
+  window.diagnosticsViewport = null;
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (!d || d.__diagnosticsViewport !== true) return;
+    var top = Number(d.top) || 0, height = Number(d.height) || 0;
+    var bottom = Math.min(top + height, document.documentElement.clientHeight || top + height);
+    window.diagnosticsViewport = { top: top, height: height, bottom: bottom };
+    var st = document.documentElement.style;
+    st.setProperty('--frame-view-top', top + 'px'); st.setProperty('--frame-view-height', height + 'px'); st.setProperty('--frame-view-bottom', bottom + 'px');
+    try { window.dispatchEvent(new CustomEvent('diagnosticsviewport', { detail: window.diagnosticsViewport })); } catch (err) { /* no CustomEvent */ }
+  });
+  // Ask the pane to scroll so that frame coordinate y sits at the top of the view.
+  window.diagnosticsScrollTo = function (y) {
+    parent.postMessage({ __diagnosticsApi: true, dir: 'up', type: 'scroll-to', y: Number(y) || 0 }, '*');
   };
   // Streamed authenticated POST. onText is called with each decoded text chunk;
   // returns { done: Promise, cancel: fn } so callers can await completion and
@@ -269,6 +307,7 @@ ${getDiagnosticsChartScriptTag()}
   };
 })();
 </script>
+${getDiagnosticsUiScriptTag()}
 </head>
 <body>
 <div id="diagnostics-content">
@@ -304,6 +343,7 @@ ${normalizeFragmentHtml(fragmentHtml)}
   // included), the Chart.js re-colouring, and any template's own
   // MutationObserver on the class.
   var loads = 0;
+  var appliedVars = [];
   function reportTheme() {
     try {
       var html = document.documentElement;
@@ -343,6 +383,13 @@ ${normalizeFragmentHtml(fragmentHtml)}
     set('data-gradient', d.gradient);
     if (d.dark) html.classList.add('dark');
     else html.classList.remove('dark');
+    // the inline custom properties of the app's <html>: applied here, the ones gone since removed
+    if (d.vars && typeof d.vars === 'object') {
+      var names = Object.keys(d.vars);
+      appliedVars.forEach(function (n) { if (names.indexOf(n) < 0) html.style.removeProperty(n); });
+      names.forEach(function (n) { if (n.indexOf('--') === 0) html.style.setProperty(n, String(d.vars[n])); });
+      appliedVars = names;
+    }
     if (window.diagnosticsApplyTheme) window.diagnosticsApplyTheme();
     // the templates' own observers run on the class change: re-apply after them
     setTimeout(function () { if (window.diagnosticsApplyTheme) window.diagnosticsApplyTheme(); reportTheme(); reportHeight(); }, 60);
@@ -410,9 +457,12 @@ export default function DiagnosticsPage() {
     }
   }), []);
   const iframeRef = useRef(null);
+  const contentScrollRef = useRef(null);   // the content pane that scrolls over the frame
+  const viewportRaf = useRef(0);
   // Latest tabs/loadTab for the iframe message handler (registered once).
   const tabsRef = useRef([]);
   const loadTabRef = useRef(() => {});
+  const pendingQueryRef = useRef(null);   // a cross-link's search term for the tab being opened (see open-tab / apply-query)
   // The phone layout: the parser tabs are a drawer under a page header
   const { isMobile } = useMobile();
   const [innerSidebarVisible, setInnerSidebarVisible] = useState(() => {
@@ -490,9 +540,32 @@ export default function DiagnosticsPage() {
       }
     };
     const observer = new MutationObserver(syncTheme);
-    observer.observe(root, { attributes: true, attributeFilter: ['class', 'data-theme', 'data-dark-variant', 'data-gradient'] });
+    observer.observe(root, { attributes: true, attributeFilter: ['class', 'data-theme', 'data-dark-variant', 'data-gradient', 'style'] });
     return () => observer.disconnect();
   }, []);
+
+  // Tell the frame where the pane's viewport lies over it (see the frame-side
+  // diagnosticsViewport in buildDiagnosticsSrcDoc): on every scroll of the
+  // content pane, every resize, each height report and the frame's load, in
+  // frame coordinates (the viewport's top relative to the frame's top, and its
+  // height), one message per animation frame at most.
+  const postViewport = useCallback(() => {
+    if (viewportRaf.current) return;
+    viewportRaf.current = requestAnimationFrame(() => {
+      viewportRaf.current = 0;
+      const frame = iframeRef.current;
+      const scroller = contentScrollRef.current;
+      if (!frame || !frame.contentWindow || !scroller) return;
+      const fr = frame.getBoundingClientRect();
+      const sr = scroller.getBoundingClientRect();
+      frame.contentWindow.postMessage({ __diagnosticsViewport: true, top: Math.round(sr.top - fr.top), height: Math.round(sr.height) }, '*');
+    });
+  }, []);
+  useEffect(() => {
+    window.addEventListener('scroll', postViewport, true);
+    window.addEventListener('resize', postViewport);
+    return () => { window.removeEventListener('scroll', postViewport, true); window.removeEventListener('resize', postViewport); if (viewportRaf.current) cancelAnimationFrame(viewportRaf.current); };
+  }, [postViewport]);
 
   // Size the iframe to its content height (reported via postMessage) so the
   // outer page scrolls as one flow, matching the previous inline rendering
@@ -504,6 +577,12 @@ export default function DiagnosticsPage() {
       const data = event.data;
       if (data && data.__diagnosticsIframe && data.type === 'height') {
         frame.style.height = `${data.height}px`;
+        postViewport();
+        // a cross-link's search term, handed to the page on its first height report (the page is up by then)
+        if (pendingQueryRef.current) {
+          const q = pendingQueryRef.current; pendingQueryRef.current = null;
+          frame.contentWindow.postMessage({ __diagnosticsApi: true, dir: 'down', type: 'apply-query', query: q }, '*');
+        }
       }
       // The frame's view of the theme it applied (computed card / divider /
       // chart colours) - a read-only hook for the live tests and the driver.
@@ -513,7 +592,7 @@ export default function DiagnosticsPage() {
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [postViewport]);
 
   // Authenticated-backend proxy for the sandboxed iframe. The frame has no
   // window.electronAPI (opaque origin) so it cannot attach the required
@@ -551,7 +630,18 @@ export default function DiagnosticsPage() {
         if (!known) return;
         if (subTab && !(known.sub_tabs || []).some(st => st.tab_name === subTab)) return;
         setExpandedTabs(prev => (prev.includes(tab) ? prev : [...prev, tab]));
+        pendingQueryRef.current = typeof d.query === 'string' && d.query ? d.query.slice(0, 200) : null;
         loadTabRef.current(tab, subTab);
+        return;
+      }
+      if (type === 'scroll-to') {
+        // A scroll of the content pane only: frame coordinate y to the top of the view
+        const scroller = contentScrollRef.current;
+        const y = Number(d.y);
+        if (!scroller || !Number.isFinite(y)) return;
+        const fr = frame.getBoundingClientRect();
+        const sr = scroller.getBoundingClientRect();
+        scroller.scrollTop = Math.max(0, scroller.scrollTop + (fr.top - sr.top) + y);
         return;
       }
       if (type === 'stream-abort') {
@@ -879,6 +969,27 @@ export default function DiagnosticsPage() {
     return buildDiagnosticsSrcDoc(content, appTheme());
   }, [content]);
 
+  // The tab-loading pill: the same "Loading <tab>… 2.1 s" pill the plugins show for their own work (diagBusy), here in the
+  // parent while the tab's page is parsed and rendered on the backend, after 300 ms so a quick tab shows none
+  // (the start time lives in a ref and the 100 ms interval is the only thing that sets state, so the effect itself renders nothing)
+  const loadingSinceRef = useRef(0);
+  const [loadingNow, setLoadingNow] = useState(0);
+  useEffect(() => {
+    if (!loading) { loadingSinceRef.current = 0; return undefined; }
+    loadingSinceRef.current = Date.now();
+    const t = setInterval(() => setLoadingNow(Date.now()), 100);
+    return () => clearInterval(t);
+  }, [loading]);
+  const loadingLabel = activeSubTab
+    ? tabs.find(t => t.tab_name === activeTab)?.sub_tabs?.find(st => st.tab_name === activeSubTab)?.label
+    : tabs.find(t => t.tab_name === activeTab)?.label;
+  const loadingElapsed = loading && loadingSinceRef.current ? loadingNow - loadingSinceRef.current : 0;
+  const loadingPill = loadingElapsed >= 300 ? (
+    <div className="ui-busy-pill ui-busy" role="status" data-testid="diagnostics-loading-pill">
+      <span className="ui-busy-pill-text">Loading {loadingLabel || 'the tab'}… {(loadingElapsed / 1000).toFixed(1)} s</span>
+    </div>
+  ) : null;
+
   // Memoize the content rendering to prevent re-renders when sidebar visibility changes
   const renderedContent = useMemo(() => {
     if (loading) {
@@ -892,6 +1003,7 @@ export default function DiagnosticsPage() {
         key={`${directory}-${activeTab}-${activeSubTab || 'main'}`}
         ref={iframeRef}
         title="Diagnostics content"
+        data-tab={activeSubTab || activeTab}
         sandbox="allow-scripts"
         srcDoc={iframeSrcDoc}
         onLoad={() => {
@@ -904,11 +1016,12 @@ export default function DiagnosticsPage() {
               '*'
             );
           }
+          postViewport();
         }}
         style={{ width: '100%', minHeight: '120px', border: 'none', display: 'block' }}
       />
     );
-  }, [loading, content, iframeSrcDoc, activeTab, activeSubTab, directory]);
+  }, [loading, content, iframeSrcDoc, activeTab, activeSubTab, directory, postViewport]);
 
   return (
     <div className="flex h-full">
@@ -956,7 +1069,7 @@ export default function DiagnosticsPage() {
               </div>
               <button
                 onClick={() => setError('')}
-                className="px-3 py-1.5 text-xs text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/20"
+                className="btn btn-danger-ghost px-3 py-1.5 text-xs"
               >
                 Dismiss
               </button>
@@ -984,13 +1097,13 @@ export default function DiagnosticsPage() {
                     checkBackendHealth();
                   }}
                   disabled={checkingBackend}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-sm transition-colors disabled:opacity-50"
+                  className="btn btn-danger-ghost flex items-center gap-2 px-3 py-1.5 text-xs"
                 >
                   Retry
                 </button>
                 <button
                   onClick={() => setBackendBannerDismissed(true)}
-                  className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-sm transition-colors"
+                  className="btn btn-danger-ghost p-1"
                 >
                   <X size={16} className="text-red-600 dark:text-red-400" />
                 </button>
@@ -1007,7 +1120,7 @@ export default function DiagnosticsPage() {
             </div> */}
 
             {/* Content */}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto" ref={contentScrollRef}>
               <div className="p-6">
                 <h1 className="text-xl font-semibold text-os-text-primary mb-4">
                   {activeSubTab
@@ -1016,6 +1129,7 @@ export default function DiagnosticsPage() {
                 </h1>
 
                 {renderedContent}
+                {loadingPill}
               </div>
             </div>
           </>
@@ -1045,7 +1159,7 @@ export default function DiagnosticsPage() {
                         <button
                           onClick={() => loadAvailableReports(reportsDirectory)}
                           disabled={loadingReports}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-os-text-secondary hover:text-os-blue hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-os-border hover:border-os-blue transition-colors disabled:opacity-50"
+                          className="btn btn-secondary flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
                           title="Refresh report list"
                         >
                           Refresh
@@ -1053,7 +1167,7 @@ export default function DiagnosticsPage() {
                         <button
                           onClick={handleBrowseDifferentLocation}
                           disabled={backendStatus === 'offline'}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-white bg-os-blue hover:bg-os-blue-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="btn btn-primary flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
                           title={backendStatus === 'offline' ? 'Backend service is not running' : 'Browse for report directory'}
                         >
                           Browse different location
@@ -1065,7 +1179,7 @@ export default function DiagnosticsPage() {
                         <button
                           key={index}
                           onClick={() => loadReportDirectory(report.path, report.type)}
-                          className="flex items-start gap-3 p-4 border border-os-border hover:border-os-blue hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left group"
+                          className="btn btn-secondary justify-start flex items-start gap-3 p-4 text-left group"
                         >
                           <div className="shrink-0 mt-0.5">
                             {report.type === 'sosreport' ? (
@@ -1109,14 +1223,14 @@ export default function DiagnosticsPage() {
                       <button
                         onClick={() => loadAvailableReports(reportsDirectory)}
                         disabled={loadingReports}
-                        className="inline-flex items-center gap-2 px-3 py-2 text-sm text-os-blue hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-os-border hover:border-os-blue transition-colors disabled:opacity-50"
+                        className="btn btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm"
                       >
                         Refresh
                       </button>
                       <button
                         onClick={handleBrowseDifferentLocation}
                         disabled={backendStatus === 'offline'}
-                        className="inline-flex items-center gap-2 px-3 py-2 text-sm text-white bg-os-blue hover:bg-os-blue-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="btn btn-primary inline-flex items-center gap-2 px-3 py-2 text-sm"
                         title={backendStatus === 'offline' ? 'Backend service is not running' : 'Browse for report directory'}
                       >
                         Browse different location

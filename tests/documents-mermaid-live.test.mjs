@@ -66,6 +66,7 @@ import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { inspectPdf } from './helpers/pdf-inspect.mjs';
 import { launchElectronDocumentsApp } from './helpers/electron-app.mjs';
+import { COLOR_PROBE } from './helpers/color.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const req = createRequire(path.join(REPO, 'package.json'));
@@ -354,7 +355,7 @@ try {
   // In-page WCAG contrast over getComputedStyle() colours, per node/cluster/edge label
   const CONTRAST_REPORT = `(() => {
     const lum = ([r, g, b]) => { const f = (c) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
-    const rgb = (s) => { const m = String(s).match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)/); return m ? [+m[1], +m[2], +m[3]] : null; };
+    const rgb = (s) => { const v = ${COLOR_PROBE}.parse(s); return v ? v.slice(0, 3) : null; };   // any syntax (the shared helper), not only rgb()
     const contrast = (a, b) => { const x = rgb(a), y = rgb(b); if (!x || !y) return null; const la = lum(x), lb = lum(y); return +(((Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)).toFixed(2)); };
     const el = document.querySelector('.markdown-preview .mermaid-diagram');
     const svg = el && el.querySelector('svg');

@@ -95,7 +95,7 @@ export default function ToastNotifications() {
             </button>
             <button
               onClick={() => handleConfirm(notification)}
-              className="px-3 py-1.5 text-xs text-white bg-purple-600 rounded-sm hover:bg-purple-700 transition-colors"
+              className="btn btn-brand px-3 py-1.5 text-xs"
             >
               {notification.confirmLabel || 'Confirm'}
             </button>

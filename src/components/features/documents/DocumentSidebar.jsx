@@ -1010,7 +1010,7 @@ export default function DocumentSidebar({
               onClick={onToggleSelectionMode}
               className={`p-1.5 transition-colors ${
  selectionMode
- ?'bg-os-blue text-white hover:bg-os-blue-hover'
+ ?'btn-selected'
  :'hover:bg-os-card-secondary'
  }`}
               title={selectionMode ? 'Exit selection mode' : 'Select multiple'}
@@ -1848,7 +1848,7 @@ export default function DocumentSidebar({
                 closeMenu();
               }}
               className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors ${
- sortBy ==='date'?'bg-os-blue text-white':'hover:bg-os-card-secondary'
+ sortBy ==='date'?'btn-selected':'hover:bg-os-card-secondary'
  }`}
             >
               <MenuItemIcon action="sortByDate" className={sortBy === 'date' ? 'text-white' : 'text-os-text-secondary'} />
@@ -1860,7 +1860,7 @@ export default function DocumentSidebar({
                 closeMenu();
               }}
               className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors ${
- sortBy ==='title'?'bg-os-blue text-white':'hover:bg-os-card-secondary'
+ sortBy ==='title'?'btn-selected':'hover:bg-os-card-secondary'
  }`}
             >
               <MenuItemIcon action="sortByTitle" className={sortBy === 'title' ? 'text-white' : 'text-os-text-secondary'} />
@@ -1872,7 +1872,7 @@ export default function DocumentSidebar({
                 closeMenu();
               }}
               className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors ${
- sortBy ==='cloud'?'bg-os-blue text-white':'hover:bg-os-card-secondary'
+ sortBy ==='cloud'?'btn-selected':'hover:bg-os-card-secondary'
  }`}
             >
               <MenuItemIcon action="sortByCloud" className={sortBy === 'cloud' ? 'text-white' : 'text-os-text-secondary'} />
@@ -2081,7 +2081,7 @@ export default function DocumentSidebar({
                       });
                     }
                   }}
-                  className="px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors rounded-sm"
+                  className="btn btn-primary px-4 py-2 text-sm"
                 >
                   Copy Again
                 </button>
@@ -2188,7 +2188,7 @@ export default function DocumentSidebar({
               <button
                 onClick={handleCreateCategory}
                 disabled={!newCategoryName.trim()}
-                className="px-4 py-2 bg-os-blue text-white text-sm hover:bg-os-blue-hover transition-colors rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn btn-primary px-4 py-2 text-sm"
               >
                 Create Category
               </button>
