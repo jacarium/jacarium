@@ -62,12 +62,13 @@ const email = J('someone', '@', 'corp-mail', '.', 'not-an-example', '.com');
 const userAtIp = J('deployer', '@', '192.168', '.7.9');
 const homePath = J('/Users', '/', 'someperson', '/Documents');
 const tenant = J('https://', 'acme-corp', '.atlassian', '.net/browse/X-1');
+const ipHost = J('sosreport-', 'ip-10', '-0-42-', '46-master');
 fs.mkdirSync(path.join(tmp, 'docs'), { recursive: true });
 fs.mkdirSync(path.join(tmp, 'secrets'), { recursive: true });
 fs.writeFileSync(path.join(tmp, 'docs', 'notes.txt'), [
   `contact ${email}`, `deploy to ${userAtIp}`, `backup in ${homePath}`,
-  `case ${caseNumber} escalated`, `tracker ${tenant}`, `key ${awsKey}`,
-  `ok: pi@192.168.0.50, you@example.com, /home/user/reports, 00000000, https://your-company.atlassian.net`,
+  `case ${caseNumber} escalated`, `tracker ${tenant}`, `key ${awsKey}`, `node ${ipHost}`,
+  `ok: pi@192.168.0.50, you@example.com, /home/user/reports, 00000000, https://your-company.atlassian.net, ip-192-0-2-46.example.internal, sosreport-ip-198-51-100-9-worker`,
 ].join('\n') + '\n');
 fs.writeFileSync(path.join(tmp, 'secrets', '.env'), 'X=1\n');
 fs.writeFileSync(path.join(tmp, 'big.bin'), Buffer.alloc(1024 * 1024 + 1));
@@ -110,7 +111,7 @@ fs.writeFileSync(path.join(tmp, 'docs', 'logo.svg'), '<svg xmlns="http://www.w3.
 {
   const r = scan(['--dir', tmp, '--denylist', denylist, '--max-mb', '1']);
   check('a directory with synthetic leaks fails', r.status === 1, String(r.status));
-  for (const name of ['email', 'user@private-ip', 'home path', 'case number', 'atlassian tenant', 'secret (aws access key)',
+  for (const name of ['email', 'user@private-ip', 'home path', 'ip hostname', 'case number', 'atlassian tenant', 'secret (aws access key)',
     'forbidden file', 'size', 'denylist', 'denylist (file name)', 'image location', 'png metadata', 'svg metadata', 'webp metadata']) {
     const line = r.out.split('\n').find((l) => l.startsWith(name + ' '));
     check(`finds: ${name}`, !!line, line || '-');
@@ -118,7 +119,8 @@ fs.writeFileSync(path.join(tmp, 'docs', 'logo.svg'), '<svg xmlns="http://www.w3.
   check('the clean png in public/ is not reported', !/clean\.png/.test(r.out));
   check('a PNG renamed .webp in docs/screenshots/ is reported, and its PNG metadata too', /^image location\s+docs\/screenshots\/renamed\.webp\s+named \.webp but not a WebP file/m.test(r.out) && /^png metadata\s+docs\/screenshots\/renamed\.webp/m.test(r.out), r.out.split('\n').filter((l) => /renamed/.test(l)).join(' | '));
   check('a clean WebP in docs/screenshots/ is not reported; a PNG there is (WebP only)', !/clean\.webp/.test(r.out) && /^image location\s+docs\/screenshots\/shot\.png/m.test(r.out), r.out.split('\n').filter((l) => /screenshots/.test(l)).join(' | '));
-  check('documented placeholders are not reported (pi@, example.com, /home/user, 00000000, your-company)', !/notes\.txt:7/.test(r.out), r.out.split('\n').filter((l) => l.includes('notes.txt:7')).join(' | '));
+  check('documented placeholders are not reported (pi@, example.com, /home/user, 00000000, your-company, the documentation-range ip- hostnames)', !/notes\.txt:8/.test(r.out), r.out.split('\n').filter((l) => l.includes('notes.txt:8')).join(' | '));
+  check('the output masks the ip hostname', !r.out.includes(ipHost) && /^ip hostname\s+docs\/notes\.txt:7\s+ip-1/m.test(r.out), r.out.split('\n').filter((l) => l.startsWith('ip hostname')).join(' | '));
   check('the output masks the secret', !r.out.includes(awsKey) && r.out.includes(awsKey.slice(0, 4) + '…'));
   check('the output masks the case number', !r.out.includes(caseNumber));
   check('the output masks the email', !r.out.includes(email));

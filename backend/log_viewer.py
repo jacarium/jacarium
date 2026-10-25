@@ -291,11 +291,20 @@ PARSERS = {
             'icon': 'fas fa-shield-alt',
             'label': 'Audit'
         },
-        # Last on purpose: the sizes of what the must-gather holds
+        # Last on purpose: the sizes of what the must-gather holds; the Log Viewer under it as in a sosreport (the
+        # shared viewer, tabs/_log_view.html, over the container, host service and node logs). A deep link
+        # {"tab": "log_viewer"} resolves to the group (_resolve_tab); {"tab": "log_collection"} opens the group page.
         'log_collection': {
             'module': 'parsers.mustgather.log_collection',
             'icon': 'fas fa-stream',
-            'label': 'Log Collection'
+            'label': 'Log Collection',
+            'sub_tabs': {
+                'log_viewer': {
+                    'module': 'parsers.mustgather.log_viewer',
+                    'icon': 'fas fa-file-alt',
+                    'label': 'Log Viewer'
+                },
+            }
         },
     }
 }
@@ -422,6 +431,16 @@ def list_reports():
 
     except Exception as e:
         return jsonify({"error": str(e), "reports": []}), 500
+
+
+@log_viewer.app_template_filter('wbr')
+def wbr_filter(value):
+    """A break opportunity (<wbr>) after / . _ : = in an identifier (a path, an image reference, a namespace/name),
+    so a wrapped table cell breaks at a readable place rather than mid-word; the value is escaped first."""
+    import re
+    from markupsafe import Markup, escape
+    text = str(escape('' if value is None else value))
+    return Markup(re.sub(r'([/._:=])(?=\S)', r'\1<wbr>', text))
 
 
 @log_viewer.route("/get_tabs", methods=["POST"])
@@ -606,6 +625,55 @@ def audit_events_cancel():
     return jsonify({"ok": True})
 
 
+@log_viewer.route("/mustgather_log_search", methods=["POST"])
+def mustgather_log_search():
+    """The must-gather Log Viewer's paged search (parsers/mustgather/log_viewer.py): one page of rows from the
+    selected logs (only files the gather lists, inside its directory) for the date range and the optional terms,
+    with the cursor to continue from; a bad request is a 400, a cancelled one (a newer search over the same gather,
+    or /mustgather_log_cancel) a 409."""
+    data = request.json if isinstance(request.json, dict) else {}
+    directory, refusal = _report_directory(data.get("directory"))
+    if refusal:
+        return refusal
+    from parsers.mustgather import log_viewer as mg_log_viewer
+    query, error = mg_log_viewer.validate(data, directory)
+    if error:
+        return jsonify({"error": error}), 400
+    result = mg_log_viewer.search(directory, query)
+    if not result.get("ok"):
+        return jsonify(result), 409
+    return jsonify(result)
+
+
+@log_viewer.route("/mustgather_log_date_range", methods=["POST"])
+def mustgather_log_date_range():
+    """The must-gather Log Viewer's Get Date Range: the earliest and latest timestamps of the selected logs (the head
+    and tail of each, every line format the search knows, .gz included), and which of them carry no timestamps at
+    all - those are listed, never an error. Only logs the gather lists, inside its directory."""
+    data = request.json if isinstance(request.json, dict) else {}
+    directory, refusal = _report_directory(data.get("directory"))
+    if refusal:
+        return refusal
+    from parsers.mustgather import log_viewer as mg_log_viewer
+    paths = data.get("paths") or data.get("log_paths") or []
+    chosen, error = mg_log_viewer.chosen_sources(paths, directory)
+    if error:
+        return jsonify({"error": error}), 400
+    return jsonify(mg_log_viewer.date_range(directory, chosen))
+
+
+@log_viewer.route("/mustgather_log_cancel", methods=["POST"])
+def mustgather_log_cancel():
+    """The must-gather Log Viewer's Abort: stops the gather's running search page."""
+    data = request.json if isinstance(request.json, dict) else {}
+    directory, refusal = _report_directory(data.get("directory"))
+    if refusal:
+        return refusal
+    from parsers.mustgather import log_viewer as mg_log_viewer
+    mg_log_viewer.cancel(directory)
+    return jsonify({"ok": True})
+
+
 @log_viewer.route("/get_tab_data", methods=["POST"])
 def get_tab_data():
     """Get raw JSON data for a tab (for AI context)"""
@@ -674,6 +742,23 @@ def parse_log_viewer_stream():
     start_date = request.json.get("start_date")
     end_date = request.json.get("end_date")
     log_paths = request.json.get("log_paths", [])
+    # the filters applied while streaming (the viewer sends what its fields hold at Load Logs): plain substrings,
+    # any of query / none of exclude over "host process message", a level, a process - never a pattern
+    def terms(key):
+        v = request.json.get(key) or []
+        if isinstance(v, str):
+            v = [v]
+        if not isinstance(v, list) or any(not isinstance(t, str) for t in v):
+            return None
+        return [t.lower()[:200] for t in v if t.strip()][:20]
+    query, exclude = terms("query"), terms("exclude")
+    level = request.json.get("level") or ""
+    process = request.json.get("process") or ""
+    if query is None or exclude is None or not isinstance(level, str) or not isinstance(process, str) or len(process) > 300:
+        return jsonify({"error": "a search term is not a string"}), 400
+    if level and level not in ("critical", "error", "warning", "info", "debug", "other"):
+        return jsonify({"error": "the level is not one of critical, error, warning, info, debug, other"}), 400
+    filtered = bool(query or exclude or level or process)
 
     uploaded_dir, refusal = _report_directory(uploaded_dir)
     if refusal:
@@ -685,12 +770,36 @@ def parse_log_viewer_stream():
     # Only files inside the report directory may be opened
     log_paths = _paths_within(uploaded_dir, log_paths)
 
+    def keep(e):
+        if level and e.get("severity") != level:
+            return False
+        if process and e.get("process") != process:
+            return False
+        if query or exclude:
+            text = f"{e.get('hostname', '')} {e.get('process', '')} {e.get('message', '')}".lower()
+            if query and not any(t in text for t in query):
+                return False
+            if exclude and any(t in text for t in exclude):
+                return False
+        return True
+
     def generate():
         try:
             from parsers.sosreport import log_viewer
 
+            matched = 0
             # Stream entries as they're parsed
             for chunk in log_viewer.parse_date_range_stream(uploaded_dir, start_date, end_date, log_paths):
+                if filtered:
+                    # every chunk, the closing one included: the matches so far count as the total, what was read
+                    # stays as scanned; an emptied chunk mid-stream is not sent
+                    chunk = dict(chunk)
+                    chunk["scanned"] = chunk.get("total_count", 0)
+                    chunk["entries"] = [e for e in chunk.get("entries") or [] if keep(e)]
+                    matched += len(chunk["entries"])
+                    chunk["total_count"] = matched
+                    if not chunk["entries"] and not chunk.get("done"):
+                        continue
                 # Send chunk as SSE
                 yield f"data: {json.dumps(chunk)}\n\n"
 

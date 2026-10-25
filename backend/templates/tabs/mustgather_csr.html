@@ -1,6 +1,8 @@
 {% import "tabs/_ui.html" as ui %}
+{% import "tabs/_detail.html" as detail %}
 {{ ui.findings(findings) }}
-<div id="csrPanel" class="grid grid-cols-1 gap-4">
+{# no CSR at all: the Findings strip alone #}
+<div id="csrPanel" class="grid grid-cols-1 gap-4"{% if not data %} hidden{% endif %}>
  <div class="panel rounded-lg shadow-sm w-full">
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-chart-bar mr-2"></i> CSR Status Overview
@@ -55,70 +57,21 @@
  </div>
 </div>
 
-<div id="csrDetailsPanel" style="display: none;">
- <div class="space-y-4">
- <div class="mb-4">
- <button onclick="window.backFromCsrModal()" class="btn btn-secondary flex items-center gap-2">
- Back
- </button>
- </div>
+{{ ui.detail_page('csrDetail') }}
 
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-info-circle mr-2"></i> CSR Details
- </h3>
- <div class="overflow-x-auto">
- <table class="ui-table" id="csrDetailsTable"></table>
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-users mr-2"></i> Groups
- </h3>
- <div id="csrGroupsTable" class="text-sm"></div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-key mr-2"></i> Usages
- </h3>
- <div id="csrUsagesTable" class="text-sm"></div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-check-circle mr-2"></i> Conditions
- </h3>
- <div id="csrConditionsTable" class="text-sm"></div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-file mr-2"></i> CSR YAML
- </h2>
- <div class="mb-2">
- <input id="csrYamlFilter" type="text" placeholder="Filter YAML lines..." class="ui-input w-full"/>
- </div>
- <div id="csrJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
- </div>
- </div>
-</div>
-
-
+{{ detail.k8s_detail_script() }}
 <script>
+ var byKey = {};   // request name -> the parsed request, for the detail (declared first: the rows fill it as they render)
  var csrsData = {{ data | tojson }};
  var currentSort = { key: null, direction: 1 };
  var csrCurrentPage = 1;
  var csrPageSize = 50;
- var currentCsrDetails = null;
 
  var csrTableBody = document.getElementById("csrTableBody");
  var csrStatusFilter = document.getElementById("csrStatusFilter");
  var csrSignerFilter = document.getElementById("csrSignerFilter");
  var csrSearchInput = document.getElementById("csrSearchInput");
  var csrPanel = document.getElementById("csrPanel");
- var csrDetailsPanel = document.getElementById("csrDetailsPanel");
 
  function formatDuration(seconds) {
  if (!seconds) return '-';
@@ -245,120 +198,15 @@
  '<td>' + createdText + '</td>' +
  '<td>' + expirationText + '</td>';
 
- row.onclick = function() { showCsrDetails(csr); };
+ row.setAttribute('data-detail', csr.name);
+ row.tabIndex = 0;
+ byKey[csr.name] = csr;
  return row;
  }
 
- function showCsrDetails(csr) {
- currentCsrDetails = csr;
- csrPanel.style.display = "none";
- csrDetailsPanel.style.display = "block";
 
- var detailsTable = document.getElementById("csrDetailsTable");
- detailsTable.innerHTML =
- '<tr><td>Name:</td><td>' + csr.name + '</td></tr>' +
- '<tr><td>Status:</td><td>' + csr.status + '</td></tr>' +
- '<tr><td>Reason:</td><td>' + (csr.status_reason || '-') + '</td></tr>' +
- '<tr><td>Message:</td><td>' + (csr.status_message || '-') + '</td></tr>' +
- '<tr><td>Signer:</td><td>' + csr.signer_name + '</td></tr>' +
- '<tr><td>Username:</td><td>' + csr.username + '</td></tr>' +
- '<tr><td>Created:</td><td>' + formatTimestamp(csr.created) + '</td></tr>' +
- '<tr><td>Expiration:</td><td>' + formatDuration(csr.expiration_seconds) + ' (' + csr.expiration_seconds + 's)</td></tr>' +
- '<tr><td>Certificate Issued:</td><td>' + (csr.has_certificate ? 'Yes' : 'No') + '</td></tr>';
 
- // Groups
- var groupsDiv = document.getElementById("csrGroupsTable");
- if (csr.groups && csr.groups.length > 0) {
- var groupsHtml = '<div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-sm"><code class="text-xs">';
- csr.groups.forEach(function(group) {
- groupsHtml += group + '<br>';
- });
- groupsHtml += '</code></div>';
- groupsDiv.innerHTML = groupsHtml;
- } else {
- groupsDiv.innerHTML = '<div class="text-gray-500">No groups</div>';
- }
 
- // Usages
- var usagesDiv = document.getElementById("csrUsagesTable");
- if (csr.usages && csr.usages.length > 0) {
- var usagesHtml = '<div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-sm"><code class="text-xs">';
- csr.usages.forEach(function(usage) {
- usagesHtml += usage + '<br>';
- });
- usagesHtml += '</code></div>';
- usagesDiv.innerHTML = usagesHtml;
- } else {
- usagesDiv.innerHTML = '<div class="text-gray-500">No usages</div>';
- }
-
- // Conditions
- var conditionsDiv = document.getElementById("csrConditionsTable");
- if (csr.conditions && csr.conditions.length > 0) {
- var conditionsHtml = '<table class="ui-table"><thead><tr>' +
- '<th>Type</th>' +
- '<th>Status</th>' +
- '<th>Reason</th>' +
- '<th>Message</th>' +
- '</tr></thead><tbody>';
-
- csr.conditions.forEach(function(condition) {
- conditionsHtml += '<tr>' +
- '<td>' + (condition.type || '-') + '</td>' +
- '<td>' + (condition.status || '-') + '</td>' +
- '<td>' + (condition.reason || '-') + '</td>' +
- '<td>' + (condition.message || '-') + '</td>' +
- '</tr>';
- });
- conditionsHtml += '</tbody></table>';
- conditionsDiv.innerHTML = conditionsHtml;
- } else {
- conditionsDiv.innerHTML = '<div class="text-gray-500">No conditions</div>';
- }
-
- // YAML viewer
- renderCsrYaml();
- }
-
- function highlightJSON(line) {
- line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
- return line
- .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
- .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
- .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
- .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
- .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
- }
-
- function renderJSONWithoutHighlight(data, filter) {
- var formatted = JSON.stringify(data, null, 2);
- return formatted.split('\n')
- .filter(function(line) {
- return !filter || line.toLowerCase().includes(filter.toLowerCase());
- })
- .map(function(line) {
- var highlighted = highlightJSON(line);
- return '<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">' + highlighted + '</div>';
- }).join('');
- }
-
- function renderCsrYaml() {
- var viewer = document.getElementById("csrJsonViewer");
- var filter = document.getElementById("csrYamlFilter");
-
- function updateYaml() {
- var filterText = filter.value;
- viewer.innerHTML = renderJSONWithoutHighlight(currentCsrDetails.raw, filterText);
- }
-
- filter.oninput = updateYaml;
- updateYaml();
- }
-
- window.backFromCsrModal = function() {
- csrDetailsPanel.style.display = "none";
- csrPanel.style.display = "block";
- };
 
  function updateFilteredCount(total, start, end) {
  var countDiv = document.getElementById("filteredCsrCount");
@@ -499,4 +347,24 @@
  renderCsrTable();
  renderStatusChart();
 
+ const D = window.diagDetail, K = window.k8sDetail;
+ function renderCsrDetail(key, view) {
+ var csr = byKey[key];
+ if (!csr || !csr.raw) return false;
+ var raw = csr.raw, d = csr.detail || {}, meta = raw.metadata || {};
+ var badge = csr.status === 'Approved' ? { kind: 'ok', text: csr.has_certificate ? 'Approved, issued' : 'Approved' } : (csr.status === 'Pending' ? { kind: 'warn', text: 'Pending' } : { kind: 'bad', text: csr.status || 'Unknown' });
+ return K.page(view, {
+ name: csr.name, kind: 'CertificateSigningRequest', raw: raw, d: d, crumbs: ['Certificate Signing Requests', csr.name], badge: badge,
+ summary: [
+ ['Status', csr.status + (csr.status_reason ? ' (' + csr.status_reason + ')' : '')], ['Message', csr.status_message], ['Signer', csr.signer_name, 'mono'], ['Requester', csr.username, 'mono'],
+ ['Created', formatTimestamp(csr.created) + (d.age ? ' (' + d.age + ' before the gather)' : '')], ['Expiration', csr.expiration_seconds ? formatDuration(csr.expiration_seconds) + ' (' + csr.expiration_seconds + ' s)' : ''],
+ ['Certificate issued', csr.has_certificate ? 'yes' : 'no'],
+ ['Groups', csr.groups && csr.groups.length ? D.list(csr.groups) : ''], ['Usages', csr.usages && csr.usages.length ? D.list(csr.usages) : ''],
+ ['Labels', K.labels(meta.labels)], ['Annotations', meta.annotations ? Object.keys(meta.annotations).length + ' (in the JSON below)' : ''],
+ ],
+ });
+ }
+ D.register(csrPanel, document.getElementById('csrDetail'), { rows: 'tbody tr[data-detail]', render: renderCsrDetail });
+ window.showCsrDetails = function (csr) { D.open(csr.name); };
+ window.backFromCsrModal = function () { D.back(); };
 </script>

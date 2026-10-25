@@ -176,6 +176,79 @@ def ppid_map(root):
     return {}
 
 
+# the ps forms that list every thread with its id: ps -elfL (a header: LWP, STIME, TIME, CMD) and the sos 4 capture
+# ps axo pid,ppid,user,group,lwp,nlwp,start_time,comm,cgroup (no header: the columns come from the file's name)
+PS_THREAD_SOURCES = ('sos_commands/process/ps_-elfL', 'sos_commands/process/ps_-eLf', 'sos_commands/process/ps_axo_pid_ppid_user_group_lwp_nlwp_start_time_comm_cgroup')
+
+
+def thread_map(root):
+    """{pid: [{'lwp', 'comm', 'start', 'time'}, ...]} from the first ps capture that lists threads with their ids
+    (`ps auxwwwm` shows a process's threads but never their TIDs); {} when the sosreport has none."""
+    for rel in PS_THREAD_SOURCES:
+        p = os.path.join(root, rel)
+        if not os.path.isfile(p):
+            continue
+        lines = read_lines(p)
+        if not lines:
+            continue
+        first = lines[0].split()
+        if 'LWP' in first and 'PID' in first:
+            headers, rows = first, lines[1:]
+            cmd_at = headers.index('CMD') if 'CMD' in headers else (headers.index('COMMAND') if 'COMMAND' in headers else None)
+        elif rel.startswith('sos_commands/process/ps_axo_'):
+            headers = [h.upper() for h in rel.rsplit('ps_axo_', 1)[1].split('_')]   # pid ppid user group lwp nlwp start time comm cgroup
+            # start_time is one column: the split gives START and TIME; rejoin them
+            if 'START' in headers and 'TIME' in headers and headers.index('TIME') == headers.index('START') + 1:
+                headers = headers[:headers.index('START')] + ['STIME'] + headers[headers.index('TIME') + 1:]
+            rows = lines if not (first and first[0].upper() == headers[0]) else lines[1:]
+            cmd_at = headers.index('COMM') if 'COMM' in headers else None
+        else:
+            continue
+        if 'PID' not in headers or 'LWP' not in headers:
+            continue
+        pi, li = headers.index('PID'), headers.index('LWP')
+        si = headers.index('STIME') if 'STIME' in headers else (headers.index('START') if 'START' in headers else None)
+        ti = headers.index('TIME') if 'TIME' in headers else None
+        out = {}
+        for line in rows:
+            parts = line.split()
+            if len(parts) <= max(pi, li) or not parts[pi].isdigit() or not parts[li].isdigit():
+                continue
+            comm = ''
+            if cmd_at is not None and len(parts) > cmd_at:
+                comm = os.path.basename(parts[cmd_at]) if headers[cmd_at] == 'COMM' else os.path.basename(parts[cmd_at])
+            out.setdefault(parts[pi], []).append({'lwp': parts[li], 'comm': comm, 'start': parts[si] if si is not None and len(parts) > si else '', 'time': parts[ti] if ti is not None and len(parts) > ti else ''})
+        if out:
+            return out
+    return {}
+
+
+def join_threads(process, ids):
+    """The thread ids (and names) of a ps -m process's thread rows from the thread map's list: by position when the
+    counts agree (both forms list threads in TID order), else by the start time in order; a thread without a match
+    keeps an empty TID."""
+    threads = process.get('threads') or []
+    ids = ids or []
+    if not threads:
+        return 0
+    joined = 0
+    if len(ids) == len(threads):
+        pairs = list(zip(threads, ids))
+    else:
+        pairs, pool = [], list(ids)
+        for t in threads:
+            match = next((x for x in pool if not x['start'] or not t.get('START') or x['start'] == t.get('START')), None)
+            if match:
+                pool.remove(match)
+            pairs.append((t, match))
+    for t, x in pairs:
+        t['TID'] = x['lwp'] if x else ''
+        t['NAME'] = x['comm'] if x else ''
+        if x:
+            joined += 1
+    return joined
+
+
 def parse_ps_file(ps_path, variant="ps_auxwwwm", ppids=None):
     """`ps auxwwwm` / `ps auxZww` / `ps auxwww` (and any ps form whose header names its columns) into processes.
 

@@ -48,7 +48,7 @@ const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
   const block = start >= 0 && end > start ? css.slice(start, end) : '';
   const declarations = block.replace(/\[[^\]]*\]/g, '');   // attribute selectors such as [fill="#fff"] name what a template wrote, not a colour we apply
   check('src/index.css has the diagnostics block and it uses tokens, no hex colours', block.length > 500 && !/#[0-9a-fA-F]{3,8}\b/.test(declarations) && /var\(--os-card\)/.test(block) && /var\(--os-border\)/.test(block), (declarations.match(/#[0-9a-fA-F]{3,8}\b/g) || []).slice(0, 5).join(','));
-  check('the .panel card is the Card surface: token background, token border, the card radius', /#diagnostics-content \.panel[\s\S]{0,400}var\(--os-card\)/.test(block) && /#diagnostics-content \.panel[\s\S]{0,400}var\(--radius-lg\)/.test(block));
+  check('the .panel card is the Card surface: token background, token border, the card radius', /#diagnostics-content \.panel[\s\S]{0,400}var\(--os-card\)/.test(block) && /#diagnostics-content \.panel[\s\S]{0,400}var\(--radius-lg(, [^)]+)?\)/.test(block));   // the token may carry its px fallback (the frame's own stylesheet can load before the theme block)
   const backendCss = read('backend/static/styles.css');
   check('backend/static/styles.css uses the tokens too (no hex colours left)', !/#[0-9a-fA-F]{3,8}\b/.test(backendCss) && /var\(--os-/.test(backendCss), (backendCss.match(/#[0-9a-fA-F]{3,8}\b/g) || []).slice(0, 5).join(','));
   const dir = path.join(REPO, 'backend', 'templates', 'tabs');

@@ -54,6 +54,10 @@
       {t, label, n, ...} items and {gap: true} items between capture
       windows) on the broken axis; series: [{ label, role, value(bucket) }]
     diagChart.categoryBars(canvas, rows, { colour, onRow, stacked })
+      rows: [{ name (shown), key (the exact filter value, else the name), count, other (not clickable) }]
+    make(canvas, { ..., onPick(pick) })  the one click resolver of a chart: pick = { index, label, key, value,
+      datasetLabel, row } from Chart.js's own hit test on the orientation's axis; data.keys[i] holds the filter
+      value beside each label, data.others[i] marks a bucket that is not clickable; the pointer shows only there
       horizontal bars, one per row ({name, count, errors?}), every label
     diagChart.retheme()   re-resolves every helper chart's colours (the
       bridge calls it on a theme switch: no black fills)
@@ -201,10 +205,348 @@
     table.parentNode.insertBefore(w, table);
     w.appendChild(table);
   }
+
+  /* ------------------------------------------------------------------ */
+  /* diagTables.fit: every table fits its box, no sideways scroll.       */
+  /*                                                                    */
+  /* The table gets table-layout: fixed and a <colgroup> whose widths    */
+  /* come from the columns' content (a sample of rows, measured with    */
+  /* the table's font) and the template's hints on the header cells:    */
+  /*   data-w="num|status|narrow|text|wide|flex|wrap"  the column kind  */
+  /*     num     a number: right-aligned, as wide as its widest value   */
+  /*     status  badges / chips / meters: as wide as the widest one     */
+  /*     narrow  a short word (a namespace, an age, a type)             */
+  /*     text    a longer value: up to ~280 px, wrapping past it         */
+  /*     wide    a long value that reads whole, up to 420 px, wrapping   */
+  /*     flex    THE one flexible column: it takes what is left and     */
+  /*             wraps (natural breaks first, <wbr> after / . _ : =)     */
+  /*     wrap    the same, for a message                                */
+  /*     clamp   a long-content column (a command line, a log message): */
+  /*             three lines, a click opens the whole value             */
+  /*   Text never cuts with an ellipsis; numbers, badges and the chevron */
+  /*   stay on one line at their natural width.                         */
+  /*   data-p="1|2|3"  the priority: when the box is too narrow for the */
+  /*     columns, priority 3 hides first, then 2; 1 (the default), the  */
+  /*     first column and the flexible one never hide. A hidden         */
+  /*     column's values move into the row's details panel and a line  */
+  /*     under the table names them; the stacked layout (<= 640 px)     */
+  /*     shows everything again.                                        */
+  /* Without hints the kinds are guessed from the cells (numbers,       */
+  /* chips, short words; the widest text column is the flexible one).   */
+  /* Only when even the compact widths do not fit does the table keep  */
+  /* its width and scroll sideways (class ui-wide: a sticky first       */
+  /* column and a "scroll" hint under the box) - the last resort.       */
+  /* ------------------------------------------------------------------ */
+  var FIT_SAMPLE = 80, FIT_PAD = 20, FIT_FLEX_MIN = 240, FIT_FLOOR = 64;
+  var fitCtx = null;
+  function textWidth(text, font) { if (!fitCtx) fitCtx = doc.createElement('canvas').getContext('2d'); fitCtx.font = font; return fitCtx.measureText(text).width; }
+  // the font of an element as the canvas wants it (the computed shorthand is not reliable across browsers)
+  function fontOf(node) { var cs = getComputedStyle(node); return (cs.fontStyle !== 'normal' ? cs.fontStyle + ' ' : '') + (cs.fontWeight || '400') + ' ' + (cs.fontSize || '12px') + ' ' + (cs.fontFamily || 'sans-serif'); }
+  // a header's width: its longest word at least (a word cannot wrap), else about half of it plus a little (two lines)
+  function headWidth(th, font) {
+    var cs = getComputedStyle(th);
+    var text = th.textContent.replace(/\s+/g, ' ').trim(); if (!text) return 0;
+    if (cs.textTransform === 'uppercase') text = text.toUpperCase();
+    var spacing = parseFloat(cs.letterSpacing) || 0;   // per character, on top of the glyphs
+    var longest = 0; text.split(' ').forEach(function (w) { longest = Math.max(longest, textWidth(w, font) + spacing * w.length); });
+    var whole = textWidth(text, font) + spacing * text.length;
+    return Math.max(longest, Math.min(whole, whole / 2 + 14)) + (th.hasAttribute('aria-sort') ? 12 : 4);   // the sort marker after the active column's label
+  }
+  // a figure: a number with its unit (57.4 GiB, 88.6 %), a time (12:30:45, 2658:51), a ratio (3 / 38000), a dash
+  var NUMERIC = /^[-+]?[\d.,:/\s]*\d[\d.,%:/\s]*(\s*[a-zA-Z%/µ]{0,6})?$|^-$|^n\/a$/i;
+  // the width a cell's content asks for, measured (never read back from the layout: a wrapped text node's box is
+  // the cell's own width, and a percentage bar scales with it): the text in the cell's font, plus a chip's padding
+  // and gap for every badge / chip / flag / button on the line, a bar's room, a meter's minimum
+  function contentExtent(td, text, font) {
+    var w = textWidth(text, font);
+    var chips = td.querySelectorAll('.ui-chip, .ui-badge, .ui-flag, button:not(.ui-xrow-btn), .ui-tag, .bl-tag').length;
+    w += chips * 22;
+    if (td.querySelector('.ui-bar, .bl-bar')) w += 70;
+    if (td.querySelector('.ui-meter')) w = Math.max(w, 150);
+    if (td.querySelector('svg, img')) w += 20;
+    return Math.min(w, 480);
+  }
+  function fitColumns(table) {
+    var ths = Array.prototype.slice.call(table.tHead ? table.tHead.querySelectorAll('th') : []);
+    if (!ths.length) return [];
+    var rows = Array.prototype.slice.call(table.tBodies[0] ? table.tBodies[0].rows : []).filter(function (r) { return !r.classList.contains('ui-xrow-panel') && !r.hidden && r.style.display !== 'none' && !(r.cells[0] && r.cells[0].colSpan > 1); }).slice(0, FIT_SAMPLE);
+    var tfont = fontOf(table), hfont = fontOf(ths[0]);
+    return ths.map(function (th, i) {
+      var hint = (th.getAttribute('data-w') || '').trim(), max = 0, widest = 0, numeric = rows.length > 0, chips = 0;
+      var first = rows[0] && rows[0].cells[i];
+      var font = first ? fontOf(first) : tfont;   // the column's own font (a mono cell is wider than the table's text)
+      rows.forEach(function (r) {
+        var td = r.cells[i]; if (!td) return;
+        var t = td.textContent.replace(/\s+/g, ' ').trim();
+        var rich = td.querySelector('.ui-chip, .ui-badge, .ui-meter, .ui-flag, .ui-chips, .ui-bar, input, select, button:not(.ui-xrow-btn), svg');
+        if (rich) chips++;
+        if (t && !NUMERIC.test(t)) numeric = false;
+        if (t.length > max) max = t.length;
+        var w = td.children.length ? contentExtent(td, t, font) : textWidth(t, font);
+        if (w > widest) widest = w;
+      });
+      var kind = hint;
+      if (th.classList.contains('ui-xrow-th')) kind = 'icon';
+      else if (!kind) {
+        if (th.classList.contains('ui-num') || (numeric && max > 0)) kind = 'num';
+        else if (chips && chips >= rows.length / 2) kind = 'status';
+        else if (max <= 18) kind = 'narrow';
+        else kind = 'text';
+      }
+      var head = headWidth(th, hfont);
+      var hard = 0;   // the widest badge / chip: it cannot wrap, the column never shrinks under it
+      rows.forEach(function (r) { var td = r.cells[i]; if (!td) return; Array.prototype.forEach.call(td.querySelectorAll('.ui-badge, .ui-chip, .ui-flag, .bl-tag'), function (ch) { hard = Math.max(hard, textWidth(ch.textContent.replace(/\s+/g, ' ').trim(), font) + 22); }); });
+      return { kind: kind, max: max, widest: widest, head: head, hard: hard, p: Number(th.getAttribute('data-p') || 1) || 1 };
+    });
+  }
+  function fitTable(table) {
+    var wrap = table.parentElement && table.parentElement.classList.contains('ui-table-wrap') ? table.parentElement : null;
+    if (!wrap || !table.tHead || table.classList.contains('lc-table') || table.closest('.au-diff') || table.hasAttribute('data-nofit')) return;
+    if (doc.documentElement.clientWidth <= 640) { table.classList.remove('ui-fit', 'ui-wide'); wrap.classList.remove('ui-wide'); table.style.width = ''; if (table.$autoXrows) autoXrows(table, false); return; }   // the stacked layout shows every column
+    var avail = wrap.clientWidth - 2;
+    if (avail < 120 || !table.tBodies[0] || !table.tBodies[0].rows.length) return;
+    var cols = fitColumns(table);
+    if (!cols.length) return;
+    var sig = avail + ':' + table.tBodies[0].rows.length + ':' + cols.map(function (c) { return c.kind + Math.round(c.widest) + '/' + Math.round(c.head); }).join(',');
+    var stale = Array.prototype.some.call(table.tBodies[0].rows, function (r) { return !r.classList.contains('ui-xrow-panel') && r.cells[0] && r.cells[0].colSpan === 1 && !/\bui-col-/.test(r.cells[0].className); });
+    if (table.$fitSig === sig && !stale) { titleTruncated(table); return; }   // nothing changed: no writes (the mutation observer would re-run on them)
+    table.$fitSig = sig;
+    var want = cols.map(function (c) {
+      var head2 = c.head;   // the header's need: its longest word, or two lines of it
+      if (c.kind === 'icon') return 30;
+      if (c.kind === 'num') return Math.ceil(Math.max(c.widest * 1.08, head2, 36) + FIT_PAD);   // tabular digits run wider than the measure
+      if (c.kind === 'status') return Math.ceil(Math.max(c.widest, head2, 48) + FIT_PAD);
+      if (c.kind === 'narrow') return Math.ceil(Math.max(Math.min(c.widest, 200), head2, 48) + FIT_PAD);   // past 200 px a namespace wraps
+      if (c.kind === 'wide') return Math.ceil(Math.min(Math.max(c.widest, 160), 420) + FIT_PAD);
+      if (c.kind === 'flex' || c.kind === 'wrap' || c.kind === 'clamp') return 0;
+      return Math.ceil(Math.min(Math.max(c.widest, 80), 280) + FIT_PAD);   // text: wraps past 280 px
+    });
+    // a table inside a row's details is compact: every column at its content, the text column capped at 40ch
+    var nested = !!table.closest('.ui-xrow-body, .ui-xrow-panel, .ui-detail-section-body');
+    var CH40 = Math.round(40 * (parseFloat(getComputedStyle(table).fontSize) || 12.5) * 0.6);
+    var flex = -1;
+    cols.forEach(function (c, i) { if (flex < 0 && (c.kind === 'flex' || c.kind === 'wrap' || c.kind === 'clamp')) flex = i; });
+    if (flex < 0) { cols.forEach(function (c, i) { if ((c.kind === 'text' || c.kind === 'wide') && (flex < 0 || c.widest > cols[flex].widest)) flex = i; }); }
+    if (flex >= 0) want[flex] = 0;
+    if (nested && flex >= 0) { want[flex] = Math.ceil(Math.min(Math.max(cols[flex].widest, 60), CH40) + FIT_PAD); flex = -1; }   // compact: no column stretches
+    var hidden = cols.map(function () { return false; });
+    var flexMin = Math.max(FIT_FLEX_MIN, Math.round(avail * 0.25));   // the primary column keeps a quarter of the box at least
+    var need = function () { var s = 0; want.forEach(function (w, i) { if (!hidden[i]) s += w; }); return s + (flex >= 0 ? flexMin : 0); };
+    // too wide for the box, in this order: the long text columns cut to 180 px (an ellipsis, the title); the
+    // low-priority columns hidden one at a time, the widest first (3 before 2), only while it is still too wide;
+    // never the first column or the flexible one
+    if (need() > avail) cols.forEach(function (c, i) { if (i !== flex && (c.kind === 'text' || c.kind === 'wide') && want[i] > 180 + FIT_PAD) want[i] = 180 + FIT_PAD; });
+    [3, 2].forEach(function (p) {
+      var order = []; cols.forEach(function (c, i) { if (c.p === p && i !== flex && i !== 0 && c.kind !== 'icon') order.push(i); });
+      order.sort(function (x, y) { return want[y] - want[x]; });
+      order.forEach(function (i) { if (need() > avail) hidden[i] = true; });
+    });
+    // still too wide: the text columns shrink together down to a floor
+    var over = need() - avail;
+    if (over > 0) {
+      // a column never shrinks below its header's longest word (plus the padding) or the floor
+      var floorOf = function (i) { return Math.max(FIT_FLOOR, Math.ceil(cols[i].head) + FIT_PAD, Math.ceil(cols[i].hard) + FIT_PAD); };
+      var ids = []; cols.forEach(function (c, i) { if (!hidden[i] && i !== flex && c.kind !== 'icon' && c.kind !== 'num') ids.push(i); });
+      var room = 0; ids.forEach(function (i) { room += Math.max(0, want[i] - floorOf(i)); });
+      var k = room > 0 ? Math.min(1, over / room) : 0;
+      ids.forEach(function (i) { want[i] -= Math.round(Math.max(0, want[i] - floorOf(i)) * k); });
+    }
+    var wide = need() > avail + 1;   // the last resort: the table scrolls
+    if (nested && !wide) {   // a panel table spans its panel; the room beyond the columns' content is shared in proportion
+      var total = 0; want.forEach(function (w, i) { if (!hidden[i]) total += w; });
+      var scale = total > 0 && avail > total ? avail / total : 1;
+      want = want.map(function (w) { return Math.floor(w * scale); });
+      table.classList.add('ui-compact'); table.style.width = '';
+    } else table.classList.remove('ui-compact');
+    var anyHidden = hidden.some(function (h) { return h; });
+    if (anyHidden && !table.querySelector('tr.ui-xrow')) autoXrows(table, true);   // the chevron inside the first cell: the columns stay
+    if (!anyHidden && table.$autoXrows) autoXrows(table, false);
+    table.$fitDebug = { avail: avail, want: want.slice(), hidden: hidden.slice(), flex: flex, wide: wide, widest: cols.map(function (c) { return Math.round(c.widest); }), kinds: cols.map(function (c) { return c.kind; }) };   // what the fit decided (the tests read it)
+    // the <colgroup>: the visible columns only, in order (a hidden cell is display: none and drops out of its row, so a
+    // <col> for it would hand its width to the next column)
+    var cg = table.querySelector(':scope > colgroup.ui-fit-cols');
+    if (!cg) { cg = doc.createElement('colgroup'); cg.className = 'ui-fit-cols'; table.insertBefore(cg, table.firstChild); }
+    var shown = []; cols.forEach(function (c, i) { if (!hidden[i]) shown.push(i); });
+    while (cg.children.length < shown.length) cg.appendChild(doc.createElement('col'));
+    while (cg.children.length > shown.length) cg.removeChild(cg.lastChild);
+    shown.forEach(function (i, k) { cg.children[k].style.width = (i === flex && !wide) ? '' : (i === flex ? Math.max(flexMin, Math.round(cols[i].widest) + FIT_PAD) : want[i]) + 'px'; });
+    // a details panel spans exactly the visible columns: a colspan past the column count would add anonymous columns
+    // and squeeze the others (the expanded row narrowed the command column)
+    Array.prototype.forEach.call(table.querySelectorAll(':scope > tbody > tr.ui-xrow-panel > td, :scope > tbody > tr > td.ui-match-none'), function (td) { if (td.colSpan !== shown.length) td.colSpan = shown.length; });
+    var KINDS = ['ui-col-flex', 'ui-col-wrap', 'ui-col-clamp', 'ui-col-num', 'ui-col-status', 'ui-col-narrow', 'ui-col-text', 'ui-col-wide', 'ui-col-icon'];
+    Array.prototype.forEach.call(table.rows, function (r) {
+      if (r.classList.contains('ui-xrow-panel')) return;
+      Array.prototype.forEach.call(r.cells, function (cell, i) {
+        if (i >= cols.length || cell.colSpan > 1) return;
+        KINDS.forEach(function (k) { cell.classList.remove(k); });
+        cell.classList.add(i === flex ? (cols[i].kind === 'wrap' ? 'ui-col-wrap' : cols[i].kind === 'clamp' ? 'ui-col-clamp' : 'ui-col-flex') : 'ui-col-' + cols[i].kind);
+        cell.classList.toggle('ui-col-hidden', hidden[i]);
+        if (cell.tagName === 'TD' && (cols[i].kind === 'text' || cols[i].kind === 'flex' || cols[i].kind === 'wide' || cols[i].kind === 'wrap' || cols[i].kind === 'narrow' || cols[i].kind === 'clamp')) breakable(cell);
+        if (cell.tagName === 'TD' && (cols[i].kind === 'clamp' || cell.classList.contains('ui-cmd'))) clampCell(cell);
+      });
+    });
+    table.classList.add('ui-fit');
+    table.classList.toggle('ui-wide', wide);
+    wrap.classList.toggle('ui-wide', wide);
+    if (!(nested && !wide)) table.style.width = wide ? (need() - flexMin + (flex >= 0 ? Math.max(flexMin, cols[flex].widest + FIT_PAD) : 0)) + 'px' : '';
+    noteHidden(table, wrap, cols, hidden);
+    scrollHint(wrap, wide);
+    titleTruncated(table);
+  }
+  // the hidden columns, named under the table (their values are in the row details)
+  function noteHidden(table, wrap, cols, hidden) {
+    var names = []; cols.forEach(function (c, i) { if (hidden[i]) names.push(table.tHead.querySelectorAll('th')[i].textContent.replace(/\s+/g, ' ').trim()); });
+    var note = wrap.nextElementSibling && wrap.nextElementSibling.classList.contains('ui-table-note') ? wrap.nextElementSibling : null;
+    if (!names.length) { if (note) note.remove(); return; }
+    if (!note) { note = el('div', 'ui-table-note'); wrap.parentNode.insertBefore(note, wrap.nextSibling); }
+    note.textContent = '';
+    note.appendChild(doc.createTextNode('Hidden at this width: ' + names.join(', ') + ' - open a row (its chevron) for the values'));
+    var menu = doc.querySelector('details.ui-menu#columns-menu, details.ui-menu[data-columns]');
+    if (menu) { note.appendChild(doc.createTextNode('; ')); var b = el('button', 'ui-link', 'the Columns menu'); b.type = 'button'; b.addEventListener('click', function () { menu.open = true; try { menu.scrollIntoView({ block: 'nearest' }); } catch { /* older */ } }); note.appendChild(b); note.appendChild(doc.createTextNode(' shows any of them')); }
+    else note.appendChild(doc.createTextNode('; a wider pane shows them'));
+  }
+  function scrollHint(wrap, wide) {
+    var hint = wrap.querySelector(':scope > .ui-scroll-hint');
+    if (!wide) { if (hint) hint.remove(); return; }
+    if (!hint) { hint = el('div', 'ui-scroll-hint', 'scroll →'); hint.setAttribute('aria-hidden', 'true'); wrap.appendChild(hint); }
+    hint.hidden = wrap.scrollLeft > 4;
+  }
+  // a cell cut by the ellipsis carries its whole value in the title (its own title, when the template set one, stays)
+  function titleTruncated(table) {
+    Array.prototype.forEach.call(table.querySelectorAll('td.ui-col-status, td.ui-col-num'), function (td) {
+      if (td.$ownTitle === undefined) td.$ownTitle = td.hasAttribute('title');
+      if (td.$ownTitle) return;
+      if (td.scrollWidth > td.clientWidth + 1) td.setAttribute('title', td.textContent.replace(/\s+/g, ' ').trim()); else td.removeAttribute('title');
+    });
+  }
+  // a break opportunity after / . _ : = in a text cell's identifiers (a path, an image, a namespace/name), so a
+  // wrapped value breaks at a readable place; a text node only, never inside a chip or a control, once per cell
+  var SEP = /([/._:=])(?=[^\s])/g;
+  function breakable(td) {
+    if (td.$wbr || td.querySelector('wbr')) return;
+    td.$wbr = true;
+    var walker = doc.createTreeWalker(td, NodeFilter.SHOW_TEXT, { acceptNode: function (n) { return n.parentElement && n.parentElement.closest('.ui-chip, .ui-badge, button, input, select, a, code, pre, .ui-meter') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; } });
+    var nodes = []; while (walker.nextNode()) { var t = walker.currentNode; if (t.nodeValue.length > 12 && SEP.test(t.nodeValue)) nodes.push(t); SEP.lastIndex = 0; }
+    nodes.forEach(function (t) {
+      var parts = t.nodeValue.split(SEP);   // [text, sep, text, sep, ...]
+      if (parts.length < 3) return;
+      var frag = doc.createDocumentFragment();
+      for (var i = 0; i < parts.length; i++) { if (!parts[i]) continue; frag.appendChild(doc.createTextNode(parts[i])); if (i % 2 === 1 && i < parts.length - 1) frag.appendChild(doc.createElement('wbr')); }
+      t.parentNode.replaceChild(frag, t);
+    });
+  }
+  // a long-content cell: three lines, the whole value on a click (the row's details carry it too)
+  function clampCell(td) {
+    if (td.querySelector(':scope > .ui-clamp')) return;
+    var span = el('span', 'ui-clamp'); while (td.firstChild) span.appendChild(td.firstChild); td.appendChild(span);
+    span.addEventListener('click', function (e) { e.stopPropagation(); span.classList.toggle('ui-clamp-open'); });
+  }
+  // a code block for a row's details or a detail page (a command line, a unit file): full width in its box, wrapping,
+  // the Copy button in its corner; codeBlock(text, label) -> the element
+  var ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  var ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+  // the copy icon button of a block: quiet, 26 px, its name the tooltip ("Copy command"); the shared data-copy
+  // handler below swaps it to a check for a moment
+  function copyButton(text, label) {
+    var b = el('button', 'ui-icon-btn ui-code-copy'); b.type = 'button'; b.setAttribute('data-copy', text || ''); b.setAttribute('aria-label', label || 'Copy'); b.title = label || 'Copy'; b.innerHTML = ICON_COPY;
+    return b;
+  }
+  function codeBlock(text, label) {
+    var box = el('div', 'ui-code');
+    var pre = el('pre', 'ui-code-text', text || '-');
+    box.appendChild(copyButton(text, label || 'Copy')); box.appendChild(pre);
+    return box;
+  }
+  // a template's <pre> with the data-code-copy attribute (the ui.code macro, or any pre marked so) gets the block
+  function setupCodeBlocks(root) {
+    Array.prototype.forEach.call((root || doc).querySelectorAll('pre[data-code-copy]'), function (pre) {
+      if (pre.parentElement && pre.parentElement.classList.contains('ui-code')) return;
+      var box = el('div', 'ui-code'); pre.parentNode.insertBefore(box, pre);
+      box.appendChild(copyButton(pre.textContent, pre.getAttribute('data-code-copy') || 'Copy')); box.appendChild(pre); pre.classList.add('ui-code-text');
+    });
+  }
+  // the hidden columns' values at the top of an opened row's details
+  function hiddenIntoPanel(row) {
+    var p = panelOf(row); if (!p) return;
+    var body = p.querySelector('.ui-xrow-body'); if (!body) return;
+    var old = body.querySelector(':scope > .ui-kv-hidden'); if (old) old.remove();
+    var table = row.closest('table'); if (!table || !table.tHead) return;
+    var ths = table.tHead.querySelectorAll('th');
+    var items = [];
+    Array.prototype.forEach.call(row.cells, function (cell, i) { if (cell.classList.contains('ui-col-hidden') && ths[i]) items.push([ths[i].textContent.replace(/\s+/g, ' ').trim(), cell]); });
+    if (!items.length) return;
+    var dl = el('dl', 'ui-kv ui-kv-hidden');
+    items.forEach(function (it) { var d = el('div'); d.appendChild(el('dt', '', it[0])); var dd = el('dd'); dd.innerHTML = it[1].innerHTML; d.appendChild(dd); dl.appendChild(d); });
+    var lead = body.firstElementChild && body.firstElementChild.classList.contains('ui-muted') && /hidden at this width/i.test(body.firstElementChild.textContent) ? body.firstElementChild : null;
+    if (lead) body.insertBefore(dl, lead.nextSibling); else body.insertBefore(dl, body.firstChild);
+  }
+  var fitTimer = null;
+  function fitAll(root) {
+    Array.prototype.forEach.call((root || doc).querySelectorAll('table.ui-table'), function (t) { try { fitTable(t); } catch { /* a table mid-rebuild */ }
+    });
+    fitGrids();
+  }
+  function watchFit() {
+    if (!window.ResizeObserver) return;
+    var ro = new ResizeObserver(function () { if (fitTimer) return; fitTimer = setTimeout(function () { fitTimer = null; Array.prototype.forEach.call(doc.querySelectorAll('table.ui-table'), function (t) { t.$fitSig = null; }); fitAll(); }, 60); });
+    ro.observe(doc.documentElement);
+    var refit = function () { Array.prototype.forEach.call(doc.querySelectorAll('table.ui-table'), function (t) { t.$fitSig = null; }); fitAll(); };
+    if (doc.fonts) { try { doc.fonts.ready.then(refit); doc.fonts.addEventListener("loadingdone", refit); } catch { /* no FontFaceSet */ } }
+    doc.addEventListener('scroll', function (e) { var w = e.target && e.target.classList && e.target.classList.contains('ui-table-wrap') ? e.target : null; if (w && w.classList.contains('ui-wide')) scrollHint(w, true); }, true);
+  }
+  /* ---- the page stack: the content root and the templates' plain wrapper divs carry .ui-stack, so the page's
+     top-level blocks keep one gap (--ui-stack-gap) between them wherever the template put them ---- */
+  function isWrapper(el) {
+    if (!el || el.tagName !== 'DIV' || el.classList.contains('panel') || el.hasAttribute('data-chart-card')) return false;
+    if (/\b(ui-[a-z-]+|au-|lc-|bl-|kd-)/.test(el.className || '') && !/\bspace-y-/.test(el.className || '')) return false;
+    return Array.prototype.some.call(el.children, function (c) { return c.classList && (c.classList.contains('panel') || c.classList.contains('ui-findings') || c.classList.contains('ui-grid-charts') || c.tagName === 'SECTION' || c.classList.contains('ui-detail')); }) || /\bspace-y-/.test(el.className || '');
+  }
+  // the chart grid: the last card, alone in its row, spans the row (no lone half-width card); read from the layout
+  function fitGrids() {
+    Array.prototype.forEach.call(doc.querySelectorAll('#diagnostics-content .ui-grid-charts'), function (g) {
+      var cards = Array.prototype.filter.call(g.children, function (c) { return c.getBoundingClientRect().height > 0 && !c.hasAttribute('data-wide'); });
+      cards.forEach(function (c) { c.removeAttribute('data-span'); });
+      if (cards.length < 2) return;
+      var tops = {}; cards.forEach(function (c) { var t = Math.round(c.getBoundingClientRect().top); tops[t] = (tops[t] || 0) + 1; });
+      var perRow = Math.max.apply(null, Object.keys(tops).map(function (k) { return tops[k]; }));
+      var last = cards[cards.length - 1];
+      if (perRow > 1 && tops[Math.round(last.getBoundingClientRect().top)] === 1) last.setAttribute('data-span', '');
+    });
+  }
+  function stackPage() {
+    var root = doc.getElementById('diagnostics-content'); if (!root) return;
+    root.classList.add('ui-stack');
+    Array.prototype.forEach.call(root.querySelectorAll('div'), function (d) { if (d.closest('table, .panel, .ui-findings, .ui-detail-section') && !/\bspace-y-/.test(d.className || '')) return; if (isWrapper(d)) d.classList.add('ui-stack'); });
+  }
+  /* ---- a table whose columns hide at this width: every row gets the shared chevron, its details show the hidden
+     values (hiddenIntoPanel); taken away again when nothing is hidden ---- */
+  function autoXrows(table, on) {
+    var body = table.tBodies[0]; if (!body) return;
+    if (on) {
+      if (table.querySelector('tr.ui-xrow:not(.ui-xrow-auto)')) return;   // the page's own expandable rows carry the values already
+      table.$autoXrows = true; table.setAttribute('data-auto-xrows', '');
+      Array.prototype.slice.call(body.rows).forEach(function (r) {
+        if (r.classList.contains('ui-xrow-panel') || r.classList.contains('ui-xrow-auto') || !r.cells[0] || r.cells[0].colSpan > 1) return;
+        r.classList.add('ui-xrow', 'ui-xrow-auto'); r.$xrow = true;
+        if (!r.hasAttribute('tabindex')) r.setAttribute('tabindex', '0');
+        r.setAttribute('aria-expanded', 'false');
+        var b = xrowButton(); b.classList.add('ui-xrow-inline'); r.cells[0].insertBefore(b, r.cells[0].firstChild);   // inside the first cell: the page's column indexes stay
+      });
+    } else if (table.$autoXrows) {
+      table.$autoXrows = false; table.removeAttribute('data-auto-xrows');
+      Array.prototype.slice.call(body.querySelectorAll('tr.ui-xrow-panel')).forEach(function (p) { if (p.previousElementSibling && p.previousElementSibling.classList.contains('ui-xrow-auto')) p.remove(); });
+      Array.prototype.slice.call(body.querySelectorAll('tr.ui-xrow-auto')).forEach(function (r) { r.classList.remove('ui-xrow', 'ui-xrow-auto', 'ui-open'); r.removeAttribute('aria-expanded'); r.$xrow = false; var b = r.querySelector('.ui-xrow-inline'); if (b) b.remove(); });
+    }
+    // a panel left behind by the page's own re-render (its row sorted away): gone
+    Array.prototype.slice.call(body.querySelectorAll('tr.ui-xrow-panel')).forEach(function (p) { var prev = p.previousElementSibling; if (!prev || !prev.classList.contains('ui-xrow')) p.remove(); });
+  }
   function setupTables(root) {
+    stackPage();
+    setupCodeBlocks(root);
     var tables = Array.prototype.slice.call((root || doc).querySelectorAll('table'));
     tables.forEach(function (t) { if (t.closest('.au-diff, .lc-table-wrap') || t.classList.contains('lc-table') || t.classList.contains('au-diff')) return; if (!t.classList.contains('ui-table')) t.classList.add('ui-table'); wrapTable(t); labelCells(t); });
     setupXrows(root); defaultSort(root);
+    fitAll(root);
   }
   var pendingLabel = null;
   function watchTables() {
@@ -248,17 +590,24 @@
   function panelOf(row) { var n = row.nextElementSibling; return n && n.classList.contains('ui-xrow-panel') ? n : null; }
   function setOpen(row, open) {
     var p = panelOf(row);
+    if (!p && row.classList.contains('ui-xrow-auto')) {   // the auto row: its panel is made on open
+      if (open === false) return;
+      var table = row.closest('table'); var shown = table ? Array.prototype.filter.call(table.tHead ? table.tHead.querySelectorAll('th') : [], function (th) { return !th.classList.contains('ui-col-hidden'); }).length : 1;
+      p = xrowPanel(Math.max(1, shown), el('div', 'ui-muted', 'The columns hidden at this width:'));
+      row.parentNode.insertBefore(p, row.nextSibling);
+    }
     if (!p) return;
     if (open === undefined) open = p.hidden;
     p.hidden = !open;
     row.classList.toggle('ui-open', open);
     row.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) hiddenIntoPanel(row);
     var b = row.querySelector('.ui-xrow-btn'); if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
     try { window.dispatchEvent(new Event('resize')); } catch { /* an old frame */ }
   }
   function setupXrows(root) {
     Array.prototype.forEach.call((root || doc).querySelectorAll('tr.ui-xrow'), function (row) {
-      if (row.$xrow) return;
+      if (row.$xrow || row.classList.contains('ui-xrow-auto')) return;
       row.$xrow = true;
       if (!row.querySelector('.ui-xrow-cell')) row.insertBefore(xrowCell(), row.firstChild);
       if (!row.hasAttribute('tabindex')) row.setAttribute('tabindex', '0');
@@ -266,7 +615,7 @@
       var p = panelOf(row); if (p && !p.hidden && !row.classList.contains('ui-open')) p.hidden = true;
     });
     Array.prototype.forEach.call((root || doc).querySelectorAll('table'), function (t) {
-      if (t.$xrowHead || !t.querySelector('tr.ui-xrow')) return;
+      if (t.$xrowHead || !t.querySelector('tr.ui-xrow:not(.ui-xrow-auto)')) return;
       t.$xrowHead = true;
       var hr = t.querySelector('thead tr');
       if (hr && !hr.querySelector('.ui-xrow-th')) { var th = el('th', 'ui-xrow-th'); th.setAttribute('aria-label', 'Details'); hr.insertBefore(th, hr.firstChild); }
@@ -284,10 +633,9 @@
     var copy = t.closest ? t.closest('[data-copy]') : null;
     if (copy) {
       e.stopPropagation();
-      var text = copy.getAttribute('data-copy'); if (!text) { var src = copy.previousElementSibling; text = src ? src.textContent : ''; }
-      try { navigator.clipboard.writeText(text); } catch { /* no clipboard in this frame */ }
-      var was = copy.textContent; copy.textContent = 'Copied'; copy.classList.add('ui-copied');
-      setTimeout(function () { copy.textContent = was; copy.classList.remove('ui-copied'); }, 1200);
+      var text = copy.getAttribute('data-copy'); if (!text) { var src = copy.previousElementSibling || copy.nextElementSibling; text = src ? src.textContent : ''; }
+      writeClipboard(text);
+      copied(copy);
       return;
     }
     var row = t.closest ? t.closest('tr.ui-xrow') : null;
@@ -295,6 +643,27 @@
     if (t.closest('a, input, select, textarea, label, details, button:not(.ui-xrow-btn)')) return;
     setOpen(row);
   });
+  // the clipboard in the sandboxed frame: the async API where it is allowed, execCommand on a scratch textarea else
+  function writeClipboard(text) {
+    var ok = false;
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).catch(function () { execCopy(text); }); ok = true; } } catch { ok = false; }
+    if (!ok) execCopy(text);
+  }
+  function execCopy(text) {
+    try { var ta = el('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position: fixed; left: -9999px; top: 0'; doc.body.appendChild(ta); ta.select(); doc.execCommand('copy'); ta.remove(); } catch { /* no clipboard at all */ }
+  }
+  // the copied state: an icon button shows the check, a text button says Copied; aria-live tells it; back after 1.5 s
+  var liveNote = null;
+  function copied(button) {
+    if (!liveNote) { liveNote = el('div', 'ui-sr'); liveNote.setAttribute('aria-live', 'polite'); doc.body.appendChild(liveNote); }
+    liveNote.textContent = 'Copied';
+    button.classList.add('ui-copied');
+    var icon = button.classList.contains('ui-icon-btn');
+    var was = icon ? button.innerHTML : button.textContent;
+    if (icon) button.innerHTML = ICON_CHECK; else button.textContent = 'Copied';
+    var title = button.title; if (icon) button.title = 'Copied';
+    setTimeout(function () { button.classList.remove('ui-copied'); if (icon) { button.innerHTML = was; button.title = title; } else button.textContent = was; liveNote.textContent = ''; }, 1500);
+  }
   doc.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     var t = e.target;
@@ -302,9 +671,9 @@
     e.preventDefault();
     setOpen(t);
   });
-  window.diagTables = { setup: setupTables, label: labelCells, wrap: wrapTable, markSort: markSort, defaultSort: defaultSort, xrows: setupXrows, open: setOpen, xrowCell: xrowCell, xrowPanel: xrowPanel };
-  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function () { setupTables(); watchTables(); });
-  else { setupTables(); watchTables(); }
+  window.diagTables = { setup: setupTables, label: labelCells, wrap: wrapTable, markSort: markSort, defaultSort: defaultSort, xrows: setupXrows, open: setOpen, xrowCell: xrowCell, xrowPanel: xrowPanel, fit: fitTable, fitAll: fitAll, breakable: breakable, codeBlock: codeBlock, copyButton: copyButton };
+  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function () { setupTables(); watchTables(); watchFit(); });
+  else { setupTables(); watchTables(); watchFit(); }
 
   /* ------------------------------------------------------------------ */
   /* diagChart                                                           */
@@ -548,6 +917,33 @@
     if (!canvas || typeof Chart !== 'function' || !config) return null;
     var old = Chart.getChart(canvas); if (old) { old.destroy(); registry = registry.filter(function (c) { return c !== old; }); }
     var box = ensureBox(canvas, config);
+    // A click on a chart (config.onPick(pick)): the clicked element through Chart.js's own hit test - intersect:
+    // true on the orientation's index axis (a horizontal bar resolves along y, a vertical one along x; the
+    // 'index' mode on the wrong axis handed a neighbouring row to the filter). pick = { index, label, key, value,
+    // datasetLabel, row }: label is what the chart shows (a node's short name, a process's name + pid), key the
+    // exact filter value stored beside it (data.keys[i], a row's key, else the label); a category marked other
+    // (data.others[i], a row's other) is not clickable. The pointer shows only over a clickable element.
+    if (config.onPick) {
+      var onPick = config.onPick;
+      var pickAt = function (evt, c) {
+        var horizontal = c.options.indexAxis === 'y';
+        var pts = c.getElementsAtEventForMode(evt, 'nearest', { intersect: true, axis: horizontal ? 'y' : 'x' }, false);
+        if (!pts.length) return null;
+        var i = pts[0].index, ds = c.data.datasets[pts[0].datasetIndex] || {};
+        var keys = c.data.keys || [], others = c.data.others || [];
+        var row = c.$diagRows ? c.$diagRows[i] : null;
+        if (others[i] || (row && row.other)) return null;
+        var raw = ds.data ? ds.data[i] : undefined;
+        var value = raw && typeof raw === 'object' ? (raw.y !== undefined ? raw.y : raw.x) : raw;
+        var label = c.data.labels ? c.data.labels[i] : (raw && raw.label);
+        var key = keys[i] !== undefined ? keys[i] : (row && row.key !== undefined ? row.key : label);
+        return { index: i, label: label, key: key, value: value, datasetLabel: ds.$label || ds.label || '', row: row, raw: raw };
+      };
+      // the page's handler runs after Chart.js is done with the click: a handler that re-draws or re-creates the chart
+      // (a filter change) would otherwise run inside the chart's own event dispatch, on a chart it just destroyed
+      config.options.onClick = function (evt, items, c) { var p = pickAt(evt, c); c.canvas.$lastPick = p; if (p) setTimeout(function () { onPick(p, c); }, 0); };
+      config.options.onHover = function (evt, items, c) { var p = pickAt(evt, c); c.canvas.style.cursor = p ? 'pointer' : ''; };
+    }
     config.plugins = (config.plugins || []).concat([emptyPlugin, rotatePlugin, valueLabelsPlugin]);
     config.options = config.options || {}; config.options.plugins = config.options.plugins || {};
     config.options.plugins.diagValueLabels = { on: !!config.valueLabels };   // read by the plugin on every draw, the first one included
@@ -555,6 +951,7 @@
     var radial = /^(doughnut|pie|polarArea|radar)$/.test(type);
     var horizontal = config.options && config.options.indexAxis === 'y';
     setEmpty(canvas, !hasData(config));
+    config.options = config.options || {};
     if (type === 'bar' || (config.data && (config.data.datasets || []).some(function (d) { return d.type === 'bar'; }))) applyBarSizing(config);
     colourDatasets(type, (config.data && config.data.datasets) || []);
     var o = config.options = config.options || {};
@@ -712,8 +1109,8 @@
       type: spec.type || 'bar',
       plugins: [ax.plugin],
       data: { datasets: datasets },
+      onPick: onBucket ? function (p) { var pt = p.raw && p.raw.bucket ? p.raw : null; if (pt) onBucket(pt.bucket); } : null,
       options: { interaction: { mode: 'index', intersect: false },
-        onClick: function (evt, items, c) { if (!onBucket) return; var pts = c.getElementsAtEventForMode(evt, 'index', { intersect: false }, false); var p = pts.length ? c.data.datasets[0].data[pts[0].index] : null; if (p && p.bucket) onBucket(p.bucket); },
         plugins: { legend: { display: !!spec.legend }, tooltip: { callbacks: { title: function (items) { return range(items[0].raw.t); }, afterBody: function () { return [onBucket ? 'click: filter to this time' : '']; } } } },
         scales: { x: merge(ax.scale(), { stacked: spec.stacked !== false }), y: { stacked: spec.stacked !== false, beginAtZero: true, ticks: { font: { size: 10 }, maxTicksLimit: 4, precision: 0 } } } },
     });
@@ -772,15 +1169,19 @@
       rows: rows.length,
       height: opts.height,
       plugins: capOf ? [capacityPlugin] : [],
-      data: { labels: rows.map(function (r) { return r.name; }), datasets: datasets },
+      onPick: onRow ? function (p) { onRow(rows[p.index], p); } : null,
+      data: { labels: rows.map(function (r) { return r.name; }), keys: rows.map(function (r) { return r.key !== undefined ? r.key : r.name; }), others: rows.map(function (r) { return !!r.other; }), datasets: datasets },
       options: { indexAxis: 'y',
         layout: capOf ? { padding: { right: 72 } } : {},
-        onClick: function (evt, items, c) { if (!onRow) return; var pts = c.getElementsAtEventForMode(evt, 'index', { intersect: false }, false); if (pts.length) onRow(rows[pts[0].index]); },
         plugins: { legend: { display: !!(opts.legend || stacks), position: 'bottom' }, tooltip: { mode: 'index', callbacks: {
           title: function (items) { var r = rows[items[0].dataIndex] || {}; return r.title || r.name; },
           label: function (item) { if (stacks && !item.raw) return null; var r = rows[item.dataIndex] || {}; var lab = item.dataset.$label || item.dataset.label; return (lab ? lab + ': ' : '') + format(item.raw, r); },
           afterBody: function (items) { var r = rows[items[0].dataIndex] || {}; var lines = opts.tooltip ? (opts.tooltip(r) || []) : []; if (capOf && capOf(r)) lines = lines.concat(['capacity ' + fmt.num(capOf(r)) + ' pods (' + Math.round(100 * (r.count || 0) / capOf(r)) + '%)']); if (onRow) lines = lines.concat(['click: filter to this']); return lines; } } } },
-        scales: { x: { stacked: stacked, beginAtZero: true, ticks: { font: { size: 10 }, maxTicksLimit: 5, precision: 0, callback: function (v) { return format(v); } } }, y: { stacked: stacked, grid: { display: false }, ticks: { font: { size: 10.5, family: mono() } } } } },
+        scales: { x: { stacked: stacked, beginAtZero: true, ticks: { font: { size: 10 }, maxTicksLimit: 5, precision: 0, callback: function (v) { return format(v); } } },
+          // the category axis: as wide as its longest label up to 40% of the chart; a longer label is cut with an ellipsis
+          // (its whole name is the tooltip's title), so no label ever loses its first letters at the canvas edge
+          y: { stacked: stacked, grid: { display: false }, afterFit: function (s) { var cap = Math.round((s.chart.width || 600) * 0.4); if (s.width > cap) s.width = cap; },
+            ticks: { font: { size: 10.5, family: mono() }, callback: function (v) { var label = String(this.getLabelForValue(v)); var cap = Math.max(6, Math.floor(((this.chart.width || 600) * 0.4 - 16) / 6.5)); return label.length > cap ? label.slice(0, cap - 1) + '\u2026' : label; } } } } },
     });
     if (chart) { chart.$diagRows = rows; chart.$diagCapacity = capOf; if (opts.valueLabels) { chart.$diag.valueLabels = true; chart.options.plugins.diagValueLabels = { on: true }; chart.update('none'); } }
     return chart;
@@ -799,6 +1200,10 @@
 (function () {
   var doc = document;
   function applyQuery(q) {
+    // a detail page's key ("detail=<ns>/<name>") goes to diagDetail, a Log Viewer's source list ("sources=...") to
+    // diagLogView, every other query to the page's search field
+    if (window.diagDetail && window.diagDetail.applyQuery(q)) return true;
+    if (window.diagLogView && window.diagLogView.applyQuery && window.diagLogView.applyQuery(q)) return true;
     var field = doc.querySelector('[data-ui-search]');
     if (!field || !q) return false;
     field.value = q;
@@ -914,4 +1319,2125 @@
     var s = ev.target.closest ? ev.target.closest('summary') : null;
     if (s) ev.stopPropagation();   // a row's own click handler (an expandable table row) must not undo the toggle
   }, false);
+})();
+
+/*
+  diagDetail: the one list -> detail transition of the Diagnostics pages (the must-gather Pod, Node, Deployment ...
+  details). A page with a list and a detail view registers them once:
+
+    const list = document.getElementById('podListPanel');     // the list (its charts, filters, table, pager)
+    const view = document.getElementById('podDetail');        // {{ ui.detail_page('podDetail') }}
+    window.diagDetail.register(list, view, {
+      rows: 'tbody tr[data-detail]',                // the rows that open a detail (data-detail = the key)
+      keys: () => visibleKeys(),                    // optional: the keys in the list's current order (Previous / Next)
+      render: (key, view) => {                      // fills the view for one key; false when the key is unknown
+        const pod = byKey[key]; if (!pod) return false;
+        window.diagDetail.header(view, { title: pod.name, crumbs: ['Pods', pod.namespace, pod.name], badge: { kind: 'bad', text: 'CrashLoopBackOff' },
+          actions: [{ label: 'Copy name', copy: pod.name }, { label: 'Open events', tab: 'system', subTab: 'events', query: pod.name }] });
+        window.diagDetail.findings(view, pod._detail.findings);
+        const body = window.diagDetail.body(view);   // emptied; the page appends its sections
+        body.appendChild(window.diagDetail.section('Containers', cards, { open: true }));
+        return true;
+      },
+    });
+
+  What the controller does on its own: a click on a row (or Enter / Space on the focused row, or the cross-link
+  query "detail=<key>" another page sends) opens the key; the list stays in the DOM, hidden (its filters, sort,
+  page and expanded rows untouched), the view fades in (none of it under prefers-reduced-motion), the title takes
+  the focus, the pane scrolls to the view's top. Back (the bar's button, Escape, Alt+ArrowLeft, the mouse's back
+  button) shows the list again at the scroll position it had, the opened row highlighted and focused. Previous /
+  Next walk the list's current order.
+
+  The pieces of a detail page, built here so every page looks the same: header (the bar: Back, the breadcrumb, the
+  status badge, the quick actions, Previous / Next; the title), findings (the object's own Findings strip), body,
+  section (a card with a title, open or folded), kv (the key / value grid), cards (one card per container ...),
+  table, badge, chip, meter, link (a cross-link to another page), masked (a secret-ish value with Reveal), when
+  (a timestamp without its T and Z). Nothing here is page-specific.
+*/
+(function () {
+  var doc = document;
+  var views = [];
+  var MOTION_MS = 160;
+  function reduced() { try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } }
+  function el(tag, cls, text) { var n = doc.createElement(tag); if (cls) n.className = cls; if (text !== undefined && text !== null) n.textContent = String(text); return n; }
+  function viewportTop() { return window.diagnosticsViewport ? window.diagnosticsViewport.top : (window.scrollY || 0); }
+  function scrollTo(y) { y = Math.max(0, Math.round(y)); if (window.diagnosticsScrollTo) window.diagnosticsScrollTo(y); else window.scrollTo(0, y); }
+  // the pane's scroll after a height change: the frame reports its new height a moment later, so the scroll is
+  // asked for again until the view sits where it was asked to (or three tries pass)
+  function settle(y) { scrollTo(y); [120, 360].forEach(function (ms) { setTimeout(function () { if (Math.abs(viewportTop() - y) > 2) scrollTo(y); }, ms); }); }
+  function heightChanged() { try { window.dispatchEvent(new Event('resize')); } catch { /* an old frame */ } }
+
+  function Registration(list, view, opts) {
+    this.list = list; this.view = view; this.opts = opts || {};
+    this.rowsSelector = this.opts.rows || 'tbody tr[data-detail]';
+    this.key = null; this.row = null; this.savedTop = 0; this.covered = null;
+    var self = this;
+    list.addEventListener('click', function (e) {
+      var t = e.target;
+      if (t.closest && t.closest('a, input, select, textarea, label, button, details, summary, .ui-xrow-btn, [data-copy], [data-tab]')) return;
+      var row = t.closest ? t.closest(self.rowsSelector) : null;
+      if (!row || !list.contains(row)) return;
+      self.open(row.getAttribute('data-detail'), row);
+    });
+    list.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      var row = e.target && e.target.closest ? e.target.closest(self.rowsSelector) : null;
+      if (!row || e.target !== row) return;
+      e.preventDefault();
+      self.open(row.getAttribute('data-detail'), row);
+    });
+    var back = view.querySelector('[data-detail-back]');
+    if (back) back.addEventListener('click', function () { self.back(); });
+    var prev = view.querySelector('[data-detail-prev]'), next = view.querySelector('[data-detail-next]');
+    if (prev) prev.addEventListener('click', function () { self.step(-1); });
+    if (next) next.addEventListener('click', function () { self.step(1); });
+  }
+  Registration.prototype.rowOf = function (key) {
+    var rows = this.list.querySelectorAll(this.rowsSelector);
+    for (var i = 0; i < rows.length; i++) if (rows[i].getAttribute('data-detail') === key) return rows[i];
+    return null;
+  };
+  Registration.prototype.keys = function () {
+    if (this.opts.keys) return this.opts.keys();
+    return Array.prototype.map.call(this.list.querySelectorAll(this.rowsSelector), function (r) { return r.getAttribute('data-detail'); });
+  };
+  Registration.prototype.open = function (key, row) {
+    if (!key) return false;
+    var ok = this.opts.render ? this.opts.render(key, this.view) : true;
+    if (ok === false) return false;
+    var wasOpen = !this.view.hidden;
+    if (!wasOpen) {
+      this.savedTop = viewportTop(); this.row = row || this.rowOf(key);
+      // the whole page gives way to the detail: the list and everything beside it (the page's own Findings strip)
+      var v = this.view;
+      this.covered = Array.prototype.filter.call(v.parentElement ? v.parentElement.children : [], function (c) { return c !== v && !c.hidden && !/^(SCRIPT|STYLE|TEMPLATE)$/.test(c.tagName); });
+      this.covered.forEach(function (c) { c.hidden = true; c.setAttribute('aria-hidden', 'true'); });
+    }
+    this.key = key;
+    this.view.hidden = false;
+    this.view.removeAttribute('aria-hidden');
+    if (!reduced() && !wasOpen) { this.view.classList.add('ui-detail-in'); var v1 = this.view; setTimeout(function () { v1.classList.remove('ui-detail-in'); }, MOTION_MS + 40); }
+    this.position();
+    var title = this.view.querySelector('.ui-detail-title');
+    var v2 = this.view;
+    heightChanged();
+    setTimeout(function () { settle(v2.getBoundingClientRect().top + (window.scrollY || 0) - 8); if (title) { try { title.focus({ preventScroll: true }); } catch { title.focus(); } } }, 0);
+    return true;
+  };
+  Registration.prototype.back = function () {
+    if (this.view.hidden) return;
+    this.view.hidden = true;
+    this.view.setAttribute('aria-hidden', 'true');
+    (this.covered || [this.list]).forEach(function (c) { c.hidden = false; c.removeAttribute('aria-hidden'); });
+    this.covered = null;
+    var row = (this.row && this.row.isConnected) ? this.row : this.rowOf(this.key);
+    var top = this.savedTop;
+    heightChanged();
+    setTimeout(function () {
+      settle(top);
+      if (row) {
+        row.classList.add('ui-row-hl');
+        if (!row.hasAttribute('tabindex')) row.setAttribute('tabindex', '-1');
+        try { row.focus({ preventScroll: true }); } catch { /* older frame */ }
+        setTimeout(function () { row.classList.remove('ui-row-hl'); }, 1600);
+      }
+    }, 0);
+    this.key = null; this.row = null;
+  };
+  Registration.prototype.position = function () {
+    var keys = this.keys(), i = keys.indexOf(this.key);
+    var prev = this.view.querySelector('[data-detail-prev]'), next = this.view.querySelector('[data-detail-next]'), pos = this.view.querySelector('.ui-detail-pos');
+    if (prev) prev.disabled = i <= 0;
+    if (next) next.disabled = i < 0 || i >= keys.length - 1;
+    if (pos) pos.textContent = i >= 0 ? (i + 1) + ' of ' + keys.length : '';
+  };
+  Registration.prototype.step = function (d) {
+    var keys = this.keys(), i = keys.indexOf(this.key) + d;
+    if (i < 0 || i >= keys.length) return;
+    this.open(keys[i], this.rowOf(keys[i]) || this.row);
+  };
+
+  function register(list, view, opts) {
+    var r = new Registration(list, view, opts);
+    views.push(r);
+    return r;
+  }
+  function current() { for (var i = 0; i < views.length; i++) if (!views[i].view.hidden) return views[i]; return null; }
+  function openKey(key) { for (var i = 0; i < views.length; i++) if (views[i].open(key)) return true; return false; }
+
+  // ---- the shared pieces of a detail page ----
+  function badge(kind, text, title) { var b = el('span', 'ui-badge ui-badge-' + (kind || 'muted'), text); if (title) b.title = title; return b; }
+  function chip(text, title) { var c = el('span', 'ui-chip ui-chip-static', text); if (title) c.title = title; return c; }
+  function meter(value, max, role, text, title) {
+    var pct = max ? 100 * (value || 0) / max : 0; pct = Math.max(0, Math.min(100, pct));
+    var m = el('span', 'ui-meter'); m.setAttribute('data-role', role || 'ok'); m.setAttribute('role', 'meter'); m.setAttribute('aria-valuenow', String(value || 0)); m.setAttribute('aria-valuemin', '0'); m.setAttribute('aria-valuemax', String(max || 100)); if (title) m.title = title;
+    var track = el('span', 'ui-meter-track'); var fill = el('span', 'ui-meter-fill'); fill.style.width = pct.toFixed(1) + '%'; track.appendChild(fill); m.appendChild(track);
+    m.appendChild(el('span', 'ui-meter-value', text !== undefined && text !== null ? text : Math.round(pct) + '%'));
+    return m;
+  }
+  function when(iso) { return iso ? String(iso).replace('T', ' ').replace(/(\.\d+)?Z$/, '') : ''; }
+  function header(view, h) {
+    h = h || {};
+    var title = view.querySelector('.ui-detail-title'); if (title) title.textContent = h.title || '';
+    var crumbs = view.querySelector('.ui-detail-crumbs');
+    if (crumbs) {
+      crumbs.textContent = '';
+      (h.crumbs || []).forEach(function (c, i, all) {
+        if (i) crumbs.appendChild(el('span', 'ui-detail-sep', '/'));
+        var s = el('span', i === all.length - 1 ? 'ui-detail-crumb ui-detail-here' : 'ui-detail-crumb', c);
+        if (i === all.length - 1) s.setAttribute('aria-current', 'page');
+        crumbs.appendChild(s);
+      });
+    }
+    var slot = view.querySelector('.ui-detail-badge');
+    if (slot) { slot.textContent = ''; if (h.badge && h.badge.text) slot.appendChild(badge(h.badge.kind, h.badge.text, h.badge.title)); }
+    var actions = view.querySelector('.ui-detail-actions');
+    if (actions) {
+      actions.textContent = '';
+      (h.actions || []).forEach(function (a) {
+        var b = el('button', 'btn btn-secondary btn-sm', a.label); b.type = 'button';
+        if (a.copy !== undefined) b.setAttribute('data-copy', a.copy);
+        if (a.tab) { b.setAttribute('data-tab', a.tab); if (a.subTab) b.setAttribute('data-sub-tab', a.subTab); if (a.query) b.setAttribute('data-query', a.query); }
+        if (a.onClick) b.addEventListener('click', a.onClick);
+        if (a.title) b.title = a.title;
+        actions.appendChild(b);
+      });
+    }
+  }
+  // the object's own Findings strip (the same markup as the page's, tabs/_ui.html findings())
+  function findings(view, items, titleText) {
+    var slot = view.querySelector('.ui-detail-findings'); if (!slot) return;
+    slot.textContent = '';
+    items = (items || []).slice();
+    if (!items.length) return;
+    var sec = el('section', 'ui-findings'); sec.setAttribute('aria-label', titleText || 'Findings');
+    var head = el('div', 'ui-findings-head', (titleText || 'Findings') + ' '); head.appendChild(el('span', 'ui-count-text', items.length)); sec.appendChild(head);
+    var ul = el('ul', 'ui-findings-list');
+    items.forEach(function (f) {
+      var li = el('li', 'ui-finding ui-finding-' + (f.severity || 'info'));
+      li.appendChild(badge(f.badge || f.severity || 'info', String(f.severity || 'info').toUpperCase()));
+      var body = el('div', 'ui-finding-body'); body.appendChild(el('span', 'ui-finding-title', f.title)); if (f.detail) body.appendChild(el('span', 'ui-finding-detail', f.detail)); li.appendChild(body);
+      if (f.link && f.link.tab) { var b = el('button', 'ui-link ui-finding-link', 'Open'); b.type = 'button'; b.setAttribute('data-tab', f.link.tab); b.setAttribute('data-sub-tab', f.link.sub_tab || ''); b.setAttribute('data-query', f.link.query || ''); li.appendChild(b); }
+      ul.appendChild(li);
+    });
+    sec.appendChild(ul); slot.appendChild(sec);
+  }
+  function body(view) { var b = view.querySelector('.ui-detail-body'); if (b) b.textContent = ''; return b; }
+  // a section of the detail: a card with a title, open or folded (details.ui-details); content: a node, a string or nothing
+  function section(title, content, opts) {
+    opts = opts || {};
+    var d = el('details', 'panel rounded-lg shadow-sm ui-details ui-detail-section' + (opts.extra ? ' ' + opts.extra : '')); if (opts.open) d.open = true;
+    var s = el('summary'); var t = el('span', 'ui-card-title'); t.appendChild(el('span', '', title)); if (opts.count !== undefined && opts.count !== null) { t.appendChild(doc.createTextNode(' ')); t.appendChild(el('span', 'ui-count-text', opts.count)); } s.appendChild(t); d.appendChild(s);
+    var b = el('div', 'ui-detail-section-body'); if (typeof content === 'string') b.appendChild(el('p', 'ui-muted', content)); else if (content) b.appendChild(content); d.appendChild(b);
+    if (opts.onOpen) d.addEventListener('toggle', function () { if (d.open) opts.onOpen(b); });
+    return d;
+  }
+  // the key / value grid: items = [[label, value], [label, node], [label, value, 'mono']]; empty values are skipped
+  function kv(items) {
+    var dl = el('dl', 'ui-kv');
+    (items || []).forEach(function (it) {
+      var v = it[1];
+      if (v === undefined || v === null || v === '' || v === '-') return;
+      var d = el('div'); d.appendChild(el('dt', '', it[0]));
+      var dd = el('dd', it[2] ? 'ui-' + it[2] : '');
+      if (v instanceof Node) dd.appendChild(v); else dd.textContent = String(v);
+      d.appendChild(dd); dl.appendChild(d);
+    });
+    return dl;
+  }
+  // a grid of cards (one per container ...): items = [{ title, badges: [node], body: node }]
+  function cards(items) {
+    var grid = el('div', 'ui-detail-cards');
+    (items || []).forEach(function (c) {
+      var card = el('div', 'ui-detail-card');
+      var head = el('div', 'ui-detail-card-head'); head.appendChild(el('span', 'ui-detail-card-title', c.title)); (c.badges || []).forEach(function (b) { head.appendChild(b); }); card.appendChild(head);
+      if (c.body) card.appendChild(c.body);
+      grid.appendChild(card);
+    });
+    return grid;
+  }
+  // a cross-link inside a value (data-tab: diagLinks opens the tab with the query)
+  function link(text, tab, subTab, query, title) { var b = el('button', 'ui-link', text); b.type = 'button'; b.setAttribute('data-tab', tab); if (subTab) b.setAttribute('data-sub-tab', subTab); if (query) b.setAttribute('data-query', query); if (title) b.title = title; return b; }
+  // a small table: head = ['A', { text: 'B', w: 'num' }], rows = [[a, b], ...] (strings or nodes; a row may be { cells, cls })
+  function table(head, rows, opts) {
+    var wrap = el('div', 'ui-table-wrap'); var t = el('table', 'ui-table'); var thead = el('thead'); var tr = el('tr');
+    head.forEach(function (h) { var th = el('th', '', typeof h === 'string' ? h : h.text); if (h && h.w) th.setAttribute('data-w', h.w); if (h && h.p) th.setAttribute('data-p', h.p); tr.appendChild(th); });
+    thead.appendChild(tr); t.appendChild(thead);
+    var tb = el('tbody');
+    rows.forEach(function (r) { var row = el('tr'); if (r.cls) row.className = r.cls; (r.cells || r).forEach(function (c) { var td = el('td'); if (c instanceof Node) td.appendChild(c); else td.textContent = c === undefined || c === null ? '' : String(c); row.appendChild(td); }); tb.appendChild(row); });
+    t.appendChild(tb); wrap.appendChild(t);
+    if (opts && opts.id) t.id = opts.id;
+    return wrap;
+  }
+  // a value that may be a secret: masked, with Reveal
+  var SECRETISH = /(password|passwd|secret|token|credential|private|cert|cookie|auth|api[-_]?key|access[-_]?key)/i;
+  function masked(value) {
+    var s = el('span', 'ui-masked'); var dots = el('span', 'ui-masked-dots', '••••••'); var real = el('span', 'ui-masked-value', value); real.hidden = true;
+    var b = el('button', 'ui-link ui-masked-toggle', 'Reveal'); b.type = 'button';
+    b.addEventListener('click', function () { var show = real.hidden; real.hidden = !show; dots.hidden = show; b.textContent = show ? 'Hide' : 'Reveal'; });
+    s.appendChild(dots); s.appendChild(real); s.appendChild(b);
+    return s;
+  }
+  function list(items) { var ul = el('ul', 'ui-detail-list'); (items || []).forEach(function (it) { var li = el('li'); if (it instanceof Node) li.appendChild(it); else li.textContent = String(it); ul.appendChild(li); }); return ul; }
+
+  doc.addEventListener('keydown', function (e) {
+    var r = current(); if (!r) return;
+    if (e.key === 'Escape' || (e.key === 'ArrowLeft' && e.altKey)) {
+      // Escape in a field with text clears the field first (the YAML search); the second press goes back
+      if (e.key === 'Escape' && e.target && e.target.closest && e.target.closest('input, textarea, select') && e.target.value) return;
+      e.preventDefault(); r.back();
+    }
+  });
+  doc.addEventListener('mouseup', function (e) { if (e.button === 3) { var r = current(); if (r) { e.preventDefault(); r.back(); } } });
+  // the cross-link query "detail=<key>": open that detail (diagLinks hands every query here first; the list may
+  // still be rendering, so the key is tried again for two seconds)
+  function applyQuery(q) { var m = /^detail=(.+)$/.exec(String(q || '')); if (!m) return false; var key = m[1]; var tries = 0; (function go() { if (openKey(key) || tries++ > 20) return; setTimeout(go, 100); })(); return true; }
+
+  window.diagDetail = { register: register, open: openKey, back: function () { var r = current(); if (r) r.back(); }, current: current, header: header, findings: findings, body: body, section: section, kv: kv, cards: cards, link: link, table: table, badge: badge, chip: chip, meter: meter, list: list, masked: masked, when: when, secretish: function (name) { return SECRETISH.test(String(name || '')); }, applyQuery: applyQuery, el: el };
+})();
+
+/*
+  diagCode: the code viewer of a detail page. diagCode.render(host, object, opts) shows the object as JSON (the text
+  JSON.stringify writes with two-space indents: one source of truth, what is shown, searched and copied is the same
+  text) or, on the toolbar's toggle, as YAML (js-yaml's dump of the same object). The text is highlighted as one
+  document by highlight.js (its json / yaml languages) and then cut into lines, so a token that spans lines keeps
+  its class on every line and nothing between the lines is lost - the gap the old per-line regex highlighter left
+  after numbers is gone with it. Line numbers; a sticky toolbar with a search (every match marked, Next / Previous
+  and "n of m"; "Filter lines" keeps only the matching lines); fold / unfold on every key that opens a block
+  (metadata.managedFields folded from the start); a wrap toggle; Copy (the format on show); a copy of a key's path
+  (click the key); and the values under secret-ish keys (and the data of a Secret) masked with Reveal (one value,
+  or all of them from the toolbar).
+  opts: { format: 'json' | 'yaml', fold: ['metadata.managedFields'], mask: true, kind: 'Secret', yaml: true }
+  Returns { search(q), text(), format(), state }. js-yaml comes inlined into the frame
+  (src/components/DiagnosticsPage.jsx); the highlighting is the app's own highlight.js, asked through the frame's
+  "/highlight" message (one entry point, src/utils/codeHighlight.js); the standalone dashboard loads both as vendored
+  files (backend/templates/layout.html, scripts/vendor-assets.mjs). Without them the viewer shows the plain text.
+*/
+(function () {
+  var doc = document;
+  function el(tag, cls, text) { var n = doc.createElement(tag); if (cls) n.className = cls; if (text !== undefined && text !== null) n.textContent = String(text); return n; }
+  var SECRETISH = /(password|passwd|secret|token|credential|private|cookie|auth|api[-_]?key|access[-_]?key)/i;
+  var SENTINEL = /^"?MASKED_VALUE_(\d+)"?,?$/;
+  var DOTS = '••••••';
+  // the object with its secret-ish scalars replaced by sentinels (originals[n] keeps each value for Reveal) and
+  // the parsers' own top-level keys (_detail, _age_seconds) left out
+  function prepare(obj, opts, originals, path, underData) {
+    if (Array.isArray(obj)) return obj.map(function (v, i) { return prepare(v, opts, originals, path + '[' + i + ']', underData); });
+    if (obj && typeof obj === 'object') {
+      var out = {};
+      Object.keys(obj).forEach(function (k) {
+        if (!path && k.charAt(0) === '_') return;
+        var v = obj[k];
+        var dataOfSecret = opts.kind === 'Secret' && !path && (k === 'data' || k === 'stringData');
+        var secret = opts.mask !== false && (SECRETISH.test(k) || underData);
+        if (secret && v !== null && v !== undefined && typeof v !== 'object' && String(v) !== '') { originals.push(v); out[k] = 'MASKED_VALUE_' + (originals.length - 1); }
+        else out[k] = prepare(v, opts, originals, path ? path + '.' + k : k, underData || dataOfSecret);
+      });
+      return out;
+    }
+    return obj;
+  }
+  function textOf(obj, format) {
+    if (format === 'yaml' && window.jsyaml && window.jsyaml.dump) { try { return window.jsyaml.dump(obj, { lineWidth: -1, noRefs: true, noCompatMode: true, sortKeys: false }); } catch { /* json then */ } }
+    return JSON.stringify(obj, null, 2) + '\n';
+  }
+  function escapeText(text) { return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  // the syntax colours: the standalone dashboard's own highlighter (window.hljs, vendored), else the app around the
+  // frame (the "/highlight" message, answered by src/utils/codeHighlight.js), else the plain text; always a promise
+  function highlight(text, format) {
+    if (window.hljs && window.hljs.highlight) { try { return Promise.resolve(window.hljs.highlight(text, { language: format, ignoreIllegals: true }).value); } catch { /* plain */ } }
+    if (window.diagnosticsApiRequest) {
+      return window.diagnosticsApiRequest('/highlight', { text: text, language: format })
+        .then(function (r) { return r && r.ok && r.json && typeof r.json.html === 'string' ? r.json.html : escapeText(text); })
+        .catch(function () { return escapeText(text); });
+    }
+    return Promise.resolve(escapeText(text));
+  }
+  // the highlighted document cut into lines: a text node is split at its newlines, each piece lands inside a
+  // copy of the span chain it came from, so a multi-line token keeps its class on every line
+  function splitLines(html) {
+    var tpl = doc.createElement('template'); tpl.innerHTML = html;
+    var lines = [el('span', 'ui-code-line-text')];
+    function append(ancestors, text) {
+      var cur = lines[lines.length - 1];
+      ancestors.forEach(function (a) {
+        var last = cur.lastChild;
+        if (!(last && last.nodeType === 1 && last.$src === a)) { last = el('span', a.className); last.$src = a; cur.appendChild(last); }
+        cur = last;
+      });
+      cur.appendChild(doc.createTextNode(text));
+    }
+    function walk(node, ancestors) {
+      Array.prototype.forEach.call(node.childNodes, function (child) {
+        if (child.nodeType === 3) {
+          var parts = child.data.split('\n');
+          parts.forEach(function (p, i) { if (i) lines.push(el('span', 'ui-code-line-text')); if (p) append(ancestors, p); });
+        } else if (child.nodeType === 1) walk(child, ancestors.concat(child));
+      });
+    }
+    walk(tpl.content, []);
+    if (lines.length > 1 && !lines[lines.length - 1].childNodes.length) lines.pop();   // the trailing newline
+    return lines;
+  }
+  function unquote(s) { s = s.trim(); if ((s[0] === '"' && s[s.length - 1] === '"') || (s[0] === "'" && s[s.length - 1] === "'")) return s.slice(1, -1); return s; }
+  var YKEY = /^(\s*)(- )?((?:"[^"]*"|'[^']*'|[^\s"'#:-][^:]*?))\s*:(?: |$)/;
+  var YITEM = /^(\s*)- /;
+  var JKEY = /^(\s*)"((?:[^"\\]|\\.)*)":/;
+  // the structure of each line from the text itself: its indent, key, path (metadata.labels.app, spec.containers[0]
+  // .image) and the block it opens; in JSON a block runs from a line ending with { or [ to its closing bracket,
+  // in YAML over the lines indented deeper
+  function structure(text, format) {
+    var raw = text.replace(/\n$/, '').split('\n');
+    var rows = [], stack = [], counters = {};
+    function item(row, indent) {
+      while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
+      var parentPath = stack.length ? stack[stack.length - 1].path : '';
+      var ck = parentPath + '@' + indent;
+      counters[ck] = counters[ck] === undefined ? 0 : counters[ck] + 1;
+      row.item = true; row.path = parentPath + '[' + counters[ck] + ']';
+      stack.push({ indent: indent, path: row.path });
+    }
+    function keyed(row, indent, key) {
+      while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
+      row.key = key; row.path = (stack.length ? stack[stack.length - 1].path + '.' : '') + key;
+      stack.push({ indent: indent, path: row.path });
+    }
+    raw.forEach(function (line, i) {
+      var indent = (line.match(/^\s*/) || [''])[0].length;
+      var trimmed = line.trim();
+      var row = { i: i, raw: line, text: line, indent: indent, key: null, path: '', item: false, opens: false, end: i, masked: /MASKED_VALUE_\d+/.test(line), closer: false };
+      if (format === 'json') {
+        var m = JKEY.exec(line);
+        if (m) keyed(row, indent, m[2]);
+        else if (trimmed === '}' || trimmed === '},' || trimmed === ']' || trimmed === '],') row.closer = true;
+        else if (trimmed && stack.length) item(row, indent);   // a value inside an array ({, [ or a scalar)
+        row.opens = /[{[]$/.test(trimmed);
+      } else {
+        var it = YITEM.exec(line), km = YKEY.exec(line);
+        if (it) {
+          item(row, it[1].length);
+          // "- name: web": the item opens a mapping on the same line; its other keys sit two columns in
+          if (km) { var k = unquote(km[3]); row.key = k; row.path = row.path + '.' + k; stack.push({ indent: it[1].length + 2, path: row.path }); }
+        } else if (km) keyed(row, indent, unquote(km[3]));
+      }
+      rows.push(row);
+    });
+    for (var a = 0; a < rows.length; a++) {
+      var b;
+      if (format === 'json') {
+        if (!rows[a].opens) continue;
+        b = a + 1;
+        while (b < rows.length && !(rows[b].closer && rows[b].indent === rows[a].indent)) b++;
+        if (b < rows.length && b > a + 1) rows[a].end = b; else rows[a].opens = false;
+      } else {
+        var base = rows[a].item ? rows[a].indent + 1 : rows[a].indent;
+        b = a + 1;
+        while (b < rows.length && (rows[b].text.trim() === '' || rows[b].indent > base)) b++;
+        var endAt = b - 1;
+        while (endAt > a && rows[endAt].text.trim() === '') endAt--;
+        if (endAt > a) { rows[a].opens = true; rows[a].end = endAt; }
+      }
+    }
+    return rows;
+  }
+  // every match of q in the line's text, wrapped in <mark>; the line's structure (spans) is kept; returns the marks
+  function markIn(code, q) {
+    var marks = [];
+    if (!q) return marks;
+    var walker = doc.createTreeWalker(code, NodeFilter.SHOW_TEXT, null);
+    var nodes = [], n;
+    while ((n = walker.nextNode())) nodes.push(n);
+    var text = nodes.map(function (t) { return t.data; }).join('');
+    var lower = text.toLowerCase(), ql = q.toLowerCase(), hits = [], at = 0, idx;
+    while ((idx = lower.indexOf(ql, at)) >= 0) { hits.push(idx); at = idx + ql.length; }
+    if (!hits.length) return marks;
+    var starts = [], pos = 0; nodes.forEach(function (t) { starts.push(pos); pos += t.data.length; });
+    function locate(off) { for (var i = nodes.length - 1; i >= 0; i--) if (starts[i] <= off) return { node: nodes[i], offset: off - starts[i] }; return { node: nodes[0], offset: 0 }; }
+    for (var h = hits.length - 1; h >= 0; h--) {   // from the last hit back, so the earlier offsets stay valid
+      var s = locate(hits[h]), e = locate(hits[h] + ql.length);
+      var range = doc.createRange(); range.setStart(s.node, s.offset); range.setEnd(e.node, e.offset);
+      var mark = el('mark', 'ui-code-mark'); mark.appendChild(range.extractContents()); range.insertNode(mark);
+      marks.unshift(mark);
+    }
+    return marks;
+  }
+  function render(host, obj, opts) {
+    opts = opts || {};
+    host.textContent = '';
+    host.classList.add('ui-code-view');
+    var originals = [];
+    var source = prepare(obj, opts, originals, '', false);
+    var format = opts.format === 'yaml' ? 'yaml' : 'json';
+    var state = { format: format, query: '', filter: false, matches: [], at: -1, revealAll: false, revealed: {}, folded: {} };
+    var text, rows, codes, lineEls = [];
+    // the toolbar
+    var bar = el('div', 'ui-code-bar');
+    var field = el('label', 'ui-field ui-code-search'); field.innerHTML = '<svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4" stroke-linecap="round"/></svg>';
+    var search = el('input', 'ui-input'); search.type = 'search'; search.placeholder = 'Search'; search.setAttribute('aria-label', 'Search the ' + format.toUpperCase()); search.autocomplete = 'off'; field.appendChild(search);
+    var count = el('span', 'ui-status ui-code-count'); count.setAttribute('aria-live', 'polite');
+    var prev = el('button', 'btn btn-secondary btn-sm', 'Previous'); prev.type = 'button'; prev.disabled = true;
+    var next = el('button', 'btn btn-secondary btn-sm', 'Next'); next.type = 'button'; next.disabled = true;
+    var filter = el('label', 'ui-check-label'); var filterBox = el('input', 'ui-check'); filterBox.type = 'checkbox'; filter.appendChild(filterBox); filter.appendChild(doc.createTextNode('Filter lines'));
+    var wrap = el('label', 'ui-check-label'); var wrapBox = el('input', 'ui-check'); wrapBox.type = 'checkbox'; wrap.appendChild(wrapBox); wrap.appendChild(doc.createTextNode('Wrap'));
+    var foldAll = el('button', 'btn btn-secondary btn-sm', 'Fold all'); foldAll.type = 'button';
+    var unfoldAll = el('button', 'btn btn-secondary btn-sm', 'Unfold all'); unfoldAll.type = 'button';
+    var reveal = el('button', 'btn btn-secondary btn-sm', 'Reveal secrets'); reveal.type = 'button';
+    var copy = el('button', 'btn btn-secondary btn-sm', 'Copy JSON'); copy.type = 'button';
+    var formats = el('div', 'ui-code-formats'); formats.setAttribute('role', 'group'); formats.setAttribute('aria-label', 'Format');
+    var asJson = el('button', 'ui-chip', 'JSON'); asJson.type = 'button'; asJson.setAttribute('data-format', 'json');
+    var asYaml = el('button', 'ui-chip', 'YAML'); asYaml.type = 'button'; asYaml.setAttribute('data-format', 'yaml');
+    formats.appendChild(asJson); formats.appendChild(asYaml);
+    if (opts.yaml === false || !(window.jsyaml && window.jsyaml.dump)) formats.hidden = true;
+    [field, count, prev, next, filter, wrap, foldAll, unfoldAll, reveal, copy, formats].forEach(function (n) { bar.appendChild(n); });
+    if (!originals.length) reveal.hidden = true;
+    var box = el('div', 'ui-code-lines'); box.setAttribute('role', 'region'); box.setAttribute('aria-label', 'The object as ' + format.toUpperCase());
+    host.appendChild(bar); host.appendChild(box);
+    function shown(idx) { return state.revealAll || !!state.revealed[idx]; }
+    function masks(code, row) {
+      // the sentinels become masked values with Reveal; the row's text (what a search sees) takes the dots or,
+      // once revealed, the value
+      row.text = row.raw.replace(/MASKED_VALUE_(\d+)/g, function (_, n) { return shown(Number(n)) ? String(originals[Number(n)]) : DOTS; });
+      var walker = doc.createTreeWalker(code, NodeFilter.SHOW_TEXT, null), n, found = [];
+      while ((n = walker.nextNode())) { var mm = SENTINEL.exec(n.data.trim()); if (mm) found.push([n, Number(mm[1])]); }
+      found.forEach(function (f) {
+        var node = f[0], idx = f[1];
+        var quoted = node.data.trim().charAt(0) === '"', comma = /,$/.test(node.data.trim());
+        var span = el('span', 'ui-code-masked');
+        if (quoted) span.appendChild(doc.createTextNode('"'));
+        if (shown(idx)) span.appendChild(el('span', 'ui-code-revealed', String(originals[idx])));
+        else span.appendChild(el('span', 'ui-masked-dots', DOTS));
+        if (quoted) span.appendChild(doc.createTextNode('"'));
+        if (comma) span.appendChild(doc.createTextNode(','));
+        var b = el('button', 'ui-link ui-code-reveal', shown(idx) ? 'Hide' : 'Reveal'); b.type = 'button'; b.setAttribute('data-reveal', String(idx));
+        span.appendChild(doc.createTextNode(' ')); span.appendChild(b);
+        node.parentNode.replaceChild(span, node);
+      });
+    }
+    function keyButton(code, row) {
+      if (!row.key) return;
+      var k = code.querySelector('.hljs-attr');
+      if (k) { k.setAttribute('data-copy', row.path); k.title = 'Copy the path ' + row.path; k.setAttribute('role', 'button'); k.tabIndex = 0; }
+    }
+    function lineText(row, i) {
+      var code = codes[i] ? codes[i].cloneNode(true) : el('span', 'ui-code-line-text', row.text);
+      if (row.masked) masks(code, row);
+      keyButton(code, row);
+      return code;
+    }
+    function build() {
+      box.textContent = ''; lineEls = [];
+      rows.forEach(function (row, i) {
+        var line = el('div', 'ui-code-line'); line.setAttribute('data-n', String(i + 1)); if (row.path) line.setAttribute('data-path', row.path);
+        if (row.opens) {
+          var folded = !!state.folded[row.path || '#' + i];
+          var tg = el('button', 'ui-code-fold'); tg.type = 'button'; tg.setAttribute('data-fold', row.path || '#' + i); tg.setAttribute('aria-label', (folded ? 'Unfold ' : 'Fold ') + (row.path || 'the block')); tg.setAttribute('aria-expanded', folded ? 'false' : 'true'); tg.textContent = folded ? '▸' : '▾';
+          line.appendChild(tg);
+        }
+        line.appendChild(lineText(row, i));
+        if (row.opens && state.folded[row.path || '#' + i]) line.appendChild(el('span', 'ui-code-folded', ' … ' + (row.end - row.i) + ' lines'));
+        box.appendChild(line); lineEls.push(line);
+      });
+      show();
+    }
+    // which lines are on view: inside a folded block, or filtered out
+    function show() {
+      var hiddenTo = -1, q = state.query;
+      rows.forEach(function (row, i) {
+        var inFold = i <= hiddenTo;
+        lineEls[i].hidden = inFold || (state.filter && q && !row.$match);
+        if (!inFold && row.opens && state.folded[row.path || '#' + i]) hiddenTo = row.end;
+      });
+    }
+    function mark() {
+      var q = state.query;
+      state.matches = [];
+      rows.forEach(function (row, i) {
+        var fresh = lineText(row, i);
+        var old = lineEls[i].querySelector('.ui-code-line-text');
+        old.parentNode.replaceChild(fresh, old);
+        row.$match = !!q && row.text.toLowerCase().indexOf(q.toLowerCase()) >= 0;
+        lineEls[i].classList.toggle('ui-code-hit', row.$match);
+        if (row.$match) markIn(fresh, q).forEach(function (m) { state.matches.push({ line: i, mark: m }); });
+      });
+      count.textContent = q ? (state.matches.length ? (state.at + 1) + ' of ' + state.matches.length : 'no match') : '';
+      prev.disabled = next.disabled = state.matches.length < 2;
+      show();
+      current();
+    }
+    function current() {
+      Array.prototype.forEach.call(box.querySelectorAll('.ui-code-current'), function (m) { m.classList.remove('ui-code-current'); });
+      if (state.at < 0 || !state.matches.length) return;
+      var m = state.matches[state.at];
+      var opened = false;   // a match inside a folded block unfolds it
+      rows.forEach(function (row, i) { var id = row.path || '#' + i; if (row.opens && state.folded[id] && m.line > row.i && m.line <= row.end) { state.folded[id] = false; opened = true; } });
+      if (opened) { build(); mark(); return; }
+      m.mark.classList.add('ui-code-current');
+      count.textContent = (state.at + 1) + ' of ' + state.matches.length;
+      // the viewer's own box scrolls to the match (never the page: the pane around the frame stays put)
+      var line = lineEls[m.line];
+      host.scrollTop = Math.max(0, line.offsetTop - host.clientHeight / 2 + line.offsetHeight / 2);
+    }
+    function go(d) { if (!state.matches.length) return; state.at = (state.at + d + state.matches.length) % state.matches.length; current(); }
+    function copyText() { copy.setAttribute('data-copy', plain(false)); copy.textContent = 'Copy ' + state.format.toUpperCase(); }
+    function plain(all) { return rows.map(function (r) { return r.raw.replace(/MASKED_VALUE_(\d+)/g, function (_, n) { return all || shown(Number(n)) ? String(originals[Number(n)]) : '******'; }); }).join('\n') + '\n'; }
+    var loadGen = 0;
+    function load(fmt) {
+      state.format = fmt;
+      text = textOf(source, fmt);
+      rows = structure(text, fmt);
+      // the plain lines at once; the coloured ones replace them when the highlighter answers (unless a newer load ran)
+      codes = splitLines(escapeText(text));
+      var gen = ++loadGen;
+      highlight(text, fmt).then(function (html) { if (gen !== loadGen) return; codes = splitLines(html); build(); if (state.query) mark(); copyText(); });
+      state.folded = {};
+      var byPath = {}; rows.forEach(function (r) { if (r.opens && r.key && byPath[r.path] === undefined) byPath[r.path] = r.i; });
+      (opts.fold || ['metadata.managedFields']).forEach(function (p) { if (byPath[p] !== undefined) state.folded[p] = true; });
+      asJson.classList.toggle('ui-on', fmt === 'json'); asYaml.classList.toggle('ui-on', fmt === 'yaml');
+      asJson.setAttribute('aria-pressed', fmt === 'json' ? 'true' : 'false'); asYaml.setAttribute('aria-pressed', fmt === 'yaml' ? 'true' : 'false');
+      search.setAttribute('aria-label', 'Search the ' + fmt.toUpperCase()); box.setAttribute('aria-label', 'The object as ' + fmt.toUpperCase());
+      build(); if (state.query) mark(); copyText();
+    }
+    var timer = null;
+    search.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { state.query = search.value.trim(); state.at = state.query ? 0 : -1; mark(); }, 120); });
+    search.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); go(e.shiftKey ? -1 : 1); } });
+    next.addEventListener('click', function () { go(1); });
+    prev.addEventListener('click', function () { go(-1); });
+    filterBox.addEventListener('change', function () { state.filter = filterBox.checked; show(); });
+    wrapBox.addEventListener('change', function () { host.classList.toggle('ui-code-wrap', wrapBox.checked); });
+    foldAll.addEventListener('click', function () { rows.forEach(function (r, i) { if (r.opens && r.key && r.indent === (state.format === 'json' ? 2 : 0)) state.folded[r.path || '#' + i] = true; }); build(); mark(); });
+    unfoldAll.addEventListener('click', function () { state.folded = {}; build(); mark(); });
+    reveal.addEventListener('click', function () { state.revealAll = !state.revealAll; reveal.textContent = state.revealAll ? 'Hide secrets' : 'Reveal secrets'; build(); mark(); copyText(); });
+    formats.addEventListener('click', function (e) { var b = e.target.closest ? e.target.closest('[data-format]') : null; if (b && b.getAttribute('data-format') !== state.format) load(b.getAttribute('data-format')); });
+    box.addEventListener('click', function (e) {
+      var t = e.target;
+      var f = t.closest ? t.closest('[data-fold]') : null;
+      if (f) { var p = f.getAttribute('data-fold'); state.folded[p] = !state.folded[p]; build(); mark(); return; }
+      var r = t.closest ? t.closest('[data-reveal]') : null;
+      if (r) { var idx = Number(r.getAttribute('data-reveal')); state.revealed[idx] = !state.revealed[idx]; build(); mark(); copyText(); }
+    });
+    box.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.hljs-attr[data-copy]')) { e.preventDefault(); e.target.click(); } });
+    load(format);
+    return { search: function (q) { search.value = q; state.query = q; state.at = q ? 0 : -1; mark(); }, text: function () { return plain(true); }, format: function (f) { if (f) load(f); return state.format; }, state: state, rows: function () { return rows; } };
+  }
+  window.diagCode = { render: render, text: function (obj, format) { return textOf(prepare(obj, { mask: false }, [], '', false), format || 'json'); }, secretish: function (k) { return SECRETISH.test(String(k || '')); } };
+})();
+
+/*
+  diagPopover: a panel that opens beside a control (the Log Viewer's file picker and calendar). Two things the frame
+  cannot see on its own decide where a panel fits. The frame never scrolls - the pane around it does - so the room
+  below the control is measured against the pane's viewport (window.diagnosticsViewport, in frame coordinates),
+  never window.innerHeight (the frame's whole height): measured by the frame's height a panel opened upward and sat
+  above the pane's view with its top cut off. And a fixed panel cannot paint past the iframe's own box, which ends
+  with the content: a panel below a control near the content's end was cut at the iframe's bottom edge. So while a
+  panel is open the body's min-height reaches the panel's bottom; the height bridge (the parent's ResizeObserver
+  message) grows the iframe under it, and the body's min-height goes back on close, so the iframe shrinks again.
+  When the host does not follow (the frame stays short), the panel is placed again with the frame's bottom as its
+  floor. The panel opens below the control by default, flips above only when the room below is under minHeight and
+  the room above is larger, and takes the room it has as its max-height (its .ui-popover-body scrolls; a
+  .ui-popover-head stays at the top, a .ui-popover-foot at the bottom).
+    diagPopover.open(panel, anchor, { maxHeight: 480, minHeight: 200 | 'natural', focus: input, align: 'left' | 'right' })
+    diagPopover.close(panel)   diagPopover.place(panel, anchor, opts)   diagPopover.isOpen(panel)
+  A panel hidden any other way (the class "hidden" added by its own close paths) is released the same: the body's
+  min-height follows the panels still open.
+*/
+(function () {
+  var MARGIN = 8, GAP = 4, SETTLE_MS = 350;
+  var openPanels = [];
+  var savedMinHeight = null;
+  function viewport() {
+    var vp = window.diagnosticsViewport;
+    if (vp && vp.height) return { top: vp.top, height: vp.height };
+    return { top: window.scrollY || 0, height: window.innerHeight };
+  }
+  function frameHeight() { return document.documentElement.clientHeight; }
+  function grow() {
+    // the body's min-height reaches the lowest open panel (what the height bridge measures), or goes back
+    var need = 0;
+    openPanels.forEach(function (p) { if (!p.classList.contains('hidden')) need = Math.max(need, p.getBoundingClientRect().bottom + MARGIN + GAP); });
+    if (!document.body) return;
+    if (need > 0) {
+      if (savedMinHeight === null) savedMinHeight = document.body.style.minHeight || '';
+      document.body.style.minHeight = Math.ceil(need) + 'px';
+    } else if (savedMinHeight !== null) {
+      document.body.style.minHeight = savedMinHeight;
+      savedMinHeight = null;
+    }
+  }
+  function release(panel) {
+    var i = openPanels.indexOf(panel);
+    if (i >= 0) openPanels.splice(i, 1);
+    grow();
+  }
+  function watch(panel) {
+    if (panel.$popoverWatch || !window.MutationObserver) return;
+    panel.$popoverWatch = new MutationObserver(function () { if (panel.classList.contains('hidden')) release(panel); });
+    panel.$popoverWatch.observe(panel, { attributes: true, attributeFilter: ['class'] });
+  }
+  function place(panel, anchor, opts, capToFrame) {
+    opts = opts || {};
+    var vp = viewport();
+    var r = anchor.getBoundingClientRect();
+    var frameW = document.documentElement.clientWidth;
+    var want = opts.maxHeight || 480;
+    var useful = opts.minHeight || 200;
+    if (useful === 'natural') { panel.style.maxHeight = 'none'; useful = Math.min(want, panel.offsetHeight); }
+    var viewBottom = vp.top + vp.height;
+    // the floor: the pane's view (the frame grows under the panel), or the frame's own bottom when it cannot
+    var floor = capToFrame ? Math.min(viewBottom, frameHeight()) : viewBottom;
+    var below = floor - r.bottom - GAP - MARGIN;
+    var above = r.top - Math.max(vp.top, 0) - GAP - MARGIN;
+    var up = below < Math.min(want, useful) && above > below;
+    var room = Math.max(120, up ? above : below);
+    panel.style.maxHeight = Math.min(want, room) + 'px';
+    var h = panel.offsetHeight, w = panel.offsetWidth;
+    var top = up ? r.top - GAP - h : r.bottom + GAP;
+    var left = opts.align === 'right' ? r.right - w : r.left;
+    left = Math.max(MARGIN, Math.min(left, frameW - w - MARGIN));
+    panel.style.top = Math.round(top) + 'px';
+    panel.style.left = Math.round(left) + 'px';
+    panel.setAttribute('data-placement', up ? 'above' : 'below');
+    grow();
+  }
+  function open(panel, anchor, opts) {
+    opts = opts || {};
+    watch(panel);
+    panel.classList.remove('hidden');
+    if (openPanels.indexOf(panel) < 0) openPanels.push(panel);
+    place(panel, anchor, opts);
+    if (opts.focus) { try { opts.focus.focus({ preventScroll: true }); } catch { opts.focus.focus(); } }
+    // the frame grows through the parent (asynchronously); a host that leaves it short gets the panel capped to it
+    setTimeout(function () {
+      if (panel.classList.contains('hidden')) return;
+      if (panel.getBoundingClientRect().bottom + MARGIN > frameHeight() + 1) place(panel, anchor, opts, true);
+    }, SETTLE_MS);
+  }
+  function close(panel) { panel.classList.add('hidden'); release(panel); }
+  function isOpen(panel) { return !panel.classList.contains('hidden'); }
+  window.diagPopover = { open: open, close: close, place: place, isOpen: isOpen };
+})();
+
+/*
+  diagDateRange: the date-range picker (the Log Viewer's calendar; a shared component for any range control). Mounted on
+  the calendar markup of tabs/_log_view.html: the month title (.ui-dr-title), the previous / next buttons (.ui-dr-prev,
+  .ui-dr-next), the day grid (.ui-dr-grid), Today (.ui-dr-today) and Clear (.ui-dr-clear). The days are plain buttons
+  (exempt from the frame's generic button rule): the range's start and end in the selected role, the days between on a
+  soft band with rounded ends, today ringed, the other months' days muted, the days outside the bounds disabled with a
+  tooltip. The first click sets the start, the second the end (the two swapped when it lies before the start); with a
+  start and no end, hovering previews the band. Arrow keys move the focus a day or a week, PageUp / PageDown a month,
+  Home / End to the week's ends, Enter or Space select, Escape closes. Every date is a UTC midnight.
+    diagDateRange.mount(root, { min, max, start, end, onChange(start, end, done), onClose(), onClear() })
+      .set(start, end)   .bounds(min, max)   .view(date)   .focus()   .render()   .state()
+*/
+(function () {
+  var DAY = 86400000;
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  function utc(y, m, d) { return new Date(Date.UTC(y, m, d)); }
+  function mid(d) { return d instanceof Date && !isNaN(d) ? utc(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) : null; }
+  function key(d) { return d.toISOString().slice(0, 10); }
+  function same(a, b) { return !!a && !!b && a.getTime() === b.getTime(); }
+  function month1(d) { return utc(d.getUTCFullYear(), d.getUTCMonth(), 1); }
+  function mount(root, opts) {
+    opts = opts || {};
+    var title = root.querySelector('.ui-dr-title'), grid = root.querySelector('.ui-dr-grid');
+    var prev = root.querySelector('.ui-dr-prev'), next = root.querySelector('.ui-dr-next');
+    var today = root.querySelector('.ui-dr-today'), clear = root.querySelector('.ui-dr-clear');
+    var now = new Date();
+    var todayUtc = utc(now.getFullYear(), now.getMonth(), now.getDate());
+    var st = { min: mid(opts.min), max: mid(opts.max), start: mid(opts.start), end: mid(opts.end), hover: null, view: null, focus: null };
+    function off(d) { return (st.min && d < st.min) || (st.max && d > st.max); }
+    function band() {
+      var a = st.start, b = st.end || (st.start && st.hover ? st.hover : null);
+      if (!a || !b) return null;
+      return a <= b ? [a, b] : [b, a];
+    }
+    function render() {
+      if (!st.view) st.view = month1(st.start || st.max || todayUtc);
+      var y = st.view.getUTCFullYear(), m = st.view.getUTCMonth();
+      if (title) title.textContent = MONTHS[m] + ' ' + y;
+      var lead = utc(y, m, 1).getUTCDay();
+      var bd = band(), preview = !st.end;
+      var focusKey = st.focus ? key(st.focus) : (st.start ? key(st.start) : null);
+      grid.innerHTML = '';
+      var focused = false;
+      for (var i = 0; i < 42; i++) {
+        var d = utc(y, m, 1 - lead + i);
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'ui-dr-day'; b.textContent = String(d.getUTCDate()); b.dataset.date = key(d);
+        b.setAttribute('role', 'gridcell'); b.tabIndex = -1;
+        var dis = off(d);
+        if (d.getUTCMonth() !== m) b.classList.add('ui-dr-out');
+        if (dis) { b.disabled = true; b.classList.add('ui-dr-off'); b.title = 'Outside the logs\' dates' + (st.min && st.max ? ' (' + key(st.min) + ' to ' + key(st.max) + ')' : ''); }
+        if (same(d, todayUtc)) b.classList.add('ui-dr-today');
+        if (same(d, st.start)) { b.classList.add('ui-dr-start'); if (st.end && !same(st.start, st.end)) b.classList.add('ui-dr-has-end'); }
+        if (same(d, st.end)) { b.classList.add('ui-dr-end'); if (!same(st.start, st.end)) b.classList.add('ui-dr-has-end'); }
+        if (bd && d > bd[0] && d < bd[1]) b.classList.add(preview ? 'ui-dr-preview' : 'ui-dr-in');
+        if (bd && preview && same(d, st.hover) && !same(d, st.start)) b.classList.add('ui-dr-preview-end');
+        if (focusKey && key(d) === focusKey && !dis) { b.tabIndex = 0; focused = true; }
+        grid.appendChild(b);
+      }
+      if (!focused) { var first = grid.querySelector('.ui-dr-day:not(:disabled):not(.ui-dr-out)') || grid.querySelector('.ui-dr-day:not(:disabled)'); if (first) first.tabIndex = 0; }
+      if (today) { today.disabled = !!off(todayUtc); today.title = today.disabled ? 'Today lies outside the logs\' dates' : ''; }
+    }
+    function dateOf(b) { return new Date(b.dataset.date + 'T00:00:00Z'); }
+    function pick(d) {
+      if (off(d)) return;
+      if (!st.start || st.end) { st.start = d; st.end = null; }
+      else { st.end = d; if (st.end < st.start) { var t = st.start; st.start = st.end; st.end = t; } }
+      st.hover = null; st.focus = d;
+      var had = grid.contains(document.activeElement);
+      render();
+      if (had) focus();   // the grid is rebuilt: the keyboard stays on the picked day
+      if (opts.onChange) opts.onChange(st.start, st.end, !!st.end);
+    }
+    function focus() { var b = grid.querySelector('.ui-dr-day[tabindex="0"]'); if (b) { try { b.focus({ preventScroll: true }); } catch { b.focus(); } } }
+    function moveTo(d) { st.focus = d; st.view = month1(d); render(); focus(); }
+    grid.addEventListener('click', function (e) { var b = e.target.closest('.ui-dr-day'); if (b && !b.disabled) pick(dateOf(b)); });
+    grid.addEventListener('mouseover', function (e) {
+      var b = e.target.closest('.ui-dr-day');
+      if (!b || b.disabled || !st.start || st.end) return;
+      var d = dateOf(b);
+      if (!same(d, st.hover)) { st.hover = d; render(); }
+    });
+    grid.addEventListener('mouseleave', function () { if (st.hover) { st.hover = null; render(); } });
+    grid.addEventListener('keydown', function (e) {
+      var b = e.target.closest ? e.target.closest('.ui-dr-day') : null;
+      if (!b) return;
+      var d = dateOf(b), k = e.key;
+      if (k === 'ArrowLeft') moveTo(new Date(d.getTime() - DAY));
+      else if (k === 'ArrowRight') moveTo(new Date(d.getTime() + DAY));
+      else if (k === 'ArrowUp') moveTo(new Date(d.getTime() - 7 * DAY));
+      else if (k === 'ArrowDown') moveTo(new Date(d.getTime() + 7 * DAY));
+      else if (k === 'PageUp') moveTo(utc(d.getUTCFullYear(), d.getUTCMonth() - 1, Math.min(d.getUTCDate(), 28)));
+      else if (k === 'PageDown') moveTo(utc(d.getUTCFullYear(), d.getUTCMonth() + 1, Math.min(d.getUTCDate(), 28)));
+      else if (k === 'Home') moveTo(new Date(d.getTime() - d.getUTCDay() * DAY));
+      else if (k === 'End') moveTo(new Date(d.getTime() + (6 - d.getUTCDay()) * DAY));
+      else if (k === 'Enter' || k === ' ') pick(d);
+      else if (k === 'Escape') { if (opts.onClose) opts.onClose(); }
+      else return;
+      e.preventDefault(); e.stopPropagation();
+    });
+    root.addEventListener('keydown', function (e) { if (e.key === 'Escape' && opts.onClose) { e.preventDefault(); e.stopPropagation(); opts.onClose(); } });
+    if (prev) prev.addEventListener('click', function () { st.view = utc(st.view.getUTCFullYear(), st.view.getUTCMonth() - 1, 1); render(); });
+    if (next) next.addEventListener('click', function () { st.view = utc(st.view.getUTCFullYear(), st.view.getUTCMonth() + 1, 1); render(); });
+    if (today) today.addEventListener('click', function () { if (off(todayUtc)) return; st.start = st.end = st.focus = todayUtc; st.hover = null; st.view = null; render(); if (opts.onChange) opts.onChange(st.start, st.end, true); });
+    if (clear) clear.addEventListener('click', function () { st.start = st.end = st.hover = null; render(); if (opts.onClear) opts.onClear(); });
+    var api = {
+      set: function (start, end) { st.start = mid(start); st.end = mid(end); st.hover = null; st.focus = st.start; if (st.start) st.view = month1(st.start); render(); return api; },
+      bounds: function (min, max) { st.min = mid(min); st.max = mid(max); render(); return api; },
+      view: function (d) { d = mid(d); st.view = month1(d || st.start || st.max || todayUtc); render(); return api; },
+      focus: focus,
+      render: render,
+      state: function () { return { start: st.start, end: st.end, min: st.min, max: st.max, view: st.view }; },
+    };
+    render();
+    return api;
+  }
+  window.diagDateRange = { mount: mount };
+})();
+
+/*
+  diagLogView: the one Log Viewer of the Diagnostics pages. The presentation (the charts row, the date range with its
+  calendar and dual slider, the source picker, Get Date Range / Load Logs / Export CSV, the status, the filter row,
+  the table, the pager, the busy state, the keyboard and the cross-link search) lives here and in
+  tabs/_log_view.html; the data comes through an adapter the page picks, so a sosreport and a must-gather read the
+  same way and an improvement lands on both:
+
+    window.diagLogView.mount(root, adapter)
+    adapter = {
+      dateRange: { start, end } | null,          // the initial slider bounds (ISO strings)
+      getRange(paths) -> Promise<{ start, end }>, // the earliest / latest timestamps of the selected sources
+      load({ paths, start, end, search, exclude, level, source }, onEntries(entries, totalCount), onProgress({ entries, filesDone, filesTotal })) -> { done: Promise, cancel() },
+        search / exclude: the terms of the filter fields at Load Logs (plain substrings, any-of / none-of), level
+        and source (the group key) likewise: the adapter applies them server-side, so the rows that arrive are
+        the matches across every selected file; the fields keep filtering what is loaded afterwards
+    A cross-link "sources=<a>,<b>[&q=<term>]" (diagLogView.applyQuery, via diagLinks) checks the sources it names
+    and nothing else, reads their date range, loads them and puts the term in the search: <ns>/<pod> is every
+    container log of the pod (current and previous), <ns>/<pod>/<container> one container's, node:<node> the node's
+    journals, host:<role> the role's host service logs, host:<role>/<file> one of them, any other value a source's
+    listed name (a sosreport's file).
+        onProgress after every page / chunk, rows or not: the viewer's "Loading logs… N entries (k of n files)" line and pill
+      exportPrefix: 'logs',                       // the CSV file name
+    }
+    a row: { timestamp, timestamp_obj, severity, hostname, process, pid, message, badges?: [{ kind, text, title }], src? }
+    group(row) -> { key, label, title } (optional): what the source chart and the source select group the rows by;
+      without it the rows group by their process. chartTitle / sourceLabel name the card and the select's first
+      option (the template's chart_title / source_label arguments say the same before the viewer mounts).
+
+  diagLogView.adapters.sosreport({ directory, dateRange }): the journal / syslog files through the streamed parse
+  (/parse_log_viewer_stream) and /get_log_date_range. diagLogView.adapters.mustgather({ directory, dateRange }): the
+  container / host service / node logs page by page through /mustgather_log_search (cancel: /mustgather_log_cancel). Every element id is the contract with the markup, the driver
+  scripts and the tests (log-search, log-exclude, severity-filter, process-filter, load-logs-btn, date-slider-* ...).
+*/
+(function () {
+  // the SSE text the parent forwards ("data: {...}\n\n" messages), reassembled chunk by chunk
+  function sseReader(onChunk) {
+    let buffer = '';
+    return (text) => {
+      buffer += text;
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const jsonStr = line.substring(6);
+        if (!jsonStr.trim()) continue;
+        let chunk;
+        try { chunk = JSON.parse(jsonStr); } catch (e) { console.error('[Log Viewer] Error parsing chunk:', e); continue; }
+        onChunk(chunk);
+      }
+    };
+  }
+  const adapters = {
+    // the must-gather: the container, host service and node logs the gather lists, read page by page through
+    // /mustgather_log_search (the server reads from a cursor for a limit of rows or a time budget per call; the
+    // rows arrive in the viewer as each page lands); Abort stops the paging and cancels the running call
+    mustgather(opts) {
+      opts = opts || {};
+      const PAGE = 2000;
+      return {
+        kind: 'mustgather',
+        dateRange: opts.dateRange || null,
+        exportPrefix: 'mustgather-logs',
+        gatherTime: opts.gatherTime || null,
+        chartTitle: 'Logs per Source',
+        sourceLabel: 'All Sources',
+        // the rows grouped by what wrote them: a container (ns/pod/container), a host service, a node's journal
+        group(entry) {
+          if (entry.src === 'host') { const svc = entry.service || entry.process; return { key: 'host:' + svc, label: svc, title: `${svc} (host service log)` }; }
+          if (entry.src === 'node') return { key: 'node:' + entry.hostname, label: entry.hostname, title: `${entry.hostname} (node journal)` };
+          const key = `${entry.hostname}/${entry.process}`;
+          return { key, label: key, title: `${key} (container)` };
+        },
+        async getRange(paths) {
+          // the must-gather's own reader (/mustgather_log_date_range): the head and tail of each selected log, every
+          // line format the search knows; logs without timestamps come back named, never as an error
+          const response = await window.diagnosticsApiRequest('/mustgather_log_date_range', { directory: opts.directory, paths });
+          if (!response.ok) throw new Error((response.json && response.json.error) || 'Failed to get date range');
+          const r = response.json || {};
+          return { start: r.start, end: r.end, untimestamped: r.untimestamped || [], timestamped: r.timestamped || 0 };
+        },
+        load(params, onEntries, onProgress) {
+          let cancelled = false;
+          const done = (async () => {
+            let cursor = null;
+            let total = 0;
+            const filesTotal = (params.paths || []).length;
+            for (;;) {
+              const body = { directory: opts.directory, paths: params.paths, limit: PAGE };
+              if (params.start) body.start = params.start;
+              if (params.end) body.end = params.end;
+              if (params.search && params.search.length) body.query = params.search;
+              if (params.exclude && params.exclude.length) body.exclude = params.exclude;
+              if (params.level) body.level = params.level;
+              if (params.source) body.source = params.source;
+              if (cursor) body.cursor = cursor;
+              const response = await window.diagnosticsApiRequest('/mustgather_log_search', body);
+              if (cancelled) return { ok: true, cancelled: true };
+              const r = response.json || {};
+              if (!response.ok) throw new Error(r.cancelled ? 'The search was cancelled' : (r.error || r.message || 'The search failed'));
+              total += (r.entries || []).length;
+              onEntries(r.entries || [], total);
+              // every page reports, rows or not: a long scan with few matches still shows its way through the files
+              if (onProgress) onProgress({ entries: total, filesDone: r.done || !r.cursor ? (r.files || filesTotal) : Math.min(r.cursor.file || 0, r.files || filesTotal), filesTotal: r.files || filesTotal });
+              if (r.done || !r.cursor) return { ok: true };
+              cursor = r.cursor;
+            }
+          })();
+          return {
+            done,
+            cancel: () => { cancelled = true; window.diagnosticsApiRequest('/mustgather_log_cancel', { directory: opts.directory }).catch(() => {}); },
+          };
+        },
+      };
+    },
+    sosreport(opts) {
+      opts = opts || {};
+      return {
+        kind: 'sosreport',
+        dateRange: opts.dateRange || null,
+        exportPrefix: 'logs',
+        async getRange(paths) {
+          // the calls go through the trusted parent window (the sandboxed frame cannot attach the app token itself):
+          // window.diagnosticsApiRequest and the allowlisted proxy in src/components/DiagnosticsPage.jsx
+          const response = await window.diagnosticsApiRequest('/get_log_date_range', { directory: opts.directory, log_paths: paths });
+          if (!response.ok) throw new Error((response.json && response.json.error) || 'Failed to get date range');
+          return (response.json && response.json.date_range) || {};
+        },
+        load(params, onEntries, onProgress) {
+          let failure = null;
+          const filesTotal = (params.paths || []).length;
+          const read = sseReader((chunk) => {
+            if (chunk.error) { failure = new Error(chunk.error); return; }
+            if (chunk.done) return;
+            if (chunk.entries && chunk.entries.length) onEntries(chunk.entries, chunk.total_count);
+            // the file count only when the stream names its file (an older backend's chunks do not)
+            if (onProgress) onProgress({ entries: chunk.total_count || 0, filesDone: chunk.file || 0, filesTotal: chunk.file ? (chunk.files || filesTotal) : 0 });
+          });
+          const body = { directory: opts.directory, start_date: params.start, end_date: params.end, log_paths: params.paths };
+          if (params.search && params.search.length) body.query = params.search;
+          if (params.exclude && params.exclude.length) body.exclude = params.exclude;
+          if (params.level) body.level = params.level;
+          if (params.source) body.process = params.source;
+          const stream = window.diagnosticsApiStream('/parse_log_viewer_stream', body, read);
+          return { done: stream.done.then((r) => { if (failure) throw failure; return r; }), cancel: () => stream.cancel() };
+        },
+      };
+    },
+  };
+
+function mount(root, adapter) {
+  if (!root || !adapter) return null;
+  const root0 = root;
+  const loadLogsBtn = document.getElementById('load-logs-btn');
+  const getRangeBtn = document.getElementById('get-range-btn');
+  const logFileDropdownBtn = document.getElementById('log-file-dropdown-btn');
+  const logFileDropdownPanel = document.getElementById('log-file-dropdown-panel');
+  const logFileSelectionDisplay = document.getElementById('log-file-selection-display');
+  const logFileSearch = document.getElementById('log-file-search');
+  const selectAllLogsBtn = document.getElementById('select-all-logs');
+  const clearAllLogsBtn = document.getElementById('clear-all-logs');
+  const dateSliderStart = document.getElementById('date-slider-start');
+  const dateSliderEnd = document.getElementById('date-slider-end');
+  const dateStartLabel = document.getElementById('date-start-label');
+  const dateEndLabel = document.getElementById('date-end-label');
+  const dateRangeHighlight = document.getElementById('date-range-highlight');
+  const singleDateButton = document.getElementById('single-date-button');
+  const singleDateDisplay = document.getElementById('single-date-display');
+  const dateCalendar = document.getElementById('date-calendar');
+  const loadingIndicator = document.getElementById('loading-indicator');
+
+  let processChart = null;
+  let severityChart = null;
+  const logsLoadedInfo = document.getElementById('logs-loaded-info');
+  const loadedCount = document.getElementById('loaded-count');
+  const logTableBody = document.getElementById('log-table-body');
+  const noResults = document.getElementById('no-results');
+  const searchInput = document.getElementById('log-search');
+  const severityFilter = document.getElementById('severity-filter');
+  const processFilter = document.getElementById('process-filter');
+  const entryCount = document.getElementById('entry-count');
+  const pageInfo = document.getElementById('page-info');
+
+  // Modal elements
+  const alertModal = document.getElementById('alert-modal');
+  const alertModalIcon = document.getElementById('alert-modal-icon');
+  const alertModalTitle = document.getElementById('alert-modal-title');
+  const alertModalMessage = document.getElementById('alert-modal-message');
+  const alertModalOk = document.getElementById('alert-modal-ok');
+
+  // Show alert modal
+  function showAlert(title, message, type = 'info') {
+    alertModalTitle.textContent = title;
+    alertModalMessage.textContent = message;
+
+    // the icon by type, in the role colours
+    alertModalIcon.className = 'fas ui-modal-icon ' + ({ error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle', success: 'fa-check-circle' }[type] || 'fa-info-circle');
+    alertModalIcon.style.color = ({ error: 'var(--chart-bad)', warning: 'var(--chart-warn)', success: 'var(--chart-good)' })[type] || 'var(--os-blue)';
+
+    alertModal.classList.remove('hidden');
+  }
+
+  // Close modal
+  alertModalOk?.addEventListener('click', () => {
+    alertModal.classList.add('hidden');
+  });
+
+  // Close modal on background click
+  alertModal?.addEventListener('click', (e) => {
+    if (e.target === alertModal) {
+      alertModal.classList.add('hidden');
+    }
+  });
+
+  let allEntries = [];
+  let filteredEntries = [];
+  let loadScope = null;   // the last load: { filtered: the filters went server-side, files: the selected files }
+  let currentPage = 0;
+  let pageSize = 100;
+  let sortColumn = -1;
+  let sortAscending = true;
+
+  // Loading state for abort functionality
+  let isLoading = false;
+  let busyHandle = null;   // the shared busy state (diagBusy) of the running load / range read
+  let currentReader = null;
+
+  // Update selection display
+  function updateSelectionDisplay() {
+    if (!logFileSelectionDisplay) return;   // a report without logs has no file picker (the Findings strip says so)
+    const checkboxes = document.querySelectorAll('.log-file-checkbox:checked');
+    const count = checkboxes.length;
+
+    if (count === 0) {
+      logFileSelectionDisplay.textContent = 'No files selected';
+    } else if (count === 1) {
+      const fileName = checkboxes[0].getAttribute('data-name');
+      logFileSelectionDisplay.textContent = fileName;
+    } else {
+      logFileSelectionDisplay.textContent = `${count} files selected`;
+    }
+  }
+
+  // Toggle dropdown
+  logFileDropdownBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+
+    if (logFileDropdownPanel.classList.contains('hidden')) {
+      logFileSearch.value = '';
+      // Show all items
+      document.querySelectorAll('.log-file-item').forEach(item => { item.style.display = 'flex'; });
+      // below the button, in the pane's viewport, the search field focused (diagPopover)
+      window.diagPopover.open(logFileDropdownPanel, logFileDropdownBtn, { maxHeight: 480, minHeight: 220, focus: logFileSearch });
+    } else {
+      logFileDropdownPanel.classList.add('hidden');
+    }
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!logFileDropdownPanel.contains(e.target) && !logFileDropdownBtn.contains(e.target)) {
+      logFileDropdownPanel.classList.add('hidden');
+    }
+  });
+
+  // Prevent dropdown from closing when clicking inside
+  logFileDropdownPanel?.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+
+  // Log file search functionality
+  logFileSearch?.addEventListener('input', () => {
+    const searchTerm = logFileSearch.value.toLowerCase();
+    const items = document.querySelectorAll('.log-file-item');
+
+    items.forEach(item => {
+      const logName = item.getAttribute('data-log-name');
+      if (logName.includes(searchTerm)) {
+        item.style.display = 'flex';
+      } else {
+        item.style.display = 'none';
+      }
+    });
+  });
+
+  // Update display when checkboxes change
+  document.querySelectorAll('.log-file-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', updateSelectionDisplay);
+  });
+
+  // Select All button
+  selectAllLogsBtn?.addEventListener('click', () => {
+    const visibleCheckboxes = Array.from(document.querySelectorAll('.log-file-item'))
+      .filter(item => item.style.display !== 'none')
+      .map(item => item.querySelector('.log-file-checkbox'));
+
+    visibleCheckboxes.forEach(cb => cb.checked = true);
+    updateSelectionDisplay();
+  });
+
+  // Clear All button
+  clearAllLogsBtn?.addEventListener('click', () => {
+    document.querySelectorAll('.log-file-checkbox').forEach(cb => cb.checked = false);
+    updateSelectionDisplay();
+  });
+
+  // Initialize display
+  updateSelectionDisplay();
+
+  // Date range from server - parse as UTC to avoid timezone issues.
+  // null (not a string) when no readable log had a parseable timestamp.
+  const minDateStr = adapter.dateRange && adapter.dateRange.start || null;
+  const maxDateStr = adapter.dateRange && adapter.dateRange.end || null;
+
+  // Helper to check if timestamp has timezone info (Z, +00:00, -05:00, etc.)
+  const hasTimezone = (str) => str.includes('Z') || str.includes('+') || str.match(/-\d{2}:\d{2}$/);
+
+  // Parse an ISO string as UTC; null/unparseable -> null.
+  // Handle both 'Z' and '+00:00' timezone formats
+  const parseServerDate = (str) => {
+    if (typeof str !== 'string' || !str) return null;
+    const d = new Date(hasTimezone(str) ? str : str + 'Z');
+    return isNaN(d.getTime()) ? null : d;
+  };
+  const midnightUTC = (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+
+  let minDateParsed = parseServerDate(minDateStr);
+  let maxDateParsed = parseServerDate(maxDateStr);
+
+  // Whether the slider bounds are real. When false the labels read "unknown",
+  // the slider is a single point (today) and Load Logs asks for a range first.
+  let dateRangeKnown = !!(minDateParsed && maxDateParsed);
+  // the sources carry no timestamps (the adapter's date range said so): they load whole, in file order; the empty
+  // ones are named apart; loadsWhole: the selection needs no date range (undated or empty throughout)
+  let untimestamped = [];
+  let emptySources = [];
+  let loadsWhole = false;
+  if (!dateRangeKnown) {
+    // no bounds known: the report's own time (the adapter's gatherTime) stands in, never today
+    minDateParsed = parseServerDate(adapter.gatherTime) || new Date();
+    maxDateParsed = minDateParsed;
+  }
+
+  // Normalize to midnight UTC
+  let minDate = midnightUTC(minDateParsed);
+  let maxDate = midnightUTC(maxDateParsed);
+  let totalDays = Math.max(0, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)));
+
+
+  // Initialize date sliders (a report without logs has none: the Findings strip says so)
+  if (dateSliderStart && dateSliderEnd) {
+  dateSliderStart.min = 0;
+  dateSliderStart.max = totalDays;
+  dateSliderStart.value = 0;
+  dateSliderEnd.min = 0;
+  dateSliderEnd.max = totalDays;
+  dateSliderEnd.value = totalDays;
+  }
+
+  // the note under the slider for sources without timestamps, and the slider shown only when a range applies
+  function rangeNote(selectedCount) {
+    const note = document.getElementById('date-range-note');
+    if (!note) return;
+    if (!untimestamped.length) {
+      const allEmpty = emptySources.length > 0 && emptySources.length >= selectedCount;
+      note.textContent = allEmpty ? (selectedCount === 1 ? 'This log is empty.' : 'The selected logs are empty.') : '';
+      note.hidden = !allEmpty;
+      return;
+    }
+    const all = untimestamped.length + emptySources.length >= selectedCount;
+    note.textContent = all
+      ? (untimestamped.length === 1 ? 'This log carries no timestamps; it loads in file order.' : 'These logs carry no timestamps; they load in file order.')
+      : `${untimestamped.length} of ${selectedCount} selected logs carry no timestamps (${untimestamped.slice(0, 3).join(', ')}${untimestamped.length > 3 ? ', …' : ''}); they load in file order, the date range applies to the rest.`;
+    note.hidden = false;
+  }
+  function sliderShown(on) {
+    const slider = document.querySelector('.lv-slider');
+    if (slider) slider.hidden = !on;
+    if (singleDateButton) singleDateButton.hidden = !on;
+  }
+  function updateDateLabel() {
+    if (!dateSliderStart || !dateSliderEnd) return;   // no logs, no date picker
+    const startDays = parseInt(dateSliderStart.value);
+    const endDays = parseInt(dateSliderEnd.value);
+
+
+    // Create dates in UTC to avoid timezone shifting
+    const startDate = new Date(Date.UTC(
+      minDate.getUTCFullYear(),
+      minDate.getUTCMonth(),
+      minDate.getUTCDate() + startDays,
+      0, 0, 0, 0
+    ));
+
+    const endDate = new Date(Date.UTC(
+      minDate.getUTCFullYear(),
+      minDate.getUTCMonth(),
+      minDate.getUTCDate() + endDays,
+      0, 0, 0, 0
+    ));
+
+
+    if (dateRangeKnown) {
+      dateStartLabel.textContent = startDate.toISOString().split('T')[0];
+      dateEndLabel.textContent = endDate.toISOString().split('T')[0];
+    } else {
+      dateStartLabel.textContent = 'unknown';
+      dateEndLabel.textContent = 'unknown';
+    }
+
+    // Update visual range highlight (max is 0 for a single-day/unknown range)
+    const max = parseInt(dateSliderStart.max) || 1;
+    const startPercent = (startDays / max) * 100;
+    const endPercent = (endDays / max) * 100;
+
+    dateRangeHighlight.style.left = `${startPercent}%`;
+    dateRangeHighlight.style.width = `${endPercent - startPercent}%`;
+
+    // Update calendar picker's selected range
+    rangeStartDate = startDate;
+    rangeEndDate = endDate;
+
+    // Update the calendar picker display text
+    singleDateDisplay.textContent = formatDateDisplay();
+
+    // the calendar follows the slider
+    if (picker) picker.set(rangeStartDate, rangeEndDate);
+  }
+
+  // Dual slider interaction handler
+  function setupDualSlider(container, startSlider, endSlider, updateCallback) {
+    if (!container || !startSlider || !endSlider) return;   // no logs, no slider
+    let activeSlider = null;
+    let isDragging = false;
+
+    function updateSliderFromMouse(e) {
+      if (!isDragging || !activeSlider) return;
+
+      const rect = container.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const percent = Math.max(0, Math.min(1, clickX / rect.width));
+      const clickValue = percent * (parseInt(activeSlider.max) - parseInt(activeSlider.min)) + parseInt(activeSlider.min);
+
+      activeSlider.value = Math.round(clickValue);
+
+      // Constrain values
+      if (activeSlider === startSlider) {
+        if (parseInt(startSlider.value) > parseInt(endSlider.value)) {
+          startSlider.value = endSlider.value;
+        }
+      } else {
+        if (parseInt(endSlider.value) < parseInt(startSlider.value)) {
+          endSlider.value = startSlider.value;
+        }
+      }
+
+      updateCallback();
+    }
+
+    container.addEventListener('mousedown', (e) => {
+      const rect = container.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const percent = clickX / rect.width;
+      const clickValue = percent * (parseInt(startSlider.max) - parseInt(startSlider.min)) + parseInt(startSlider.min);
+
+      const startValue = parseInt(startSlider.value);
+      const endValue = parseInt(endSlider.value);
+
+      // Determine which handle is closer
+      const distToStart = Math.abs(clickValue - startValue);
+      const distToEnd = Math.abs(clickValue - endValue);
+
+      if (distToStart <= distToEnd) {
+        activeSlider = startSlider;
+        startSlider.style.pointerEvents = 'auto';
+        endSlider.style.pointerEvents = 'none';
+        startSlider.style.zIndex = '2';
+        endSlider.style.zIndex = '1';
+      } else {
+        activeSlider = endSlider;
+        endSlider.style.pointerEvents = 'auto';
+        startSlider.style.pointerEvents = 'none';
+        endSlider.style.zIndex = '2';
+        startSlider.style.zIndex = '1';
+      }
+
+      isDragging = true;
+      updateSliderFromMouse(e);
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (isDragging) {
+        updateSliderFromMouse(e);
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        startSlider.style.pointerEvents = 'none';
+        endSlider.style.pointerEvents = 'none';
+        activeSlider = null;
+      }
+    });
+
+    startSlider.addEventListener('input', () => {
+      if (parseInt(startSlider.value) > parseInt(endSlider.value)) {
+        startSlider.value = endSlider.value;
+      }
+      updateCallback();
+    });
+
+    endSlider.addEventListener('input', () => {
+      if (parseInt(endSlider.value) < parseInt(startSlider.value)) {
+        endSlider.value = startSlider.value;
+      }
+      updateCallback();
+    });
+  }
+
+  setupDualSlider(document.getElementById('date-slider-container'), dateSliderStart, dateSliderEnd, updateDateLabel);
+
+  // Custom date picker - range selection (use UTC dates)
+  let rangeStartDate = null;
+  let rangeEndDate = null;
+  let picker = null;   // the shared date-range picker (diagDateRange) on the calendar
+
+  function formatDateDisplay() {
+    if (!rangeStartDate && !rangeEndDate) return 'Select Range';
+    if (rangeStartDate && !rangeEndDate) {
+      return `${rangeStartDate.getUTCFullYear()}-${String(rangeStartDate.getUTCMonth() + 1).padStart(2, '0')}-${String(rangeStartDate.getUTCDate()).padStart(2, '0')}`;
+    }
+    if (rangeStartDate && rangeEndDate) {
+      const startStr = `${rangeStartDate.getUTCFullYear()}-${String(rangeStartDate.getUTCMonth() + 1).padStart(2, '0')}-${String(rangeStartDate.getUTCDate()).padStart(2, '0')}`;
+      const endStr = `${rangeEndDate.getUTCFullYear()}-${String(rangeEndDate.getUTCMonth() + 1).padStart(2, '0')}-${String(rangeEndDate.getUTCDate()).padStart(2, '0')}`;
+      if (rangeStartDate.getTime() === rangeEndDate.getTime()) {
+        return startStr;
+      }
+      return `${startStr} - ${endStr}`;
+    }
+    return 'Select Range';
+  }
+
+  // the calendar: the shared picker on the slider's bounds. A complete pick (start and end) moves the slider; the
+  // slider's moves show in the calendar (updateDateLabel); Clear resets the label only; Escape closes
+  if (dateCalendar && window.diagDateRange) {
+    picker = window.diagDateRange.mount(dateCalendar, {
+      min: minDate, max: maxDate, start: rangeStartDate, end: rangeEndDate,
+      onChange(start, end, done) {
+        rangeStartDate = start; rangeEndDate = end;
+        singleDateDisplay.textContent = formatDateDisplay();
+        if (done && start && end && dateSliderStart && dateSliderEnd) {
+          const day = 1000 * 60 * 60 * 24;
+          dateSliderStart.value = Math.max(0, Math.floor((start - minDate) / day));
+          dateSliderEnd.value = Math.max(0, Math.floor((end - minDate) / day));
+          updateDateLabel();
+        }
+      },
+      onClear() { rangeStartDate = null; rangeEndDate = null; singleDateDisplay.textContent = 'Select Range'; window.diagPopover.close(dateCalendar); },
+      onClose() { window.diagPopover.close(dateCalendar); singleDateButton?.focus(); },
+    });
+  }
+
+  singleDateButton?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (window.diagPopover.isOpen(dateCalendar)) { window.diagPopover.close(dateCalendar); return; }
+    if (picker) picker.set(rangeStartDate, rangeEndDate).view(rangeStartDate || maxDate);
+    // beside its button, in the pane's viewport (the calendar is a fixed-height grid: it flips above when it must)
+    window.diagPopover.open(dateCalendar, singleDateButton, { maxHeight: 480, minHeight: 'natural', align: 'right' });
+    if (picker) picker.focus();
+  });
+
+  // Prevent calendar clicks from closing it
+  dateCalendar?.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+
+  // Escape closes whichever popover is open (the calendar's own keys handle it while a day has the focus)
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (dateCalendar && window.diagPopover.isOpen(dateCalendar)) { window.diagPopover.close(dateCalendar); singleDateButton?.focus(); }
+    if (logFileDropdownPanel && !logFileDropdownPanel.classList.contains('hidden')) { logFileDropdownPanel.classList.add('hidden'); logFileDropdownBtn?.focus(); }
+  });
+
+  // Close calendar on outside click
+  document.addEventListener('click', (e) => {
+    if (!dateCalendar.contains(e.target) && !singleDateButton.contains(e.target)) {
+      dateCalendar.classList.add('hidden');
+    }
+  });
+
+  updateDateLabel();
+
+  // Initialize empty charts
+  updateProcessChart([]);
+  updateSeverityChart([]);
+
+  // Helper to truncate long strings with middle ellipsis
+  function truncateMiddle(str, maxLength = 30) {
+    if (str.length <= maxLength) return str;
+    const partLength = Math.floor((maxLength - 3) / 2);
+    return str.substring(0, partLength) + '...' + str.substring(str.length - partLength);
+  }
+
+  function updateProcessChart(entries) {
+    // the rows by their group (the adapter's: a container, a host service, a node; else the process), the 15 largest
+    const counts = new Map();
+    entries.forEach(entry => {
+      const g = groupOf(entry);
+      if (!g.key) return;
+      const c = counts.get(g.key) || { g, n: 0 };
+      c.n += 1;
+      counts.set(g.key, c);
+    });
+    const sortedProcesses = [...counts.values()].sort((a, b) => b.n - a.n).slice(0, 15);
+
+    const processCard = document.getElementById('processChart') && document.getElementById('processChart').closest('[data-chart-card]');
+    if (processCard) processCard.hidden = sortedProcesses.length === 0;   // no logs loaded: no chart card (the strip says what to do)
+    if (sortedProcesses.length === 0) return;
+    const fullNames = sortedProcesses.map(c => c.g.title || c.g.label);
+    const keys = sortedProcesses.map(c => c.g.key);
+
+    // Truncate labels for display
+    const labels = sortedProcesses.map(c => truncateMiddle(c.g.label, 30));
+    const data = sortedProcesses.map(c => c.n);
+
+    const config = {
+      type: 'bar',
+      // a bar picks its source in the select (the shared click resolver hands the exact key)
+      onPick: (p) => { if (!processFilter) return; processFilter.value = processFilter.value === p.key ? '' : p.key; processFilter.dispatchEvent(new Event('change', { bubbles: true })); },
+      data: {
+        labels,
+        keys,
+        datasets: [{
+          label: 'Log Count',
+          data,
+          backgroundColor: 'rgba(59, 130, 246, 0.6)',
+          borderColor: 'rgba(59, 130, 246, 1)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              // Show full process name in tooltip
+              title: (ctx) => fullNames[ctx[0].dataIndex],
+              label: ctx => ` ${ctx.raw} logs`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: window.diagnosticsThemeColor('text'),
+              maxRotation: 45,
+              minRotation: 45
+            },
+            grid: { color: window.diagnosticsThemeColor('grid') }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color: window.diagnosticsThemeColor('text') },
+            grid: { color: window.diagnosticsThemeColor('grid') }
+          }
+        }
+      }
+    };
+
+    const ctx = document.getElementById('processChart'); if (!ctx) return;
+    if (processChart) {
+      processChart.destroy();
+    }
+    processChart = window.diagChart.make(ctx, config);
+  }
+
+  function updateSeverityChart(entries) {
+    const severityCounts = {
+      critical: 0,
+      error: 0,
+      warning: 0,
+      info: 0,
+      debug: 0,
+      other: 0
+    };
+
+    entries.forEach(entry => {
+      if (entry.severity && Object.prototype.hasOwnProperty.call(severityCounts, entry.severity)) {
+        severityCounts[entry.severity]++;
+      }
+    });
+
+    const severityCard = document.getElementById('severityChart') && document.getElementById('severityChart').closest('[data-chart-card]');
+    if (severityCard) severityCard.hidden = entries.length === 0;
+    if (entries.length === 0) return;
+    const labels = Object.keys(severityCounts);
+    const data = Object.values(severityCounts);
+
+    // the severities in the badge colours (critical / error = bad, warning = the warn token the WARN badge uses,
+    // info = the accent, debug / other muted), the count on each bar, a click filters the table to that level
+    const config = {
+      type: 'bar',
+      valueLabels: true,
+      // a click on a bar: the shared resolver hands the level (data.keys) beside the shown label, and toggles the filter
+      onPick: (p) => { if (!severityFilter) return; severityFilter.value = severityFilter.value === p.key ? '' : p.key; severityFilter.dispatchEvent(new Event('change', { bubbles: true })); },
+      data: {
+        labels: labels.map(l => l.charAt(0).toUpperCase() + l.slice(1)),
+        keys: labels.slice(),
+        datasets: [{
+          label: 'Log Count',
+          data,
+          roles: labels.map((l) => ({ critical: 'bad', error: 'bad', warning: 'warn', info: 'info', debug: 'muted', other: 'muted' })[l] || 'muted'),
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.raw} logs`,
+              afterBody: () => ['click: filter to this level']
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: window.diagnosticsThemeColor('text') },
+            grid: { color: window.diagnosticsThemeColor('grid') }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color: window.diagnosticsThemeColor('text') },
+            grid: { color: window.diagnosticsThemeColor('grid') }
+          }
+        }
+      }
+    };
+
+    const ctx = document.getElementById('severityChart'); if (!ctx) return;
+    if (severityChart) {
+      severityChart.destroy();
+    }
+    severityChart = window.diagChart.make(ctx, config);
+  }
+
+  // Get Range button handler
+  getRangeBtn?.addEventListener('click', () => { getRange(); });
+  async function getRange() {
+    const checkboxes = document.querySelectorAll('.log-file-checkbox:checked');
+    const selectedPaths = Array.from(checkboxes).map(cb => cb.getAttribute('data-path'));
+
+    if (selectedPaths.length === 0) {
+      showAlert('No Files Selected', 'Please select at least one log file', 'warning');
+      return;
+    }
+
+    const rangeBusy = window.diagBusy ? window.diagBusy.start(getRangeBtn, { label: 'Getting range…', bar: document.querySelector('.lv-toolbar') || document.querySelector('.lv-header') }) : null;
+    if (!rangeBusy) { getRangeBtn.disabled = true; getRangeBtn.textContent = 'Getting range…'; }
+
+    try {
+      // the adapter reads the earliest and latest timestamps of the selected sources ({ start, end,
+      // untimestamped: [names] }); sources without timestamps are not an error: they load whole, in file order
+      const newRange = (await adapter.getRange(selectedPaths)) || {};
+      const newMin = parseServerDate(newRange.start);
+      const newMax = parseServerDate(newRange.end);
+      untimestamped = Array.isArray(newRange.untimestamped) ? newRange.untimestamped : [];
+      emptySources = Array.isArray(newRange.empty) ? newRange.empty : [];
+      loadsWhole = !newMin && !newMax && (untimestamped.length > 0 || emptySources.length >= selectedPaths.length);
+      rangeNote(selectedPaths.length);
+      if (!newMin || !newMax) {
+        if (loadsWhole) { dateRangeKnown = false; sliderShown(false); return; }
+        throw new Error('Could not extract date range from selected files.');
+      }
+      loadsWhole = false;
+      sliderShown(true);
+      minDateParsed = newMin;
+      maxDateParsed = newMax;
+      dateRangeKnown = true;
+
+      minDate = midnightUTC(minDateParsed);
+      maxDate = midnightUTC(maxDateParsed);
+      totalDays = Math.max(0, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)));
+
+
+      // Update slider limits and values
+      dateSliderStart.max = totalDays;
+      dateSliderEnd.max = totalDays;
+      dateSliderStart.value = 0;
+      dateSliderEnd.value = totalDays;
+
+      if (picker) picker.bounds(minDate, maxDate);
+      updateDateLabel();
+
+    } catch (error) {
+      console.error('[Get Range] Error:', error);
+
+      // the bounds stay what they were (never reset to today); the message says what failed
+      showAlert('Error Getting Date Range', error.message, 'error');
+    } finally {
+      if (rangeBusy) rangeBusy.done('Date range read'); else { getRangeBtn.disabled = false; getRangeBtn.textContent = 'Get Date Range'; }
+    }
+  }
+
+  // a cross-link's source list (see the contract above): the sources it names checked and nothing else, their date
+  // range read, the logs loaded, the term in the search; false when the query is not a source list
+  function applyQuery(q) {
+    const m = /^sources=([^&]*)(?:&q=(.*))?$/.exec(String(q || ''));
+    if (!m) return false;
+    const wanted = decodeURIComponent(m[1]).split(',').map((s) => s.trim()).filter(Boolean);
+    const hit = (box, w) => {
+      const d = box.dataset;
+      if (w.startsWith('node:')) return d.type === 'node' && d.node === w.slice(5);
+      if (w.startsWith('host:')) { const [role, file] = w.slice(5).split('/'); return d.type === 'host' && d.role === role && (!file || d.name === `${role}/${file}`); }
+      if (d.type === 'container') { const parts = w.split('/'); return d.namespace === parts[0] && d.pod === parts[1] && (parts.length < 3 || d.container === parts[2]); }
+      return d.name === w;
+    };
+    let n = 0;
+    document.querySelectorAll('.log-file-checkbox').forEach((box) => { const on = wanted.some((w) => hit(box, w)); box.checked = on; if (on) n += 1; });
+    updateSelectionDisplay();
+    if (searchInput) { searchInput.value = m[2] ? decodeURIComponent(m[2]) : ''; }
+    if (!n) { showAlert('No Matching Logs', `None of the listed logs is ${wanted.join(', ')}.`, 'warning'); return true; }
+    (async () => { await getRange(); if (!isLoading) await loadLogs(); })();
+    return true;
+  }
+
+  async function loadLogs() {
+    // Collect selected log file paths
+    const checkboxes = document.querySelectorAll('.log-file-checkbox:checked');
+    const selectedPaths = Array.from(checkboxes).map(cb => cb.getAttribute('data-path'));
+
+    if (selectedPaths.length === 0) {
+      showAlert('No Files Selected', 'Please select at least one log file', 'warning');
+      return;
+    }
+
+    if (!dateRangeKnown && !loadsWhole) {
+      showAlert('Date Range Unknown',
+        'No timestamps could be read from the default log files. Select the log files to view and click "Get Date Range" first.',
+        'warning');
+      return;
+    }
+
+    // Calculate start and end datetime from date slider (full days)
+    const startDays = parseInt(dateSliderStart.value);
+    const endDays = parseInt(dateSliderEnd.value);
+
+    // Create dates in UTC to avoid timezone shifting
+    const startDate = new Date(Date.UTC(
+      minDate.getUTCFullYear(),
+      minDate.getUTCMonth(),
+      minDate.getUTCDate() + startDays,
+      0, 0, 0, 0
+    ));
+
+    const endDate = new Date(Date.UTC(
+      minDate.getUTCFullYear(),
+      minDate.getUTCMonth(),
+      minDate.getUTCDate() + endDays,
+      23, 59, 59, 999
+    ));
+
+    // no known range (the sources carry no timestamps): the sources load whole, in file order
+    const startDateStr = dateRangeKnown ? startDate.toISOString().slice(0, 16) : '';
+    const endDateStr = dateRangeKnown ? endDate.toISOString().slice(0, 16) : '';
+
+    isLoading = true;
+    loadLogsBtn.textContent = 'Abort Loading';
+    loadLogsBtn.classList.add('btn-danger-solid'); loadLogsBtn.classList.remove('btn-primary');
+    loadingIndicator?.classList.remove('hidden');
+    loadingIndicator.textContent = 'Loading logs…';
+    if (busyHandle) busyHandle.done('');
+    busyHandle = window.diagBusy ? window.diagBusy.start(null, { label: 'Loading logs…', table: document.getElementById('log-table-container'), bar: document.querySelector('.lv-toolbar') || document.querySelector('.lv-header'), cancel: abortLoading }) : null;
+    logsLoadedInfo?.classList.add('hidden');
+
+    // Reset state
+    allEntries = [];
+    filteredEntries = [];
+
+    try {
+      // the adapter reads the selected sources for the selected dates and hands the rows over as they come
+      // (sosreport: the streamed journal parse; must-gather: the server-side search, page by page); the filters as
+      // set apply to what has arrived, and the handle's cancel() aborts mid-way
+      // the progress, the same for both adapters: the entries so far and the files done, in the status line and on
+      // the busy pill (with Cancel), after every page or chunk - rows or not
+      const progress = (p) => {
+        const files = p.filesTotal ? ` (${Number(p.filesDone || 0).toLocaleString()} of ${Number(p.filesTotal).toLocaleString()} files)` : '';
+        const text = `Loading logs… ${Number(p.entries || allEntries.length).toLocaleString()} entries${files}`;
+        if (loadingIndicator) loadingIndicator.textContent = text;
+        if (busyHandle) busyHandle.update(text);
+      };
+      // the filters as set go with the load: the adapter applies them while scanning, so what arrives is the matches
+      // across every selected file (the fields keep refining the loaded rows afterwards)
+      const filters = {
+        search: parseCommaSeparated(searchInput?.value?.trim() || ''), exclude: parseCommaSeparated(document.getElementById('log-exclude')?.value?.trim() || ''),
+        level: severityFilter?.value || '', source: processFilter?.value || '',
+      };
+      loadScope = { filtered: !!(filters.search.length || filters.exclude.length || filters.level || filters.source), files: selectedPaths.length };
+      const stream = adapter.load({ paths: selectedPaths, start: startDateStr, end: endDateStr, ...filters }, (entries, totalCount) => {
+        if (!entries || !entries.length) return;
+        allEntries.push(...entries);
+        applyFilters();
+        if (loadedCount) {
+          // "N / total" only when the adapter knows the total ahead (the stream's total_count); a page count is just N
+          const known = totalCount && totalCount > allEntries.length;
+          loadedCount.textContent = known ? `Loaded ${allEntries.length.toLocaleString()} / ${totalCount.toLocaleString()} entries` : `Loaded ${allEntries.length.toLocaleString()} entries…`;
+          logsLoadedInfo?.classList.remove('hidden');
+        }
+      }, progress);
+      currentReader = stream;   // the handle exposes .cancel() for abortLoading()
+      await stream.done;
+      // the final render: the filters as set apply to the new rows (table, counts, export)
+      applyFilters();
+      if (loadedCount) loadedCount.textContent = `Loaded ${allEntries.length.toLocaleString()} entries`;
+    } catch (error) {
+      console.error('Error loading logs:', error);
+      if (error.name !== 'AbortError') {
+        showAlert('Error Loading Logs', error.message, 'error');
+      }
+    } finally {
+      isLoading = false;
+      currentReader = null;
+      loadLogsBtn.textContent = 'Load Logs';
+      loadLogsBtn.classList.remove('btn-danger-solid'); loadLogsBtn.classList.add('btn-primary');
+      loadingIndicator?.classList.add('hidden');
+      if (busyHandle) { busyHandle.done(allEntries.length ? `${allEntries.length.toLocaleString()} entries loaded` : 'No entries'); busyHandle = null; }
+    }
+  }
+
+  function abortLoading() {
+    if (currentReader) {
+      currentReader.cancel();
+      currentReader = null;
+      isLoading = false;
+      loadLogsBtn.textContent = 'Load Logs';
+      loadLogsBtn.classList.remove('btn-danger-solid'); loadLogsBtn.classList.add('btn-primary');
+      loadingIndicator?.classList.add('hidden');
+      if (busyHandle) { busyHandle.cancel(); busyHandle = null; }
+
+      if (allEntries.length > 0) {
+        // the filters as set apply to what was loaded before the abort
+        applyFilters();
+
+        if (loadedCount) {
+          loadedCount.textContent = `Loaded ${allEntries.length.toLocaleString()} entries (aborted)`;
+          logsLoadedInfo?.classList.remove('hidden');
+        }
+      }
+    }
+  }
+
+  // Helper function to parse comma-separated values with quote support
+  // The terms of a filter field: comma-separated, a row matches ANY of them.
+  // A phrase with commas or spaces goes in quotes - the quote counts only at
+  // the START of a term, so an apostrophe inside a word ("can't reach") is
+  // text, not a quote. A backslash escapes a quote, a comma or a backslash;
+  // before anything else it is text (C:\temp stays C:\temp). Terms are
+  // trimmed, empty ones (a trailing comma) dropped, and lower-cased: the
+  // matching is case-insensitive.
+  function parseCommaSeparated(input) {
+    if (!input || !input.trim()) return [];
+
+    const terms = [];
+    let current = '';
+    let atTermStart = true;
+    let quoteChar = null;
+
+    for (let i = 0; i < input.length; i++) {
+      const char = input[i];
+      const next = input[i + 1];
+
+      if (char === '\\' && (next === '"' || next === "'" || next === ',' || next === '\\')) {
+        current += next;
+        i++;
+        atTermStart = false;
+      } else if (quoteChar) {
+        if (char === quoteChar) quoteChar = null;
+        else current += char;
+      } else if ((char === '"' || char === "'") && atTermStart) {
+        quoteChar = char;
+        atTermStart = false;
+      } else if (char === ',') {
+        const term = current.trim();
+        if (term) terms.push(term);
+        current = '';
+        atTermStart = true;
+      } else {
+        current += char;
+        if (!/\s/.test(char)) atTermStart = false;
+      }
+    }
+
+    const term = current.trim();
+    if (term) terms.push(term);
+
+    return terms.map(t => t.toLowerCase());
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+
+  // The text a row is matched against: every column, lower-cased, computed
+  // once per entry (not once per term per keystroke).
+  // the group a row belongs to (the adapter's, else its process): the source chart's bars and the select's options
+  function groupOf(entry) {
+    if (!entry._g) entry._g = adapter.group ? adapter.group(entry) : { key: entry.process || '', label: entry.process || '', title: entry.process || '' };
+    return entry._g;
+  }
+
+  function searchableText(entry) {
+    if (entry._text === undefined) {
+      entry._text = [
+        entry.timestamp || '',
+        entry.severity || '',
+        entry.hostname || '',
+        entry.process || '',
+        entry.pid || '',
+        entry.message || ''
+      ].join(' ').toLowerCase();
+    }
+    return entry._text;
+  }
+
+  // Typing is debounced: the filter runs once the keys pause, not per key.
+  function debounce(fn, ms) {
+    let timer = null;
+    const run = () => { clearTimeout(timer); timer = setTimeout(fn, ms); };
+    run.now = () => { clearTimeout(timer); fn(); };
+    return run;
+  }
+
+  const SEVERITY_LEVELS = ['critical', 'error', 'warning', 'info', 'debug', 'other'];
+
+  function applyFilters() {
+    const searchQuery = searchInput?.value?.trim() || '';
+    const excludeQuery = document.getElementById('log-exclude')?.value?.trim() || '';
+    const severity = severityFilter?.value || '';
+    const process = processFilter?.value || '';
+
+    // Parse search filters (comma-separated list with quote support - OR matching)
+    const searchTerms = parseCommaSeparated(searchQuery);
+    // Parse exclusion filters (comma-separated list with quote support)
+    const excludeTerms = parseCommaSeparated(excludeQuery);
+
+    // Stage 1: the level (the process list below follows it)
+    const byLevel = severity ? allEntries.filter(entry => entry.severity === severity) : allEntries;
+
+    // Stage 2: the process, then the text filters
+    filteredEntries = byLevel.filter(entry => {
+      if (process && groupOf(entry).key !== process) return false;
+      if (searchTerms.length === 0 && excludeTerms.length === 0) return true;
+      const text = searchableText(entry);
+      // Search across all columns (inclusion) - match ANY search term (OR logic)
+      if (searchTerms.length > 0 && !searchTerms.some(term => text.includes(term))) return false;
+      // Exclusion filter - if any exclude term matches, exclude this entry
+      if (excludeTerms.length > 0 && excludeTerms.some(term => text.includes(term))) return false;
+      return true;
+    });
+
+    // The selects: every level is always offered (a level with no rows shows
+    // "No entries", and can be left again directly); the processes are those
+    // of the rows of the chosen level, so changing the level keeps the list
+    // honest. Typing in the text filters does not touch the lists.
+    if (severityFilter && severityFilter.options.length !== SEVERITY_LEVELS.length + 1) {
+      severityFilter.innerHTML = '<option value="">All Levels</option>' +
+        SEVERITY_LEVELS.map(sev => `<option value="${sev}">${sev === 'info' ? 'Information' : sev.charAt(0).toUpperCase() + sev.slice(1)}</option>`).join('');
+      severityFilter.value = severity;
+    }
+    if (processFilter) {
+      const groups = new Map();
+      byLevel.forEach((entry) => { const g = groupOf(entry); if (g.key && !groups.has(g.key)) groups.set(g.key, g); });
+      const sortedGroups = [...groups.values()].sort((a, b) => a.label.localeCompare(b.label));
+      const listed = [...processFilter.options].slice(1).map(option => option.value);
+      if (listed.length !== sortedGroups.length || listed.some((key, i) => key !== sortedGroups[i].key)) {
+        processFilter.innerHTML = `<option value="">${escapeHtml(adapter.sourceLabel || 'All Processes')}</option>` +
+          sortedGroups.map(g => `<option value="${escapeHtml(g.key)}" title="${escapeHtml(g.title || g.label)}">${escapeHtml(g.label)}</option>`).join('');
+        processFilter.value = groups.has(process) ? process : '';
+      }
+    }
+
+    // Update charts based on filtered data
+    // (the update functions create the charts on their first call)
+    if (allEntries.length > 0) {
+      updateSeverityChart(filteredEntries);
+      updateProcessChart(filteredEntries);
+    }
+
+    // Enable/disable export button based on filtered data
+    const exportCsvBtn = document.getElementById('export-csv-btn');
+    if (exportCsvBtn) {
+      exportCsvBtn.disabled = filteredEntries.length === 0;
+    }
+
+    currentPage = 0;
+    renderTable();
+  }
+
+  function renderTable() {
+    if (!logTableBody) return;
+
+    const start = pageSize === -1 ? 0 : currentPage * pageSize;
+    const end = pageSize === -1 ? filteredEntries.length : start + pageSize;
+    const pageEntries = filteredEntries.slice(start, end);
+
+    if (filteredEntries.length === 0) {
+      logTableBody.innerHTML = '';
+      noResults?.classList.remove('hidden');
+      // the scope again: a filtered load that matched nothing, the filters typed since emptying its matches, or a plain load's rows
+      const files = loadScope ? `${loadScope.files.toLocaleString()} file${loadScope.files === 1 ? '' : 's'}` : '';
+      const none = loadScope && loadScope.filtered
+        ? (allEntries.length ? `No entries in the ${allEntries.length.toLocaleString()} match${allEntries.length === 1 ? '' : 'es'} across all ${files}` : `No matches across all ${files}`)
+        : (allEntries.length ? `No entries in the loaded ${allEntries.length.toLocaleString()}` : 'No entries');
+      // a filter typed (or handed over by a cross-link) before any log is loaded: the counters are not on the page yet
+      if (entryCount) entryCount.textContent = none;
+      const top = document.getElementById('entry-count-top');
+      if (top) top.textContent = none;
+      if (pageInfo) pageInfo.textContent = '';
+      return;
+    }
+
+    noResults?.classList.add('hidden');
+
+    logTableBody.innerHTML = pageEntries.map((entry) => {
+      // Escape HTML to prevent injection
+      const escapedMessage = entry.message
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+      const processDisplay = entry.pid ? `${entry.process}[${entry.pid}]` : entry.process;
+
+      return `
+        <tr data-severity="${entry.severity}">
+          <td class="ui-mono align-top">${entry.timestamp}</td>
+          <td class="align-top">
+            <span class="ui-badge ui-badge-${({critical: 'bad', error: 'bad', warning: 'warn', notice: 'info', info: 'info'})[entry.severity] || 'muted'} severity-badge severity-${entry.severity}">${entry.severity}</span>${(entry.badges || []).map((b) => ` <span class="ui-badge ui-badge-${b.kind || 'muted'}"${b.title ? ` title="${escapeHtml(b.title)}"` : ''}>${escapeHtml(b.text)}</span>`).join('')}
+          </td>
+          <td class="align-top opacity-70">${entry.hostname || ''}</td>
+          <td class="align-top opacity-70 ui-mono">${processDisplay || ''}</td>
+          <td class="ui-mono whitespace-pre-wrap" style="word-break: break-word;">${escapedMessage}</td>
+        </tr>
+      `;
+    }).join('');
+
+    // Update pagination info
+    // the scope: a load with the filters applied server-side holds the matches across all the files; a plain load the
+    // rows the fields keep of what was loaded
+    const scope = loadScope && loadScope.filtered
+      ? ` \u2014 ${allEntries.length.toLocaleString()} match${allEntries.length === 1 ? '' : 'es'} across all ${loadScope.files.toLocaleString()} file${loadScope.files === 1 ? '' : 's'}` + (filteredEntries.length < allEntries.length ? ` (${filteredEntries.length.toLocaleString()} after the filters typed since)` : '')
+      : (filteredEntries.length < allEntries.length ? ` in the loaded ${allEntries.length.toLocaleString()}` : '');
+    const showingText = `Showing ${(start + 1).toLocaleString()}-${Math.min(end, filteredEntries.length).toLocaleString()} of ${filteredEntries.length.toLocaleString()}` + scope;
+    entryCount.textContent = showingText;
+    document.getElementById('entry-count-top').textContent = showingText;
+    updatePagination();
+  }
+
+  function updatePagination() {
+    // the shared pager: 1-based pages for the reader, goToPage(n) takes the page number
+    window.diagPager.render(document.getElementById('pagination-controls'), { total: filteredEntries.length, page: currentPage + 1, pageSize: pageSize, go: function (p) { window.goToPage(p); } });
+  }
+
+  window.sortTable = function(col) {
+    if (sortColumn === col) {
+      sortAscending = !sortAscending;
+    } else {
+      sortColumn = col;
+      sortAscending = true;
+    }
+
+    // Clear all sort icons
+    for (let i = 0; i < 4; i++) {
+      const icon = document.getElementById(`sort-${i}`);
+      if (icon) icon.className = 'fas fa-sort ml-1 opacity-50';
+    }
+
+    // Set current sort icon
+    const icon = document.getElementById(`sort-${col}`);
+    icon.className = `fas fa-sort-${sortAscending ? 'up' : 'down'} ml-1`;
+    window.diagTables.markSort(icon, sortAscending);
+
+    filteredEntries.sort((a, b) => {
+      let valA, valB;
+      if (col === 0) { // Timestamp - use timestamp_obj for proper chronological sorting
+        valA = a.timestamp_obj || '';
+        valB = b.timestamp_obj || '';
+      } else if (col === 1) { // Severity
+        valA = a.severity;
+        valB = b.severity;
+      } else if (col === 2) { // Hostname
+        valA = a.hostname || '';
+        valB = b.hostname || '';
+      } else if (col === 3) { // Process
+        valA = a.process || '';
+        valB = b.process || '';
+      }
+
+      if (valA < valB) return sortAscending ? -1 : 1;
+      if (valA > valB) return sortAscending ? 1 : -1;
+      return 0;
+    });
+
+    renderTable();
+  };
+
+  window.changePageSize = function() {
+    pageSize = parseInt(document.getElementById('page-size').value);
+    currentPage = 0;
+    renderTable();
+  };
+
+  window.goToPage = function(page) {
+    currentPage = page - 1; // Convert to 0-indexed
+    renderTable();
+  };
+
+  loadLogsBtn?.addEventListener('click', () => {
+    if (isLoading) {
+      abortLoading();
+    } else {
+      loadLogs();
+    }
+  });
+
+  // Export CSV functionality
+  const exportCsvBtn = document.getElementById('export-csv-btn');
+  exportCsvBtn?.addEventListener('click', () => {
+    if (filteredEntries.length === 0) {
+      showAlert('No Data', 'No logs to export. Please load logs first.', 'warning');
+      return;
+    }
+
+    // Build CSV content
+    const headers = ['Timestamp', 'Level', 'Hostname', 'Process', 'PID', 'Message'];
+    let csvContent = headers.map(h => `"${h}"`).join(',') + '\n';
+
+    filteredEntries.forEach(entry => {
+      const row = [
+        entry.timestamp || '',
+        entry.severity || '',
+        entry.hostname || '',
+        entry.process || '',
+        entry.pid || '',
+        (entry.message || '').replace(/"/g, '""') // Escape quotes in message
+      ];
+      csvContent += row.map(field => `"${field}"`).join(',') + '\n';
+    });
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+
+    // Generate filename with date range
+    let startDateStr = 'all';
+    let endDateStr = 'all';
+
+    if (rangeStartDate) {
+      startDateStr = `${rangeStartDate.getUTCFullYear()}-${String(rangeStartDate.getUTCMonth() + 1).padStart(2, '0')}-${String(rangeStartDate.getUTCDate()).padStart(2, '0')}`;
+    }
+    if (rangeEndDate) {
+      endDateStr = `${rangeEndDate.getUTCFullYear()}-${String(rangeEndDate.getUTCMonth() + 1).padStart(2, '0')}-${String(rangeEndDate.getUTCDate()).padStart(2, '0')}`;
+    }
+
+    const filename = `${adapter.exportPrefix || 'logs'}_${startDateStr}_to_${endDateStr}_${filteredEntries.length}entries.csv`;
+
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showAlert('Export Complete', `Exported ${filteredEntries.length} log entries to ${filename}`, 'success');
+  });
+
+  const applyFiltersSoon = debounce(applyFilters, 150);
+  searchInput?.addEventListener('input', applyFiltersSoon);
+  document.getElementById('log-exclude')?.addEventListener('input', applyFiltersSoon);
+  severityFilter?.addEventListener('change', applyFilters);
+  processFilter?.addEventListener('change', applyFilters);
+  const handle = { applyFilters, loadLogs, abortLoading, applyQuery, entries: () => allEntries, filtered: () => filteredEntries, root: root0 };
+  mounted = handle;
+  return handle;
+}
+let mounted = null;   // the one viewer of the page (diagLogView.applyQuery hands a cross-link to it)
+
+  // a cross-link's source list for the page's viewer; it can arrive with the frame's first height report, before the
+  // template's mount call ran, so it waits for the viewer (up to two seconds) rather than falling through to the
+  // page's search field
+  function applyQueryWhenMounted(q) {
+    if (!/^sources=/.test(String(q || ''))) return false;
+    var tries = 0;
+    (function go() { if (mounted) { mounted.applyQuery(q); return; } if (tries++ < 40) setTimeout(go, 50); })();
+    return true;
+  }
+  window.diagLogView = { mount: mount, adapters: adapters, sseReader: sseReader, applyQuery: applyQueryWhenMounted };
 })();

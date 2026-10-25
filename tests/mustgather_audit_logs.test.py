@@ -226,7 +226,7 @@ def main():
               h.status_code == 200 and "<script>alert(1)" not in html and "<img src=x" not in html and "</pre><b>ns</b>" not in html and "<svg onload" not in html and "<i>reason</i>" not in html and "<b>ip</b>" not in html and ("&lt;script&gt;" in html or sub is None), html[:300])
     d, h = tab(tree("none"), "audit")
     html = (h.get_json() or {}).get("html", "")
-    check("without audit logs the Findings say so and there is no form", h.status_code == 200 and "No audit log in this must-gather" in html and 'id="audit-events-form"' not in html)
+    check("without audit logs the Findings strip says so in the shared wording and is the whole page (no panel, no form)", h.status_code == 200 and "No audit logs in this must-gather" in html and "looked for audit_logs/ (" in html and "; trimmed gather" in html and 'id="audit-events"' not in html and 'id="audit-events-form"' not in html)
     for name in ("_audit.html", "mustgather_audit.html"):
         src = open(os.path.join(BACKEND, "templates", "tabs", name)).read()
         check(f"{name}: no marked-safe output, no Font Awesome, no &nbsp;, no utility grid/colour classes, no innerHTML",

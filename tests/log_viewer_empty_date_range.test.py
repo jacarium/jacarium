@@ -143,6 +143,13 @@ def label(html, which):
     return m.group(1) if m else None
 
 
+def js_date_range(html):
+    """The dateRange object the template hands the shared viewer's adapter (null bounds stay null, never 'None')."""
+    import json as _json
+    m = re.search(r'dateRange: (\{[^}]*\})', html)
+    return _json.loads(m.group(1)) if m else None
+
+
 def js_const(html, name):
     m = re.search(rf'const {name} = (.*?);', html)
     return m.group(1) if m else None
@@ -196,9 +203,10 @@ try:
     check('POST /load_tab answers 200', status == 200, f'{status} {err}')
     check('start/end labels read "unknown"', label(html, 'start') == 'unknown' and label(html, 'end') == 'unknown',
           f'{label(html, "start")!r} {label(html, "end")!r}')
+    # the bounds reach the shared viewer through the adapter's dateRange (the template's mount call; tojson)
     check('JS receives null for the bounds (not the string None)',
-          js_const(html, 'minDateStr') == 'null' and js_const(html, 'maxDateStr') == 'null',
-          f'{js_const(html, "minDateStr")!r} {js_const(html, "maxDateStr")!r}')
+          js_date_range(html) == {'start': None, 'end': None},
+          f'{js_date_range(html)!r}')
     check('the log list is still rendered (tab is usable)', 'data-name="example-app.log"' in html)
 
     # ------------------------------------------------------------------

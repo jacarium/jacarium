@@ -1,4 +1,5 @@
 {% import "tabs/_ui.html" as ui %}
+{% import "tabs/_detail.html" as detail %}
 {{ ui.findings(findings) }}
 <div id="replicaSetPanel" class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm w-full">
@@ -32,53 +33,20 @@
  </div>
 </div>
 
-<div id="replicaSetDetailsPanel" style="display: none;">
- <div class="space-y-4">
- <div class="mb-4">
- <button onclick="window.backFromReplicaModal()" class="btn btn-secondary flex items-center gap-2">
- Back
- </button>
- </div>
+{{ ui.detail_page('replicaSetDetail') }}
 
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-info-circle mr-2"></i> Replica Set Details
- </h3>
- <div class="overflow-x-auto">
- <table class="ui-table" id="replicaSetDetailsTable"></table>
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-file mr-2"></i> Replica Set YAML
- </h2>
- <div class="mb-2">
- <input
- id="replicaSetYamlFilter"
- type="text"
- placeholder="Filter YAML lines..."
- class="ui-input w-full"
- />
- </div>
- <div id="replicaSetJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
- </div>
- </div>
-</div>
-
+{{ detail.k8s_detail_script() }}
 <script>
+ var byKey = {};   // "namespace/name" -> the replicaset, for the detail (declared first: the rows fill it as they render)
  var replicaSetsData = {{ data | tojson }};
+ delete replicaSetsData._unreadable;   // the files that could not be read: the Findings strip names them
  var flattenedReplicaSets = [];
  var currentSort = { key:"name", direction: 1 };
  var replicasetCurrentPage = 1;
  var replicasetPageSize = 100;
 
  var replicaSetPanel = document.getElementById("replicaSetPanel");
- var replicaSetJsonViewer = document.getElementById("replicaSetJsonViewer");
- var replicaSetDetailsTable = document.getElementById("replicaSetDetailsTable");
  var replicaSetNamespaceFilter = document.getElementById("replicaSetNamespaceFilter");
- var currentReplicaSet = null;
- var lastClickedRow = null;
 
  var showEmptyNamespacesCheckbox = document.getElementById("show-empty-namespaces")
 
@@ -133,10 +101,9 @@
  `;
 
  if (!rs.isPlaceholder) {
- row.onclick = () => {
- lastClickedRow = row;
- showReplicaSetDetails(rs);
- };
+ row.setAttribute('data-detail', rs.namespace + '/' + rs.name);
+ row.tabIndex = 0;
+ byKey[rs.namespace + '/' + rs.name] = rs;
  }
 
  body.appendChild(row);
@@ -167,81 +134,10 @@
  applyReplicaSetFiltersAndRender();
  }
 
- function showReplicaSetDetails(rs) {
- currentReplicaSet = rs;
-
- replicaSetJsonViewer.innerHTML = renderJSONWithoutHighlight(rs.raw);
- document.getElementById("replicaSetPanel").style.setProperty('display', 'none', 'important');
- document.getElementById("replicaSetDetailsPanel").style.setProperty('display', 'grid', 'important');
-
- // Scroll to top - find the scrollable parent by walking up the DOM
- setTimeout(() => {
- function findScrollableParent(element) {
- let parent = element.parentElement;
- while (parent) {
- const overflow = window.getComputedStyle(parent).overflow;
- const overflowY = window.getComputedStyle(parent).overflowY;
- if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
- parent.scrollHeight > parent.clientHeight) {
- return parent;
- }
- parent = parent.parentElement;
- }
- return null;
- }
-
- const detailsPanel = document.getElementById("replicaSetDetailsPanel");
- const scrollableParent = findScrollableParent(detailsPanel);
- if (scrollableParent) {
- scrollableParent.scrollTo({top: 0, behavior: 'instant'});
- }
- }, 0);
-
- replicaSetDetailsTable.innerHTML = `
- <tr><td>Name:</td><td>${rs.name}</td></tr>
- <tr><td>Namespace:</td><td>${rs.namespace}</td></tr>
- <tr><td>Replicas:</td><td>${rs.replicas}</td></tr>
- <tr><td>Available Replicas:</td><td>${rs.available || 0}</td></tr>
- <tr><td>Ready Replicas:</td><td>${rs.ready || 0}</td></tr>
- <tr><td>Age:</td><td>${rs.age || '-'}</td></tr>
- `;
-
- // Setup YAML filter
- const yamlFilterInput = document.getElementById('replicaSetYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- yamlFilterInput.removeEventListener('input', filterReplicaSetYaml);
- yamlFilterInput.addEventListener('input', filterReplicaSetYaml);
- }
- }
 
 
- function highlightJSON(line) {
- line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
- return line
- .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
- .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
- .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
- .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
- .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
- }
 
- function renderJSONWithoutHighlight(data, filter = '') {
- const formatted = JSON.stringify(data, null, 2);
- return formatted.split('\n')
- .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
- .map(line => {
- const highlighted = highlightJSON(line);
- return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
- }).join('');
- }
 
- function filterReplicaSetYaml() {
- if (!currentReplicaSet) return;
- const filterInput = document.getElementById('replicaSetYamlFilter');
- const filterValue = filterInput ? filterInput.value : '';
- replicaSetJsonViewer.innerHTML = renderJSONWithoutHighlight(currentReplicaSet.raw, filterValue);
- }
 
 
  function resetPodIndicators() {
@@ -371,23 +267,6 @@
  }
 
 
- window.backFromReplicaModal = function() {
- document.getElementById("replicaSetDetailsPanel").style.setProperty('display', 'none', 'important');
- document.getElementById("replicaSetPanel").style.setProperty('display', 'grid', 'important');
-
- const yamlFilterInput = document.getElementById('replicaSetYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- }
-
- // Scroll back to the last clicked row
- if (lastClickedRow) {
- setTimeout(() => {
- lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
- }, 0);
- }
- }
-
  var nsSet = new Set(flattenedReplicaSets.map(r => r.namespace));
  var nsSelect = document.getElementById("replicaSetNamespaceFilter");
  nsSet.forEach(ns => {
@@ -432,4 +311,27 @@
 
  updateNamespaceFilterOptions(showEmptyNamespacesCheckbox.checked);
  applyReplicaSetFiltersAndRender();
+ const D = window.diagDetail, K = window.k8sDetail;
+ function renderReplicaSetDetail(key, view) {
+ const rs = byKey[key];
+ if (!rs || !rs.raw || !rs.raw.spec) return false;
+ const raw = rs.raw, d = raw._detail || {}; const spec = raw.spec || {}, st = raw.status || {}, meta = raw.metadata || {};
+ const want = spec.replicas !== undefined ? spec.replicas : 1, avail = st.availableReplicas || 0;
+ const badge = !want ? { kind: 'muted', text: 'scaled to 0' } : (avail === 0 ? { kind: 'bad', text: '0/' + want + ' available' } : (avail < want ? { kind: 'warn', text: avail + '/' + want + ' available' } : { kind: 'ok', text: avail + '/' + want + ' available' }));
+ const ann = meta.annotations || {};
+ return K.page(view, {
+ name: rs.name, kind: 'ReplicaSet', raw: raw, d: d, crumbs: ['Replica Sets', rs.namespace, rs.name], badge: badge,
+ actions: [{ label: 'Open pods', tab: 'workloads', subTab: 'pod', query: rs.name, title: 'The Pods page, searched for this replicaset' }],
+ summary: [
+ ['Namespace', rs.namespace], ['Replicas', want + ' wanted, ' + (st.replicas || 0) + ' created, ' + (st.readyReplicas || 0) + ' ready, ' + avail + ' available' + (st.fullyLabeledReplicas !== undefined ? ', ' + st.fullyLabeledReplicas + ' fully labeled' : '')],
+ ['Owner', K.ownerLink(d.owner)], ['Revision', ann['deployment.kubernetes.io/revision']], ['Desired by the rollout', ann['deployment.kubernetes.io/desired-replicas'] ? ann['deployment.kubernetes.io/desired-replicas'] + ' (max ' + (ann['deployment.kubernetes.io/max-replicas'] || '?') + ')' : ''],
+ ['Min ready', spec.minReadySeconds ? spec.minReadySeconds + ' s' : ''], ['Generation', meta.generation !== undefined ? meta.generation + (st.observedGeneration !== undefined ? ' (observed ' + st.observedGeneration + ')' : '') : ''],
+ ['Selector', K.labels((spec.selector || {}).matchLabels)], ['Age', rs.age && rs.age !== '-' ? rs.age + ' (created ' + D.when(meta.creationTimestamp) + ')' : D.when(meta.creationTimestamp)],
+ ['Labels', K.labels(meta.labels)], ['Annotations', Object.keys(ann).length ? Object.keys(ann).length + ' (in the JSON below)' : ''],
+ ],
+ });
+ }
+ D.register(replicaSetPanel, document.getElementById('replicaSetDetail'), { rows: 'tbody tr[data-detail]', render: renderReplicaSetDetail });
+ window.showReplicaSetDetails = function (rs) { D.open(rs.namespace + '/' + rs.name); };
+ window.backFromReplicaModal = function () { D.back(); };
 </script>

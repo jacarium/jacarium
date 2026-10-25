@@ -137,8 +137,9 @@ def parse(directory):
                 if state == "firing":
                     result['firing'].append(alert_info)
 
-    except Exception as e:
-        result['error'] = str(e)
+    except Exception as e:   # a broken rules file: a readable reason, never the raw exception
+        from parsers.mustgather._common import reason_of
+        result['error'] = 'the alert rules could not be read: ' + reason_of(e)
 
     # firing first, then pending; critical before warning before info; the longest-firing first
     for key in ('all', 'firing'):

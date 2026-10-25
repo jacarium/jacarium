@@ -3,11 +3,13 @@ import yaml
 import glob
 
 from parsers.findings import finding, recall, remember, sort_findings, no_data
-from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all, collection_time as gather_time_of, list_items, unreadable, unreadable_finding
+from parsers.mustgather import detail
 
 def parse(directory):
     result = []
 
+    gather_time = gather_time_of(directory)   # the gather's own time, for the ages and 'n min before the gather'
     directory = resolve_data_dir(directory)
 
     # Look for cluster-scoped-resources/machineconfiguration.openshift.io/machineconfigpools/*.yaml
@@ -26,19 +28,12 @@ def parse(directory):
                 docs = safe_load_all(f)
 
                 for doc in docs:
-                    if not doc:
-                        continue
+                    # a List (items may be null or empty), a single object, or an empty document
+                    for item in list_items(doc, 'MachineConfigPool'):
+                        result.append(parse_mcp(item, gather_time))
 
-                    # Handle both single MCP and MachineConfigPoolList
-                    if doc.get("kind") == "MachineConfigPoolList" and "items" in doc:
-                        for item in doc["items"]:
-                            if item.get("kind") == "MachineConfigPool":
-                                result.append(parse_mcp(item))
-                    elif doc.get("kind") == "MachineConfigPool":
-                        result.append(parse_mcp(doc))
-
-        except Exception as e:
-            result.append({"error": str(e), "file": filepath})
+        except Exception as e:   # a broken file: a readable reason, never the raw exception
+            result.append(unreadable(filepath, e, directory))
 
     # degraded pools first, then the ones updating
     result.sort(key=lambda p: (0 if p.get('degraded') == 'True' else (1 if p.get('updating') == 'True' else 2), p.get('name', '')))
@@ -51,7 +46,7 @@ def findings(directory):
     return recall(('mcp', resolve_data_dir(directory)), lambda: parse(directory)) or [no_data('No MachineConfigPools in this must-gather', ['cluster-scoped-resources/machineconfiguration.openshift.io/machineconfigpools'], 'trimmed gather')]
 
 
-def parse_mcp(mcp):
+def parse_mcp(mcp, gather_time=None):
     """Parse a single MachineConfigPool object"""
     metadata = mcp.get("metadata", {})
     spec = mcp.get("spec", {})
@@ -94,7 +89,9 @@ def parse_mcp(mcp):
         "unavailable_machine_count": unavailable_machine_count,
         "conditions": conditions,
         "configuration_sources": status.get("configuration", {}).get("source", []),
-        "raw": mcp
+        "raw": mcp,
+        # the detail page's data: conditions and field ownership
+        "detail": detail.generic_detail(mcp, [], gather_time, "the pool"),
     }
 
 def findings_for(pools):
@@ -103,7 +100,7 @@ def findings_for(pools):
     out = []
     for p in pools:
         if p.get('error'):
-            out.append(finding('warn', 'A MachineConfigPool could not be read', str(p.get('error'))[:200]))
+            continue   # the unreadable files are one finding below
             continue
         name = p.get('name', '?')
         if p.get('degraded') == 'True':
@@ -117,4 +114,7 @@ def findings_for(pools):
         out.append(finding('info', 'No MachineConfigPools in this must-gather'))
     elif not any(f['severity'] in ('bad', 'warn') for f in out):
         out.append(finding('good', f"{len(pools)} pools updated and not degraded"))
+    broken = unreadable_finding([p for p in pools if p.get('error')], 'MachineConfigPool')
+    if broken:
+        out.append(broken)
     return sort_findings(out)

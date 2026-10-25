@@ -2,10 +2,7 @@
 {{ ui.findings(findings) }}
 <div class="grid grid-cols-1 gap-4">
 
- {% if not data.cpus %}
- <div class="panel rounded-lg shadow-sm">
- </div>
- {% endif %}
+ {#- without cpuidle data the Findings strip says so; no empty card -#}
 
   <!-- CPU C-States Legend (two columns): a reference, open by default, shown with or without cpuidle data -->
  <details class="panel rounded-lg shadow-sm ui-details" id="cstates-legend" open>

@@ -22,7 +22,10 @@
 #
 # What is checked (no personal data lives in this file):
 #   email addresses outside example/test/invalid domains; user@<private IP>
-#   (a real deploy target); /Users/<name> and /home/<name> paths;
+#   (a real deploy target); dash-encoded IPv4 hostnames (ip-A-B-C-D: the
+#   AWS / OpenShift node names, also inside a sosreport's name) outside the
+#   documentation ranges 192.0.2/24, 198.51.100/24 and 203.0.113/24
+#   (RFC 5737: synthetic by definition); /Users/<name> and /home/<name> paths;
 #   0xxxxxxx 8-digit numbers (support-case numbers); <tenant>.atlassian.net
 #   other than the documented placeholder; well-known token formats and
 #   private keys; PNG text/time/EXIF chunks and JPEG EXIF; SVG editor
@@ -131,6 +134,9 @@ SAFE_DOMAIN = re.compile(r'^(?:[a-z0-9-]+\.)*(?:example|test|sample|dummy|placeh
 EMAIL = re.compile(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}(?![A-Za-z0-9-])')
 USER_AT_PRIVATE_IP = re.compile(r'(?<![A-Za-z0-9._-])([A-Za-z0-9._-]+)@(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(?!\d)')
 GENERIC_USERS = {'pi', 'user', 'root', 'admin', 'you', 'ubuntu', 'core', 'ec2-user', 'fedora', 'debian'}
+# ip-A-B-C-D (an AWS / OpenShift node, alone or inside a report's name); the documentation ranges are placeholders
+IP_HOSTNAME = re.compile(r'(?<![A-Za-z0-9])ip-(\d{1,3})-(\d{1,3})-(\d{1,3})-(\d{1,3})(?![0-9])')
+DOC_RANGES = {(192, 0, 2), (198, 51, 100), (203, 0, 113)}
 HOME_PATH = re.compile(r'(?<![A-Za-z0-9])/(?:Users|home)/(?!(?:user|other|username|you|yourname|someone)(?![A-Za-z0-9._-]))([A-Za-z0-9._-]+)')
 CASE_NUMBER = re.compile(r'(?<![0-9A-Za-z.#-])(0\d{7})(?![0-9A-Za-z])')   # not #rrggbbaa colours
 ATLASSIAN = re.compile(r'https?://([a-z0-9-]+)\.atlassian\.net', re.I)
@@ -251,6 +257,10 @@ for path in paths:
                 found('user@private-ip', path, lineno, mask(m.group(0)))
         for m in HOME_PATH.finditer(line):
             found('home path', path, lineno, mask(m.group(0)))
+        for m in IP_HOSTNAME.finditer(line):
+            if (int(m.group(1)), int(m.group(2)), int(m.group(3))) in DOC_RANGES:
+                continue   # a documentation-range address: a placeholder
+            found('ip hostname', path, lineno, mask(m.group(0)))
         for m in CASE_NUMBER.finditer(line):
             if set(m.group(1)) <= {'0', '1'}:
                 continue   # binary / all-zero literals

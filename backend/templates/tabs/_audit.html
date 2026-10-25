@@ -232,7 +232,8 @@ window.auChart = window.diagChart;
     const tools = el('div', 'au-body-tools');
     const b = el('button', 'btn btn-secondary btn-sm au-reveal'); b.type = 'button'; b.dataset.auditId = auditId; b.dataset.part = part; b.appendChild(el('span', '', 'Reveal masked values'));
     tools.appendChild(b); d.appendChild(tools);
-    d.appendChild(el('pre', 'au-raw au-body-text', text));
+    const raw = el('pre', 'au-raw au-body-text', text); raw.setAttribute('data-code-copy', 'Copy raw event'); d.appendChild(raw);   // the shared code block: the copy icon in its corner
+    if (window.diagTables && window.diagTables.setup) setTimeout(() => window.diagTables.setup(d), 0);
     return d;
   };
   // One event row: a details element (au-ev au-sev-…, data-user/verb/resource/namespace/code/ts/audit-id) with the summary grid and the body

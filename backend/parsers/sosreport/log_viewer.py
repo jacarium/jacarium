@@ -1,6 +1,6 @@
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from abc import ABC, abstractmethod
 import hashlib
 import json
@@ -46,6 +46,86 @@ _SEVERITY_FIELD_RE = re.compile(r'\b(?:level|severity|lvl)=["\']?([A-Za-z]+)', r
 _SEVERITY_TOKEN_RE = re.compile(r'(?:^|[\s|\[(])(CRITICAL|CRIT|FATAL|PANIC|EMERG|ALERT|ERROR|ERR|WARNING|WARN|NOTICE|INFO|DEBUG|TRACE)(?=$|[\s|\]):,-])')
 _SEVERITY_WORD_RE = re.compile(r'\b(critical|crit|fatal|panic|emergency|error|err|failed|failure|segfault|oops|bug|warning|warn|deprecated|info|notice|debug|trace)\b', re.IGNORECASE)
 _SEVERITY_LEVELS = ('critical', 'error', 'warning', 'info', 'debug', 'other')
+
+# ---------------------------------------------------------------------------
+# journalctl lines, in every output form sos and must-gather capture:
+#   short               Oct 21 20:51:31 host proc[pid]: message
+#   short-precise       Oct 21 20:51:31.951198 host proc[pid]: message
+#   short-iso           2026-10-21T20:51:31+0000 host proc[pid]: message
+#   short-iso-precise   2026-10-21T20:51:31.951198+0000 host proc[pid]: message
+#   short-full          Wed 2026-10-21 20:51:31 UTC host proc[pid]: message
+# The year-less forms take the year of the capture (the report's `date`, the gather's `timestamp`); a line later
+# than the capture by more than a month is last year's (a December log read by a January capture).
+# ---------------------------------------------------------------------------
+_JOURNAL_TS = (r'(?:[A-Z][a-z]{2}\s+(?=\d{4}-))?'
+               r'(?:(?P<mon>[A-Z][a-z]{2})\s+(?P<day>\d{1,2})\s+(?P<t1>\d{2}:\d{2}:\d{2})(?:\.(?P<f1>\d{1,9}))?'
+               r'|(?P<date>\d{4}-\d{2}-\d{2})[T ](?P<t2>\d{2}:\d{2}:\d{2})(?:\.(?P<f2>\d{1,9}))?(?:Z|[+-]\d{2}:?\d{2}|\s+[A-Z]{2,5}(?=\s))?)')
+JOURNAL_TS_RE = re.compile(r'^(' + _JOURNAL_TS + r')(?=\s)')
+JOURNAL_LINE_RE = re.compile(r'^' + _JOURNAL_TS + r'\s+(?P<host>\S+)\s+(?P<proc>[^\s:\[]+)(?:\[(?P<pid>\d+)\])?:\s?(?P<msg>.*)$')
+_JOURNAL_MONTHS = {m: i for i, m in enumerate(('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'), 1)}
+_DATE_FILE_FORMATS = ('%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %Y', '%a %d %b %Y %H:%M:%S %p %Z')
+
+
+def _journal_datetime(m, year, reference):
+    """The datetime a JOURNAL_* match states (micros kept); None for an impossible date."""
+    try:
+        if m.group('mon'):
+            if m.group('mon') not in _JOURNAL_MONTHS:
+                return None
+            y = year or (reference.year if reference else datetime.now().year)
+            micro = int((m.group('f1') or '0')[:6].ljust(6, '0'))
+            ts = datetime(y, _JOURNAL_MONTHS[m.group('mon')], int(m.group('day')), *[int(x) for x in m.group('t1').split(':')], micro)
+            if reference is not None and ts > reference + timedelta(days=31):
+                ts = ts.replace(year=y - 1)
+            return ts
+        micro = int((m.group('f2') or '0')[:6].ljust(6, '0'))
+        return datetime.strptime(m.group('date') + 'T' + m.group('t2'), '%Y-%m-%dT%H:%M:%S').replace(microsecond=micro)
+    except ValueError:
+        return None
+
+
+def parse_journal_ts(token, year=None, reference=None):
+    """A journal timestamp token (the forms above) as a datetime, or None."""
+    m = JOURNAL_TS_RE.match(token.rstrip() + ' ')
+    return _journal_datetime(m, year, reference) if m else None
+
+
+def parse_journal_line(line, year=None, reference=None):
+    """A journal line as {'ts', 'host', 'process', 'pid', 'message'}, or None when it is not one."""
+    m = JOURNAL_LINE_RE.match(line)
+    if not m:
+        return None
+    ts = _journal_datetime(m, year, reference)
+    if ts is None:
+        return None
+    return {'ts': ts, 'host': m.group('host'), 'process': m.group('proc'), 'pid': m.group('pid') or '', 'message': m.group('msg')}
+
+
+def report_capture_time(filepath):
+    """The time a sosreport was taken, from its `date` capture (the report root above the file, found by its
+    markers), as a naive datetime; None without one."""
+    d = os.path.dirname(os.path.abspath(filepath))
+    for _ in range(8):
+        for rel in ('date', 'sos_commands/date/date', 'sos_commands/general/date'):
+            p = os.path.join(d, rel)
+            if os.path.isfile(p):
+                try:
+                    with open(p, encoding='utf-8', errors='ignore') as f:
+                        text = f.read(200).strip().splitlines()[0].strip() if f else ''
+                except (OSError, IndexError):
+                    text = ''
+                for fmt in _DATE_FILE_FORMATS:
+                    try:
+                        return datetime.strptime(text, fmt)
+                    except ValueError:
+                        continue
+                m = re.search(r'\b(20\d{2})\b', text)
+                return datetime(int(m.group(1)), 12, 31) if m else None
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    return None
 
 
 def classify_severity(message):
@@ -116,8 +196,9 @@ class JournalctlParser(LogParser):
         first_date = None
         last_date = None
 
-        timestamp_pattern = re.compile(r'^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})')
-        current_year = datetime.now().year
+        timestamp_pattern = JOURNAL_TS_RE
+        self._reference = report_capture_time(filepath)
+        current_year = self._reference.year if self._reference else datetime.now().year
 
         SAMPLE_SIZE = 1000
 
@@ -149,7 +230,7 @@ class JournalctlParser(LogParser):
                     if timestamp_match and first_date is None:
                         timestamp_str = timestamp_match.group(1)
                         try:
-                            first_date = datetime.strptime(f"{timestamp_str} {current_year}", "%b %d %H:%M:%S %Y")
+                            first_date = self._parse_timestamp(timestamp_str, current_year)
                             break
                         except:
                             pass
@@ -169,7 +250,7 @@ class JournalctlParser(LogParser):
                     if timestamp_match and last_date is None:
                         timestamp_str = timestamp_match.group(1)
                         try:
-                            last_date = datetime.strptime(f"{timestamp_str} {current_year}", "%b %d %H:%M:%S %Y")
+                            last_date = self._parse_timestamp(timestamp_str, current_year)
                             break
                         except:
                             pass
@@ -193,33 +274,9 @@ class JournalctlParser(LogParser):
         return min_date, max_date, total_lines
 
     def _parse_timestamp(self, timestamp_str, current_year):
-        """Parse journalctl timestamp and return datetime object
-
-        Handles year boundary: if the parsed date is more than 30 days in the future,
-        it's likely from the previous year (e.g., seeing "Dec 27" in July means it's
-        from last December).
-        """
-        try:
-            timestamp_obj = datetime.strptime(f"{timestamp_str} {current_year}", "%b %d %H:%M:%S %Y")
-
-            # If timestamp is more than 30 days in the future, it's from previous year
-            # This handles Dec logs when current date is in Jan-Nov
-            now = datetime.now()
-            days_in_future = (timestamp_obj - now).days
-
-            # Debug logging for Dec dates
-            if timestamp_str.startswith('Dec'):
-                print(f"[DEBUG] Parsing '{timestamp_str}' with year {current_year} → {timestamp_obj}")
-                print(f"[DEBUG] Days in future: {days_in_future}")
-
-            if days_in_future > 30:
-                timestamp_obj = datetime.strptime(f"{timestamp_str} {current_year - 1}", "%b %d %H:%M:%S %Y")
-                if timestamp_str.startswith('Dec'):
-                    print(f"[DEBUG] Adjusted to previous year → {timestamp_obj}")
-
-            return timestamp_obj
-        except:
-            return None
+        """A journal timestamp (any output form) as a datetime; the year-less forms take current_year, and a
+        line later than the report's capture by more than a month is last year's (parse_journal_ts)."""
+        return parse_journal_ts(timestamp_str, current_year, getattr(self, '_reference', None))
 
     def _find_timestamp_at_position(self, f, position, current_year, timestamp_pattern, debug=False):
         """Seek to position, find next valid timestamp (and the position of its line)"""
@@ -331,8 +388,9 @@ class JournalctlParser(LogParser):
 
     def parse_entries_streaming(self, filepath, start_date, end_date):
         """Parse journalctl log entries and yield one at a time"""
-        timestamp_pattern = re.compile(r'^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})')
-        current_year = datetime.now().year
+        timestamp_pattern = JOURNAL_TS_RE
+        self._reference = report_capture_time(filepath)
+        current_year = self._reference.year if self._reference else datetime.now().year
 
         try:
             # Get file size
@@ -385,13 +443,7 @@ class JournalctlParser(LogParser):
             'authentication_failure': re.compile(r'authentication failure|failed password', re.IGNORECASE),
         }
 
-        full_pattern = re.compile(
-            r'^[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+'
-            r'(\S+)\s+'
-            r'([^\[\s:]+)'
-            r'(?:\[(\d+)\])?'
-            r':\s*(.*)$'
-        )
+        full_pattern = JOURNAL_LINE_RE   # host, process[pid]: message after any of the timestamp forms
 
         current_entry = None
         use_prev_year = False
@@ -440,10 +492,11 @@ class JournalctlParser(LogParser):
                         timestamp_str = timestamp_match.group(1)
 
                         try:
-                            timestamp_obj = datetime.strptime(f"{timestamp_str} {current_year}", "%b %d %H:%M:%S %Y")
-
+                            timestamp_obj = self._parse_timestamp(timestamp_str, current_year)
+                            if timestamp_obj is None:
+                                raise ValueError(timestamp_str)
                             if use_prev_year and timestamp_obj > datetime.now():
-                                timestamp_obj = datetime.strptime(f"{timestamp_str} {current_year - 1}", "%b %d %H:%M:%S %Y")
+                                timestamp_obj = timestamp_obj.replace(year=timestamp_obj.year - 1)
                         except:
                             timestamp_obj = None
                             current_entry = None
@@ -451,10 +504,10 @@ class JournalctlParser(LogParser):
 
                         full_match = full_pattern.match(line)
                         if full_match:
-                            hostname = full_match.group(1)
-                            process = full_match.group(2)
-                            pid = full_match.group(3) if full_match.group(3) else ''
-                            message = full_match.group(4)
+                            hostname = full_match.group('host')
+                            process = full_match.group('proc')
+                            pid = full_match.group('pid') or ''
+                            message = full_match.group('msg')
                         else:
                             hostname = ''
                             process = ''
@@ -504,8 +557,9 @@ class JournalctlParser(LogParser):
     def parse_entries(self, filepath, start_date, end_date):
         """Parse journalctl log entries within date range using binary search"""
         entries = []
-        timestamp_pattern = re.compile(r'^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})')
-        current_year = datetime.now().year
+        timestamp_pattern = JOURNAL_TS_RE
+        self._reference = report_capture_time(filepath)
+        current_year = self._reference.year if self._reference else datetime.now().year
 
         try:
             # Get file size
@@ -549,13 +603,7 @@ class JournalctlParser(LogParser):
         }
 
         timestamp_pattern = re.compile(r'^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})')
-        full_pattern = re.compile(
-            r'^[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+'
-            r'(\S+)\s+'
-            r'([^\[\s:]+)'
-            r'(?:\[(\d+)\])?'
-            r':\s*(.*)$'
-        )
+        full_pattern = JOURNAL_LINE_RE   # host, process[pid]: message after any of the timestamp forms
 
         current_entry = None
         use_prev_year = False
@@ -599,10 +647,11 @@ class JournalctlParser(LogParser):
                         timestamp_str = timestamp_match.group(1)
 
                         try:
-                            timestamp_obj = datetime.strptime(f"{timestamp_str} {current_year}", "%b %d %H:%M:%S %Y")
-
+                            timestamp_obj = self._parse_timestamp(timestamp_str, current_year)
+                            if timestamp_obj is None:
+                                raise ValueError(timestamp_str)
                             if use_prev_year and timestamp_obj > datetime.now():
-                                timestamp_obj = datetime.strptime(f"{timestamp_str} {current_year - 1}", "%b %d %H:%M:%S %Y")
+                                timestamp_obj = timestamp_obj.replace(year=timestamp_obj.year - 1)
                         except:
                             timestamp_obj = None
                             current_entry = None
@@ -610,10 +659,10 @@ class JournalctlParser(LogParser):
 
                         full_match = full_pattern.match(line)
                         if full_match:
-                            hostname = full_match.group(1)
-                            process = full_match.group(2)
-                            pid = full_match.group(3) if full_match.group(3) else ''
-                            message = full_match.group(4)
+                            hostname = full_match.group('host')
+                            process = full_match.group('proc')
+                            pid = full_match.group('pid') or ''
+                            message = full_match.group('msg')
                         else:
                             hostname = ''
                             process = ''
@@ -2095,7 +2144,9 @@ def parse_date_range_stream(directory, start_date_str, end_date_str, log_paths=N
         'other': 0
     }
 
-    for log_path in log_paths:
+    # each chunk names the file it comes from (1-based) and the count: the viewer's progress line
+    file_index = 0
+    for file_index, log_path in enumerate(log_paths, start=1):
         if not os.path.exists(log_path):
             print(f"[Log Viewer Stream] Skipping non-existent path: {log_path}")
             continue
@@ -2120,6 +2171,8 @@ def parse_date_range_stream(directory, start_date_str, end_date_str, log_paths=N
                         'entries': batch,
                         'stats': stats.copy(),
                         'total_count': total_count,
+                        'file': file_index,
+                        'files': len(log_paths),
                         'done': False
                     }
                     batch = []
@@ -2136,6 +2189,8 @@ def parse_date_range_stream(directory, start_date_str, end_date_str, log_paths=N
             'entries': batch,
             'stats': stats.copy(),
             'total_count': total_count,
+            'file': len(log_paths),
+            'files': len(log_paths),
             'done': False
         }
 

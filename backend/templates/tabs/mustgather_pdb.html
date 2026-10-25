@@ -1,6 +1,8 @@
 {% import "tabs/_ui.html" as ui %}
+{% import "tabs/_detail.html" as detail %}
 {{ ui.findings(findings) }}
-<div id="pdbListPanel" class="grid grid-cols-1 gap-4">
+{# no budget at all: the Findings strip alone #}
+<div id="pdbListPanel" class="grid grid-cols-1 gap-4"{% if not data %} hidden{% endif %}>
  <div class="panel rounded-lg shadow-sm w-full">
 
  {% call ui.filter_bar() %}
@@ -20,13 +22,13 @@
  <table class="ui-table">
  <thead>
  <tr>
- <th class="cursor-pointer" onclick="window.sortBy('namespace')">Namespace <i id="pdb-indicator-namespace" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer" onclick="window.sortBy('name')">Name <i id="pdb-indicator-name" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer ui-num" onclick="window.sortBy('minAvailable')">Min available <i id="pdb-indicator-minAvailable" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer ui-num" onclick="window.sortBy('maxUnavailable')">Max unavailable <i id="pdb-indicator-maxUnavailable" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer ui-num" onclick="window.sortBy('currentHealthy')">Current / desired healthy <i id="pdb-indicator-currentHealthy" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer ui-num" onclick="window.sortBy('disruptionsAllowed')">Disruptions allowed <i id="pdb-indicator-disruptionsAllowed" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer" onclick="window.sortBy('status')">Status <i id="pdb-indicator-status" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-w="narrow" data-p="2" onclick="window.sortBy('namespace')">Namespace <i id="pdb-indicator-namespace" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-w="flex" onclick="window.sortBy('name')">Name <i id="pdb-indicator-name" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer ui-num" data-w="num" title="Min available" onclick="window.sortBy('minAvailable')">Min avail. <i id="pdb-indicator-minAvailable" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer ui-num" data-w="num" title="Max unavailable" onclick="window.sortBy('maxUnavailable')">Max unavail. <i id="pdb-indicator-maxUnavailable" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer ui-num" data-w="num" title="Current / desired healthy" onclick="window.sortBy('currentHealthy')">Healthy <i id="pdb-indicator-currentHealthy" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer ui-num" data-w="num" title="Disruptions allowed" onclick="window.sortBy('disruptionsAllowed')">Disruptions <i id="pdb-indicator-disruptionsAllowed" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-w="status" onclick="window.sortBy('status')">Status <i id="pdb-indicator-status" class="ml-1 fas text-sm"></i></th>
  </tr>
  </thead>
  <tbody id="pdb-table-body">
@@ -36,83 +38,13 @@
  </div>
 </div>
 
-<div id="pdbPanel" style="display: none;">
- <div class="space-y-4">
- <div class="mb-4">
- <button onclick="window.backFromPdbModal()" class="btn btn-secondary flex items-center gap-2">
- Back
- </button>
- </div>
+{{ ui.detail_page('pdbDetail') }}
 
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-info-circle mr-2"></i> PDB Details
- </h2>
- <div class="overflow-x-auto">
- <table class="ui-table" id="pdbDetailsTable"></table>
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-shield-alt mr-2"></i> Selector
- </h2>
- <div id="pdbSelectorTable" class="text-sm space-y-2">
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-stethoscope mr-2"></i> PDB Conditions
- </h2>
- <div id="pdbConditionsTable" class="text-sm space-y-2">
- </div>
- </div>
-
- <!-- Mitigation Commands -->
- <div id="pdb-mitigation-panel" class="panel rounded-lg shadow-sm hidden">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-exclamation-triangle mr-2"></i> Node Drain Blocker
- </h2>
- <p class="text-sm mb-3">
- This PDB will prevent node draining during upgrades. Temporarily patch to minAvailable: 0
- </p>
- <div class="space-y-2">
- <div>
- <label class="text-xs font-semibold block mb-1">Disable before upgrade:</label>
- <div class="bg-gray-900 text-gray-100 p-2 rounded-sm font-mono text-xs overflow-x-auto">
- <code id="pdb-patch-command"></code>
- </div>
- </div>
- <div>
- <label class="text-xs font-semibold block mb-1">Restore after upgrade:</label>
- <div class="bg-gray-900 text-gray-100 p-2 rounded-sm font-mono text-xs overflow-x-auto">
- <code id="pdb-restore-command"></code>
- </div>
- </div>
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-file mr-2"></i> PDB YAML
- </h2>
- <div class="mb-2">
- <input
- id="pdbYamlFilter"
- type="text"
- placeholder="Filter YAML lines..."
- class="ui-input w-full"
- />
- </div>
- <div id="pdbJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
- </div>
- </div>
-</div>
-
+{{ detail.k8s_detail_script() }}
 <script>
 
  var pdbsData = {{ data | tojson }};
+ delete pdbsData._unreadable;   // the files that could not be read: the Findings strip names them
  delete pdbsData.findings;
  var currentSort = { key: 'status', direction: 1 };   // worst first on load (blocking, unhealthy, empty, ok)
  var pdbCurrentPage = 1;
@@ -124,7 +56,6 @@
  var showEmptyCheckbox = document.getElementById("show-empty-namespaces");
  var showOnlyProblematicCheckbox = document.getElementById("show-only-problematic");
  var pdbListPanel = document.getElementById("pdbListPanel");
- var pdbPanel = document.getElementById("pdbPanel");
 
  function populateNamespaceFilter() {
  var namespaces = Object.keys(pdbsData).sort();
@@ -261,126 +192,11 @@
  row.appendChild(hc);
  row.appendChild(cell(disruptionsAllowed, 'ui-num'));
  var sc = document.createElement('td'); var badge = document.createElement('span'); badge.className = 'ui-badge ui-badge-' + badgeKind; badge.textContent = badgeText; badge.title = conditionText; sc.appendChild(badge); row.appendChild(sc);
- row.onclick = function() { showPdbDetails(item.namespace, item.name); };
+ row.setAttribute('data-detail', item.namespace + '/' + item.name);
+ row.tabIndex = 0;
  return row;
  }
 
- function showPdbDetails(namespace, name) {
- var pdb = pdbsData[namespace][name];
-
- pdbListPanel.style.display = "none";
- pdbPanel.style.display = "block";
-
- var detailsTable = document.getElementById("pdbDetailsTable");
- var metadata = pdb.metadata || {};
- var spec = pdb.spec || {};
- var status = pdb.status || {};
-
- detailsTable.innerHTML =
- '<tr><td>Name:</td><td>' + (metadata.name || '-') + '</td></tr>' +
- '<tr><td>Namespace:</td><td>' + (metadata.namespace || '-') + '</td></tr>' +
- '<tr><td>Min Available:</td><td>' + (spec.minAvailable !== undefined ? spec.minAvailable : '-') + '</td></tr>' +
- '<tr><td>Max Unavailable:</td><td>' + (spec.maxUnavailable !== undefined ? spec.maxUnavailable : '-') + '</td></tr>' +
- '<tr><td>Current Healthy:</td><td>' + (status.currentHealthy || '-') + '</td></tr>' +
- '<tr><td>Desired Healthy:</td><td>' + (status.desiredHealthy || '-') + '</td></tr>' +
- '<tr><td>Disruptions Allowed:</td><td>' + (status.disruptionsAllowed !== undefined ? status.disruptionsAllowed : '-') + '</td></tr>' +
- '<tr><td>Expected Pods:</td><td>' + (status.expectedPods || '-') + '</td></tr>' +
- '<tr><td>Created:</td><td>' + (metadata.creationTimestamp || '-') + '</td></tr>';
-
- // Selector
- var selectorDiv = document.getElementById("pdbSelectorTable");
- if (spec.selector && spec.selector.matchLabels) {
- var selectorHtml = '<div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-sm"><code class="text-xs">';
- for (var key in spec.selector.matchLabels) {
- selectorHtml += key + ': ' + spec.selector.matchLabels[key] + '<br>';
- }
- selectorHtml += '</code></div>';
- selectorDiv.innerHTML = selectorHtml;
- } else {
- selectorDiv.innerHTML = '<div class="text-gray-500">No selector information</div>';
- }
-
- // Conditions
- var conditionsDiv = document.getElementById("pdbConditionsTable");
- if (status.conditions && status.conditions.length > 0) {
- var conditionsHtml = '<table class="ui-table"><thead><tr>' +
- '<th>Type</th>' +
- '<th>Status</th>' +
- '<th>Reason</th>' +
- '<th>Message</th>' +
- '<th>Last Transition</th>' +
- '</tr></thead><tbody>';
-
- status.conditions.forEach(function(condition) {
- var statusClass = condition.status === 'True' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
- conditionsHtml += '<tr>' +
- '<td>' + (condition.type || '-') + '</td>' +
- '<td class="' + statusClass + '">' + (condition.status || '-') + '</td>' +
- '<td>' + (condition.reason || '-') + '</td>' +
- '<td>' + (condition.message || '-') + '</td>' +
- '<td>' + (condition.lastTransitionTime || '-') + '</td>' +
- '</tr>';
- });
- conditionsHtml += '</tbody></table>';
- conditionsDiv.innerHTML = conditionsHtml;
- } else {
- conditionsDiv.innerHTML = '<div class="text-gray-500">No conditions</div>';
- }
-
- // Mitigation commands
- var isProblematic = isPdbProblematic(pdb);
- var mitigationPanel = document.getElementById('pdb-mitigation-panel');
- if (isProblematic) {
- mitigationPanel.classList.remove('hidden');
- var originalMinAvailable = spec.minAvailable;
- var patchCmd = 'oc patch pdb ' + metadata.name + ' -n ' + metadata.namespace + ' --type=merge -p \'{"spec":{"minAvailable":0}}\'';
- var restoreCmd = 'oc patch pdb ' + metadata.name + ' -n ' + metadata.namespace + ' --type=merge -p \'{"spec":{"minAvailable":' + originalMinAvailable + '}}\'';
-
- document.getElementById('pdb-patch-command').textContent = patchCmd;
- document.getElementById('pdb-restore-command').textContent = restoreCmd;
- } else {
- mitigationPanel.classList.add('hidden');
- }
-
- // YAML viewer
- var yamlViewer = document.getElementById("pdbJsonViewer");
- var yamlFilter = document.getElementById("pdbYamlFilter");
-
- function highlightJSON(line) {
- line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
- return line
- .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
- .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
- .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
- .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
- .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
- }
-
- function renderJSONWithoutHighlight(data, filter) {
- var formatted = JSON.stringify(data, null, 2);
- return formatted.split('\n')
- .filter(function(line) {
- return !filter || line.toLowerCase().includes(filter.toLowerCase());
- })
- .map(function(line) {
- var highlighted = highlightJSON(line);
- return '<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">' + highlighted + '</div>';
- }).join('');
- }
-
- function renderYaml() {
- var filterText = yamlFilter.value;
- yamlViewer.innerHTML = renderJSONWithoutHighlight(pdb, filterText);
- }
-
- yamlFilter.oninput = renderYaml;
- renderYaml();
- }
-
- window.backFromPdbModal = function() {
- pdbPanel.style.display = "none";
- pdbListPanel.style.display = "block";
- };
 
  function updateFilteredCount(total, start, end) {
  var all = getAllPdbs().length;
@@ -455,4 +271,40 @@
  showOnlyProblematicCheckbox.checked = getAllPdbs().some(function (it) { return isPdbProblematic(it.data); });
  renderPdbTable();
 
+ const D = window.diagDetail, K = window.k8sDetail;
+ function renderPdbDetail(key, view) {
+ const at = key.indexOf('/');
+ const ns = key.slice(0, at), name = key.slice(at + 1);
+ const raw = (pdbsData[ns] || {})[name];
+ if (!raw || !raw.spec) return false;
+ const d = raw._detail || {}, spec = raw.spec || {}, st = raw.status || {}, meta = raw.metadata || {};
+ const state = pdbState(raw);
+ const badge = state === 'blocking' ? { kind: 'bad', text: 'Blocked' } : state === 'unhealthy' ? { kind: 'bad', text: 'Unhealthy' } : state === 'empty' ? { kind: 'muted', text: 'No pods' } : { kind: 'ok', text: 'Allowed' };
+ // a budget that blocks a drain: the patch that lifts it for an upgrade, and the one that restores it
+ let drain = null;
+ if (isPdbProblematic(raw)) {
+ const patch = 'oc patch pdb ' + name + ' -n ' + ns + ' --type=merge -p \'{"spec":{"minAvailable":0}}\'';
+ const restore = 'oc patch pdb ' + name + ' -n ' + ns + ' --type=merge -p \'{"spec":{"minAvailable":' + spec.minAvailable + '}}\'';
+ const cmd = (text) => { const span = D.el('span'); span.appendChild(D.el('span', 'ui-mono', text)); const b = D.el('button', 'btn btn-secondary btn-sm', 'Copy'); b.type = 'button'; b.setAttribute('data-copy', text); b.style.marginLeft = '8px'; span.appendChild(b); return span; };
+ const wrap = D.el('div', 'ui-detail-stack');
+ wrap.appendChild(D.el('p', '', 'This budget blocks a node drain (an upgrade waits on it). Lift it for the upgrade, then put it back:'));
+ wrap.appendChild(D.kv([['Lift', cmd(patch)], ['Restore', cmd(restore)]]));
+ drain = { title: 'Node drain blocker', content: wrap };
+ }
+ return K.page(view, {
+ name: name, kind: 'PodDisruptionBudget', raw: raw, d: d, crumbs: ['Pod Disruption Budgets', ns, name], badge: badge,
+ actions: [{ label: 'Open pods', tab: 'workloads', subTab: 'pod', query: ns, title: 'The Pods page, searched for the namespace' }],
+ summary: [
+ ['Namespace', ns], ['Min available', spec.minAvailable !== undefined ? String(spec.minAvailable) : ''], ['Max unavailable', spec.maxUnavailable !== undefined ? String(spec.maxUnavailable) : ''],
+ ['Healthy', (st.currentHealthy || 0) + ' current of ' + (st.desiredHealthy || 0) + ' desired' + (st.expectedPods !== undefined ? ' (' + st.expectedPods + ' expected pods)' : '')],
+ ['Disruptions allowed', st.disruptionsAllowed !== undefined ? String(st.disruptionsAllowed) : ''], ['Unhealthy pod eviction', spec.unhealthyPodEvictionPolicy],
+ ['Selector', K.labels((spec.selector || {}).matchLabels)], ['Created', D.when(meta.creationTimestamp) + (d.age ? ' (' + d.age + ' before the gather)' : '')],
+ ['Labels', K.labels(meta.labels)], ['Annotations', meta.annotations ? Object.keys(meta.annotations).length + ' (in the JSON below)' : ''],
+ ],
+ sections: [drain],
+ });
+ }
+ D.register(pdbListPanel, document.getElementById('pdbDetail'), { rows: 'tbody tr[data-detail]', render: renderPdbDetail });
+ window.showPdbDetails = function (namespace, name) { D.open(namespace + '/' + name); };
+ window.backFromPdbModal = function () { D.back(); };
 </script>

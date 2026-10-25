@@ -50,6 +50,11 @@ NODES = [
 ]
 NODE_FQDN = {n[0]: f"{n[0]}.{CLUSTER}.{DOMAIN}" for n in NODES}
 
+# The quiet variant (build(..., quiet=True)): the same cluster with nothing planted - every node ready, no operator
+# degraded, the pools updated, every CSR approved, every pod running and ready, no event at all, every budget with
+# room, no certificate near expiry, nothing firing. Every tab scans a complete gather and finds nothing.
+QUIET = False
+
 
 def iso(dt):
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -157,6 +162,17 @@ def meta(name, namespace=None, labels=None, annotations=None, created=None, uid_
     return m
 
 
+def managed(entries):
+    """metadata.managedFields entries from (manager, operation, subresource, when, fieldsV1) tuples."""
+    out = []
+    for manager, operation, subresource, when, fields in entries:
+        e = {"apiVersion": "v1", "fieldsType": "FieldsV1", "fieldsV1": fields, "manager": manager, "operation": operation, "time": when}
+        if subresource:
+            e["subresource"] = subresource
+        out.append(e)
+    return out
+
+
 def cond(ctype, status, reason="", message="", when=None):
     c = {"type": ctype, "status": status, "lastTransitionTime": when or ago(days=7)}
     if reason:
@@ -231,6 +247,8 @@ def write_cluster_scoped(t, rnd):
         ("storage", True, False, False, "", ""),
     ]
     for i, (name, avail, prog, degr, reason, msg) in enumerate(operators, start=20):
+        if QUIET:
+            prog = degr = False
         when = ago(hours=2) if (degr or prog) else ago(days=20)
         t.yaml(f"{csr_dir}/config.openshift.io/clusteroperators/{name}.yaml", {
             "apiVersion": "config.openshift.io/v1", "kind": "ClusterOperator", "metadata": meta(name, created=ago(days=200), uid_seed=i),
@@ -294,6 +312,8 @@ def write_cluster_scoped(t, rnd):
     # MachineConfigPools (worker Degraded: worker-1 stuck draining)
     for name, mc, deg, upd, count, ready_n, updated_n, degraded_n, unavail in (
             ("master", "master", False, True, 3, 3, 3, 0, 0), ("worker", "worker", True, False, 2, 1, 1, 1, 1)):
+        if QUIET:
+            deg, upd, ready_n, updated_n, degraded_n, unavail = False, True, count, count, 0, 0
         rendered = f"rendered-{mc}-{'c0ffee' * 7}"
         t.yaml(f"{csr_dir}/machineconfiguration.openshift.io/machineconfigpools/{name}.yaml", {
             "apiVersion": "machineconfiguration.openshift.io/v1", "kind": "MachineConfigPool",
@@ -322,6 +342,8 @@ def write_cluster_scoped(t, rnd):
             ("csr-2b8nr", "master-1", True, ago(days=5)), ("csr-5t4vz", "master-2", True, ago(days=5)),
             ("csr-f8q3w", "worker-1", False, ago(hours=1, minutes=50)), ("csr-h2n7c", "worker-1", False, ago(minutes=35))]
     for i, (name, node, approved, created) in enumerate(csrs, start=60):
+        if QUIET:
+            approved = True
         obj = {"apiVersion": "certificates.k8s.io/v1", "kind": "CertificateSigningRequest",
                "metadata": meta(name, created=created, uid_seed=i),
                "spec": {"expirationSeconds": 2592000, "groups": ["system:nodes", "system:authenticated"],
@@ -345,7 +367,11 @@ def container_status(name, image, ready, restarts, state, last_state=None, start
 
 
 def pod(ns, name, node, ip, containers, phase="Running", created=None, uid_seed=100, owner=None, conditions_ready=True, qos="Burstable",
-        labels=None, started=None):
+        labels=None, started=None, managed_fields=None):
+    if QUIET:   # every container running and ready, never restarted
+        containers = [{**{k: v for k, v in c.items() if k not in ("last_state", "state")}, "ready": True, "restarts": 0} for c in containers]
+        conditions_ready = True
+        phase = "Running"
     created = created or ago(days=9)
     started = started or created
     spec_containers = []
@@ -365,7 +391,7 @@ def pod(ns, name, node, ip, containers, phase="Running", created=None, uid_seed=
            "metadata": meta(name, ns, labels=labels or {"app": name.rsplit("-", 2)[0]}, created=created, uid_seed=uid_seed,
                             annotations={"k8s.ovn.org/pod-networks": json.dumps({"default": {"ip_addresses": [ip + "/23"], "mac_address": "0a:58:0a:80:01:0f"}}),
                                          "openshift.io/scc": "restricted-v2"},
-                            extra={"ownerReferences": [owner]} if owner else None),
+                            extra={**({"ownerReferences": [owner]} if owner else {}), **({"managedFields": managed_fields} if managed_fields else {})} or None),
            "spec": {"containers": spec_containers, "dnsPolicy": "ClusterFirst", "enableServiceLinks": True, "nodeName": node,
                     "preemptionPolicy": "PreemptLowerPriority", "priority": 0, "restartPolicy": "Always", "schedulerName": "default-scheduler",
                     "securityContext": {"runAsNonRoot": True, "seccompProfile": {"type": "RuntimeDefault"}}, "serviceAccount": "default",
@@ -453,7 +479,13 @@ def write_workload_namespaces(t, rnd):
                       "env": [{"name": "DATABASE_URL", "valueFrom": {"secretKeyRef": {"key": "url", "name": "postgres-demo-credentials"}}}],
                       "last_state": {"terminated": {"containerID": f"cri-o://{'12' * 32}", "exitCode": 1, "finishedAt": ago(minutes=4), "reason": "Error", "startedAt": ago(minutes=4, seconds=3)}},
                       "state": {"waiting": {"message": "back-off 5m0s restarting failed container=worker pod=payments-worker-7b8c9d0e1-efghi_payments-demo(0000013b-aaaa-4bbb-8ccc-00000000013b)", "reason": "CrashLoopBackOff"}}}],
-                    owner=owner("ReplicaSet", "payments-worker-7b8c9d0e1", 212), uid_seed=315, conditions_ready=False, created=ago(hours=4))
+                    owner=owner("ReplicaSet", "payments-worker-7b8c9d0e1", 212), uid_seed=315, conditions_ready=False, created=ago(hours=4),
+                    managed_fields=managed([
+                        ("kube-controller-manager", "Update", "", ago(hours=4), {"f:metadata": {"f:generateName": {}, "f:labels": {".": {}, "f:app": {}, "f:pod-template-hash": {}}, "f:ownerReferences": {}},
+                                                                            "f:spec": {"f:containers": {"k:{\"name\":\"worker\"}": {".": {}, "f:env": {".": {}, "k:{\"name\":\"DATABASE_URL\"}": {".": {}, "f:name": {}, "f:valueFrom": {}}}, "f:image": {}, "f:imagePullPolicy": {}, "f:name": {}, "f:ports": {}, "f:resources": {}}}, "f:restartPolicy": {}, "f:serviceAccountName": {}}}),
+                        ("oc", "Update", "", ago(minutes=12), {"f:metadata": {"f:labels": {"f:debug": {}}}}),   # planted: a person's edit shortly before the gather
+                        ("kubelet", "Update", "status", ago(minutes=2), {"f:status": {"f:conditions": {}, "f:containerStatuses": {}, "f:phase": {}, "f:podIP": {}}}),
+                    ]))
     pods = [
         pod(ns, "payments-api-5f6d7c8b9-uvwxy", "master-0", "10.128.0.55", [{"name": "api", "image": img["api"], "restarts": 1,
             "resources": {"requests": {"cpu": "250m", "memory": "256Mi"}, "limits": {"cpu": "1", "memory": "256Mi"}}}],
@@ -503,9 +535,13 @@ def write_workload_namespaces(t, rnd):
         event(ns, "postgres-demo.17f3b8", "Normal", "SuccessfulCreate", "create Pod postgres-demo-0 in StatefulSet postgres-demo successful", "StatefulSet", "postgres-demo", ago(days=30), 1, "statefulset-controller", 418),
     ]})
     t.yaml(f"namespaces/{ns}/apps/deployments.yaml", {"apiVersion": "apps/v1", "kind": "DeploymentList", "metadata": {"resourceVersion": ""}, "items": [
-        deployment(ns, "payments-api", 2, 2, 2, img["api"], "api", 211), deployment(ns, "payments-worker", 1, 0, 1, img["worker"], "worker", 212)]})
+        deployment(ns, "payments-api", 2, 2, 2, img["api"], "api", 211), deployment(ns, "payments-worker", 1, 1 if QUIET else 0, 1, img["worker"], "worker", 212, managed_fields=managed([
+            ("kubectl-create", "Update", "", ago(days=9), {"f:metadata": {"f:labels": {".": {}, "f:app": {}}}, "f:spec": {"f:replicas": {}, "f:selector": {}, "f:strategy": {}, "f:template": {"f:metadata": {"f:labels": {}}, "f:spec": {"f:containers": {"k:{\"name\":\"worker\"}": {".": {}, "f:image": {}, "f:name": {}, "f:ports": {}}}}}}}),
+            ("kubectl-edit", "Update", "", ago(minutes=12), {"f:spec": {"f:template": {"f:spec": {"f:containers": {"k:{\"name\":\"worker\"}": {"f:env": {".": {}, "k:{\"name\":\"DATABASE_URL\"}": {".": {}, "f:name": {}, "f:valueFrom": {}}}}}}}}}),   # planted: the edit that broke the worker
+            ("kube-controller-manager", "Update", "status", ago(minutes=3), {"f:status": {"f:availableReplicas": {}, "f:conditions": {}, "f:observedGeneration": {}, "f:replicas": {}, "f:unavailableReplicas": {}, "f:updatedReplicas": {}}}),
+        ]))]})
     t.yaml(f"namespaces/{ns}/apps/replicasets.yaml", {"apiVersion": "apps/v1", "kind": "ReplicaSetList", "metadata": {"resourceVersion": ""}, "items": [
-        replicaset(ns, "payments-api-5f6d7c8b9", "payments-api", 2, 2, 211), replicaset(ns, "payments-worker-7b8c9d0e1", "payments-worker", 1, 0, 212)]})
+        replicaset(ns, "payments-api-5f6d7c8b9", "payments-api", 2, 2, 211), replicaset(ns, "payments-worker-7b8c9d0e1", "payments-worker", 1, 1 if QUIET else 0, 212)]})
     t.yaml(f"namespaces/{ns}/apps/statefulsets.yaml", {"apiVersion": "apps/v1", "kind": "StatefulSetList", "metadata": {"resourceVersion": ""}, "items": [
         {"apiVersion": "apps/v1", "kind": "StatefulSet", "metadata": meta("postgres-demo", ns, labels={"app": "postgres-demo"}, created=ago(days=30), uid_seed=213),
          "spec": {"podManagementPolicy": "OrderedReady", "replicas": 1, "revisionHistoryLimit": 10, "selector": {"matchLabels": {"app": "postgres-demo"}},
@@ -519,9 +555,9 @@ def write_workload_namespaces(t, rnd):
         pdb(ns, "postgres-demo-pdb", "postgres-demo", 1, 1, 1, 0, 215)]})
     t.yaml(f"namespaces/{ns}/core/secrets.yaml", {"apiVersion": "v1", "kind": "SecretList", "metadata": {"resourceVersion": ""}, "items": [
         {"apiVersion": "v1", "kind": "Secret", "metadata": meta("postgres-demo-credentials", ns, uid_seed=216), "type": "Opaque",
-         "data": {"username": "ZGVtbw==", "password": "UkVEQUNURUQ="}},  # no 'url' key: the planted cause of the CrashLoopBackOff
+         "data": {"username": "ZGVtbw==", "password": "UkVEQUNURUQ=", **({"url": "UkVEQUNURUQ="} if QUIET else {})}},  # no 'url' key (unless quiet): the planted cause of the CrashLoopBackOff
         {"apiVersion": "v1", "kind": "Secret", "metadata": meta("payments-api-tls", ns, uid_seed=217, annotations={
-            "auth.openshift.io/certificate-not-after": iso(COLLECTED + timedelta(days=24)), "auth.openshift.io/certificate-not-before": iso(COLLECTED - timedelta(days=341)),
+            "auth.openshift.io/certificate-not-after": iso(COLLECTED + timedelta(days=700 if QUIET else 24)), "auth.openshift.io/certificate-not-before": iso(COLLECTED - timedelta(days=341)),
             "auth.openshift.io/certificate-issuer": "openshift-service-serving-signer@1700000000"}),
          "type": "kubernetes.io/tls", "data": {"tls.crt": "UkVEQUNURUQ=", "tls.key": "UkVEQUNURUQ="}},
     ]})
@@ -535,10 +571,11 @@ def event(ns, name, etype, reason, message, kind, obj_name, when, count, compone
             "message": message, "reason": reason, "reportingComponent": component, "reportingInstance": "", "source": {"component": component}, "type": etype}
 
 
-def deployment(ns, name, replicas, available, updated, image, cname, seed):
+def deployment(ns, name, replicas, available, updated, image, cname, seed, managed_fields=None):
     unavailable = replicas - available
     return {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": meta(name, ns, labels={"app": name}, created=ago(days=9), uid_seed=seed,
-                                                                           annotations={"deployment.kubernetes.io/revision": "3"}),
+                                                                           annotations={"deployment.kubernetes.io/revision": "3"},
+                                                                           extra={"managedFields": managed_fields} if managed_fields else None),
             "spec": {"progressDeadlineSeconds": 600, "replicas": replicas, "revisionHistoryLimit": 10, "selector": {"matchLabels": {"app": name}},
                      "strategy": {"rollingUpdate": {"maxSurge": "25%", "maxUnavailable": "25%"}, "type": "RollingUpdate"},
                      "template": {"metadata": {"labels": {"app": name}}, "spec": {"containers": [{"name": cname, "image": image, "ports": [{"containerPort": 8080}]}]}}},
@@ -559,6 +596,10 @@ def replicaset(ns, name, owner_name, replicas, ready, seed):
 
 
 def pdb(ns, name, app, min_available, current_healthy, expected, allowed, seed):
+    if QUIET:   # room for a disruption in every budget
+        current_healthy = max(current_healthy, min_available + 1)
+        expected = max(expected, current_healthy)
+        allowed = max(allowed, 1)
     return {"apiVersion": "policy/v1", "kind": "PodDisruptionBudget", "metadata": meta(name, ns, created=ago(days=9), uid_seed=seed),
             "spec": {"minAvailable": min_available, "selector": {"matchLabels": {"app": app}}},
             "status": {"conditions": [cond("DisruptionAllowed", "True" if allowed else "False", "SufficientPods" if allowed else "InsufficientPods", "", ago(hours=3))],
@@ -571,7 +612,7 @@ def write_platform_namespaces(t, rnd):
     ns = "openshift-monitoring"
     pods = []
     for i, (node, *_r) in enumerate(NODES):
-        ready = node != "worker-1"
+        ready = QUIET or node != "worker-1"
         p = pod(ns, f"node-exporter-{'abcde'[i] * 5}", node, NODES[i][4], [{"name": "node-exporter", "image": ocp_img, "port": 9100, "ready": ready},
                                                                            {"name": "kube-rbac-proxy", "image": ocp_img, "port": 9100, "ready": ready}],
                 owner={"apiVersion": "apps/v1", "blockOwnerDeletion": True, "controller": True, "kind": "DaemonSet", "name": "node-exporter", "uid": "000000e1-aaaa-4bbb-8ccc-0000000000e1"},
@@ -596,12 +637,12 @@ def write_platform_namespaces(t, rnd):
         {"apiVersion": "apps/v1", "kind": "DaemonSet", "metadata": meta("node-exporter", ns, labels={"app.kubernetes.io/name": "node-exporter"}, created=ago(days=200), uid_seed=225),
          "spec": {"selector": {"matchLabels": {"app.kubernetes.io/name": "node-exporter"}}, "template": {"metadata": {"labels": {"app.kubernetes.io/name": "node-exporter"}}, "spec": {"containers": [{"name": "node-exporter", "image": ocp_img}], "hostNetwork": True}},
                   "updateStrategy": {"rollingUpdate": {"maxSurge": 0, "maxUnavailable": "10%"}, "type": "RollingUpdate"}},
-         "status": {"currentNumberScheduled": 5, "desiredNumberScheduled": 5, "numberAvailable": 4, "numberMisscheduled": 0, "numberReady": 4, "numberUnavailable": 1, "observedGeneration": 4, "updatedNumberScheduled": 5}}]})
+         "status": {"currentNumberScheduled": 5, "desiredNumberScheduled": 5, "numberAvailable": 5 if QUIET else 4, "numberMisscheduled": 0, "numberReady": 5 if QUIET else 4, "numberUnavailable": 0 if QUIET else 1, "observedGeneration": 4, "updatedNumberScheduled": 5}}]})
     t.yaml(f"namespaces/{ns}/apps/statefulsets.yaml", {"apiVersion": "apps/v1", "kind": "StatefulSetList", "metadata": {"resourceVersion": ""}, "items": [
         {"apiVersion": "apps/v1", "kind": "StatefulSet", "metadata": meta("prometheus-k8s", ns, labels={"app.kubernetes.io/name": "prometheus"}, created=ago(days=200), uid_seed=226),
          "spec": {"podManagementPolicy": "Parallel", "replicas": 2, "selector": {"matchLabels": {"app.kubernetes.io/name": "prometheus", "prometheus": "k8s"}}, "serviceName": "prometheus-operated",
                   "template": {"metadata": {"labels": {"app.kubernetes.io/name": "prometheus", "prometheus": "k8s"}}, "spec": {"containers": [{"name": "prometheus", "image": ocp_img}]}}, "updateStrategy": {"type": "RollingUpdate"}},
-         "status": {"availableReplicas": 1, "collisionCount": 0, "currentReplicas": 2, "currentRevision": "prometheus-k8s-5c4d3e2f1", "observedGeneration": 6, "readyReplicas": 1, "replicas": 2, "updateRevision": "prometheus-k8s-5c4d3e2f1", "updatedReplicas": 2}},
+         "status": {"availableReplicas": 2 if QUIET else 1, "collisionCount": 0, "currentReplicas": 2, "currentRevision": "prometheus-k8s-5c4d3e2f1", "observedGeneration": 6, "readyReplicas": 2 if QUIET else 1, "replicas": 2, "updateRevision": "prometheus-k8s-5c4d3e2f1", "updatedReplicas": 2}},
         {"apiVersion": "apps/v1", "kind": "StatefulSet", "metadata": meta("alertmanager-main", ns, labels={"app.kubernetes.io/name": "alertmanager"}, created=ago(days=200), uid_seed=227),
          "spec": {"replicas": 1, "selector": {"matchLabels": {"app.kubernetes.io/name": "alertmanager"}}, "serviceName": "alertmanager-operated", "template": {"metadata": {"labels": {"app.kubernetes.io/name": "alertmanager"}}, "spec": {"containers": [{"name": "alertmanager", "image": ocp_img}]}}},
          "status": {"availableReplicas": 1, "currentReplicas": 1, "observedGeneration": 2, "readyReplicas": 1, "replicas": 1, "updatedReplicas": 1}}]})
@@ -616,6 +657,8 @@ def write_platform_namespaces(t, rnd):
             ("thanos-querier-tls", COLLECTED - timedelta(days=12)),         # planted: Expired
             ("kube-state-metrics-tls", COLLECTED + timedelta(days=58)),     # planted: Expiring Soon (boundary)
             ("metrics-client-certs", COLLECTED + timedelta(days=330))], start=240):
+        if QUIET and not_after < COLLECTED + timedelta(days=90):
+            not_after = COLLECTED + timedelta(days=700)
         secrets.append({"apiVersion": "v1", "kind": "Secret", "metadata": meta(name, ns, uid_seed=i, created=iso(not_after - timedelta(days=730)), annotations={
             "auth.openshift.io/certificate-not-after": iso(not_after), "auth.openshift.io/certificate-not-before": iso(not_after - timedelta(days=730)),
             "auth.openshift.io/certificate-issuer": "openshift-service-serving-signer@1700000000",
@@ -669,6 +712,8 @@ def write_platform_namespaces(t, rnd):
 
 def write_monitoring(t):
     def rule(group, name, severity, state, duration, query, summary, description, alerts, since_minutes=0, runbook=True):
+        if QUIET:   # the rules are there, none fires
+            state, alerts = "inactive", []
         return {"state": state, "name": name, "query": query, "duration": duration, "keepFiringFor": 0,
                 "labels": {"severity": severity}, "annotations": {"summary": summary, "description": description,
                                                                   **({"runbook_url": f"https://github.com/openshift/runbooks/blob/master/alerts/{group}/{name}.md"} if runbook else {})},
@@ -786,8 +831,21 @@ def write_logs(t, rnd):
     t.write("network_logs/ovnkube-trace_demo-app", "ovn-trace: demo-app/demo-web -> demo-app/demo-cache: reachable (2 hops)\n")
 
 
-def build(base, rnd_seed=20261013):
-    """Write the whole must-gather under `base` (basename must contain 'must-gather')."""
+def build(base, rnd_seed=20261013, quiet=False):
+    """Write the whole must-gather under `base` (basename must contain 'must-gather'); quiet: nothing planted."""
+    global QUIET
+    QUIET = quiet
+    saved_node = NODES[-1]
+    if quiet:
+        NODES[-1] = saved_node[:5] + (True,)   # worker-1 ready
+    try:
+        return _build(base, rnd_seed)
+    finally:
+        QUIET = False
+        NODES[-1] = saved_node
+
+
+def _build(base, rnd_seed):
     rnd = random.Random(rnd_seed)
     top = Tree(base)
     stamp = COLLECTED.strftime("%Y-%m-%d %H:%M:%S.123456789 +0000 UTC m=+0.052191348")
@@ -803,4 +861,10 @@ def build(base, rnd_seed=20261013):
     write_etcd_and_top(inner)
     write_logs(inner, rnd)
     os.remove(os.path.join(inner.base, "cluster-scoped-resources/core/nodes/.gitkeep"))
+    if QUIET:
+        # no event anywhere, nothing firing in Alertmanager (the rules file already says inactive)
+        for dp, _dn, fn in os.walk(os.path.join(inner.base, "namespaces")):
+            if os.path.basename(dp) == "core" and "events.yaml" in fn:
+                inner.yaml(os.path.relpath(os.path.join(dp, "events.yaml"), inner.base), {"apiVersion": "v1", "kind": "EventList", "metadata": {"resourceVersion": ""}, "items": []})
+        inner.write("monitoring/alertmanager/alerts.json", json.dumps({"status": "success", "data": []}, indent=2) + "\n")
     return base

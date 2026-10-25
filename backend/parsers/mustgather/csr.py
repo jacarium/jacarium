@@ -3,11 +3,13 @@ import yaml
 import glob
 
 from parsers.findings import finding, recall, remember, sort_findings, no_data
-from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all, collection_time as gather_time_of, list_items, unreadable, unreadable_finding
+from parsers.mustgather import detail
 
 def parse(directory):
     result = []
 
+    gather_time = gather_time_of(directory)   # the gather's own time, for the ages and 'n min before the gather'
     directory = resolve_data_dir(directory)
 
     # Look for cluster-scoped-resources/certificates.k8s.io/certificatesigningrequests/*.yaml
@@ -26,19 +28,12 @@ def parse(directory):
                 docs = safe_load_all(f)
 
                 for doc in docs:
-                    if not doc:
-                        continue
+                    # a List (items may be null or empty), a single object, or an empty document
+                    for item in list_items(doc, 'CertificateSigningRequest'):
+                        result.append(parse_csr(item, gather_time))
 
-                    # Handle both single CSR and CertificateSigningRequestList
-                    if doc.get("kind") == "CertificateSigningRequestList" and "items" in doc:
-                        for item in doc["items"]:
-                            if item.get("kind") == "CertificateSigningRequest":
-                                result.append(parse_csr(item))
-                    elif doc.get("kind") == "CertificateSigningRequest":
-                        result.append(parse_csr(doc))
-
-        except Exception as e:
-            result.append({"error": str(e), "file": filepath})
+        except Exception as e:   # a broken file: a readable reason, never the raw exception
+            result.append(unreadable(filepath, e, directory))
 
     # the ones that need a hand first: Pending, then Denied / Failed, then Approved, newest first
     result.sort(key=lambda c: ({'Pending': 0, 'Denied': 1, 'Failed': 1}.get(c.get('status'), 2), c.get('created') or ''))
@@ -51,7 +46,7 @@ def findings(directory):
     return recall(('csr', resolve_data_dir(directory)), lambda: parse(directory)) or [no_data('No CertificateSigningRequests in this must-gather', ['cluster-scoped-resources/certificates.k8s.io/certificatesigningrequests'], 'trimmed gather')]
 
 
-def parse_csr(csr):
+def parse_csr(csr, gather_time=None):
     """Parse a single CertificateSigningRequest object"""
     metadata = csr.get("metadata", {})
     spec = csr.get("spec", {})
@@ -111,7 +106,9 @@ def parse_csr(csr):
         "has_certificate": has_certificate,
         "created": created,
         "conditions": conditions,
-        "raw": csr
+        "raw": csr,
+        # the detail page's data: conditions and field ownership
+        "detail": detail.generic_detail(csr, [], gather_time, "the request"),
     }
 
 def findings_for(csrs):
@@ -124,9 +121,9 @@ def findings_for(csrs):
     bad = [c for c in csrs if c.get('status') in ('Denied', 'Failed')]
     if bad:
         out.append(finding('warn', f"{len(bad)} CSR{'s' if len(bad) != 1 else ''} denied or failed", ', '.join(f"{c['name']}: {c.get('status_reason') or c.get('status')}" for c in bad[:5]), count=len(bad)))
-    errors = [c for c in csrs if c.get('error')]
-    if errors:
-        out.append(finding('warn', f"{len(errors)} CSR file{'s' if len(errors) != 1 else ''} could not be read", str(errors[0].get('error'))[:200]))
+    broken = unreadable_finding([c for c in csrs if c.get('error')], 'CSR')
+    if broken:
+        out.append(broken)
     if not csrs:
         out.append(finding('info', 'No CSRs in this must-gather'))
     elif not any(f['severity'] in ('bad', 'warn') for f in out):

@@ -16,7 +16,7 @@ import os
 
 from parsers.findings import finding, human_count, no_data, sort_findings
 
-from ._common import PS_HEADERS, parse_ps_file, ppid_map, report_root
+from ._common import PS_HEADERS, join_threads, parse_ps_file, ppid_map, report_root, thread_map
 
 PS_SOURCES = [
     ("ps_auxwwwm", ("sos_commands/process/ps_auxwwwm", "sos_commands/process/ps_auxwww")),
@@ -66,7 +66,7 @@ def summarise(ps):
         other = sum(_num(p.get(key)) for p in ranked[limit:])
         return {'rows': rows, 'other': round(other, 1)}
     return {
-        'process_count': len(procs), 'thread_count': ps.get('thread_count') or 0, 'has_threads': bool(ps.get('has_threads')),
+        'process_count': len(procs), 'thread_count': ps.get('thread_count') or 0, 'has_threads': bool(ps.get('has_threads')), 'thread_ids': bool(ps.get('thread_ids')),
         'states': [{'state': k, 'label': STATE_LABELS.get(k, k), 'count': v, 'role': STATE_ROLES.get(k, 'series')} for k, v in sorted(states.items(), key=lambda kv: -kv[1])],
         'thread_states': [{'state': k, 'label': STATE_LABELS.get(k, k), 'count': v} for k, v in sorted(thread_states.items(), key=lambda kv: -kv[1])],
         'top_cpu': top('%CPU'), 'top_mem': top('%MEM'),
@@ -76,12 +76,16 @@ def summarise(ps):
 def parse(directory):
     root = report_root(directory)
     ppids = ppid_map(root)
+    tids = thread_map(root)   # the thread ids (ps auxwwwm never prints them): from ps -elfL or the ps axo ... lwp capture
     result = {}
     for name, rel_paths in PS_SOURCES:
         ps_path = next((p for p in (os.path.join(root, r) for r in rel_paths) if os.path.isfile(p)), None)
         if ps_path:
             result[name] = parse_ps_file(ps_path, variant=name, ppids=ppids)
             result[name]['source'] = os.path.relpath(ps_path, root)
+            result[name]['thread_ids'] = bool(tids)
+            for p in result[name]['processes']:
+                join_threads(p, tids.get(p.get('PID')))
         else:
             result[name] = {"headers": list(PS_HEADERS), "processes": [], "thread_count": 0, "has_threads": False, "source": ""}
         result[name]['summary'] = summarise(result[name])
@@ -112,7 +116,7 @@ def findings_for(ps):
                            tab='kernel', sub_tab='kernel_hung_task', query=_basename(dstate[0].get('COMMAND'))[:15], count=len(dstate)))
     hogs = sorted((r for r in procs if _num(r.get('%CPU')) >= 50), key=lambda r: -_num(r.get('%CPU')))
     if hogs:
-        out.append(finding('warn', f"{len(hogs)} process{'es' if len(hogs) != 1 else ''} over 50% CPU", names(hogs[:3], lambda r: f", {_num(r.get('%CPU')):g}%") + (' \u2026' if len(hogs) > 3 else ''), count=len(hogs)))
+        out.append(finding('warn', f"{len(hogs)} process{'es' if len(hogs) != 1 else ''} over 50% CPU (averaged since start)", names(hogs[:3], lambda r: f", {_num(r.get('%CPU')):g}%") + (' \u2026' if len(hogs) > 3 else ''), count=len(hogs)))
     big = sorted((r for r in procs if _num(r.get('%MEM')) >= 25), key=lambda r: -_num(r.get('%MEM')))
     if big:
         out.append(finding('warn', f"{len(big)} process{'es' if len(big) != 1 else ''} over 25% of memory", names(big[:3], lambda r: f", {_num(r.get('%MEM')):g}%") + (' \u2026' if len(big) > 3 else ''), tab='cgroups', sub_tab='cgroups_memory', count=len(big)))

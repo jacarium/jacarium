@@ -35,7 +35,7 @@ def findings_for(page):
     error share (warn over 5%), the bodies available; no audit log (info)."""
     from parsers.findings import finding, no_data, sort_findings
     if not page.get('available'):
-        return [no_data('No audit log in this must-gather', ['audit_logs/kube-apiserver/*', 'audit_logs/openshift-apiserver/*', 'audit_logs/oauth-apiserver/*'], page.get('reason') or 'collected without --image-stream=openshift/must-gather -- /usr/bin/gather_audit_logs')]
+        return [no_data('No audit logs in this must-gather', ['audit_logs/ (kube-apiserver, openshift-apiserver, oauth-apiserver, oauth-server)'], 'trimmed gather (collected without the audit-logs gather: --image-stream=openshift/must-gather -- /usr/bin/gather_audit_logs)')]
     out = []
     totals = page.get('totals') or {}
     codes = (page.get('scan') or {}).get('codes') or []

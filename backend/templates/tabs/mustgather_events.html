@@ -1,6 +1,9 @@
 {% import "tabs/_ui.html" as ui %}
+{% import "tabs/_detail.html" as detail %}
 {{ ui.findings(findings) }}
-<div id="eventPanel" class="grid grid-cols-1 gap-4">
+{# no event at all (every namespace's list empty): the Findings strip alone - the chart and the table would be empty, no filter changes that #}
+{% set n_events = (data.values() | map('length') | sum) if data else 0 %}
+<div id="eventPanel" class="grid grid-cols-1 gap-4"{% if not n_events %} hidden{% endif %}>
  <div class="panel rounded-lg shadow-sm">
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-chart-bar mr-2"></i> Event Types
@@ -39,12 +42,12 @@
  <table class="ui-table">
  <thead>
  <tr>
- <th class="cursor-pointer" onclick="window.sortEventsBy('namespace')">Namespace <i id="event-indicator-namespace" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer" onclick="window.sortEventsBy('lastSeen')">Last Seen <i id="event-indicator-lastSeen" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer" onclick="window.sortEventsBy('type')">Type <i id="event-indicator-type" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer" onclick="window.sortEventsBy('reason')">Reason <i id="event-indicator-reason" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer" onclick="window.sortEventsBy('object')">Object <i id="event-indicator-object" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer" onclick="window.sortEventsBy('message')">Message <i id="event-indicator-message" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-w="narrow" data-p="2" onclick="window.sortEventsBy('namespace')">Namespace <i id="event-indicator-namespace" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-w="narrow" data-p="2" onclick="window.sortEventsBy('lastSeen')">Last Seen <i id="event-indicator-lastSeen" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-w="status" onclick="window.sortEventsBy('type')">Type <i id="event-indicator-type" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-w="narrow" onclick="window.sortEventsBy('reason')">Reason <i id="event-indicator-reason" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-w="text" data-p="2" onclick="window.sortEventsBy('object')">Object <i id="event-indicator-object" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-w="wrap" onclick="window.sortEventsBy('message')">Message <i id="event-indicator-message" class="ml-1 fas text-sm"></i></th>
  </tr>
  </thead>
  <tbody id="eventTableBody"></tbody>
@@ -53,41 +56,11 @@
  </div>
 </div>
 
-<div id="eventDetailsPanel" style="display: none;">
- <div class="space-y-4">
- <div class="mb-4">
- <button onclick="window.backFromEventModal()" class="btn btn-secondary flex items-center gap-2">
- Back
- </button>
- </div>
+{{ ui.detail_page('eventDetail') }}
 
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-info-circle mr-2"></i> Event Details
- </h3>
- <div class="overflow-x-auto">
- <table class="ui-table" id="eventDetailsTable"></table>
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-file mr-2"></i> Event YAML
- </h2>
- <div class="mb-2">
- <input
- id="eventYamlFilter"
- type="text"
- placeholder="Filter YAML lines..."
- class="ui-input w-full"
- />
- </div>
- <div id="eventJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
- </div>
- </div>
-</div>
-
+{{ detail.k8s_detail_script() }}
 <script>
+ var byKey = {};   // "namespace/event name" -> the event, for the detail (declared first: the rows fill it as they render)
  var eventsData = {{ data | tojson }};
 
  var flattenedEvents = [];
@@ -96,12 +69,8 @@
  var eventPageSize = 100;
 
  var eventPanel = document.getElementById("eventPanel");
- var eventJsonViewer = document.getElementById("eventJsonViewer");
- var eventDetailsTable = document.getElementById("eventDetailsTable");
  var eventNamespaceFilter = document.getElementById("eventNamespaceFilter");
  var eventSearchInput = document.getElementById("eventSearchInput");
- var currentEvent = null;
- var lastClickedRow = null;
 
  var showEmptyNamespacesCheckbox = document.getElementById("show-empty-namespaces");
 
@@ -277,10 +246,9 @@
 
  if (!ev.isPlaceholder) {
  row.classList.add("cursor-pointer");
- row.addEventListener("click", () => {
- lastClickedRow = row;
- showEventDetails(ev);
- });
+ row.setAttribute('data-detail', ev.namespace + '/' + ((ev.raw && ev.raw.metadata && ev.raw.metadata.name) || ev.name));
+ row.tabIndex = 0;
+ byKey[row.getAttribute('data-detail')] = ev;
  }
  row.innerHTML = `
  <td>${ev.namespace}</td>
@@ -337,100 +305,6 @@
  });
  }
 
- function showEventDetails(ev) {
- currentEvent = ev;
- eventJsonViewer.innerHTML = renderJSONWithoutHighlight(ev.raw);
- eventPanel.style.setProperty('display', 'none', 'important');
- document.getElementById("eventDetailsPanel").style.setProperty('display', 'grid', 'important');
-
- // Scroll to top - find the scrollable parent by walking up the DOM
- setTimeout(() => {
- function findScrollableParent(element) {
- let parent = element.parentElement;
- while (parent) {
- const overflow = window.getComputedStyle(parent).overflow;
- const overflowY = window.getComputedStyle(parent).overflowY;
- if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
- parent.scrollHeight > parent.clientHeight) {
- return parent;
- }
- parent = parent.parentElement;
- }
- return null;
- }
-
- const detailsPanel = document.getElementById("eventDetailsPanel");
- const scrollableParent = findScrollableParent(detailsPanel);
- if (scrollableParent) {
- scrollableParent.scrollTo({top: 0, behavior: 'instant'});
- }
- }, 0);
-
- eventDetailsTable.innerHTML = `
- <tr><td>Namespace:</td><td>${ev.namespace}</td></tr>
- <tr><td>Name:</td><td>${ev.name}</td></tr>
- <tr><td>Last Seen:</td><td>${ev.lastSeen}</td></tr>
- <tr><td>Type:</td><td>${ev.type}</td></tr>
- <tr><td>Reason:</td><td>${ev.reason}</td></tr>
- <tr><td>Object:</td><td>${ev.object}</td></tr>
- <tr><td>Message:</td><td>${ev.message}</td></tr>
- `;
-
- // Setup YAML filter
- const yamlFilterInput = document.getElementById('eventYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- yamlFilterInput.removeEventListener('input', filterEventYaml);
- yamlFilterInput.addEventListener('input', filterEventYaml);
- }
- }
-
- window.backFromEventModal = function() {
- document.getElementById("eventDetailsPanel").style.setProperty('display', 'none', 'important');
- eventPanel.style.setProperty('display', 'grid', 'important');
- currentEvent = null;
- eventJsonViewer.innerHTML ="";
-
- const yamlFilterInput = document.getElementById('eventYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- }
-
- // Scroll back to the last clicked row
- if (lastClickedRow) {
- setTimeout(() => {
- lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
- }, 0);
- }
- }
-
-
- function highlightJSON(line) {
- line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
- return line
- .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
- .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
- .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
- .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
- .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
- }
-
- function renderJSONWithoutHighlight(data, filter = '') {
- const formatted = JSON.stringify(data, null, 2);
- return formatted.split('\n')
- .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
- .map(line => {
- const highlighted = highlightJSON(line);
- return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
- }).join('');
- }
-
- function filterEventYaml() {
- if (!currentEvent) return;
- const filterInput = document.getElementById('eventYamlFilter');
- const filterValue = filterInput ? filterInput.value : '';
- eventJsonViewer.innerHTML = renderJSONWithoutHighlight(currentEvent.raw, filterValue);
- }
 
  eventNamespaceFilter.addEventListener("change", () => {
  eventCurrentPage = 1;
@@ -470,4 +344,28 @@
  attributes: true,
  attributeFilter: ['class']
  });
+ const D = window.diagDetail, K = window.k8sDetail;
+ const OBJECT_TABS = { Pod: ['workloads', 'pod'], Deployment: ['workloads', 'deployment'], ReplicaSet: ['workloads', 'replicaset'], StatefulSet: ['workloads', 'statefulset'], DaemonSet: ['workloads', 'daemonset'], Node: ['compute', 'nodes'] };
+ function renderEventDetail(key, view) {
+ const ev = byKey[key];
+ if (!ev || !ev.raw) return false;
+ const raw = ev.raw, obj = raw.involvedObject || {}, src = raw.source || {};
+ const target = OBJECT_TABS[obj.kind];
+ const objectLink = obj.name ? (target ? D.link((obj.kind || '') + ' ' + obj.name, target[0], target[1], (obj.namespace ? 'detail=' + obj.namespace + '/' + obj.name : obj.name), 'Open the ' + obj.kind) : (obj.kind || '') + ' ' + obj.name) : '';
+ return K.page(view, {
+ name: raw.metadata && raw.metadata.name || ev.name, title: (ev.reason || 'Event') + (obj.name ? ' on ' + obj.name : ''), kind: 'Event', raw: raw,
+ crumbs: ['Events', ev.namespace, ev.reason || ev.name],
+ badge: { kind: ev.type === 'Warning' ? 'warn' : 'muted', text: ev.type || 'Normal' },
+ actions: obj.name ? [{ label: 'Open ' + (obj.kind || 'object').toLowerCase() + ' events', tab: 'system', subTab: 'events', query: obj.name, title: 'This page, searched for the object' }] : [],
+ summary: [
+ ['Namespace', ev.namespace], ['Type', ev.type], ['Reason', ev.reason], ['Object', objectLink], ['Message', ev.message],
+ ['Count', raw.count], ['First seen', D.when(raw.firstTimestamp || raw.eventTime)], ['Last seen', D.when(raw.lastTimestamp || raw.eventTime)],
+ ['Source', [src.component, src.host].filter(Boolean).join(' on ') || raw.reportingComponent], ['Reporting instance', raw.reportingInstance],
+ ['Event', raw.metadata && raw.metadata.name, 'mono'], ['Object UID', obj.uid, 'mono'],
+ ],
+ });
+ }
+ D.register(eventPanel, document.getElementById('eventDetail'), { rows: 'tbody tr[data-detail]', render: renderEventDetail });
+ window.showEventDetails = function (ev) { D.open(ev.namespace + '/' + ((ev.raw && ev.raw.metadata && ev.raw.metadata.name) || ev.name)); };
+ window.backFromEventModal = function () { D.back(); };
 </script>

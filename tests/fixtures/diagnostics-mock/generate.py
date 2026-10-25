@@ -33,10 +33,13 @@ import mock_mustgather  # noqa: E402
 import mock_sosreport  # noqa: E402
 
 SOS_NAME = "sosreport-web-01-2026-10-13-abcdef"
-OCP_NAME = "sosreport-ip-10-0-42-46-master-cluster-7bffs-master-2026-10-01-asqizwl"
+OCP_NAME = "sosreport-ip-192-0-2-46-master-cluster-example-master-2026-10-01-abcdefg"
 OLD_NAME = "sosreport-old-01-2026-10-01-oldfmt"
 SOS_LARGE_NAME = "sosreport-web-02-2026-10-13-bigjrnl"
 MG_NAME = "must-gather.local.1234567890"
+# the same two reports with nothing planted: every scan finds nothing (the zero-results fixtures)
+SOS_QUIET_NAME = "sosreport-web-03-2026-10-13-nothing"
+MG_QUIET_NAME = "must-gather.local.9876543210"
 # Fixed mtime for every archive member: 2026-10-13 00:00:00 UTC
 ARCHIVE_MTIME = 1791849600
 
@@ -130,6 +133,14 @@ def main(argv=None):
     _reset(mg_dir)
     mock_mustgather.build(mg_dir)
     built.append(mg_dir)
+
+    # The quiet variants: the same host and cluster with nothing planted, so every tab's scan finds nothing (the
+    # Findings strip says so; no empty card after it)
+    for name, builder in ((SOS_QUIET_NAME, mock_sosreport.build), (MG_QUIET_NAME, mock_mustgather.build)):
+        d = os.path.join(out, name)
+        _reset(d)
+        builder(d, quiet=True)
+        built.append(d)
     if not args.no_archives:
         archive_gz(mg_dir, mg_dir + ".tar.gz")
         built.append(mg_dir + ".tar.gz")

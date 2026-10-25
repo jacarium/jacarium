@@ -183,12 +183,13 @@ export const probeComponents = (frame, opts) => frame.evaluate((opts) => {
       }
     }
     // expandable rows
+    if (t.hasAttribute('data-auto-xrows')) return;   // the fit's own chevrons for hidden columns: the hiddenColumns probe covers them
     const xrows = t.querySelectorAll('tr.ui-xrow');
     if (xrows.length) {
       n('xrowTables');
       if (!t.querySelector('thead th.ui-xrow-th')) out.xrows.push(name(t) + ': no chevron header cell');
       xrows.forEach((r, i) => { if (i > 50) return; const b = r.querySelector('.ui-xrow-btn[aria-expanded]'); if (!b) out.xrows.push(name(t) + ': row ' + i + ' has no chevron button'); if (!r.hasAttribute('tabindex')) out.xrows.push(name(t) + ': row ' + i + ' not focusable'); const p = r.nextElementSibling; if (!p || !p.classList.contains('ui-xrow-panel')) out.xrows.push(name(t) + ': row ' + i + ' has no panel'); });
-      if (!root.querySelector('[data-xrow-all="open"]') || !root.querySelector('[data-xrow-all="close"]')) out.xrows.push(name(t) + ': no Expand all / Collapse all');
+      if (!t.hasAttribute('data-auto-xrows') && (!root.querySelector('[data-xrow-all="open"]') || !root.querySelector('[data-xrow-all="close"]'))) out.xrows.push(name(t) + ': no Expand all / Collapse all');
       t.querySelectorAll('.ui-xrow-body h4, .ui-xrow-body .ui-kv-title').forEach((h) => { if (/^Details:?$/.test(h.textContent.trim())) out.xrows.push(name(t) + ': a raw "Details:" label'); });
     }
     // the legacy expandable pattern (a caret cell, a hidden details row) outside the component
@@ -356,7 +357,7 @@ export const toggleDetails = (frame) => frame.evaluate(async () => {
 export const exerciseXrows = (frame) => frame.evaluate(async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const out = [];
-  const tables = Array.from(document.querySelectorAll('#diagnostics-content table')).filter((t) => t.querySelector('tr.ui-xrow') && t.getBoundingClientRect().height > 0);
+  const tables = Array.from(document.querySelectorAll('#diagnostics-content table')).filter((t) => t.querySelector('tr.ui-xrow') && !t.hasAttribute('data-auto-xrows') && t.getBoundingClientRect().height > 0);
   for (const t of tables) {
     const rows = Array.from(t.querySelectorAll('tr.ui-xrow')).filter((r) => !r.hidden && r.getBoundingClientRect().height > 0);
     if (!rows.length) continue;
@@ -587,4 +588,382 @@ export const fontCheck = (frame) => frame.evaluate(async () => {
   const mono = document.querySelector('.ui-mono, code, pre');
   if (mono && !MONO.test(getComputedStyle(mono).fontFamily)) problems.push('a mono element is set in ' + getComputedStyle(mono).fontFamily.slice(0, 40));
   return { problems: problems.slice(0, 8), sampled: sample.length };
+});
+
+/**
+ * The tables fit their box: no .ui-table-wrap scrolls sideways (scrollWidth <= clientWidth + 1) unless the table is
+ * a marked wide one (table.ui-wide: the first column sticky, the scroll hint in the box; allowed by the test's list
+ * with a reason); a cell cut by the ellipsis carries its whole value in its title; no header is clipped sideways.
+ * Returns { problems, wide: [ids of the wide tables], tables }.
+ */
+export const tablesFit = (frame) => frame.evaluate(() => {
+  const root = document.querySelector('#diagnostics-content') || document.body;
+  const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  const name = (el) => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '');
+  const problems = [], wide = [];
+  let tables = 0;
+  Array.from(root.querySelectorAll('.ui-table-wrap')).filter(vis).forEach((wrap) => {
+    const table = wrap.querySelector(':scope > table'); if (!table || !vis(table)) return;
+    tables += 1;
+    const id = table.id || name(table);
+    const over = wrap.scrollWidth > wrap.clientWidth + 1;
+    if (table.classList.contains('ui-wide')) {
+      wide.push(id);
+      const th = table.querySelector('thead th'); const cs = th ? getComputedStyle(th) : null;
+      if (!cs || cs.position !== 'sticky') problems.push(id + ': a wide table without a sticky first column');
+      if (!wrap.querySelector('.ui-scroll-hint')) problems.push(id + ': a wide table without the scroll hint');
+    } else if (over) problems.push(id + ' scrolls sideways: ' + wrap.scrollWidth + ' > ' + wrap.clientWidth);
+    if (document.documentElement.clientWidth > 640) {
+      let wrapped = 0;
+      Array.from(table.querySelectorAll('tbody td')).filter(vis).slice(0, 400).forEach((td) => {
+        const cs = getComputedStyle(td);
+        const compact = /\bui-col-(num|status|icon)\b/.test(td.className);
+        // a text cell never cuts with an ellipsis (only a clamped long-content cell hides lines)
+        if (!compact && cs.textOverflow === 'ellipsis' && !td.querySelector('.ui-clamp')) problems.push(id + ': a text cell with an ellipsis ("' + td.textContent.trim().slice(0, 24) + '")');
+        if (!compact && td.scrollWidth > td.clientWidth + 1 && !td.querySelector('.ui-clamp, .ui-chips, .ui-meter')) problems.push(id + ': a text cell cut sideways ("' + td.textContent.trim().slice(0, 24) + '")');
+        // a number stays on one line
+        if (/\bui-col-num\b/.test(td.className) && td.textContent.trim()) { const rg = document.createRange(); rg.selectNodeContents(td); const h = rg.getBoundingClientRect().height; if (h > parseFloat(cs.lineHeight || '18') * 1.6) problems.push(id + ': a number cell on two lines ("' + td.textContent.trim().slice(0, 24) + '")'); }
+        // a wrapped identifier breaks at a natural place (a space, - / . _ : =), never mid-word while a break exists
+        if (!compact && wrapped < 12 && td.textContent.trim().length > 16 && !td.children.length) {
+          const h = td.getBoundingClientRect().height; if (h < parseFloat(cs.lineHeight || '18') * 1.8) return;
+          wrapped += 1;
+          const range = document.createRange(); const node = td.firstChild; const text = node.nodeValue || '';
+          let lastTop = null;
+          for (let i = 0; i < text.length; i++) {
+            range.setStart(node, i); range.setEnd(node, i + 1);
+            const rect = range.getBoundingClientRect(); if (!rect.width && !rect.height) continue;
+            if (lastTop !== null && rect.top > lastTop + 2 && i > 0) {
+              const before = text[i - 1], at = text[i];
+              const natural = /[\s\-\/._:=]/.test(before) || /[\s\-\/._:=]/.test(at) || !/[\s\-\/._:=]/.test(text);
+              if (!natural) { problems.push(id + ': "' + text.slice(Math.max(0, i - 12), i) + '|' + text.slice(i, i + 12) + '" breaks mid-word with a natural break available'); break; }
+            }
+            lastTop = rect.top;
+          }
+        }
+      });
+      Array.from(table.querySelectorAll('thead th')).forEach((th) => { if (th.scrollWidth > th.clientWidth + 2) problems.push(id + ': header "' + th.textContent.trim().slice(0, 24) + '" is clipped (' + th.scrollWidth + ' > ' + th.clientWidth + ')'); });
+    }
+  });
+  return { problems: problems.slice(0, 8), wide, tables, fit: Object.fromEntries(Array.from(root.querySelectorAll('table.ui-wide')).map((t) => [t.id || name(t), t.$fitDebug ? JSON.stringify(t.$fitDebug).slice(0, 400) : ''])) };
+});
+
+/**
+ * The page stack: in every .ui-stack (the content root and the wrapper divs the helper marks) each pair of vertically
+ * adjacent visible blocks sits --ui-stack-gap apart (±1 px) and nothing touches or overlaps.
+ */
+export const stackGaps = (frame) => frame.evaluate(() => {
+  const root = document.querySelector('#diagnostics-content') || document.body;
+  const gap = parseFloat(getComputedStyle(root).getPropertyValue('--ui-stack-gap')) || 16;
+  const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).display !== 'none'; };
+  const name = (el) => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '');
+  const problems = []; let pairs = 0;
+  Array.from(root.querySelectorAll('.ui-stack')).concat(root.classList.contains('ui-stack') ? [root] : []).forEach((stack) => {
+    const kids = Array.from(stack.children).filter(vis);
+    for (let i = 1; i < kids.length; i++) {
+      const a = kids[i - 1].getBoundingClientRect(), b = kids[i].getBoundingClientRect();
+      if (b.top < a.bottom - 1 && b.left < a.right && a.left < b.right) { if (b.top >= a.top) problems.push(name(kids[i - 1]) + ' and ' + name(kids[i]) + ' overlap'); continue; }   // side by side in a grid row: no vertical pair
+      if (b.left >= a.right - 1 || a.left >= b.right - 1) continue;   // not stacked vertically
+      pairs += 1;
+      const g = b.top - a.bottom;
+      if (Math.abs(g - gap) > 1) problems.push(name(kids[i - 1]) + ' -> ' + name(kids[i]) + ': ' + Math.round(g) + 'px gap, not ' + gap);
+    }
+  });
+  return { problems: problems.slice(0, 8), pairs, gap };
+});
+
+/**
+ * A table with hidden columns: every visible row carries the shared chevron, and opening the first row shows the
+ * hidden columns' values (dt = the hidden headers) in its details.
+ */
+export const hiddenColumns = (frame) => frame.evaluate(async () => {
+  const problems = []; let tables = 0;
+  for (const table of Array.from(document.querySelectorAll('table.ui-fit'))) {
+    const hiddenHeads = Array.from(table.querySelectorAll('thead th.ui-col-hidden')).map((h) => h.textContent.replace(/\s+/g, ' ').trim());
+    if (!hiddenHeads.length) continue;
+    tables += 1;
+    const id = table.id || 'table.' + table.className.split(/\s+/).slice(0, 2).join('.');
+    const rows = Array.from(table.tBodies[0] ? table.tBodies[0].rows : []).filter((r) => !r.classList.contains('ui-xrow-panel') && r.offsetParent !== null && !(r.cells[0] && r.cells[0].colSpan > 1));
+    const without = rows.filter((r) => !r.querySelector('.ui-xrow-btn'));
+    if (without.length) { problems.push(id + ': ' + without.length + ' of ' + rows.length + ' rows without a chevron while ' + hiddenHeads.join(', ') + ' hide'); continue; }
+    if (!rows.length) continue;
+    const row = rows[0]; window.diagTables.open(row, true); await new Promise((r) => setTimeout(r, 120));
+    const panel = row.nextElementSibling;
+    const dts = panel && !panel.hidden ? Array.from(panel.querySelectorAll('.ui-kv-hidden dt')).map((d) => d.textContent.trim()) : [];
+    const missing = hiddenHeads.filter((h) => !dts.includes(h));
+    if (missing.length) problems.push(id + ': the opened row does not show the hidden ' + missing.join(', ') + ' (shows ' + dts.join(', ') + ')');
+    window.diagTables.open(row, false);
+    const note = table.parentElement.nextElementSibling;
+    if (!note || !note.classList.contains('ui-table-note') || !/chevron/.test(note.textContent)) problems.push(id + ': no note under the table saying the hidden values open from a row');
+  }
+  return { problems: problems.slice(0, 8), tables };
+});
+
+/**
+ * Sortable headers: every button inside a <th> looks like the shared header (no border, no background, the header's
+ * font), and a sortable table shows exactly one active marker whose column agrees with the row order.
+ */
+export const headerButtons = (frame) => frame.evaluate(() => {
+  const problems = []; let buttons = 0, tables = 0;
+  const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  document.querySelectorAll('#diagnostics-content table').forEach((t) => {
+    const ths = Array.from(t.querySelectorAll('thead th')).filter(vis); if (!ths.length) return;
+    const id = t.id || 'table.' + (t.className || '').split(/\s+/).slice(0, 2).join('.');
+    ths.forEach((th) => {
+      const b = th.querySelector('button'); if (!b || !vis(b)) return;
+      buttons += 1;
+      const cs = getComputedStyle(b), hs = getComputedStyle(th);
+      if (parseFloat(cs.borderTopWidth) > 0 && cs.borderTopStyle !== 'none') problems.push(id + ': the header button "' + b.textContent.trim().slice(0, 16) + '" has a border');
+      if (!/rgba\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor)) problems.push(id + ': the header button "' + b.textContent.trim().slice(0, 16) + '" has a background');
+      if (cs.fontSize !== hs.fontSize || cs.textTransform !== hs.textTransform) problems.push(id + ': the header button "' + b.textContent.trim().slice(0, 16) + '" is not in the header\'s type (' + cs.fontSize + ' ' + cs.textTransform + ')');
+    });
+    const sortable = ths.filter((th) => th.hasAttribute('onclick') || th.classList.contains('cursor-pointer') || th.querySelector('button') || th.hasAttribute('data-key'));
+    if (sortable.length < 2) return;
+    tables += 1;
+    const active = ths.filter((th) => th.hasAttribute('aria-sort'));
+    if (active.length !== 1) { problems.push(id + ': ' + active.length + ' active sort markers on ' + sortable.length + ' sortable headers'); return; }
+    const th = active[0], dir = th.getAttribute('aria-sort'), i = ths.indexOf(th);
+    const rows = Array.from(t.tBodies[0] ? t.tBodies[0].rows : []).filter((r) => !r.classList.contains('ui-xrow-panel') && r.offsetParent !== null && !(r.cells[0] && r.cells[0].colSpan > 1)).slice(0, 60);
+    const vals = rows.map((r) => { const c = r.cells[i]; if (!c) return null; const raw = c.getAttribute('data-raw'); const txt = (raw !== null ? raw : c.textContent).trim().replace(/[,\s]/g, ''); return /^[-+]?\d+(\.\d+)?%?$/.test(txt) ? parseFloat(txt) : txt.toLowerCase(); }).filter((v) => v !== null && v !== '' && v !== '-');   // a figure only when the whole cell is one (a '1 min 0.0 s' is text)
+    if (vals.some((v) => typeof v !== 'number')) return;   // a text column's order (a state's rank, a size's unit) is the page's own; only figures are checked
+    let ordered = true;
+    for (let k = 1; k < vals.length; k++) { const a = vals[k - 1], b = vals[k]; if (typeof a !== typeof b) continue; const cmp = typeof a === 'number' ? a - b : a.localeCompare(b); if (dir === 'ascending' ? cmp > 0 : cmp < 0) { ordered = false; break; } }
+    if (!ordered) problems.push(id + ': the rows do not follow the marked column "' + th.textContent.trim().slice(0, 16) + '" ' + dir + ' (' + vals.slice(0, 6).join(', ') + ')');
+  });
+  return { problems: problems.slice(0, 8), buttons, tables };
+});
+
+/** The chart grid: no row with an empty slot while the cards could fill it (an odd last card spans the row). */
+export const chartGrid = (frame) => frame.evaluate(() => {
+  const problems = []; let grids = 0;
+  document.querySelectorAll('#diagnostics-content .ui-grid-charts').forEach((g) => {
+    const cards = Array.from(g.children).filter((c) => c.getBoundingClientRect().height > 0); if (cards.length < 2) return;
+    grids += 1;
+    const W = g.getBoundingClientRect().width;
+    const rows = new Map(); cards.forEach((c) => { const top = Math.round(c.getBoundingClientRect().top); const r = rows.get(top) || []; r.push(c); rows.set(top, r); });
+    rows.forEach((cs) => { const right = Math.max(...cs.map((c) => c.getBoundingClientRect().right)); const left = Math.min(...cs.map((c) => c.getBoundingClientRect().left)); const used = right - left; if (W - used > 40) problems.push((cards.indexOf(cs[0]) + 1) + 'th card row uses ' + Math.round(used) + ' of ' + Math.round(W) + 'px (an empty slot)'); });
+  });
+  return { problems: problems.slice(0, 6), grids };
+});
+
+/**
+ * An expanded row never moves the columns: every column's width is the same collapsed, with the first row open and
+ * with every row open (±1 px); the table stays as wide as its box; the panel lies within the table; the primary
+ * (flexible) column is never narrower than a quarter of the table.
+ */
+export const expandStability = (frame) => frame.evaluate(async () => {
+  const problems = []; let tables = 0;
+  const widths = (t) => Array.from(t.tHead ? t.tHead.querySelectorAll('th') : []).map((th) => Math.round(th.getBoundingClientRect().width));   // the outer header only (a nested table has its own)
+  for (const t of Array.from(document.querySelectorAll('#diagnostics-content table.ui-fit'))) {
+    const rows = Array.from(t.tBodies[0] ? t.tBodies[0].querySelectorAll(':scope > tr.ui-xrow') : []).filter((r) => r.offsetParent !== null);
+    if (!rows.length) continue;
+    tables += 1;
+    const id = t.id || 'table.' + (t.className || '').split(/\s+/).slice(0, 2).join('.');
+    const wrap = t.parentElement;
+    rows.forEach((r) => window.diagTables.open(r, false));
+    await new Promise((r) => setTimeout(r, 80));
+    const closed = widths(t), tw0 = Math.round(t.getBoundingClientRect().width);
+    const flexTh = t.querySelector('thead th.ui-col-flex, thead th.ui-col-wrap, thead th.ui-col-clamp');
+    if (flexTh && flexTh.getBoundingClientRect().width < 0.24 * tw0) problems.push(id + ': the primary column is ' + Math.round(flexTh.getBoundingClientRect().width) + 'px of ' + tw0 + ' (under a quarter)');
+    window.diagTables.open(rows[0], true);
+    await new Promise((r) => setTimeout(r, 120));
+    const one = widths(t);
+    const diff1 = one.map((w, i) => Math.abs(w - closed[i]) > 1 ? i : -1).filter((i) => i >= 0);
+    if (diff1.length) problems.push(id + ': opening the first row moved columns ' + diff1.join(', ') + ' (' + diff1.map((i) => closed[i] + '->' + one[i]).join(', ') + ')');
+    const panel = rows[0].nextElementSibling;
+    if (panel && panel.classList.contains('ui-xrow-panel')) { const pr = panel.getBoundingClientRect(), tr = t.getBoundingClientRect(); if (pr.right > tr.right + 1 || pr.left < tr.left - 1) problems.push(id + ': the panel runs past the table'); const cell = panel.querySelector('td'); if (cell && Math.abs(cell.getBoundingClientRect().width - tr.width) > 2) problems.push(id + ': the panel cell is ' + Math.round(cell.getBoundingClientRect().width) + 'px wide, the table ' + Math.round(tr.width)); }
+    rows.forEach((r) => window.diagTables.open(r, true));
+    await new Promise((r) => setTimeout(r, 120));
+    const all = widths(t);
+    const diffAll = all.map((w, i) => Math.abs(w - closed[i]) > 1 ? i : -1).filter((i) => i >= 0);
+    if (diffAll.length) problems.push(id + ': opening every row moved columns ' + diffAll.join(', '));
+    if (Math.abs(t.getBoundingClientRect().width - wrap.clientWidth) > 2 && !t.classList.contains('ui-wide')) problems.push(id + ': the table is ' + Math.round(t.getBoundingClientRect().width) + 'px wide in a ' + wrap.clientWidth + 'px box');
+    rows.forEach((r) => window.diagTables.open(r, false));
+  }
+  return { problems: problems.slice(0, 8), tables };
+});
+
+/**
+ * Nested tables (inside an expanded row's details) span the panel's content box (±2 px), with the room shared
+ * across the columns: no column takes more than 40% unless it is the only text column, and no column leaves more
+ * than a quarter of the table empty between its content and the next column.
+ */
+export const nestedTables = (frame) => frame.evaluate(async () => {
+  const problems = []; let tables = 0;
+  const openRows = Array.from(document.querySelectorAll('#diagnostics-content table.ui-fit > tbody > tr.ui-xrow')).filter((r) => r.offsetParent !== null).slice(0, 3);
+  openRows.forEach((r) => window.diagTables.open(r, true));
+  await new Promise((r) => setTimeout(r, 150));
+  for (const t of Array.from(document.querySelectorAll('#diagnostics-content .ui-xrow-body table'))) {
+    if (!t.getBoundingClientRect().width) continue;
+    tables += 1;
+    const id = (t.closest('table.ui-fit:not(.ui-compact)') || {}).id || 'nested';
+    const body = t.closest('.ui-xrow-body'); const bs = getComputedStyle(body);
+    const panelW = body.getBoundingClientRect().width - (parseFloat(bs.paddingLeft) || 0) - (parseFloat(bs.paddingRight) || 0);
+    const tw = t.getBoundingClientRect().width;
+    if (Math.abs(tw - panelW) > 4 && !t.classList.contains('ui-wide')) problems.push(id + ': the nested table is ' + Math.round(tw) + 'px wide in a ' + Math.round(panelW) + 'px panel');
+    const ths = Array.from(t.querySelectorAll('thead th'));
+    const rows = Array.from(t.tBodies[0] ? t.tBodies[0].rows : []).slice(0, 40);
+    // a compact column: the fit's ui-col-num / status / icon, or a table.ui-nested's own kinds (ui-num, ui-status)
+    const compact = (th) => /\bui-col-(num|status|icon)\b/.test(th.className) || /\b(ui-num|ui-status)\b/.test(th.className);
+    const nested = t.classList.contains('ui-nested');
+    const textCols = ths.filter((th) => !compact(th)).length;
+    const range = document.createRange();
+    ths.forEach((th, i) => {
+      const colW = th.getBoundingClientRect().width;
+      if (colW > 0.4 * tw + 1 && !(textCols === 1 && !compact(th))) problems.push(id + ': column "' + th.textContent.trim().slice(0, 12) + '" takes ' + Math.round(100 * colW / tw) + '% of the table');
+      let max = 0;
+      [th].concat(rows.map((r) => r.cells[i]).filter(Boolean)).forEach((c) => { range.selectNodeContents(c); const w = range.getBoundingClientRect().width; if (w > max) max = w; });
+      // the one flexing text column of a ui-nested table takes the room its short content leaves: that is its job
+      if (colW - max > 0.25 * tw + 20 && !(nested && /\bui-text\b/.test(th.className))) problems.push(id + ': column "' + th.textContent.trim().slice(0, 12) + '" leaves ' + Math.round(colW - max) + 'px empty');
+    });
+    // a number, a status or a lone badge keeps to one line (never a character per line in a starved column)
+    Array.from(t.querySelectorAll('td')).slice(0, 240).forEach((td) => {
+      if (!td.getBoundingClientRect().width || !td.textContent.trim()) return;
+      const lone = td.children.length === 1 && /\bui-badge\b/.test(td.firstElementChild.className) && !td.textContent.replace(td.firstElementChild.textContent, '').trim();
+      if (!/\b(ui-num|ui-col-num|ui-status|ui-col-status|bl-num)\b/.test(td.className) && !lone) return;
+      const cs = getComputedStyle(td); const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.4 || 18;
+      const rg = document.createRange(); rg.selectNodeContents(td); const h = rg.getBoundingClientRect().height;
+      if (h > lh * 1.6) problems.push(id + ': a number / status cell on ' + Math.round(h / lh) + ' lines ("' + td.textContent.trim().slice(0, 20) + '")');
+    });
+  }
+  openRows.forEach((r) => window.diagTables.open(r, false));
+  return { problems: problems.slice(0, 8), tables };
+});
+
+/** Every horizontal bar chart's category labels lie fully inside the canvas (no label loses its first letters). */
+export const yLabelsInside = (frame) => frame.evaluate(() => {
+  const problems = []; let charts = 0;
+  Object.values(window.Chart && Chart.instances ? Chart.instances : {}).forEach((c) => {
+    if (!c.canvas || !c.canvas.isConnected || c.options.indexAxis !== 'y' || !c.scales.y) return;
+    charts += 1;
+    const s = c.scales.y; const items = s._labelItems || []; const ctx = c.ctx;
+    ctx.save(); items.forEach((it) => { ctx.font = it.font && it.font.string ? it.font.string : ctx.font; const label = Array.isArray(it.label) ? it.label.join(' ') : String(it.label); const w = ctx.measureText(label).width; const x = it.translation ? it.translation[0] : 0; const left = it.textAlign === 'right' ? x - w : it.textAlign === 'center' ? x - w / 2 : x; if (left < -0.5) problems.push((c.canvas.id || 'chart') + ': "' + label.slice(0, 20) + '" starts ' + Math.round(-left) + 'px outside the canvas'); }); ctx.restore();
+  });
+  return { problems: problems.slice(0, 6), charts };
+});
+
+/**
+ * An opened row's details never clip: no element inside the panel scrolls sideways (the code / YAML scrollers and a
+ * nested table's own box excepted) and no value is cut (its rendered text is its whole text).
+ */
+export const panelClipping = (frame) => frame.evaluate(async () => {
+  const problems = []; let panels = 0;
+  const rows = Array.from(document.querySelectorAll('#diagnostics-content table > tbody > tr.ui-xrow')).filter((r) => r.offsetParent !== null).slice(0, 2);
+  for (const r of rows) {
+    window.diagTables.open(r, true); await new Promise((d) => setTimeout(d, 120));
+    const panel = r.nextElementSibling; if (!panel || !panel.classList.contains('ui-xrow-panel')) continue;
+    panels += 1;
+    const id = (r.closest('table') || {}).id || 'table';
+    Array.from(panel.querySelectorAll('*')).forEach((el) => {
+      if (el.closest('pre, code, .ui-yaml, .ui-table-wrap, canvas, svg')) return;
+      if (el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1) problems.push(id + ': ' + el.tagName.toLowerCase() + '.' + (el.className || '').toString().split(/\s+/)[0] + ' scrolls sideways (' + el.scrollWidth + ' > ' + el.clientWidth + ') "' + el.textContent.trim().slice(0, 24) + '"');
+      const cs = getComputedStyle(el);
+      if (cs.textOverflow === 'ellipsis' && el.scrollWidth > el.clientWidth) problems.push(id + ': a value is cut with an ellipsis "' + el.textContent.trim().slice(0, 24) + '"');
+    });
+    { const body = panel.querySelector('.ui-xrow-body'); const cell = panel.querySelector('td'); if (body && cell) { const bs = getComputedStyle(body), cs2 = getComputedStyle(cell); const cellRight = cell.getBoundingClientRect().right - (parseFloat(cs2.paddingRight) || 0); const bodyRight = body.getBoundingClientRect().right; if (bodyRight > cellRight + 1) problems.push(id + ': the details body runs ' + Math.round(bodyRight - cellRight) + 'px past its cell'); const right = Math.min(bodyRight - (parseFloat(bs.paddingRight) || 0), cellRight); Array.from(body.children).forEach((ch) => { if (ch.getBoundingClientRect().right > right + 1) problems.push(id + ': ' + ch.tagName.toLowerCase() + '.' + (ch.className || '').toString().split(/\s+/)[0] + ' runs ' + Math.round(ch.getBoundingClientRect().right - right) + 'px past the panel'); }); } }
+    Array.from(panel.querySelectorAll('dd')).forEach((dd) => { const range = document.createRange(); range.selectNodeContents(dd); const rr = range.getBoundingClientRect(), dr = dd.getBoundingClientRect(); if (rr.right > dr.right + 1) problems.push(id + ': the value "' + dd.textContent.trim().slice(0, 24) + '" runs past its cell'); });
+    window.diagTables.open(r, false);
+  }
+  return { problems: problems.slice(0, 8), panels };
+});
+
+/**
+ * Code blocks: every block's copy button lies inside the block with a 6 px inset, no bigger than 28 px, clear of the
+ * text; a click writes the block's exact text (the clipboard stubbed) and shows the copied state.
+ */
+export const codeBlocks = (frame) => frame.evaluate(async () => {
+  const problems = []; let blocks = 0;
+  const rows = Array.from(document.querySelectorAll('#diagnostics-content table > tbody > tr.ui-xrow')).filter((r) => r.offsetParent !== null).slice(0, 2);
+  rows.forEach((r) => window.diagTables.open(r, true));
+  await new Promise((d) => setTimeout(d, 120));
+  const written = [];
+  const origClip = navigator.clipboard && navigator.clipboard.writeText;
+  try { if (navigator.clipboard) Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: (t) => { written.push(t); return Promise.resolve(); } }); } catch { /* read-only */ }
+  const origExec = document.execCommand; document.execCommand = (cmd) => { if (cmd === 'copy') { const sel = document.activeElement; if (sel && sel.value !== undefined) written.push(sel.value); } return true; };
+  for (const box of Array.from(document.querySelectorAll('#diagnostics-content .ui-code'))) {
+    if (!box.offsetParent || box.closest('details:not([open])')) continue;   // a block inside a closed fold is not on view (its boxes still measure in Chromium)
+    blocks += 1;
+    const b = box.querySelector('.ui-code-copy'), pre = box.querySelector('pre');
+    if (!b || !pre) { problems.push('a block without its button or text'); continue; }
+    // the hit test reads the pane's view: the block brought into it first (the app scrolls the pane; the frame itself never scrolls)
+    if (window.diagnosticsScrollTo) { window.diagnosticsScrollTo(box.getBoundingClientRect().top + window.scrollY - 60); await new Promise((d) => setTimeout(d, 200)); } else { try { box.scrollIntoView({ block: 'center' }); } catch { /* older */ } }
+    const br = b.getBoundingClientRect(), xr = box.getBoundingClientRect(), pr = getComputedStyle(pre);
+    if (br.width > 28 || br.height > 28) problems.push('a copy button of ' + Math.round(br.width) + 'x' + Math.round(br.height) + 'px');
+    if (br.right > xr.right - 5 || br.top < xr.top + 5 || br.left < xr.left || br.bottom > xr.bottom) problems.push('the copy button is not inset in its block (right gap ' + Math.round(xr.right - br.right) + ', top gap ' + Math.round(br.top - xr.top) + ')');
+    if (parseFloat(pr.paddingRight) < br.width + 10) problems.push('the text is not padded clear of the button (' + pr.paddingRight + ')');
+    if (!b.getAttribute('aria-label') && !b.title) problems.push('the copy button has no name');
+    // seen without hovering: the button answers at its centre and reads at more than half opacity
+    { const vp = window.diagnosticsViewport; const inView = !vp || (br.top >= vp.top - 1 && br.bottom <= vp.top + vp.height + 1); const hit = document.elementFromPoint(br.left + br.width / 2, br.top + br.height / 2); const op = parseFloat(getComputedStyle(b).opacity); if (inView && (!hit || !(hit === b || b.contains(hit)))) problems.push('the copy button is covered at its centre by ' + (hit ? hit.tagName.toLowerCase() + '.' + String(hit.getAttribute('class') || '').split(/\s+/)[0] : 'nothing') + ' [btn ' + Math.round(br.left) + ',' + Math.round(br.top) + ' ' + Math.round(br.width) + 'x' + Math.round(br.height) + ' box ' + Math.round(xr.top) + '-' + Math.round(xr.bottom) + ' inner ' + innerWidth + 'x' + innerHeight + ' vp ' + JSON.stringify(vp) + ' hitRect ' + (hit ? Math.round(hit.getBoundingClientRect().top) + '-' + Math.round(hit.getBoundingClientRect().bottom) : '-') + ' details ' + (box.closest('details') ? box.closest('details').open : 'none') + ']'); if (!(op > 0.5)) problems.push('the copy button sits at opacity ' + op); }
+    written.length = 0; b.click(); await new Promise((d) => setTimeout(d, 50));
+    const text = b.getAttribute('data-copy') || pre.textContent;
+    if (!written.length || written[written.length - 1] !== text) problems.push('the click did not write the block text (' + (written.length ? 'wrote ' + String(written[written.length - 1]).slice(0, 30) : 'nothing') + ')');
+    if (!b.classList.contains('ui-copied') || !b.querySelector('svg path[d^="M20 6"]')) problems.push('no copied state (the check icon) after the click');
+  }
+  document.execCommand = origExec;
+  try { if (navigator.clipboard && origClip) Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: origClip }); } catch { /* fine */ }
+  rows.forEach((r) => window.diagTables.open(r, false));
+  return { problems: problems.slice(0, 8), blocks };
+});
+
+/**
+ * Empty boxes: after the Findings strip, no visible element with a border, a background or a shadow that carries
+ * no text and no control / chart / table (an empty card or panel left by a no-data branch). The outermost only;
+ * tracks, bars, dots and chips (decorative boxes by design) and anything under 14 px are not counted.
+ */
+export const emptyBoxes = (frame) => frame.evaluate(() => {
+  const root = document.querySelector('#diagnostics-content') || document.body;
+  const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; };
+  const name = (el) => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).slice(0, 3).join('.') : '');
+  const strip = root.querySelector('.ui-findings');
+  const boxes = Array.from(root.querySelectorAll('*')).filter((el) => {
+    if (!vis(el) || el === strip || (strip && strip.contains(el))) return false;
+    if (strip && !(strip.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) return false;
+    if (el.matches('input, select, button, textarea, summary, label, a, [role="button"]')) return false;   // a control is a box with a job
+    if (el.matches('td, th')) return false;   // a table's cell (an empty value, the chevron column's header) is not a box of its own
+    const cs = getComputedStyle(el);
+    const boxed = (parseFloat(cs.borderTopWidth) > 0 && cs.borderTopStyle !== 'none') || !/rgba\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor) || cs.boxShadow !== 'none';
+    if (!boxed || el.getBoundingClientRect().height < 14) return false;
+    if (/\b(ui-meter\S*|ui-bar|lc-stack\S*|lc-c\d+|\S*track|\S*swatch|\S*dot|ui-chip\S*|\S*badge\S*|\S*progress\S*|\S*slider\S*|ui-pager)\b/.test(el.className)) return false;
+    if (el.textContent.trim()) return false;
+    if (el.querySelector('input, select, button, canvas, svg, img, textarea, table, [role="img"]')) return false;
+    return true;
+  });
+  return boxes.filter((b) => !boxes.some((o) => o !== b && o.contains(b))).map((b) => name(b) + ' ' + Math.round(b.getBoundingClientRect().height) + 'px').slice(0, 8);
+});
+
+/** The page is the Findings strip alone: its visible top-level children, the first finding's text, the controls. */
+export const stripOnly = (frame) => frame.evaluate(() => {
+  const root = document.querySelector('#diagnostics-content') || document.body;
+  const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; };
+  const name = (el) => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).slice(0, 3).join('.') : '');
+  const kids = Array.from(root.children).filter(vis);
+  const f = root.querySelector('.ui-finding');
+  return { kids: kids.map(name), strip: kids.length === 1 && kids[0].classList.contains('ui-findings'), findings: root.querySelectorAll('.ui-finding').length, text: f ? f.textContent.replace(/\s+/g, ' ').trim() : '', controls: root.querySelectorAll('input, select, button, canvas, table').length };
+});
+/** The clickable charts of the page: [{ id, horizontal, bars: [{ i, x, y, key, label, other }] }] (bar centres in frame coordinates). */
+export const clickableCharts = (frame) => frame.evaluate(() => Object.values(window.Chart && Chart.instances ? Chart.instances : {}).filter((c) => c.canvas && c.canvas.isConnected && c.config && c.config._config && c.config._config.onPick && c.canvas.getBoundingClientRect().width > 0).map((c) => {
+  const r = c.canvas.getBoundingClientRect();
+  const meta = c.getDatasetMeta(0);
+  const keys = c.data.keys || [], others = c.data.others || [], rows = c.$diagRows || [];
+  const bars = meta.data.map((b, i) => {
+    const horizontal = c.options.indexAxis === 'y';
+    const x = horizontal ? (b.base + b.x) / 2 : b.x, y = horizontal ? b.y : (b.base + b.y) / 2;
+    const raw = c.data.datasets[0].data[i];
+    const label = c.data.labels ? c.data.labels[i] : (raw && raw.label);
+    const key = keys[i] !== undefined ? keys[i] : (rows[i] && rows[i].key !== undefined ? rows[i].key : label);
+    return { i, x: r.left + x + window.scrollX, y: r.top + y + window.scrollY, px: x, py: y, key, label, other: !!(others[i] || (rows[i] && rows[i].other)), width: horizontal ? Math.abs(b.x - b.base) : b.width, height: horizontal ? b.height : Math.abs(b.y - b.base) };
+  });
+  return { id: c.canvas.id, horizontal: c.options.indexAxis === 'y', bars };
+}));
+/** The pick the shared resolver recorded on the canvas after a click (null when the click hit nothing clickable). */
+export const lastPick = (frame, id) => frame.evaluate((id) => { const c = document.getElementById(id); const p = c && c.$lastPick; return p ? { index: p.index, key: p.key, label: p.label, value: p.value } : null; }, id);
+/** The control radius in the frame: every .btn and pager button is 8 px round, every chip a pill. */
+export const controlRadius = (frame) => frame.evaluate(() => {
+  const problems = []; let buttons = 0, chips = 0;
+  document.querySelectorAll('#diagnostics-content .btn, #diagnostics-content .ui-pager button, #diagnostics-content .ui-input, #diagnostics-content .ui-select').forEach((b) => {
+    if (!b.offsetParent) return; buttons += 1;
+    const r = getComputedStyle(b).borderRadius;
+    if (r !== '8px') problems.push((b.id ? '#' + b.id : b.tagName.toLowerCase() + '.' + (b.className || '').toString().split(/\s+/)[0]) + ' "' + (b.textContent || b.placeholder || '').trim().slice(0, 16) + '" radius ' + r);
+  });
+  document.querySelectorAll('#diagnostics-content .ui-chip').forEach((c) => { if (!c.offsetParent) return; chips += 1; const r = parseFloat(getComputedStyle(c).borderRadius); if (!(r >= 100)) problems.push('chip "' + c.textContent.trim().slice(0, 12) + '" radius ' + r); });
+  return { problems: problems.slice(0, 8), buttons, chips };
 });

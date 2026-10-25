@@ -1,0 +1,332 @@
+{# The shared Log Viewer (diagnostics-ui.js diagLogView): the charts row, the date range (the calendar and the
+   dual slider), the source picker, the actions (Get Date Range, Load Logs, Export CSV), the status, the filter row,
+   the table, the pager. One presentation for every report type; the data comes through an adapter the page picks:
+     {{ logview.viewer(sources=..., unavailable=..., date_range=..., source_noun='log file', columns=[...]) }}
+     {{ logview.alert_modal() }}
+     <script>window.diagLogView.mount(document.getElementById('log-view'), window.diagLogView.adapters.sosreport({ directory: ..., dateRange: ... }));</script>
+   sources: [{name, path, size, checked, group?}] (checked, or type == checked_type: read on load; group: a heading in the picker);
+   unavailable: [{name}] listed but unreadable; date_range: {start, end} ISO or null; columns: the five header labels.
+   Every element id is the contract with the controller, the driver scripts and the tests. #}
+{% macro viewer(sources, unavailable=[], date_range=None, source_noun='log file', columns=['Timestamp', 'Level', 'Hostname', 'Process', 'Message'], empty_title='No Readable Log Files Found', empty_text='', checked_type=None, chart_title='Logs per Process', source_label='All Processes') -%}
+<div id="log-view" class="ui-logview" data-sources="{{ sources | length }}">
+{% if sources %}
+  <!-- Charts -->
+  <div id="charts-panel" class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="panel rounded-lg shadow-sm p-3" data-chart-card hidden>
+      <h3 class="text-sm font-medium mb-2">
+        <i class="fas fa-chart-bar mr-2"></i> {{ chart_title }}
+      </h3>
+      <canvas id="processChart" style="max-height: 250px;"></canvas>
+    </div>
+    <div class="panel rounded-lg shadow-sm p-3" data-chart-card hidden>
+      <h3 class="text-sm font-medium mb-2">
+        <i class="fas fa-chart-bar mr-2"></i> Logs per Severity
+      </h3>
+      <canvas id="severityChart" style="max-height: 250px;"></canvas>
+    </div>
+  </div>
+
+  <!-- Date Range Filter -->
+  <!-- The header: the date-range slider, then one toolbar (the files, the
+       actions, the status) and one filter row. Styled by the lv-* rules in
+       the style block below, not by utility classes: inside the app's
+       diagnostics frame only the app's own compiled Tailwind is available,
+       and classes used by this template alone (h-1.5, top-1/2, the slider
+       ...) are not in it - which is how the slider lost its track. The
+       rules read the app's tokens, so both themes and the standalone Flask
+       page look the same. Every element id is part of the contract with
+       the script below and the tests. -->
+  <div class="lv-header mb-4 p-3 rounded-sm">
+    <!-- Date Range Slider -->
+    <div class="mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <label class="block text-xs font-medium">Date Range</label>
+        <div class="flex items-center gap-2">
+          <div class="relative">
+            <button
+              id="single-date-button"
+              type="button"
+              class="btn btn-secondary"
+            >
+              <span id="single-date-display">Select Range</span>
+            </button>
+            <div id="date-calendar" class="hidden ui-popover ui-daterange lv-calendar" role="dialog" aria-label="Date range">
+              {# the shared date-range picker (diagDateRange) fills the grid; the ids are the viewer's contract #}
+              <div class="ui-dr-head">
+                <button type="button" id="cal-prev-month" class="ui-icon-btn ui-dr-nav ui-dr-prev" aria-label="Previous month" title="Previous month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+                <div class="ui-dr-title" id="cal-month-year" aria-live="polite"></div>
+                <button type="button" id="cal-next-month" class="ui-icon-btn ui-dr-nav ui-dr-next" aria-label="Next month" title="Next month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+              </div>
+              <div class="ui-dr-dow" aria-hidden="true"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+              <div id="cal-grid" class="ui-dr-grid" role="grid" aria-label="Days"></div>
+              <div class="ui-dr-foot">
+                <button type="button" id="cal-today" class="btn btn-secondary flex-1 ui-dr-today">Today</button>
+                <button type="button" id="cal-clear" class="btn btn-secondary flex-1 ui-dr-clear">Clear</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p id="date-range-note" class="lv-range-note" hidden></p>
+      <div class="lv-slider">
+        <div class="lv-slider-labels">
+          {# start/end are None when no readable log had a parseable timestamp #}
+          <span id="date-start-label">{{ date_range.start[:10] if date_range and date_range.start else 'unknown' }}</span>
+          <span id="date-end-label">{{ date_range.end[:10] if date_range and date_range.end else 'unknown' }}</span>
+        </div>
+        <div class="lv-slider-area" id="date-slider-container">
+          <!-- Background track -->
+          <div class="lv-slider-track"></div>
+          <!-- Selected range highlight -->
+          <div id="date-range-highlight" class="lv-slider-highlight" style="left: 0%; width: 100%;"></div>
+          <!-- Sliders -->
+          <input type="range" id="date-slider-start" class="range-slider" style="pointer-events: none;">
+          <input type="range" id="date-slider-end" class="range-slider" style="pointer-events: none;">
+        </div>
+      </div>
+    </div>
+
+    <!-- The toolbar: the files to read, the actions (Load Logs is the main one), the status -->
+    <div class="lv-toolbar">
+      <!-- Log Files Dropdown -->
+      <div class="relative lv-files">
+        <button
+          type="button"
+          id="log-file-dropdown-btn"
+          class="btn btn-secondary btn-sm lv-control lv-button lv-files-btn"
+          title="The {{ source_noun }}s to read"
+        >
+          <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+          <span id="log-file-selection-display" class="flex-1 text-left truncate">1 {{ source_noun }} selected</span>
+          <svg class="lv-icon lv-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+        </button>
+
+        <!-- Dropdown panel -->
+        <div id="log-file-dropdown-panel" class="hidden ui-popover lv-files-panel">
+          <!-- Search input: the head stays while the list scrolls -->
+          <div class="ui-popover-head">
+            <input
+              type="text"
+              id="log-file-search"
+              placeholder="Search {{ source_noun }}s..."
+              class="ui-input w-full"
+              autocomplete="off"
+            />
+          </div>
+
+          <!-- File list: the body scrolls within the room the popover has -->
+          <div id="log-file-list" class="ui-popover-body">
+            {% for log in sources %}
+            {% if log.group and (loop.first or loop.previtem.group != log.group) %}<div class="ui-logview-group" data-group="{{ log.group }}">{{ log.group }}</div>{% endif %}
+            <label class="log-file-item" data-log-name="{{ log.name | lower }}">
+              <input
+                type="checkbox"
+                class="ui-check log-file-checkbox"
+                data-path="{{ log.path }}"
+                data-name="{{ log.name }}"
+                data-type="{{ log.type | default('') }}"
+                data-namespace="{{ log.namespace | default('') }}"
+                data-pod="{{ log.pod | default('') }}"
+                data-container="{{ log.container | default('') }}"
+                data-node="{{ log.node | default('') }}"
+                data-role="{{ log.role | default('') }}"
+                {% if log.checked or (checked_type and log.type == checked_type) %}checked{% endif %}
+              />
+              <div class="flex-1 min-w-0">
+                <div class="lv-files-name" title="{{ log.name }}">{{ log.name }}</div>
+                <div class="lv-files-size">{{ (log.size / 1024 / 1024) | round(2) }} MB</div>
+              </div>
+            </label>
+            {% endfor %}
+          </div>
+
+          <!-- The foot stays: the unavailable note, Select All / Clear All -->
+          <div class="ui-popover-foot">
+          {% if unavailable %}
+          <!-- Log files present in the report tree that cannot be opened:
+               dangling symlinks (var/log/containers/*.log pointing into a
+               var/log/pods/ tree the collector did not capture) or unreadable
+               files. Listed as unavailable instead of failing the whole tab;
+               hover for the file names. -->
+          <div
+            id="log-file-unavailable"
+            class="ui-popover-foot-note"
+            title="{% for log in unavailable %}{{ log.name }}{% if not loop.last %}&#10;{% endif %}{% endfor %}"
+          >
+            <i class="fas fa-exclamation-triangle mr-1"></i>
+            {{ unavailable | length }} {{ source_noun }}{{ 's' if unavailable | length != 1 else '' }} unavailable (not captured in this report)
+          </div>
+          {% endif %}
+
+          <!-- Action buttons -->
+          <div class="ui-popover-foot-actions">
+            <button
+              type="button"
+              id="select-all-logs"
+              class="btn btn-secondary flex-1"
+            >
+              Select All
+            </button>
+            <button
+              type="button"
+              id="clear-all-logs"
+              class="btn btn-secondary flex-1"
+            >
+              Clear All
+            </button>
+          </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lv-actions">
+        <button id="get-range-btn" type="button" class="btn btn-secondary btn-sm lv-control lv-button" title="Read the earliest and latest timestamps of the selected files into the slider">
+          Get Date Range
+        </button>
+        <button id="load-logs-btn" type="button" class="btn btn-primary btn-sm lv-control lv-button lv-primary" title="Read the selected files for the selected dates">
+          Load Logs
+        </button>
+        <button id="export-csv-btn" type="button" class="btn btn-secondary btn-sm lv-control lv-button" disabled title="Download the rows the filters currently show, as CSV">
+          <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Export CSV
+        </button>
+      </div>
+
+      <!-- Status Indicators -->
+      <div class="lv-status">
+        <span id="loading-indicator" class="hidden text-xs opacity-70">
+          <i class="fas fa-spinner fa-spin mr-1"></i>
+          Loading...
+        </span>
+        <span id="logs-loaded-info" class="hidden text-xs">
+          <span id="loaded-count"></span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Controls: the two text filters (a leading icon each, the syntax in their tooltips), the two selects -->
+  <div id="filter-panel" class="lv-filters mb-3">
+    <label class="ui-field lv-field lv-grow">
+      <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+      <input
+        type="text"
+        id="log-search"
+        data-ui-search
+        placeholder="Search logs"
+        title="Show rows matching any of these terms. Several terms: separate them with commas - a row matches any of them. An exact phrase: put it in quotes, e.g. &quot;connection refused&quot;. A literal quote or comma: escape it with a backslash (\&quot;). Matching ignores case and covers every column."
+        class="ui-input lv-control lv-input"
+        autocomplete="off"
+      />
+    </label>
+    <label class="ui-field lv-field lv-grow">
+      <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"></path></svg>
+      <input
+        type="text"
+        id="log-exclude"
+        placeholder="Filter out"
+        title="Hide rows matching any of these terms. Several terms: separate them with commas - a row matches any of them. An exact phrase: put it in quotes, e.g. &quot;connection refused&quot;. A literal quote or comma: escape it with a backslash (\&quot;). Matching ignores case and covers every column."
+        class="ui-input lv-control lv-input"
+        autocomplete="off"
+      />
+    </label>
+    <span class="ui-select-wrap lv-field lv-select-wrap">
+      <select id="severity-filter" class="ui-select lv-control lv-select" title="Only rows of this level">
+        <option value="">All Levels</option>
+        <option value="critical">Critical</option>
+        <option value="error">Error</option>
+        <option value="warning">Warning</option>
+        <option value="info">Information</option>
+        <option value="debug">Debug</option>
+        <option value="other">Other</option>
+      </select>
+      <svg class="lv-icon lv-icon-sm lv-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+    </span>
+    <span class="ui-select-wrap lv-field lv-select-wrap">
+      <select id="process-filter" class="ui-select lv-control lv-select" title="Only rows of this source (the sources in the loaded logs)">
+        <option value="">{{ source_label }}</option>
+      </select>
+      <svg class="lv-icon lv-icon-sm lv-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+    </span>
+  </div>
+
+  <!-- Log Table -->
+  <div id="log-table-container" class="">
+    <!-- Showing Count (Top) -->
+    <div class="mb-3 text-xs">
+      <div id="entry-count-top" class="opacity-70"></div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="ui-table">
+        <thead>
+          <tr>
+            <th class="cursor-pointer" data-sorted="ascending" onclick="sortTable(0)" style="width: 140px;">
+              {{ columns[0] }} <i id="sort-0" class="fas fa-sort ml-1 opacity-50"></i>
+            </th>
+            <th class="cursor-pointer" onclick="sortTable(1)" style="width: 90px;">
+              {{ columns[1] }} <i id="sort-1" class="fas fa-sort ml-1 opacity-50"></i>
+            </th>
+            <th class="cursor-pointer" onclick="sortTable(2)" style="width: 150px;">
+              {{ columns[2] }} <i id="sort-2" class="fas fa-sort ml-1 opacity-50"></i>
+            </th>
+            <th class="cursor-pointer" onclick="sortTable(3)" style="width: 180px;">
+              {{ columns[3] }} <i id="sort-3" class="fas fa-sort ml-1 opacity-50"></i>
+            </th>
+            <th>
+              {{ columns[4] }}
+            </th>
+          </tr>
+        </thead>
+        <tbody id="log-table-body">
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    <!-- the page bar: the status on the left, rows per page and the shared pager on the right -->
+    <div class="ui-pagebar">
+      <div id="entry-count" class="ui-status" aria-live="polite"></div>
+      <div class="ui-pagebar-right">
+        <label class="ui-rows">Rows per page<span class="ui-select-wrap ui-narrow"><select id="page-size" class="ui-select" aria-label="Rows per page" onchange="window.diagBusy ? window.diagBusy.filter(this, function () { changePageSize(); }) : changePageSize()">
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+          <option value="250">250</option>
+          <option value="500">500</option>
+          <option value="-1">All</option>
+        </select><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></label>
+        <nav id="pagination-controls" class="ui-pager" aria-label="Pages" hidden></nav>
+      </div>
+    </div>
+
+    <div id="no-results" class="hidden text-center py-8 opacity-70">
+      <div class="text-sm">No matching logs found</div>
+    </div>
+  </div>
+{% else %}
+  <div class="text-center py-12 opacity-70">
+    <i class="fas fa-exclamation-triangle text-2xl mb-2"></i>
+    <div class="text-sm font-medium">{{ empty_title }}</div>
+    {% if empty_text %}<div class="text-xs mt-1">{{ empty_text | safe }}</div>{% endif %}
+    {% if unavailable %}
+    <div id="log-file-unavailable" class="text-xs mt-2"
+         title="{% for log in unavailable %}{{ log.name }}{% if not loop.last %}&#10;{% endif %}{% endfor %}">
+      {{ unavailable | length }} {{ source_noun }}{{ 's' if unavailable | length != 1 else '' }} present but unavailable (not captured in this report)
+    </div>
+    {% endif %}
+  </div>
+{% endif %}
+</div>
+{%- endmacro %}
+
+{# The alert / info modal the controller uses for its messages (no files selected, a load error, the export done) #}
+{% macro alert_modal() -%}
+  <div id="alert-modal" class="hidden ui-modal" role="dialog" aria-modal="true" aria-labelledby="alert-modal-title">
+    <div class="ui-modal-card">
+      <i id="alert-modal-icon" class="fas fa-info-circle ui-modal-icon"></i>
+      <h3 id="alert-modal-title"></h3>
+      <p id="alert-modal-message"></p>
+      <button type="button" id="alert-modal-ok" class="btn btn-primary">OK</button>
+    </div>
+  </div>
+{%- endmacro %}

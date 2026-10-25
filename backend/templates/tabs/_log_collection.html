@@ -88,12 +88,13 @@
 
 
 .lc-table tr.lc-row[hidden] { display: none; }
-.lc-td-sec { color: var(--os-text-secondary, #6a6e73); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-td-sec { color: var(--os-text-secondary, #6a6e73); white-space: normal; overflow-wrap: anywhere; }   /* wraps in its column, never a cut (the tables rule) */
 .lc-td-sec .lc-dot, .lc-sec-inline .lc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
 .lc-sec-inline { display: none; font-size: 11px; color: var(--os-text-secondary, #6a6e73); margin-right: 6px; }
-.lc-td-name { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-td-name { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); white-space: normal; overflow-wrap: anywhere; }
 .lc-td-name .lc-seg-sep { color: var(--os-text-muted, #8a8d93); padding: 0 3px; }
 .lc-td-name .lc-seg-muted { color: var(--os-text-secondary, #6a6e73); }
+.lc-td-name .lc-open { margin-left: 8px; font-size: 12px; }
 .lc-td-name .lc-detail { color: var(--os-text-secondary, #6a6e73); font-size: 11.5px; margin-left: 6px; }
 
 
@@ -178,7 +179,7 @@
   {% for r in lc.rows %}
     <tr class="lc-row" data-section="{{ r.section }}" data-name="{{ r.name }}" data-size="{{ r.size if r.size is not none else -1 }}"{% if r.extra %} data-extra="1" hidden{% endif %}>
       <td class="lc-td-sec" title="{{ r.section_label }}"><span class="lc-dot lc-c{{ r.color }}"></span>{{ r.section_label }}</td>
-      <td class="lc-td-name" title="{{ r.name }}"><span class="lc-sec-inline"><span class="lc-dot lc-c{{ r.color }}"></span>{{ r.section_label }}</span>{% if r.segments %}{% for seg in r.segments %}{% if not loop.first %}<span class="lc-seg-sep">/</span>{% endif %}<span class="{% if not loop.last %}lc-seg-muted{% endif %}">{{ seg }}</span>{% endfor %}{% else %}{{ r.name }}{% endif %}{% if r.detail %}<span class="lc-detail">{{ r.detail }}</span>{% endif %}{% if r.is_dir and r.files %}<span class="ui-badge lc-tag">{{ "{:,}".format(r.files) }} file{{ 's' if r.files != 1 else '' }}</span>{% endif %}{% if r.rotated %}<span class="ui-badge lc-tag">rotated</span>{% endif %}{% if r.unreadable %}<span class="ui-badge ui-badge-bad lc-tag lc-tag-bad">unreadable</span>{% endif %}</td>
+      <td class="lc-td-name" title="{{ r.name }}"><span class="lc-sec-inline"><span class="lc-dot lc-c{{ r.color }}"></span>{{ r.section_label }}</span>{% if r.segments %}{% for seg in r.segments %}{% if not loop.first %}<span class="lc-seg-sep">/</span>{% endif %}<span class="{% if not loop.last %}lc-seg-muted{% endif %}">{{ seg }}</span>{% endfor %}{% else %}{{ r.name }}{% endif %}{% if r.detail %}<span class="lc-detail">{{ r.detail }}</span>{% endif %}{% if r.is_dir and r.files %}<span class="ui-badge lc-tag">{{ "{:,}".format(r.files) }} file{{ 's' if r.files != 1 else '' }}</span>{% endif %}{% if r.rotated %}<span class="ui-badge lc-tag">rotated</span>{% endif %}{% if r.section == 'pod_logs' and r.segments %}<button type="button" class="ui-link lc-open" data-tab="log_collection" data-sub-tab="log_viewer" data-query="sources={{ r.segments | join('/') }}" title="Open this container's logs in the Log Viewer">Open</button>{% elif r.section == 'host' and not r.is_dir %}<button type="button" class="ui-link lc-open" data-tab="log_collection" data-sub-tab="log_viewer" data-query="sources=host:{{ r.name }}" title="Open this log in the Log Viewer">Open</button>{% endif %}{% if r.unreadable %}<span class="ui-badge ui-badge-bad lc-tag lc-tag-bad">unreadable</span>{% endif %}</td>
       <td class="lc-td-size"><span class="lc-bar{% if r.is_dir %} lc-bar-dir{% endif %}" title="{{ r.bar_pct }}% of the largest {{ 'directory' if r.is_dir else 'file' }}"><i style="width: {{ r.bar_pct }}%"></i></span><span class="lc-size-text">{{ r.size_text }}</span></td>
     </tr>
   {% endfor %}

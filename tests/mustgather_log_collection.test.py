@@ -127,7 +127,8 @@ def main():
 
     print("\n--- 3. the registry and the Flask render ---")
     mgr = lv.PARSERS["mustgather"]
-    check("the must-gather registry ends with the Log Collection tab, a single tab without sub-tabs", list(mgr)[-1] == "log_collection" and "sub_tabs" not in mgr["log_collection"] and mgr["log_collection"]["label"] == "Log Collection" and mgr["log_collection"]["module"] == "parsers.mustgather.log_collection")
+    # the Log Viewer sits under Log Collection as in a sosreport (its only sub-tab); the group keeps its overview page
+    check("the must-gather registry ends with the Log Collection group, whose only sub-tab is the Log Viewer", list(mgr)[-1] == "log_collection" and list(mgr["log_collection"].get("sub_tabs", {})) == ["log_viewer"] and mgr["log_collection"]["label"] == "Log Collection" and mgr["log_collection"]["module"] == "parsers.mustgather.log_collection")
     app = Flask(__name__, template_folder=os.path.join(BACKEND, "templates"))
     app.register_blueprint(lv.log_viewer)
     app.secret_key = "mg-log-collection-test"

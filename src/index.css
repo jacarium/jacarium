@@ -235,6 +235,10 @@ body {
      the mark is white on light surfaces; the hero card of the brand pages
      (sign-in, setup, About) is blossom lilac. */
   --brand-accent: #7B5CE0;
+  /* Links (tests/link-colour.test.mjs): the one link colour of the theme, >= 4.5:1 on its surfaces; .link,
+     .brand-link, the primitives' link buttons and the Diagnostics .ui-link read it. Light: the app blue. */
+  --link: var(--os-blue);
+  --link-hover: var(--os-blue-hover);
   --brand-blossom: #FFFFFF;
   --brand-ink: #15121F;
   --brand-hero-bg: #F6F2FF;
@@ -418,6 +422,9 @@ body {
   --os-rail-tooltip: #0F0D16;
   --os-rail-separator: #3A3350;
 
+  /* Links on Jacaranda: the violet accent, lifted to a lilac that reads at 4.5:1 on the night-ink surfaces */
+  --link: #B4A2F5;
+  --link-hover: #CFC3FA;
   /* Brand on dark surfaces: lilac blossom, night-ink hero card and page */
   --brand-blossom: #EDE6FF;
   --brand-hero-bg: #17141F;
@@ -544,6 +551,9 @@ body {
    greys, selectable in Settings > General > Color Scheme; the gradient
    themes paint their rail over these surfaces too. */
 .dark[data-dark-variant="neutral"] {
+  /* Links on the neutral dark (and the gradient themes, which inherit this block unless they set their own below) */
+  --link: var(--os-blue-hover);
+  --link-hover: #8EC2FF;
   --chart-cat-1: #60a5fa;
   --chart-cat-2: #a78bfa;
   --chart-cat-3: #2dd4bf;
@@ -696,7 +706,7 @@ body {
    .btn-selected / .btn-selected-soft are the on state of a toggle, segment, filter, icon-picker or sort button. Sizes .btn-sm / .btn-md / .btn-lg, or a button keeps its own padding utilities.
    <Button variant> (src/components/ui/primitives.jsx) applies these. Unlayered on purpose: the rules win over a leftover
    colour utility on the same element. */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; white-space: nowrap; border: 1px solid var(--btn-border, transparent); border-radius: var(--radius-control); background-color: var(--btn-bg); color: var(--btn-fg); font-weight: var(--weight-control); cursor: pointer; transition: background-color 0.15s, color 0.15s, border-color 0.15s; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; white-space: nowrap; border: 1px solid var(--btn-border, transparent); border-radius: var(--radius-control, 8px); background-color: var(--btn-bg); color: var(--btn-fg); font-weight: var(--weight-control); cursor: pointer; transition: background-color 0.15s, color 0.15s, border-color 0.15s; }
 .btn:hover:not(:disabled) { background-color: var(--btn-bg-hover); color: var(--btn-fg-hover, var(--btn-fg)); }
 .btn:active:not(:disabled) { background-color: var(--btn-bg-active); }
 .btn:focus { outline: none; }
@@ -914,13 +924,13 @@ body {
    (tests/ui-primitives.test.mjs sweeps for them). Utility classes still win
    (rounded-full for pills, rounded-none for a tab strip). */
 button, [role="button"] {
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-control, 8px);
   font-weight: var(--weight-control);
 }
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
 select,
 textarea {
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-control, 8px);
   font-weight: var(--weight-control);
 }
 /* Fields share the input surface, border and focus ring; a utility class on
@@ -954,7 +964,7 @@ textarea.field-inline:focus-visible {
   border-color: transparent;
   box-shadow: none;
 }
-input[type="checkbox"] { border-radius: var(--radius-check); accent-color: var(--os-blue); }
+input[type="checkbox"] { border-radius: var(--radius-check, 5px); accent-color: var(--os-blue); }
 input[type="radio"] { border-radius: 9999px; accent-color: var(--os-blue); }
 input[type="range"] { accent-color: var(--os-blue); }
 label { font-weight: var(--weight-label); }
@@ -1051,7 +1061,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   margin: 16px 0;
   padding: 24px;
   border: 1px dashed #b6bfc9;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-sm, 8px);
   position: relative;
 }
 
@@ -1096,7 +1106,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   margin: 16px 0;
   padding: 12px 16px;
   border: 1px dashed #b6bfc9;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-sm, 8px);
   position: relative;
 }
 
@@ -1244,7 +1254,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   margin: 0 0 16px 0;
   padding: 10px 14px;
   border-left: 3px solid var(--callout-color);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-sm, 8px);
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
   background: color-mix(in srgb, var(--callout-color) 10%, transparent);
@@ -1305,7 +1315,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   margin: 0;
   font-size: 85%;
   background-color: rgba(175, 184, 193, 0.2);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-xs, 6px);
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 }
 
@@ -1320,7 +1330,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   font-size: 85%;
   line-height: 1.45;
   background-color: #f6f8fa;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-xs, 6px);
   margin-top: 0;
   margin-bottom: 16px;
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
@@ -1483,7 +1493,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   margin: 0 0 8px;
   padding: 8px 12px;
   border: 1px solid #fecaca;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-xs, 6px);
   background-color: #fef2f2;
   color: #dc2626;
   font-size: 13px;
@@ -1673,7 +1683,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   background-color: #f6f8fa;
   border: solid 1px rgba(175, 184, 193, 0.2);
   border-bottom-color: rgba(175, 184, 193, 0.2);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-xs, 6px);
   box-shadow: inset 0 -1px 0 rgba(175, 184, 193, 0.2);
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 }
@@ -1805,7 +1815,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 .markdown-preview-ai code {
   background-color: rgba(0, 0, 0, 0.05);
   padding: 0.15em 0.3em;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-xs, 6px);
   font-family: 'Courier New', Courier, monospace;
   font-size: 0.9em;
   word-wrap: break-word;
@@ -1819,7 +1829,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 .markdown-preview-ai pre {
   background-color: rgba(0, 0, 0, 0.05);
   padding: 0.75em;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-sm, 8px);
   overflow-x: auto;
   margin: 0.5em 0;
   max-width: 100%;
@@ -2057,7 +2067,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 
 /* Match React Flow node wrapper to inner content styling */
 .react-flow__node {
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-md, 10px);
 }
 
 /* Selected node: one ring - the node's own 2px border turns blue (notes and
@@ -2250,7 +2260,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   background: var(--os-card-secondary) !important;
   border: 1px solid var(--os-border) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-sm, 8px);
   overflow: hidden;
 }
 
@@ -2276,7 +2286,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   background: var(--os-card-secondary) !important;
   border: 1px solid var(--os-border) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-sm, 8px);
   overflow: hidden;
 }
 
@@ -2297,7 +2307,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 #diagnostics-content .panel {
   background-color: var(--os-card) !important;
   border: 1px solid var(--os-border) !important;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-lg, 14px);
   box-shadow: none !important;
 }
 
@@ -2339,8 +2349,9 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 }
 
 /* A template's plain button is the secondary button role (backend/static/styles.css gives it the shape); one on the shared
-   .btn classes, a sort header, a link-style or icon button keeps its own role */
-#diagnostics-content button:not(.btn):not(.lc-sort):not(.ui-link):not(.ui-icon-btn):not(.ui-chip):not([class*="-link"]) {
+   .btn classes, a sort header, a link-style or icon button, a row's chevron or the date-range picker's day cell
+   (.ui-dr-day: its own selected / band / muted looks) keeps its own role. The same list as styles.css's rule. */
+#diagnostics-content button:not(.btn):not(.lc-sort):not(.ui-sort):not(.ui-link):not(.ui-icon-btn):not(.ui-chip):not(.ui-xrow-btn):not(.ui-dr-day):not([class*="-link"]) {
   background-color: var(--btn-secondary-bg) !important;
   color: var(--btn-secondary-fg) !important;
   border-color: var(--btn-secondary-border) !important;
@@ -2492,14 +2503,17 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
    takes the same tinted surface so the page reads as one design, in the
    light theme it keeps the app's neutral card. */
 .brand-page { background: var(--brand-page-bg); }
-.brand-hero { background: var(--brand-hero-bg); border-radius: var(--radius-3xl); }
-.brand-hero-strip { border-radius: var(--radius-2xl); }
+.brand-hero { background: var(--brand-hero-bg); border-radius: var(--radius-3xl, 28px); }
+.brand-hero-strip { border-radius: var(--radius-2xl, 20px); }
 .brand-hero-title { color: var(--brand-hero-text); }
 .brand-hero-sub { color: var(--brand-hero-muted); }
-.brand-form-card { background: var(--os-modal); border: 1px solid var(--os-border); border-radius: var(--radius-xl); box-shadow: 0 1px 2px rgb(0 0 0 / 0.06); }
-.dark .brand-form-card { background: var(--brand-hero-bg); border-color: transparent; border-radius: var(--radius-2xl); }
+.brand-form-card { background: var(--os-modal); border: 1px solid var(--os-border); border-radius: var(--radius-xl, 16px); box-shadow: 0 1px 2px rgb(0 0 0 / 0.06); }
+.dark .brand-form-card { background: var(--brand-hero-bg); border-color: transparent; border-radius: var(--radius-2xl, 20px); }
 .brand-page-foot { color: var(--os-text-secondary); }
-.brand-link { color: var(--brand-accent); }
+/* ==== Links (tests/link-colour.test.mjs): one colour per theme, from --link / --link-hover ==== */
+.link, .brand-link, .sc-btn-link { color: var(--link); }
+.link:hover, .brand-link:hover, .sc-btn-link:hover { color: var(--link-hover); }
+/* ==== End of links ==== */
 
 /* ---------------------------------------------------------------------------
    AI chat bubbles (AIChatSidebar, Robin's AIChatPage - src/components/common/
@@ -2613,7 +2627,15 @@ textarea.resize-none.h-full { border-radius: 0; }
    (tests/brand.test.mjs computes them). Light, Jacaranda and the neutral
    dark keep the default violet; the app icon never changes. */
 [data-theme="gradient-red-purple"] { --mark-arch: #FFE4E6; --mark-blossom: #9F1239; }   /* Magma */
-[data-theme="gradient-blue-purple"] { --mark-arch: #E0E7FF; --mark-blossom: #3730A3; }  /* Nebula */
+[data-theme="gradient-blue-purple"] { --mark-arch: #E0E7FF; --mark-blossom: #3730A3; }   /* Nebula */
 [data-theme="gradient-green-blue"] { --mark-arch: #D1FAE5; --mark-blossom: #065F46; }   /* Vulkan */
 [data-theme="gradient-orange-red"] { --mark-arch: #FFEDD5; --mark-blossom: #9A3412; }   /* Sunset */
-[data-theme="gradient-pink-purple"] { --mark-arch: #FCE7F3; --mark-blossom: #9D174D; }  /* Aurora */
+[data-theme="gradient-pink-purple"] { --mark-arch: #FCE7F3; --mark-blossom: #9D174D; }   /* Aurora */
+
+/* The gradient themes' links: a light tint of each theme's own accent. They sit on the neutral dark surfaces, whose
+   block (.dark[data-dark-variant="neutral"]) also sets --link, so these rules need the same specificity and a later place. */
+.dark[data-theme="gradient-red-purple"] { --link: #FDA4AF; --link-hover: #FECDD3; }   /* Magma: a rose tint */
+.dark[data-theme="gradient-blue-purple"] { --link: #A5B4FC; --link-hover: #C7D2FE; }   /* Nebula: an indigo tint */
+.dark[data-theme="gradient-green-blue"] { --link: #6EE7B7; --link-hover: #A7F3D0; }   /* Vulkan: an emerald tint */
+.dark[data-theme="gradient-orange-red"] { --link: #FDBA74; --link-hover: #FED7AA; }   /* Sunset: an orange tint */
+.dark[data-theme="gradient-pink-purple"] { --link: #F9A8D4; --link-hover: #FBCFE8; }   /* Aurora: a pink tint */

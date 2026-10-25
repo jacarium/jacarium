@@ -49,11 +49,11 @@
  <th class="cursor-pointer" data-sorted="ascending" onclick="window.sortCpuTable(0)">CPU <i id="cpu-indicator-0" class="fas text-sm ml-1"></i></th>
  <th class="cursor-pointer" onclick="window.sortCpuTable(1, true)">Total Tasks <i id="cpu-indicator-1" class="fas text-sm ml-1"></i></th>
  <th class="cursor-pointer" onclick="window.sortCpuTable(2, true)">Context Switches <i id="cpu-indicator-2" class="fas text-sm ml-1"></i></th>
- <th>Task States</th>
- <th>Executing PID</th>
- <th>Top Switches</th>
- <th>Top Tasks (ms)</th>
- <th>Waited 1+ ms</th>
+ <th data-w="status">Task States</th>
+ <th data-w="num">Executing PID</th>
+ <th data-w="flex">Top Switches</th>
+ <th data-w="text" data-p="2">Top Tasks (ms)</th>
+ <th data-w="text" data-p="2">Waited 1+ ms</th>
  </tr>
  </thead>
  <tbody>
@@ -134,17 +134,17 @@
  <thead>
  <tr>
  <th data-key="CPU" class="cursor-pointer" data-sorted="ascending" onclick="window.sortAllCpuTasks(0)">CPU <i id="alltasks-indicator-0" class="fas text-sm ml-1"></i></th>
- <th data-key="PID" class="cursor-pointer" onclick="window.sortAllCpuTasks(1)">PID <i id="alltasks-indicator-1" class="fas text-sm ml-1"></i></th>
- <th data-key="Name" class="cursor-pointer" onclick="window.sortAllCpuTasks(2)">Name <i id="alltasks-indicator-2" class="fas text-sm ml-1"></i></th>
- <th data-key="State" class="cursor-pointer" onclick="window.sortAllCpuTasks(3)">State <i id="alltasks-indicator-3" class="fas text-sm ml-1"></i></th>
- <th data-key="Priority" class="cursor-pointer" onclick="window.sortAllCpuTasks(4)">Priority <i id="alltasks-indicator-4" class="fas text-sm ml-1"></i></th>
- <th data-key="Tree-Key" class="cursor-pointer" onclick="window.sortAllCpuTasks(5)">Tree-Key <i id="alltasks-indicator-5" class="fas text-sm ml-1"></i></th>
- <th data-key="Switches" class="cursor-pointer" onclick="window.sortAllCpuTasks(6)">Switches <i id="alltasks-indicator-6" class="fas text-sm ml-1"></i></th>
- <th data-key="Wait Time" class="cursor-pointer" onclick="window.sortAllCpuTasks(7)">Wait Time <i id="alltasks-indicator-7" class="fas text-sm ml-1"></i></th>
- <th data-key="Exec Time" class="cursor-pointer" onclick="window.sortAllCpuTasks(8)">Exec Time <i id="alltasks-indicator-8" class="fas text-sm ml-1"></i></th>
- <th data-key="Sleep Time" class="cursor-pointer" onclick="window.sortAllCpuTasks(9)">Sleep Time <i id="alltasks-indicator-9" class="fas text-sm ml-1"></i></th>
- <th data-key="Block Time" class="cursor-pointer" onclick="window.sortAllCpuTasks(10)">Block Time <i id="alltasks-indicator-9" class="fas text-sm ml-1"></i></th>
- <th data-key="Group" class="cursor-pointer" onclick="window.sortAllCpuTasks(11)">Group <i id="alltasks-indicator-10" class="fas text-sm ml-1"></i></th>
+ <th data-key="PID" class="cursor-pointer" data-w="num" onclick="window.sortAllCpuTasks(1)">PID <i id="alltasks-indicator-1" class="fas text-sm ml-1"></i></th>
+ <th data-key="Name" class="cursor-pointer" data-w="flex" onclick="window.sortAllCpuTasks(2)">Name <i id="alltasks-indicator-2" class="fas text-sm ml-1"></i></th>
+ <th data-key="State" class="cursor-pointer" data-w="narrow" onclick="window.sortAllCpuTasks(3)">State <i id="alltasks-indicator-3" class="fas text-sm ml-1"></i></th>
+ <th data-key="Priority" class="cursor-pointer" data-w="num" data-p="3" onclick="window.sortAllCpuTasks(4)">Priority <i id="alltasks-indicator-4" class="fas text-sm ml-1"></i></th>
+ <th data-key="Tree-Key" class="cursor-pointer" data-w="num" data-p="3" onclick="window.sortAllCpuTasks(5)">Tree-Key <i id="alltasks-indicator-5" class="fas text-sm ml-1"></i></th>
+ <th data-key="Switches" class="cursor-pointer" data-w="num" onclick="window.sortAllCpuTasks(6)">Switches <i id="alltasks-indicator-6" class="fas text-sm ml-1"></i></th>
+ <th data-key="Wait Time" class="cursor-pointer" data-w="num" onclick="window.sortAllCpuTasks(7)">Wait Time <i id="alltasks-indicator-7" class="fas text-sm ml-1"></i></th>
+ <th data-key="Exec Time" class="cursor-pointer" data-w="num" data-p="2" onclick="window.sortAllCpuTasks(8)">Exec Time <i id="alltasks-indicator-8" class="fas text-sm ml-1"></i></th>
+ <th data-key="Sleep Time" class="cursor-pointer" data-w="num" data-p="2" onclick="window.sortAllCpuTasks(9)">Sleep Time <i id="alltasks-indicator-9" class="fas text-sm ml-1"></i></th>
+ <th data-key="Block Time" class="cursor-pointer" data-w="num" data-p="3" onclick="window.sortAllCpuTasks(10)">Block Time <i id="alltasks-indicator-9" class="fas text-sm ml-1"></i></th>
+ <th data-key="Group" class="cursor-pointer" data-w="text" data-p="2" onclick="window.sortAllCpuTasks(11)">Group <i id="alltasks-indicator-10" class="fas text-sm ml-1"></i></th>
  </tr>
  </thead>
  <tbody>

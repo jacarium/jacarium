@@ -21,7 +21,7 @@
     <canvas id="stateChart" aria-label="Processes by state"></canvas>
   </div>
   <div class="panel rounded-lg shadow-sm" data-chart-card>
-    {{ ui.card_title('Top 5 CPU + other') }}
+    {% call ui.card_title('Top 5 CPU + other') %}<span class="ui-card-sub" title="ps %CPU is CPU time divided by the process's elapsed time">average since start</span>{% endcall %}
     <canvas id="cpuChart" aria-label="Top CPU consumers"></canvas>
   </div>
   <div class="panel rounded-lg shadow-sm" data-chart-card>
@@ -64,6 +64,8 @@
   var statusEl = document.getElementById('processes-status');
   var pager = document.getElementById('processes-pager');
   var NUMERIC = { '%CPU': 1, '%MEM': 1, VSZ: 1, RSS: 1, PID: 1, PPID: 1 };
+  // the columns that hide first when the pane is narrow (3 before 2); the row details and the Columns menu keep them reachable
+  var PRIORITY = { TTY: 3, START: 3, NI: 3, PRI: 3, WCHAN: 3, PPID: 3, TIME: 2, VSZ: 2, RSS: 2, STAT: 2 };
   var BYTES = { VSZ: 1, RSS: 1 };   // ps prints KiB
   var STAT_HELP = { D: 'uninterruptible sleep (usually I/O)', I: 'idle kernel thread', P: 'parked', R: 'running or runnable', S: 'interruptible sleep', T: 'stopped by a job-control signal', t: 'stopped by a debugger', U: 'uninterruptible sleep (BSD)', W: 'paging (obsolete)', X: 'dead', Z: 'zombie (terminated, not reaped by its parent)', '<': 'high priority', N: 'low priority (nice)', L: 'pages locked in memory', s: 'session leader', l: 'multi-threaded', '+': 'in the foreground process group' };
   function describeStat(stat) { return String(stat || '').split('').map(function (c) { return STAT_HELP[c] ? c + ': ' + STAT_HELP[c] : c; }).join('\n'); }
@@ -86,16 +88,16 @@
     });
     var top = function (which, unit) {
       var t = sum[which] || { rows: [], other: 0 };
-      var rows = t.rows.map(function (r) { return { name: r.label, title: r.name + ' (pid ' + r.pid + ', ' + r.user + ')', count: r.value, command: r.command, pid: r.pid, user: r.user, rss: r.rss }; });
+      var rows = t.rows.map(function (r) { return { name: r.label, key: String(r.pid), title: r.name + ' (pid ' + r.pid + ', ' + r.user + ')', count: r.value, command: r.command, pid: r.pid, user: r.user, rss: r.rss }; });   // key: the pid the filter takes, not the shown name
       if (t.other > 0) rows.push({ name: 'other', title: 'every other process', count: t.other, role: 'other', other: true });
       return rows;
     };
     charts.cpu = window.diagChart.categoryBars('cpuChart', top('top_cpu'), {
-      label: '%CPU', format: function (v) { return fmt.pct(v); }, colour: function (r) { return r.other ? window.diagChart.roleColor('other') : window.diagChart.roleColor('ok'); },
+      label: '%CPU', format: function (v) { return fmt.pct(v); },   // one colour for a single series, "other" grey: the helper's own roles
       tooltip: function (r) { return r.other ? [] : [r.command || '']; }, onRow: function (r) { if (!r.other) filterTo(String(r.pid)); },
     });
     charts.mem = window.diagChart.categoryBars('memChart', top('top_mem'), {
-      label: '%MEM', format: function (v) { return fmt.pct(v); }, colour: function (r) { return r.other ? window.diagChart.roleColor('other') : window.diagChart.roleColor('series') ; },
+      label: '%MEM', format: function (v) { return fmt.pct(v); },
       tooltip: function (r) { return r.other ? [] : [r.command || '', r.rss ? 'RSS ' + fmt.bytes(r.rss * 1024) : '']; }, onRow: function (r) { if (!r.other) filterTo(String(r.pid)); },
     });
   }
@@ -115,11 +117,16 @@
       var th = document.createElement('th');
       th.setAttribute('data-key', h);
       if (NUMERIC[h]) th.className = 'ui-num';
+      // the fit hints (diagTables.fit): the command takes the room, the raw columns hide first on a narrow pane
+      if (h === 'COMMAND') th.setAttribute('data-w', 'flex'); else if (NUMERIC[h]) th.setAttribute('data-w', 'num'); else th.setAttribute('data-w', 'narrow');
+      // ps %CPU is an average over the process's lifetime (CPU time / elapsed), never a momentary load
+      if (h === '%CPU') th.title = 'average since the process started: CPU time \u00f7 elapsed time, not an instantaneous value';
+      if (PRIORITY[h]) th.setAttribute('data-p', String(PRIORITY[h]));
       var b = document.createElement('button'); b.type = 'button'; b.className = 'lc-sort'; b.textContent = h; b.addEventListener('click', function () { sortBy(h); });
       th.appendChild(b);
       thead.appendChild(th);
     });
-    if (dataset().has_threads) { var th = document.createElement('th'); th.textContent = 'Threads'; th.className = 'ui-num'; th.setAttribute('data-key', '_threads'); thead.appendChild(th); }
+    if (dataset().has_threads) { var th = document.createElement('th'); th.textContent = 'Threads'; th.className = 'ui-num'; th.setAttribute('data-key', '_threads'); th.setAttribute('data-w', 'status'); th.setAttribute('data-p', '2'); thead.appendChild(th); }
     markSort();
   }
   function markSort() {
@@ -184,28 +191,30 @@
   }
   function expandRow(p, cols) {
     var body = document.createElement('div');
-    var head = document.createElement('div'); head.className = 'ui-xrow-actions';
     var kv = document.createElement('dl'); kv.className = 'ui-kv';
     [['PID', p.PID], ['Parent', p.PPID !== '-' ? p.PPID : ''], ['User', p.USER], ['State', p.STAT ? p.STAT + ' (' + describeStat(p.STAT).split('\n')[0].replace(/^.: /, '') + ')' : ''], ['Threads', p.thread_count ? fmt.num(p.thread_count) : ''], ['Started', p.START], ['CPU time', p.TIME]].forEach(function (it) { if (!it[1]) return; var d = document.createElement('div'); var dt = document.createElement('dt'); dt.textContent = it[0]; var dd = document.createElement('dd'); dd.textContent = it[1]; d.appendChild(dt); d.appendChild(dd); kv.appendChild(d); });
     body.appendChild(kv);
-    var copy = document.createElement('button'); copy.type = 'button'; copy.className = 'btn btn-secondary ui-copy'; copy.textContent = 'Copy command'; copy.setAttribute('data-copy', p.COMMAND || '');
-    head.appendChild(copy);
-    body.appendChild(head);
-    var pre = document.createElement('pre'); pre.textContent = p.COMMAND || '-'; body.appendChild(head); body.appendChild(pre);
+    body.appendChild(window.diagTables.codeBlock(p.COMMAND || '-', 'Copy command'));   // the shared code block: full width, the Copy button in its corner
     if (p.threads && p.threads.length) {
+      // the threads, the busiest first (%CPU, averaged over each thread's own lifetime); their ids and names when the
+      // sosreport has a thread-level ps capture (ps -elfL or ps axo ... lwp), else a note that they were not captured
+      var withIds = !!dataset().thread_ids;
+      var tcols = (withIds ? ['TID', 'NAME'] : []).concat(['STAT', '%CPU', 'TIME', 'START']);
       var t = document.createElement('table'); t.className = 'ui-table';
       var th = document.createElement('thead'); var hr = document.createElement('tr');
-      ['STAT', '%CPU', 'TIME', 'START'].forEach(function (h) { var c = document.createElement('th'); c.textContent = h; if (h === '%CPU') c.className = 'ui-num'; hr.appendChild(c); });
+      tcols.forEach(function (h) { var c = document.createElement('th'); c.textContent = h === 'NAME' ? 'Name' : h; if (h === '%CPU' || h === 'TID') c.className = 'ui-num'; if (h === '%CPU') { c.setAttribute('aria-sort', 'descending'); c.title = 'averaged over the thread\'s own lifetime: CPU time \u00f7 elapsed time'; } if (h === 'NAME') c.setAttribute('data-w', 'flex'); hr.appendChild(c); });
       th.appendChild(hr); t.appendChild(th);
       var tb = document.createElement('tbody');
-      p.threads.slice(0, 400).forEach(function (thr) {
+      var sorted = p.threads.slice().sort(function (a, b) { return (parseFloat(b['%CPU']) || 0) - (parseFloat(a['%CPU']) || 0); });
+      sorted.slice(0, 400).forEach(function (thr) {
         var r = document.createElement('tr');
-        ['STAT', '%CPU', 'TIME', 'START'].forEach(function (h) { var c = document.createElement('td'); c.textContent = thr[h]; if (h === '%CPU') c.className = 'ui-num'; if (h === 'STAT') c.title = describeStat(thr[h]); r.appendChild(c); });
+        tcols.forEach(function (h) { var c = document.createElement('td'); c.textContent = thr[h] === undefined || thr[h] === '' ? (h === 'TID' || h === 'NAME' ? '-' : '') : thr[h]; if (h === '%CPU' || h === 'TID') c.className = 'ui-num'; if (h === 'STAT') c.title = describeStat(thr[h]); r.appendChild(c); });
         tb.appendChild(r);
       });
       t.appendChild(tb);
       var cap = document.createElement('div'); cap.className = 'ui-kv-title'; cap.textContent = 'Threads (' + fmt.num(p.threads.length) + (p.threads.length > 400 ? ', the first 400 shown' : '') + ')';
-      var wrap = document.createElement('div'); wrap.appendChild(cap); var tw = document.createElement('div'); tw.className = 'ui-table-wrap'; tw.appendChild(t); wrap.appendChild(tw); body.appendChild(wrap);
+      var note = document.createElement('div'); note.className = 'ui-muted ui-threads-note'; note.textContent = 'Thread %CPU is averaged over each thread\'s own lifetime; the values do not add up to the process figure.' + (withIds ? '' : ' Thread IDs not captured: this sosreport has no ps -eLf / ps axo … lwp capture.');
+      var wrap = document.createElement('div'); wrap.appendChild(cap); var tw = document.createElement('div'); tw.className = 'ui-table-wrap'; tw.appendChild(t); wrap.appendChild(tw); wrap.appendChild(note); body.appendChild(wrap);
     }
     return window.diagTables.xrowPanel(cols + 1, body);
   }

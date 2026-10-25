@@ -195,11 +195,11 @@ def ocp_master_manifest(seed=7):
         "tmpdir": "/var/tmp",
         "policy": "Red Hat CoreOS",
         "preset": {"name": "ocp", "desc": "OpenShift Container Platform", "note": "", "opts": {"all_logs": True, "plugin_timeout": 600}},
-        "components": {"report": {"sysinfo": {"hostname": "ip-10-0-42-46.example.internal", "kernel": "5.14.0-284.73.1.el9_2.x86_64"}, "plugins": plugins}},
+        "components": {"report": {"sysinfo": {"hostname": "ip-192-0-2-46.example.internal", "kernel": "5.14.0-284.73.1.el9_2.x86_64"}, "plugins": plugins}},
     }
 
 
-OCP_MASTER_NODE = "sosreport-ip-10-0-42-46-master-cluster-7bffs-master-2026-10-01-asqizwl"
+OCP_MASTER_NODE = "sosreport-ip-192-0-2-46-master-cluster-example-master-2026-10-01-abcdefg"
 
 
 def old_manifest():

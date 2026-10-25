@@ -12,9 +12,15 @@ Used by generate.py; see README.md for the planted findings.
 import gzip
 import os
 import random
+import re
 from datetime import datetime, timedelta
 
 import mock_manifests
+
+# The quiet variant (build(..., quiet=True)): the same host with nothing planted - no kernel incident, no failed unit,
+# no cgroup pressure, no full disk, no interface errors, no load, no PSU fault, no thin pool pressure, no sar spike,
+# no error trickle in the journal. Every tab scans a complete report and finds nothing: the zero-results fixture.
+QUIET = False
 
 HOST = "web-01"
 FQDN = "web-01.example.test"
@@ -59,7 +65,7 @@ def write_system_facts(t):
     t.write("date", "Mon Oct 12 14:30:00 UTC 2026\n")
     t.write("version.txt", "sosreport: 4.7.0\n")
     # High load on an 8-CPU box: planted finding
-    t.write("uptime", " 14:30:01 up 23 days,  4:12,  2 users,  load average: 18.42, 15.07, 9.88\n")
+    t.write("uptime", " 14:30:01 up 23 days,  4:12,  2 users,  load average: 0.42, 0.37, 0.31\n" if QUIET else " 14:30:01 up 23 days,  4:12,  2 users,  load average: 18.42, 15.07, 9.88\n")
     t.write("etc/hostname", FQDN + "\n")
     t.write("etc/redhat-release", "Red Hat Enterprise Linux release 9.4 (Plow)\n")
     t.write("etc/os-release",
@@ -162,11 +168,11 @@ def write_system_facts(t):
             "type=AVC msg=audit(1791367337.412:9001) : avc:  denied  { write } for  pid=2305 comm=httpd name=uploads dev=\"dm-1\" ino=1310786 scontext=system_u:system_r:httpd_t:s0 tcontext=unconfined_u:object_r:httpd_sys_content_t:s0 tclass=dir permissive=0\n")
     t.write("sos_commands/systemd/systemctl_list-units_--failed",
             "  UNIT                    LOAD   ACTIVE SUB    DESCRIPTION\n"
-            "* example-backup.service loaded failed failed Example nightly backup\n\n"
+            + ("" if QUIET else "* example-backup.service loaded failed failed Example nightly backup\n") + "\n"
             "LOAD   = Reflects whether the unit definition was properly loaded.\n"
             "ACTIVE = The high-level unit activation state, i.e. generalization of SUB.\n"
             "SUB    = The low-level unit activation state, values depend on unit type.\n"
-            "1 loaded units listed.\n")
+            + ("0" if QUIET else "1") + " loaded units listed.\n")
     t.write("sos_commands/systemd/systemctl_show_--all", "")
     t.write("sos_commands/date/date", "Mon Oct 12 14:30:00 UTC 2026\n")
     t.write("sos_commands/date/date_--utc", "Mon Oct 12 14:30:00 UTC 2026\n")
@@ -247,6 +253,8 @@ UNITS = [
 def write_services(t):
     blocks = []
     for name, desc, active, tasks, mem in UNITS:
+        if QUIET and active.startswith("failed"):
+            active = "inactive (dead)"
         bullet = "×" if active.startswith("failed") else ("○" if active.startswith("inactive") else "●")
         since = "Sat 2026-09-19 10:18:02 UTC; 3 weeks 2 days ago"
         lines = [f"{bullet} {name} - {desc}",
@@ -489,7 +497,7 @@ def write_hardware(t):
                                                           "Status: Present, OK", "Type: Switching", "Plugged: Yes", "Hot Replaceable: Yes"])
     dmi += entry(0x51, 39, 22, "System Power Supply", ["Power Unit Group: 1", "Location: PSU2", "Name: Example PSU 800W",
                                                           "Manufacturer: Example Power", "Max Power Capacity: 800 W",
-                                                          "Status: Present, Non-Critical", "Type: Switching", "Plugged: No", "Hot Replaceable: Yes"])
+                                                          "Status: Present, OK" if QUIET else "Status: Present, Non-Critical", "Type: Switching", "Plugged: Yes" if QUIET else "Plugged: No", "Hot Replaceable: Yes"])
     dmi += entry(0x60, 27, 14, "Cooling Device", ["Type: Fan", "Status: OK", "Cooling Unit Group: 1", "Nominal Speed: 6000 rpm"])
     dmi += entry(0x61, 28, 22, "Temperature Probe", ["Description: CPU1 Temp", "Location: Processor", "Status: OK", "Nominal Value: 45.0 deg C"])
     dmi += "Handle 0x0FFF, DMI type 127, 4 bytes\nEnd Of Table\n"
@@ -538,12 +546,12 @@ def write_disks(t):
                   "tmpfs                     16384000     12288  16371712   1% /dev/shm\n"
                   "tmpfs                      6553600     18944   6534656   1% /run\n"
                   "/dev/mapper/rhel-root     52403200  37724928  14678272  73% /\n"
-                  "/dev/mapper/rhel-var     104806400  98518016   6288384  94% /var\n"
-                  "/dev/mapper/rhel-home     20961280   2516352  18444928  13% /home\n"
+                  + ("/dev/mapper/rhel-var     104806400  41518016  63288384  40% /var\n" if QUIET else "/dev/mapper/rhel-var     104806400  98518016   6288384  94% /var\n")
+                  + "/dev/mapper/rhel-home     20961280   2516352  18444928  13% /home\n"
                   "/dev/vda2                  1038336    318464    719872  31% /boot\n"
                   "/dev/vda1                   613184      7372    605812   2% /boot/efi\n"
-                  "198.51.100.40:/exports/backup 524288000 524158976 129024 100% /mnt/backup\n"
-                  "tmpfs                      3276800        64   3276736   1% /run/user/1000\n")
+                  + ("198.51.100.40:/exports/backup 524288000 183500800 340787200  35% /mnt/backup\n" if QUIET else "198.51.100.40:/exports/backup 524288000 524158976 129024 100% /mnt/backup\n")
+                  + "tmpfs                      3276800        64   3276736   1% /run/user/1000\n")
     t.write("sos_commands/filesys/df_-al_-x_autofs", "")
     t.write("sos_commands/filesys/mount_-l",
             "/dev/mapper/rhel-root on / type xfs (rw,relatime,seclabel,attr2,inode64,logbufs=8,logbsize=32k,noquota)\n"
@@ -577,7 +585,7 @@ def write_disks(t):
                    ["root", "rhel", "-wi-ao----", "50.00g", "", "", "", "", "", "", "", "", "", "/dev/vda3(1024)", "128.00k", "auto", "1", "0"],
                    ["swap", "rhel", "-wi-ao----", "4.00g", "", "", "", "", "", "", "", "", "", "/dev/vda3(0)", "128.00k", "auto", "1", "0"],
                    ["var", "rhel", "-wi-ao----", "100.00g", "", "", "", "", "", "", "", "", "", "/dev/vda3(18944)", "128.00k", "auto", "1", "0"],
-                   ["pool00", "data", "twi-aotz--", "480.00g", "", "", "91.50", "48.20", "", "", "", "", "", "pool00_tdata(0)", "128.00k", "auto", "1", "0"],
+                   ["pool00", "data", "twi-aotz--", "480.00g", "", "", "31.50" if QUIET else "91.50", "18.20" if QUIET else "48.20", "", "", "", "", "", "pool00_tdata(0)", "128.00k", "auto", "1", "0"],
                    ["uploads", "data", "Vwi-aotz--", "600.00g", "pool00", "", "73.20", "", "", "", "", "", "", "", "128.00k", "auto", "0", "0"],
                    ["archive", "data", "Vwi-a-tz--", "200.00g", "pool00", "", "0.10", "", "", "", "", "", "", "", "128.00k", "auto", "0", "0"]]))
 
@@ -599,6 +607,8 @@ IFACES = [
 def write_network(t):
     link, addr = [], []
     for i, (name, mac, mtu, state, ip, rx, tx) in enumerate(IFACES, start=1):
+        if QUIET:
+            rx, tx = (rx[0], rx[1], 0, 0), (tx[0], tx[1], 0, 0)
         flags = "<LOOPBACK,UP,LOWER_UP>" if name == "lo" else ("<BROADCAST,MULTICAST,UP,LOWER_UP>" if state == "UP" else "<NO-CARRIER,BROADCAST,MULTICAST,UP>")
         qdisc = "noqueue" if name == "lo" else "fq_codel"
         head = f"{i}: {name}: {flags} mtu {mtu} qdisc {qdisc} state {state} mode DEFAULT group default qlen 1000"
@@ -640,9 +650,9 @@ def write_sar(t, rnd):
         # Normal day: gentle sine. Day 12: sustained spike 09:00-11:00 (planted finding)
         import math
         base = 0.18 + 0.12 * math.sin(minute_of_day / 1440 * 2 * math.pi)
-        if day == 12 and 540 <= minute_of_day <= 660:
+        if not QUIET and day == 12 and 540 <= minute_of_day <= 660:
             base = 0.90
-        elif day == 12 and minute_of_day > 660:
+        elif not QUIET and day == 12 and minute_of_day > 660:
             base = 0.55
         return base
 
@@ -981,10 +991,14 @@ def write_journal(t, rnd, n_lines, var_log_lines):
     incidents dropped in at fixed moments. Returns the kernel-only lines for dmesg."""
     span = (COLLECTED - JOURNAL_START).total_seconds() - 60
     events = []  # (datetime, line)
-    weights = WEIGHTS
+    population, weights = ROUTINE, WEIGHTS
+    if QUIET:
+        # no error trickle: the routine lines a kernel or security scan would count
+        pairs = [(r, w) for r, w in zip(ROUTINE, WEIGHTS) if not re.search(r"I/O error|XFS \(|overrun|Failed password|authentication attempts|ANOM_ABEND|:error\]|timeout specified|retrying upstream", r[2])]
+        population, weights = [p for p, _ in pairs], [w for _, w in pairs]
     for i in range(n_lines):
         dt = JOURNAL_START + timedelta(seconds=(span * i / n_lines) + rnd.uniform(0, span / n_lines))
-        proc, pid, msg = rnd.choices(ROUTINE, weights=weights)[0]
+        proc, pid, msg = rnd.choices(population, weights=weights)[0]
         if pid is None:
             pid = {"sshd": rnd.randint(20000, 60000), "kernel": None, "CROND": rnd.randint(20000, 60000), "dnf": rnd.randint(20000, 60000),
                    "example-cgi": 5123, "audit": None}.get(proc, rnd.randint(20000, 60000))
@@ -995,6 +1009,8 @@ def write_journal(t, rnd, n_lines, var_log_lines):
         events.append((dt, f"{syslog_ts(dt)} {HOST} {tag}: {text}"))
 
     def put(dt, lines):
+        if QUIET:   # nothing planted
+            return
         for j, line in enumerate(lines):
             events.append((dt + timedelta(microseconds=j), line))
 
@@ -1124,14 +1140,27 @@ def write_journal(t, rnd, n_lines, var_log_lines):
     # with an OOM kill that exists nowhere else (the kernel tabs read it)
     old = datetime(2026, 10, 5, 3, 0, 0)
     rotated = [f"{syslog_ts(old - timedelta(minutes=1))} {HOST} systemd[1]: Started Example nightly report.",
-               *kernel_oom_block(old, 4100, "example-worker", 28_001_000),
+               *([] if QUIET else kernel_oom_block(old, 4100, "example-worker", 28_001_000)),
                f"{syslog_ts(old + timedelta(minutes=1))} {HOST} systemd[1]: example-worker.service: Scheduled restart job, restart counter is at 1."]
     t.write_gz("var/log/messages-20261005.gz", "\n".join(rotated) + "\n")
     t.write("var/log/secure", "\n".join(l for _, l in events if " sshd[" in l) + "\n")
 
 
-def build(base, rnd_seed=20261013, journal_lines=3000, var_log_lines=600):
-    """Write the whole sosreport tree under `base` (its basename is the report name)."""
+def build(base, rnd_seed=20261013, journal_lines=3000, var_log_lines=600, quiet=False):
+    """Write the whole sosreport tree under `base` (its basename is the report name); quiet: nothing planted."""
+    global QUIET
+    QUIET = quiet
+    saved_slice = SLICES["/system.slice/example-worker.service"]
+    if quiet:
+        SLICES["/system.slice/example-worker.service"] = (600000, 100000, 24 * 1024 ** 3, 2_017_000_000)
+    try:
+        return _build(base, rnd_seed, journal_lines, var_log_lines)
+    finally:
+        QUIET = False
+        SLICES["/system.slice/example-worker.service"] = saved_slice
+
+
+def _build(base, rnd_seed, journal_lines, var_log_lines):
     rnd = random.Random(rnd_seed)
     t = Tree(base)
     write_system_facts(t)

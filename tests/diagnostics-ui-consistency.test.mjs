@@ -61,7 +61,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { probeComponents, stability, toggleDetails, exerciseXrows, exerciseSort, exercisePager, pagerShapes, containment, barSizingCheck, roleColours, fontCheck } from './helpers/diagnostics-probe.mjs';
+import { probeComponents, stability, toggleDetails, exerciseXrows, exerciseSort, exercisePager, pagerShapes, containment, barSizingCheck, roleColours, fontCheck, tablesFit, stackGaps, hiddenColumns, headerButtons, chartGrid, expandStability, nestedTables, panelClipping, yLabelsInside, codeBlocks, emptyBoxes, stripOnly, clickableCharts, lastPick, controlRadius } from './helpers/diagnostics-probe.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const req = createRequire(path.join(REPO, 'package.json'));
@@ -190,6 +190,15 @@ const reports = {};
 // sosreport the generator writes (a manifest only: every tab without data) and an empty must-gather directory
 const SIXTEEN = 'sosreport-sixteen-01-2026-10-13-sixcpu';
 const EMPTY_MG = 'must-gather.local.0000000000';
+// the mock must-gather with its audit_logs/ removed (a gather collected without the audit-logs image)
+const NOAUDIT_MG = 'must-gather.local.1111111111';
+function withoutAuditLogs(name) {
+  const src = path.join(work, NAMES.mustgather), dst = path.join(work, name);
+  if (!fs.existsSync(src) || fs.existsSync(dst)) return;
+  fs.cpSync(src, dst, { recursive: true });
+  const drop = (dir) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { if (!e.isDirectory()) continue; const p = path.join(dir, e.name); if (e.name === 'audit_logs') fs.rmSync(p, { recursive: true, force: true }); else drop(p); } };
+  drop(dst);
+}
 // a sosreport whose scheduler debug lists N CPUs (built from the mock's 8 CPU blocks): CPU 7 with 50x the context
 // switches and CPU 9 with a near-zero idle time (the outliers the chart colours and the Findings name)
 const CPU_REPORTS = { 16: SIXTEEN, 64: 'sosreport-sixtyfour-01-2026-10-13-cpu64', 128: 'sosreport-onetwoeight-01-2026-10-13-cpu128', 256: 'sosreport-twofivesix-01-2026-10-13-cpu256' };
@@ -211,13 +220,19 @@ function withCpus(name, n) {
 }
 if (fs.existsSync(path.join(work, NAMES.sosreport))) Object.entries(CPU_REPORTS).forEach(([n, name]) => withCpus(name, Number(n)));
 fs.mkdirSync(path.join(work, EMPTY_MG), { recursive: true });
+withoutAuditLogs(NOAUDIT_MG);
 const EXTRA = [
   { name: SIXTEEN, type: 'sosreport', tabs: ['sched_debug', 'processes'], note: '16 CPUs' },
   { name: CPU_REPORTS[64], type: 'sosreport', tabs: ['sched_debug'], note: '64 CPUs' },
   { name: CPU_REPORTS[128], type: 'sosreport', tabs: ['sched_debug'], note: '128 CPUs' },
   { name: CPU_REPORTS[256], type: 'sosreport', tabs: ['sched_debug'], note: '256 CPUs' },
+  { name: 'sosreport-ip-192-0-2-46-master-cluster-example-master-2026-10-01-abcdefg', type: 'sosreport', tabs: ['blame'], note: 'failing plugins' },
   { name: 'sosreport-old-01-2026-10-01-oldfmt', type: 'sosreport', tabs: null, note: 'no data' },
+  // the quiet reports: complete, with nothing planted - every tab's scan finds nothing (the zero-results case)
+  { name: 'sosreport-web-03-2026-10-13-nothing', type: 'sosreport', tabs: null, note: 'zero results' },
+  { name: 'must-gather.local.9876543210', type: 'mustgather', tabs: null, note: 'zero results' },
   { name: EMPTY_MG, type: 'mustgather', tabs: null, note: 'no data' },
+  { name: NOAUDIT_MG, type: 'mustgather', tabs: ['audit', 'log_collection'], note: 'no audit logs' },
 ];
 const EXTRA_NAMES = new Set(EXTRA.map((e) => e.name));
 const targets = REPORT_TYPES.map((type) => ({ name: NAMES[type], type, tabs: null })).concat(EXTRA.filter((e) => REPORT_TYPES.includes(e.type) && fs.existsSync(path.join(work, e.name))));
@@ -268,6 +283,61 @@ const AUDIT_HIST = (() => {
   return { total, histogram: { buckets, step_seconds: step, step_minutes: 5, gaps: [gap], windows: [{ first: '2026-10-21 18:00', last: '2026-10-21 20:55', minutes: 176 }, { first: '2026-10-23 03:40', last: '2026-10-23 04:56', minutes: 77 }], max: 12555, mean: 4100, spikes: [], active_minutes: 253, wall_minutes: 2096, errors }, codes, verbs };
 })();
 
+// The tables that may scroll sideways on purpose (genuinely wide raw tables), with the reason: none today - every
+// table fits its box through diagTables.fit; a table that cannot even compact is a defect to fix, not to list
+const WIDE_TABLES = {
+  // C States: one Time + Usage column per C-state (14 numeric columns, every one a figure the reader compares across
+  // CPUs): at 1360 they run some 70 px past the box, so the table scrolls with its CPU column sticky
+  cstateTable: 'one Time + Usage column per C-state; 14 numeric columns',
+  // OpenStack DPDK: the raw OVS / PMD counter tables, one numeric column per counter (16 / 21 / 14 / 18 columns)
+  'ovs-interface-table': 'OVS interface counters: 16 columns',
+  'pmd-stats-table': 'PMD statistics: 21 counter columns',
+  'pmd-perf-table': 'PMD performance counters: 14 columns',
+  'instance-table': 'instance / port counters: 18 columns',
+};
+// What a click on a chart's bar must do on each page: the filter control that takes the bar's key and how the
+// table shows only its rows (null: the page has no table filter for this chart; the pick alone is checked)
+const PICK_FILTERS = {
+  reasonChart: { control: '#eventReasonFilter', rows: 'tbody tr', cell: 3 },
+  podsPerNodeChart: { control: '#filter-node', rows: '#pod-table-body tr', cell: 2, match: 'short' },
+  severityChart: { control: '#severity-filter', rows: '#log-table-container tbody tr', attr: 'data-severity' },
+  cpuChart: { control: '#processFilter', rows: '#processesTable tbody tr.ui-xrow', cell: 2 },
+  memChart: { control: '#processFilter', rows: '#processesTable tbody tr.ui-xrow', cell: 2 },
+  'audit-events-codes': { chip: 'status' },
+  'audit-events-verbs': { chip: 'verbs' },
+};
+async function clickChecks(frame, page) {
+  const out = [];
+  const charts = await clickableCharts(frame);
+  for (const ch of charts) {
+    const spec = PICK_FILTERS[ch.id];
+    for (const bar of ch.bars) {
+      if (bar.width < 2 || bar.height < 2) continue;   // a bar too thin to hit is not a click target
+      await frame.evaluate((id) => { const c = document.getElementById(id); if (c) c.$lastPick = undefined; }, ch.id);
+      await frame.locator('#' + ch.id.replace(/([^\w-])/g, '\\$1')).click({ position: { x: bar.px, y: bar.py }, force: true });
+      await sleep(250);
+      const pick = await lastPick(frame, ch.id);
+      if (bar.other) { if (pick) out.push(`${ch.id}: the "other" bucket (bar ${bar.i}) picked ${JSON.stringify(pick.key)}`); continue; }
+      if (!pick || String(pick.key) !== String(bar.key)) { out.push(`${ch.id}: bar ${bar.i} "${bar.label}" picked ${pick ? JSON.stringify(pick.key) : 'nothing'}, not its key ${JSON.stringify(bar.key)}`); continue; }
+      if (!spec) continue;
+      if (spec.control) {
+        const got = await frame.evaluate((sel) => { const el = document.querySelector(sel); return el ? el.value : null; }, spec.control);
+        if (got !== String(bar.key)) { out.push(`${ch.id}: bar "${bar.label}" set ${spec.control} to ${JSON.stringify(got)}, not ${JSON.stringify(bar.key)}`); continue; }
+        const rows = await frame.evaluate((spec) => Array.from(document.querySelectorAll(spec.rows)).filter((r) => r.offsetParent !== null && !r.hidden && r.style.display !== 'none').map((r) => spec.attr ? r.getAttribute(spec.attr) : (r.cells[spec.cell] ? r.cells[spec.cell].textContent.trim() : '')), spec);
+        const bad = rows.filter((v) => spec.match === 'short' ? !(String(bar.key).startsWith(v) || v.startsWith(String(bar.key).split('.')[0])) : v !== String(bar.key));
+        if (!rows.length || bad.length) out.push(`${ch.id}: after "${bar.label}" the table shows ${rows.length} rows, ${bad.length} not matching ${JSON.stringify(bar.key)} (${bad.slice(0, 3).join(', ')})`);
+      } else if (spec.chip) {
+        const chips = await frame.evaluate(() => Array.from(document.querySelectorAll('.ui-chip.ui-on')).map((c) => ({ key: (c.querySelector('.ui-chip-key') || {}).textContent || '', text: (c.querySelector('.ui-chip-text') || {}).textContent || '' })));
+        if (!chips.some((c) => c.text.trim() === String(bar.key))) out.push(`${ch.id}: after "${bar.label}" no active chip carries ${JSON.stringify(bar.key)} (${chips.map((c) => c.key + c.text).join(', ')})`);
+        await frame.evaluate((k) => { const c = Array.from(document.querySelectorAll('.ui-chip.ui-on')).find((x) => ((x.querySelector('.ui-chip-text') || {}).textContent || '').trim() === k); if (c) c.click(); }, String(bar.key));
+        await sleep(300);
+      }
+      // the filter back to all (a second click toggles on the severity chart; the selects take '')
+      if (spec.control) { await frame.evaluate((sel) => { const el = document.querySelector(sel); if (!el) return; el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }, spec.control); await sleep(250); }
+    }
+  }
+  return { charts: charts.length, bars: charts.reduce((n, c) => n + c.bars.length, 0), problems: out };
+}
 // The delayed / failing answers of the busy checks
 let delay = 0, failWith = null, loadTabDelay = 0;
 // The Log Viewer's streamed entries (null: an empty load): 40 synthetic rows, 8 warnings among them
@@ -294,6 +364,9 @@ async function open(theme) {
   await context.route('http://localhost:8080/get_tab_data', (r) => r.fulfill({ json: {} }));
   await context.route('http://localhost:8080/static/styles.css', (r) => r.fulfill({ status: 200, contentType: 'text/css', body: read('backend/static/styles.css') }));
   await context.route('http://localhost:8080/load_tab', async (r) => { let body = {}; try { body = r.request().postDataJSON() || {}; } catch { /* no body */ } const rep = Object.values(reports).find((x) => x.path === body.directory); const key = body.sub_tab || body.tab; served.push(key); if (loadTabDelay) await sleep(loadTabDelay); r.fulfill({ json: { html: (rep && rep.html[key]) || `<div class="panel rounded-lg shadow-sm"><p>${key} (not rendered)</p></div>` } }); });
+  // the must-gather Log Viewer's paged search: the same synthetic rows as one page (the shared viewer over the other adapter)
+  await context.route('http://localhost:8080/mustgather_log_search', async (r) => { if (delay) await sleep(delay); r.fulfill({ json: { ok: true, entries: logEntries || [], cursor: null, done: true, scanned: 1, files: 1, seconds: 0.01 } }); });
+  await context.route('http://localhost:8080/mustgather_log_cancel', (r) => r.fulfill({ json: { ok: true } }));
   await context.route('http://localhost:8080/parse_log_viewer_stream', async (r) => { if (delay) await sleep(delay); r.fulfill({ status: 200, contentType: 'text/event-stream', body: (logEntries ? 'data: ' + JSON.stringify({ entries: logEntries }) + '\n\n' : '') + 'data: {"done": true}\n\n' }); });
   // the async actions, answered after `delay` ms (the busy checks) or with an error
   const answer = (json) => async (r) => { if (delay) await sleep(delay); if (failWith) { r.fulfill({ status: 500, json: { error: failWith } }); return; } r.fulfill({ json }); };
@@ -525,6 +598,11 @@ try {
         check(`${theme}: ${rep.type}/${key} (${where.label}) renders in the frame`, !!frame);
         if (!frame) continue;
         await sleep(900);
+        // the controls at rest: the pointer parked outside the frame and nothing focused, so no hover / focus colour
+        // is measured (a button under the pointer once read its hover background)
+        await page.mouse.move(2, 2);
+        await frame.evaluate(() => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
+        await sleep(120);
         const d = await design(frame);
         const total = Object.values(d.bad).reduce((s, a) => s + a.length, 0);
         check(`${theme}: ${rep.type}/${key}: every visible control follows the shared design (${d.n.inputs} inputs, ${d.n.selects} selects, ${d.n.buttons} buttons, ${d.n.checks} checkboxes, ${d.n.ths} headers, ${d.n.cards} cards, ${d.n.charts} charts; one card level)`,
@@ -536,12 +614,62 @@ try {
         const pw = await probeComponents(frame, { width: 1920 });
         const cw = await containment(frame);
         const strips = cw.n.canvases ? await stripsUnderCards(page, frame, cw.cards) : [];
+        // the tables fit their box at 1920, at the app's 1280 content width and at 1360 (below)
+        const tf1920 = await tablesFit(frame);
+        const sg1920 = await stackGaps(frame);
+        const hb1920 = await headerButtons(frame);
+        { const es = await expandStability(frame); if (es.tables) check(`${tag}: at 1920 an expanded row never moves the columns, the table stays as wide as its box, the panel lies within it (${es.tables} tables)`, es.problems.length === 0, es.problems.slice(0, 6).join(' | ').slice(0, 900)); }
+        { const pc = await panelClipping(frame); if (pc.panels) check(`${tag}: at 1920 an opened row's details never clip (${pc.panels} panels)`, pc.problems.length === 0, pc.problems.slice(0, 6).join(' | ').slice(0, 900)); }
+        { const cb = await codeBlocks(frame); if (cb.blocks) check(`${tag}: every code block carries the shared copy icon button inside its corner (inset, 26 px, clear of the text) and a click writes the block's text and shows the copied state (${cb.blocks} blocks)`, cb.problems.length === 0, cb.problems.slice(0, 6).join(' | ').slice(0, 900)); }
+        { const nt = await nestedTables(frame); if (nt.tables) check(`${tag}: at 1920 every nested table in a row's details spans its panel with the room shared across its columns (${nt.tables} tables)`, nt.problems.length === 0, nt.problems.slice(0, 6).join(' | ').slice(0, 900)); }
+        { const yl = await yLabelsInside(frame); if (yl.charts) check(`${tag}: at 1920 every horizontal bar chart's category labels lie inside the canvas (${yl.charts} charts)`, yl.problems.length === 0, yl.problems.join(' | ')); }
+        if (hb1920.buttons || hb1920.tables) check(`${tag}: at 1920 every header button looks like the shared header and each sortable table shows one marker that agrees with the row order (${hb1920.buttons} buttons, ${hb1920.tables} tables)`, hb1920.problems.length === 0, hb1920.problems.slice(0, 6).join(' | ').slice(0, 900));
+        { const cg = await chartGrid(frame); if (cg.grids) check(`${tag}: at 1920 the chart grid leaves no empty slot (${cg.grids} grids)`, cg.problems.length === 0, cg.problems.join(' | ')); }
+        await frameWidth(page, 1280);
+        const tf1280 = await tablesFit(frame);
+        const hc1280 = await hiddenColumns(frame);
+        await frameWidth(page, 1010);
+        const sg1010 = await stackGaps(frame);
+        const hc1010 = await hiddenColumns(frame);
+        const tf1010 = await tablesFit(frame);
+        const hb1010 = await headerButtons(frame);
+        const cg1010 = await chartGrid(frame);
+        const es1010 = await expandStability(frame);
+        { const pc = await panelClipping(frame); if (pc.panels) check(`${tag}: at 1010 an opened row's details never clip (no sideways scroll, no cut value) (${pc.panels} panels)`, pc.problems.length === 0, pc.problems.slice(0, 6).join(' | ').slice(0, 900)); }
+        { const nt = await nestedTables(frame); if (nt.tables) check(`${tag}: at 1010 every nested table in a row's details spans its panel with the room shared across its columns (no column over 40%, no quarter-table gap) (${nt.tables} tables)`, nt.problems.length === 0, nt.problems.slice(0, 6).join(' | ').slice(0, 900)); }
+        { const yl = await yLabelsInside(frame); if (yl.charts) check(`${tag}: at 1010 every horizontal bar chart's category labels lie inside the canvas (${yl.charts} charts)`, yl.problems.length === 0, yl.problems.join(' | ')); }
+        if (es1010.tables) check(`${tag}: at 1010 an expanded row never moves the columns (the first row open, every row open), the table stays as wide as its box, the panel lies within it, the primary column keeps a quarter (${es1010.tables} tables)`, es1010.problems.length === 0, es1010.problems.slice(0, 6).join(' | ').slice(0, 900));
+        if (hb1010.buttons || hb1010.tables) check(`${tag}: at 1010 every header button looks like the shared header (no border, no background, the header's type) and each sortable table shows one marker that agrees with the row order (${hb1010.buttons} buttons, ${hb1010.tables} tables)`, hb1010.problems.length === 0, hb1010.problems.slice(0, 6).join(' | ').slice(0, 900));
+        if (cg1010.grids) check(`${tag}: at 1010 the chart grid leaves no empty slot (${cg1010.grids} grids)`, cg1010.problems.length === 0, cg1010.problems.join(' | '));
+        const tfProblems = [tf1920, tf1280].flatMap((t, i) => t.problems.map((p) => (i ? '1280: ' : '1920: ') + p).concat(t.wide.filter((id) => !WIDE_TABLES[id]).map((id) => (i ? '1280: ' : '1920: ') + id + ' is a wide (scrolling) table not on the allow-list ' + (t.fit && t.fit[id] ? t.fit[id] : ''))));
+        if (tf1920.tables || tf1280.tables) check(`${tag}: every table fits its box at 1920 and 1280 (no sideways scroll unless an allowed wide table with a sticky first column and the hint; text cells wrap - no ellipsis, no sideways cut, natural breaks; numbers on one line; no clipped header) (${tf1920.tables} tables)`, tfProblems.length === 0, tfProblems.slice(0, 6).join(' | ').slice(0, 1000));
+        await frameWidth(page, 1920);
+        // a page without its data, or one whose scan found nothing: the Findings strip explains, and nothing after
+        // it is an empty bordered box
+        if (/no data|no audit logs|zero results/.test(rep.note || '')) {
+          const eb = await emptyBoxes(frame);
+          check(`${tag}: nothing after the Findings strip is an empty bordered / backgrounded box`, eb.length === 0, eb.join(' | '));
+          if (rep.note === 'zero results' && /^(kernel_stack_traces|kernel_hung_task|kernel_oom_killer|events)$/.test(key)) {
+            const so = await stripOnly(frame);
+            check(`${tag}: with nothing found the page is the Findings strip alone (${so.findings} finding(s): "${so.text.slice(0, 80)}")`, so.strip && so.findings >= 1, JSON.stringify(so).slice(0, 500));
+          }
+          if (key === 'audit' && rep.note === 'no audit logs') {
+            const so = await stripOnly(frame);
+            check(`${tag}: the Audit page is the Findings strip alone: one INFO "No audit logs in this must-gather - looked for audit_logs/ (…); trimmed gather", no controls, charts or table`, so.strip && so.findings === 1 && /No audit logs in this must-gather/.test(so.text) && /looked for audit_logs\/ \(kube-apiserver, openshift-apiserver, oauth-apiserver, oauth-server\); trimmed gather/.test(so.text) && !/audit-only/i.test(so.text) && so.controls === 0, JSON.stringify(so).slice(0, 600));
+          }
+        }
         const rc = await roleColours(frame);
         if (rc.charts || rc.problems.length) check(`${tag}: every chart's role colours are the theme's --chart-<role> tokens, the WARN badge border and the warn finding accent are --chart-warn, the meters' fills are the role tokens (${rc.charts} charts)`, rc.problems.length === 0, rc.problems.join(' | ').slice(0, 1200));
+        { const cr = await controlRadius(frame); if (cr.buttons || cr.chips) check(`${tag}: the control radius reaches the frame: every button and field 8 px round, every chip a pill (${cr.buttons} controls, ${cr.chips} chips)`, cr.problems.length === 0, cr.problems.join(' | ').slice(0, 600)); }
         const fc = await fontCheck(frame);
         check(`${tag}: the frame renders in the app's fonts (Sora / Red Hat Text / Red Hat Mono loaded, --font-sans resolves, ${fc.sampled} sampled elements in those families, no serif fallback)`, fc.problems.length === 0, fc.problems.join(' | ').slice(0, 800));
         const s0 = await stability(frame);
         const narrow = await (async () => { await frameWidth(page, 420); const r = await layout(frame); return r; })();
+        const sg420 = await stackGaps(frame);
+        { const pc = await panelClipping(frame); if (pc.panels) check(`${tag}: at 420 an opened row's details never clip (${pc.panels} panels)`, pc.problems.length === 0, pc.problems.slice(0, 6).join(' | ').slice(0, 900)); }
+        { const sgp = [['1920', sg1920], ['1010', sg1010], ['420', sg420]].flatMap(([w, s]) => s.problems.map((p) => w + ': ' + p)); check(`${tag}: the page's top-level blocks stack ${sg1920.gap} px apart at 1920, 1010 and 420 (the Findings strip, the cards, the chart grids; nothing touches or overlaps) (${sg1920.pairs} pairs)`, sgp.length === 0, sgp.slice(0, 6).join(' | ').slice(0, 900)); }
+        { const hcp = hc1280.problems.map((p) => '1280: ' + p).concat(hc1010.problems.map((p) => '1010: ' + p)); if (hc1280.tables || hc1010.tables || hcp.length) check(`${tag}: a table whose columns hide at 1280 / 1010 gives every row the chevron, the opened row shows the hidden values, and the note under the table says so`, hcp.length === 0, hcp.slice(0, 6).join(' | ').slice(0, 900)); }
+        { const tfp = tf1010.problems.map((p) => '1010: ' + p).concat(tf1010.wide.filter((id) => !WIDE_TABLES[id]).map((id) => '1010: ' + id + ' is a wide table not on the allow-list')); if (tf1010.tables) check(`${tag}: at 1010 too, every table fits its box (${tf1010.tables} tables)`, tfp.length === 0, tfp.slice(0, 6).join(' | ').slice(0, 800)); }
         const pn = await probeComponents(frame, { width: 420 });
         const cn = await containment(frame);
         check(`${tag}: the layout probe is clean at 1920 and 420 (nothing clipped, past the edge, no tall cell, no header overflow, no blank run)`, wide.ok && narrow.ok, JSON.stringify({ wide: wide.ok ? 'ok' : wide, narrow: narrow.ok ? 'ok' : narrow }).slice(0, 1200));
@@ -603,6 +731,12 @@ try {
         await resetWidth(page);
         const cm = await containment(frame);
         if (cm.n.canvases) check(`${tag}: at 1360 too, every chart canvas lies inside its card and no card overlaps another`, cm.problems.length === 0, cm.problems.slice(0, 6).join(' | ').slice(0, 800));
+        { const es = await expandStability(frame); if (es.tables) check(`${tag}: at 1360 an expanded row never moves the columns (${es.tables} tables)`, es.problems.length === 0, es.problems.slice(0, 6).join(' | ').slice(0, 900)); }
+        { const pc = await panelClipping(frame); if (pc.panels) check(`${tag}: at 1360 an opened row's details never clip (${pc.panels} panels)`, pc.problems.length === 0, pc.problems.slice(0, 6).join(' | ').slice(0, 900)); }
+        const tf = await tablesFit(frame);
+        if (tf.tables) check(`${tag}: at 1360 too, every table fits its box (${tf.tables} tables)`, tf.problems.length === 0 && tf.wide.every((id) => WIDE_TABLES[id]), tf.problems.concat(tf.wide.filter((id) => !WIDE_TABLES[id]).map((id) => id + ' is a wide table not on the allow-list')).slice(0, 6).join(' | ').slice(0, 800));
+        // every clickable chart: a click on each bar picks that bar's own key, and the page's filter takes it
+        if (theme === 'light') { const cc = await clickChecks(frame, page); if (cc.charts) check(`${tag}: a click on each bar of every clickable chart (${cc.charts} charts, ${cc.bars} bars) picks that bar's own key - never a neighbour, never an "other" bucket - and the page's filter takes it with the table showing only its rows`, cc.problems.length === 0, cc.problems.slice(0, 5).join(' | ').slice(0, 1200)); }
         await page.evaluate(() => { const sc = document.querySelector('iframe[title="Diagnostics content"]'); let s = sc.parentElement; while (s && !(s.scrollHeight > s.clientHeight + 2)) s = s.parentElement; if (s) s.scrollTop = 0; });
         await shot(page, `${rep.type}${rep.note ? '-' + rep.note.replace(/\s+/g, '') : ''}-${key}-wide-${theme}`);
         if (d.n.charts) {
@@ -630,6 +764,23 @@ try {
         if (so.tried) check(`${tag}: clicking another sortable header moves the marker and reorders the rows (${so.tried} tables)`, so.problems.length === 0, so.problems.slice(0, 4).join(' | ').slice(0, 800));
         const pg = await exercisePager(frame);
         if (pg.tried) check(`${tag}: the pager goes to page 2 on a click (current moves, the ends enable) and back with Prev (${pg.tried})`, pg.problems.length === 0, pg.problems.slice(0, 4).join(' | ').slice(0, 800));
+        if (key === 'processes' && !rep.note) {
+          // ps %CPU is a lifetime average: the header says so, the threads of an opened row sort by their own averages
+          // with the marker, carry their ids from the thread-level capture, and the note explains the figures
+          const pr = await frame.evaluate(() => {
+            const th = Array.from(document.querySelectorAll('#processesTable thead th')).find((h) => h.textContent.trim() === '%CPU');
+            const row = document.querySelector('#processesTable tbody tr.ui-xrow');
+            if (row && !row.classList.contains('ui-open')) window.diagTables.open(row, true);
+            const panel = row && row.nextElementSibling;
+            const tt = panel && panel.querySelector('table');
+            const cpuTh = tt && Array.from(tt.querySelectorAll('th')).find((h) => h.textContent.trim() === '%CPU');
+            const cpus = tt ? Array.from(tt.tBodies[0].rows).map((r) => parseFloat(r.cells[Array.from(tt.querySelectorAll('th')).findIndex((h) => h.textContent.trim() === '%CPU')].textContent) || 0) : [];   // the nested table's own rows (a 'tbody tr' selector would match its header through the outer table's tbody)
+            const heads = tt ? Array.from(tt.querySelectorAll('th')).map((h) => h.textContent.trim()) : [];
+            const note = panel && panel.querySelector('.ui-threads-note');
+            return { tip: th ? th.title : '', heads, cpus, sorted: cpus.every((v, i) => i === 0 || cpus[i - 1] >= v), marker: cpuTh ? cpuTh.getAttribute('aria-sort') : null, note: note ? note.textContent : '', tids: tt ? Array.from(tt.tBodies[0].rows).map((r) => r.cells[0].textContent.trim()) : [], sub: (document.querySelector('.ui-card-sub') || {}).textContent || '' };
+          });
+          check(`${tag}: the %CPU header explains the lifetime average, the Top CPU card says "average since start", an opened row's threads carry their TIDs (the fixture's ps axo ... lwp capture), sort by %CPU descending with the marker, and the note explains the thread figures`, /average since the process started/.test(pr.tip) && /average since start/.test(pr.sub) && pr.heads[0] === 'TID' && pr.tids.length > 0 && pr.tids.some((t) => /^\d+$/.test(t)) && pr.sorted && pr.marker === 'descending' && /averaged over each thread/.test(pr.note) && !/not captured/.test(pr.note), JSON.stringify(pr).slice(0, 600));
+        }
         if (key === 'processes' || key === 'events') { const bs = await barSizingCheck(frame); check(`${tag}: the shared bar sizing on 1 / 2 / 3 / 5 / 16 / 64 / 256 categories: bars at least 2 px wide, never touching, no wider with more categories, a 1 next to 100,000 still 2 px tall`, bs.length === 0, bs.join(' | ')); }
         if (key === 'log_viewer') { const shapes = await pagerShapes(frame); check(`${tag}: the shared pager on 27,527 rows: [1] 2 3 … 276 on page 1, 1 … 136 137 [138] 139 140 … 276 in the middle, 1 … 274 275 [276] at the end with Next / Last disabled, the go-to box jumps on Enter, one page hides it`, shapes.length === 0, shapes.join(' | ')); }
       }

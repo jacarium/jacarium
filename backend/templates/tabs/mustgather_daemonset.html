@@ -1,4 +1,5 @@
 {% import "tabs/_ui.html" as ui %}
+{% import "tabs/_detail.html" as detail %}
 {{ ui.findings(findings) }}
 <div id="daemonSetPanel" class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm w-full">
@@ -32,57 +33,24 @@
  </div>
 </div>
 
-<div id="daemonSetDetailsPanel" style="display: none;">
- <div class="space-y-4">
- <div class="mb-4">
- <button onclick="window.backFromDaemonModal()" class="btn btn-secondary flex items-center gap-2">
- Back
- </button>
- </div>
+{{ ui.detail_page('daemonSetDetail') }}
 
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-info-circle mr-2"></i> Daemon Set Details
- </h3>
- <div class="overflow-x-auto">
- <table class="ui-table" id="daemonSetDetailsTable"></table>
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-file mr-2"></i> Daemon Set YAML
- </h2>
- <div class="mb-2">
- <input
- id="daemonSetYamlFilter"
- type="text"
- placeholder="Filter YAML lines..."
- class="ui-input w-full"
- />
- </div>
- <div id="daemonSetJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
- </div>
- </div>
-</div>
+{{ detail.k8s_detail_script() }}
 <script>
+ var byKey = {};   // "namespace/name" -> the daemonset, for the detail (declared first: the rows fill it as they render)
  var daemonSetsData = {{ data | tojson }};
+ delete daemonSetsData._unreadable;   // the files that could not be read: the Findings strip names them
  var currentSort = { key: 'namespace', direction: 1 };
  var daemonsetCurrentPage = 1;
  var daemonsetPageSize = 100;
 
  var daemonSetTableBody = document.getElementById("daemonSetTableBody");
- var daemonSetDetailsTable = document.getElementById("daemonSetDetailsTable");
- var viewer = document.getElementById("daemonSetJsonViewer");
  var namespaceDaemonSetFilter = document.getElementById("daemonSetNamespaceFilter");
  var searchDaemonSetInput = document.getElementById("daemonSetSearchInput");
 
- var daemonSetDetailsPanel = document.getElementById("daemonSetDetailsPanel");
  var daemonSetPanel = document.getElementById("daemonSetPanel");
 
  var flattenedDaemonSets = [];
- var currentDaemonSet = null;
- var lastClickedRow = null;
 
  function getAge(ageSeconds) {
  if (ageSeconds === undefined || ageSeconds === null) return '-';
@@ -175,10 +143,9 @@
  <td>${ds.current}</td>
  <td>${ds.ready}</td>
  <td>${ds.age}</td>`;
- row.addEventListener("click", () => {
- lastClickedRow = row;
- openDaemonSetDetails(ds);
- });
+ row.setAttribute('data-detail', ds.namespace + '/' + ds.name);
+ row.tabIndex = 0;
+ byKey[ds.namespace + '/' + ds.name] = ds;
  }
 
  daemonSetTableBody.appendChild(row);
@@ -208,79 +175,9 @@
  applyFiltersAndRender();
  }
 
- function openDaemonSetDetails(ds) {
- currentDaemonSet = ds;
 
- viewer.innerHTML = renderJSONWithoutHighlight(ds.raw);
- daemonSetDetailsPanel.style.setProperty('display', 'grid', 'important');
- daemonSetPanel.style.setProperty('display', 'none', 'important');
 
- // Scroll to top - find the scrollable parent by walking up the DOM
- setTimeout(() => {
- function findScrollableParent(element) {
- let parent = element.parentElement;
- while (parent) {
- const overflow = window.getComputedStyle(parent).overflow;
- const overflowY = window.getComputedStyle(parent).overflowY;
- if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
- parent.scrollHeight > parent.clientHeight) {
- return parent;
- }
- parent = parent.parentElement;
- }
- return null;
- }
 
- const scrollableParent = findScrollableParent(daemonSetDetailsPanel);
- if (scrollableParent) {
- scrollableParent.scrollTo({top: 0, behavior: 'instant'});
- }
- }, 0);
-
- daemonSetDetailsTable.innerHTML = `
- <tr><td>Name:</td><td>${ds.name}</td></tr>
- <tr><td>Namespace:</td><td>${ds.namespace}</td></tr>
- <tr><td>Desired:</td><td>${ds.desired}</td></tr>
- <tr><td>Current:</td><td>${ds.current}</td></tr>
- <tr><td>Ready:</td><td>${ds.ready}</td></tr>
- <tr><td>Available:</td><td>${ds.available}</td></tr>
- <tr><td>Age:</td><td>${ds.age}</td></tr>`;
-
- // Setup YAML filter
- const yamlFilterInput = document.getElementById('daemonSetYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- yamlFilterInput.removeEventListener('input', filterDaemonSetYaml);
- yamlFilterInput.addEventListener('input', filterDaemonSetYaml);
- }
- }
-
- function highlightJSON(line) {
- line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
- return line
- .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
- .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
- .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
- .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
- .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
- }
-
- function renderJSONWithoutHighlight(data, filter = '') {
- const formatted = JSON.stringify(data, null, 2);
- return formatted.split('\n')
- .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
- .map(line => {
- const highlighted = highlightJSON(line);
- return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
- }).join('');
- }
-
- function filterDaemonSetYaml() {
- if (!currentDaemonSet) return;
- const filterInput = document.getElementById('daemonSetYamlFilter');
- const filterValue = filterInput ? filterInput.value : '';
- viewer.innerHTML = renderJSONWithoutHighlight(currentDaemonSet.raw, filterValue);
- }
 
  function resetPodIndicators() {
  const indicators = document.querySelectorAll('[id^="daemonset-indicator-"]');
@@ -353,24 +250,6 @@
  return num;
  }
 
- window.backFromDaemonModal = function() {
- daemonSetDetailsPanel.style.setProperty('display', 'none', 'important');
- daemonSetPanel.style.setProperty('display', 'grid', 'important');
- viewer.innerHTML = '';
-
- const yamlFilterInput = document.getElementById('daemonSetYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- }
-
- // Scroll back to the last clicked row
- if (lastClickedRow) {
- setTimeout(() => {
- lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
- }, 0);
- }
- }
-
  namespaceDaemonSetFilter.addEventListener("change", () => {
  daemonsetCurrentPage = 1;
  applyFiltersAndRender();
@@ -389,4 +268,28 @@
  updateNamespaceFilterOptions(showEmptyNamespacesCheckbox.checked);
  applyFiltersAndRender();
 
+ const D = window.diagDetail, K = window.k8sDetail;
+ function renderDaemonSetDetail(key, view) {
+ const ds = byKey[key];
+ if (!ds || !ds.raw || !ds.raw.spec) return false;
+ const raw = ds.raw, d = raw._detail || {}; const spec = raw.spec || {}, st = raw.status || {}, meta = raw.metadata || {};
+ const want = st.desiredNumberScheduled || 0, avail = st.numberAvailable || 0;
+ const badge = want && avail === 0 ? { kind: 'bad', text: '0/' + want + ' available' } : (avail < want ? { kind: 'warn', text: avail + '/' + want + ' available' } : { kind: 'ok', text: avail + '/' + want + ' available' });
+ const up = spec.updateStrategy || {};
+ return K.page(view, {
+ name: ds.name, kind: 'DaemonSet', raw: raw, d: d, crumbs: ['Daemon Sets', ds.namespace, ds.name], badge: badge,
+ actions: [{ label: 'Open pods', tab: 'workloads', subTab: 'pod', query: ds.name, title: 'The Pods page, searched for this daemonset' }],
+ summary: [
+ ['Namespace', ds.namespace], ['Scheduled', (st.currentNumberScheduled || 0) + ' current of ' + want + ' desired' + (st.numberMisscheduled ? ', ' + st.numberMisscheduled + ' misscheduled' : '')],
+ ['Ready', st.numberReady || 0], ['Available', avail + (st.numberUnavailable ? ' (' + st.numberUnavailable + ' unavailable)' : '')], ['Updated', st.updatedNumberScheduled || 0],
+ ['Strategy', up.type ? up.type + (up.rollingUpdate ? ' (max unavailable ' + (up.rollingUpdate.maxUnavailable !== undefined ? up.rollingUpdate.maxUnavailable : '-') + (up.rollingUpdate.maxSurge !== undefined ? ', max surge ' + up.rollingUpdate.maxSurge : '') + ')' : '') : ''],
+ ['Min ready', spec.minReadySeconds ? spec.minReadySeconds + ' s' : ''], ['Generation', meta.generation !== undefined ? meta.generation + (st.observedGeneration !== undefined ? ' (observed ' + st.observedGeneration + ')' : '') : ''],
+ ['Selector', K.labels((spec.selector || {}).matchLabels)], ['Age', ds.age ? ds.age + ' (created ' + D.when(meta.creationTimestamp) + ')' : D.when(meta.creationTimestamp)],
+ ['Labels', K.labels(meta.labels)], ['Annotations', meta.annotations ? Object.keys(meta.annotations).length + ' (in the JSON below)' : ''],
+ ],
+ });
+ }
+ D.register(daemonSetPanel, document.getElementById('daemonSetDetail'), { rows: 'tbody tr[data-detail]', render: renderDaemonSetDetail });
+ window.openDaemonSetDetails = function (ds) { D.open(ds.namespace + '/' + ds.name); };
+ window.backFromDaemonModal = function () { D.back(); };
 </script>

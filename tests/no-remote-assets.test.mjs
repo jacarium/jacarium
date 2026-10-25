@@ -120,6 +120,18 @@ const chartSrc = fs.existsSync(path.join(REPO, 'node_modules', 'chart.js', 'dist
 check('inlined chart.umd.js contains no "</script" (would close the inline tag)', chartSrc.length > 0 && !/<\/script/i.test(chartSrc));
 check('chart.umd.js defines the global Chart (UMD)', /typeof exports/.test(chartSrc) && /Chart/.test(chartSrc));
 
+// ---------- the code viewer: js-yaml in the diagnostics frame, the highlighting by the app's own highlight.js ----------
+check('DiagnosticsPage inlines js-yaml from the package (?raw import) and highlights the frame\'s text itself through codeHighlight.js (the one highlight.js entry point; no highlight.js source inlined)',
+  /js-yaml\/dist\/js-yaml\.min\.js\?raw/.test(diag) && /\$\{getDiagnosticsCodeScriptTags\(\)\}/.test(diag) && /import \{ highlightCode \} from '\.\.\/utils\/codeHighlight'/.test(diag)
+  && /path === '\/highlight'/.test(diag) && !/highlight\.js\/lib/.test(diag));
+for (const rel of ['js-yaml/dist/js-yaml.min.js', 'highlight.js/lib/core.js', 'highlight.js/lib/languages/json.js', 'highlight.js/lib/languages/yaml.js']) {
+  const p = path.join(REPO, 'node_modules', rel);
+  const src = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '';
+  check(`${rel} (inlined or vendored for the standalone dashboard) is present and contains no "</script"`, src.length > 0 && !/<\/script/i.test(src));
+}
+check('the highlight shim defines window.hljs from the CommonJS sources (no bundler, no CDN)', /window\.hljs = hljs/.test(read('src/utils/highlightBundle.js')) && /module\.exports/.test(read('src/utils/highlightBundle.js')));
+check('the standalone dashboard loads the vendored highlighter and js-yaml', /\/static\/vendor\/highlight-json-yaml\.js/.test(read('backend/templates/layout.html')) && /\/static\/vendor\/js-yaml\.min\.js/.test(read('backend/templates/layout.html')));
+
 // ---------- vendored files for the Flask-served pages ----------
 let vendorOk = true;
 let vendorOut = '';
@@ -151,8 +163,14 @@ check('no Tailwind v4 browser build (v3 semantics must be preserved)', !pkg.devD
 check('tailwindcss v4 devDependency compiles the legacy stylesheet (scripts/tailwind.legacy.css, via @tailwindcss/node)', /^\^?4\./.test(pkg.devDependencies?.tailwindcss || '') && /@tailwindcss\/node/.test(read('scripts/vendor-assets.mjs')));
 const tailwindCss = fs.existsSync(path.join(REPO, 'backend', 'static', 'vendor', 'tailwind.css'))
   ? fs.readFileSync(path.join(REPO, 'backend', 'static', 'vendor', 'tailwind.css'), 'utf8') : '';
-check('compiled tailwind.css has the utilities the templates rely on (bg-black/50 overlays, hidden, rounded-md)',
-  /\.bg-black\\\/50\{/.test(tailwindCss) && /\.hidden\{display:none\}/.test(tailwindCss) && /\.rounded-md\{/.test(tailwindCss));
+// the utilities the templates rely on, read from the templates themselves (a hard-coded list went stale when the
+// alert dialog moved off bg-black/50 onto the shared .ui-modal rules): every overlay tint, hidden and rounded-* class
+// a template uses must be in the compiled stylesheet
+const usedUtilities = [...new Set(templateText.match(/\b(?:bg-black\/\d+|hidden|rounded-(?:sm|md|lg|xl|2xl|full))\b/g) || [])].sort();
+const utilitySelector = (c) => '.' + c.replace(/[/:.]/g, (m) => '\\' + m) + '{';
+check(`compiled tailwind.css has the utilities the templates rely on (${usedUtilities.join(', ')})`,
+  usedUtilities.length > 0 && usedUtilities.includes('hidden') && usedUtilities.every((c) => tailwindCss.includes(utilitySelector(c))),
+  usedUtilities.filter((c) => !tailwindCss.includes(utilitySelector(c))).join(', ') || 'none used');
 check('compiled tailwind.css restores the v3 defaults the templates were written against (gray-200 borders, gray-400 placeholders, pointer buttons, 3px blue ring, ungated hover:)',
   /::file-selector-button\{border-color:var\(--color-gray-200/.test(tailwindCss) && /textarea::placeholder\{color:var\(--color-gray-400\)\}/.test(tailwindCss)
   && /button:not\(:disabled\),\[role=button\]:not\(:disabled\)\{cursor:pointer\}/.test(tailwindCss) && /#3b82f680|rgb\(59 130 246 ?\/ ?\.5\)/.test(tailwindCss) && !/@media \(hover: ?hover\)/.test(tailwindCss));

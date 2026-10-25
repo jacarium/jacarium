@@ -3,11 +3,13 @@ import yaml
 import glob
 
 from parsers.findings import finding, no_data, recall, remember, sort_findings
-from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all, collection_time as gather_time_of, list_items, unreadable, unreadable_finding
+from parsers.mustgather import detail
 
 def parse(directory):
     result = {}
 
+    gather_time = gather_time_of(directory)   # the gather's own time, for the ages and 'n min before the gather'
     directory = resolve_data_dir(directory)
 
     namespaces_path = os.path.join(directory, "namespaces")
@@ -28,19 +30,21 @@ def parse(directory):
                     with open(filepath, "r") as f:
                         yaml_content = safe_load(f)
 
-                    if yaml_content.get("kind") == "PodDisruptionBudgetList" and "items" in yaml_content:
-                        for item in yaml_content["items"]:
-                            name = item.get("metadata", {}).get("name")
-                            if name:
-                                pdb_json[name] = item
-                    else:
-                        name = yaml_content.get("metadata", {}).get("name")
+                    # a List (items may be null or empty: an empty namespace), a single object, or an empty document
+                    for item in list_items(yaml_content, 'PodDisruptionBudget'):
+                        name = item.get("metadata", {}).get("name")
                         if name:
-                            pdb_json[name] = yaml_content
+                            pdb_json[name] = item
 
-                except Exception as e:
-                    pdb_json["error"] = {"error": str(e)}
+                except Exception as e:   # a broken file: a readable reason (never the raw exception), kept out of the namespace
+                    result.setdefault('_unreadable', []).append(unreadable(filepath, e, directory))
 
+        # the detail page's data: conditions, the object's events, field ownership
+        if pdb_json:
+            events = detail.namespace_events(directory, namespace)
+            for name, d in pdb_json.items():
+                if isinstance(d, dict) and 'spec' in d:
+                    d['_detail'] = detail.generic_detail(d, events, gather_time, 'the budget')
         result[namespace] = pdb_json
 
     remember(('pdb', directory), findings_for(result))
@@ -73,6 +77,9 @@ def findings_for(result):
     out = []
     total = 0
     blocking = 0
+    bf = unreadable_finding(result.get('_unreadable') or [], 'PodDisruptionBudget')
+    if bf:
+        out.append(bf)
     for ns, items in result.items():
         if ns.startswith('_') or not isinstance(items, dict):
             continue

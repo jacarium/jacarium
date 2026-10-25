@@ -349,7 +349,7 @@ def main():
     def cluster(name, n_nodes, pods_per_node, capacity=250, roles=None):
         root_dir = os.path.join(WORK, name)
         for i in range(n_nodes):
-            node = f"ip-10-0-{i // 250}-{i % 250}.us-east-2.compute.internal"
+            node = f"ip-{'192-0-2' if i < 250 else '198-51-100'}-{i % 250}.us-east-2.compute.internal"   # the documentation ranges
             role = (roles or (["master"] * 3 + ["worker"] * 200))[i]
             os.makedirs(os.path.join(root_dir, "cluster-scoped-resources", "core", "nodes"), exist_ok=True)
             with open(os.path.join(root_dir, "cluster-scoped-resources", "core", "nodes", f"{node}.yaml"), "w") as fh:
@@ -367,14 +367,14 @@ def main():
     small = cluster("must-gather.local.3nodes", 3, lambda i: [12, 30, 5][i])
     r = pod_mod.parse(small)
     nodes = r["_nodes"]["rows"]
-    check("pods per node (3 nodes): sorted most pods first, the short names without the cloud suffix, the roles", [n["count"] for n in nodes] == [30, 12, 5] and nodes[0]["short"] == "ip-10-0-0-1" and nodes[0]["role"] == "master" and nodes[2]["role"] == "master", [(n["short"], n["count"], n["role"]) for n in nodes])
+    check("pods per node (3 nodes): sorted most pods first, the short names without the cloud suffix, the roles", [n["count"] for n in nodes] == [30, 12, 5] and nodes[0]["short"] == "ip-192-0-2-1" and nodes[0]["role"] == "master" and nodes[2]["role"] == "master", [(n["short"], n["count"], n["role"]) for n in nodes])
     check("pods per node (3 nodes): the phases sum to the count on every row, the capacity read from allocatable", all(sum(n["phases"].values()) == n["count"] for n in nodes) and all(n["capacity"] == 250 for n in nodes), [(n["phases"], n["capacity"]) for n in nodes])
     big = cluster("must-gather.local.60nodes", 60, lambda i: 240 if i == 7 else (205 if i == 9 else 20 + (i % 5)), capacity=250)
     r = pod_mod.parse(big)
     nodes = r["_nodes"]["rows"]
     f = pod_mod.findings(big)
     check("pods per node (60 nodes): 60 rows, the fullest first (240 of 250), the counts descending", len(nodes) == 60 and nodes[0]["count"] == 240 and all(nodes[i]["count"] >= nodes[i + 1]["count"] for i in range(59)), [n["count"] for n in nodes[:5]])
-    check("pods per node (60 nodes): the node at 96% of its pod limit is a bad finding, the one at 82% a warning", any("ip-10-0-0-7" in t and "96%" in t and "pod limit" in t for t in titles(sev(f, "bad"))) and any("ip-10-0-0-9" in t and "82%" in t for t in titles(sev(f, "warn"))), [t for t in titles(f) if "limit" in t])
+    check("pods per node (60 nodes): the node at 96% of its pod limit is a bad finding, the one at 82% a warning", any("ip-192-0-2-7" in t and "96%" in t and "pod limit" in t for t in titles(sev(f, "bad"))) and any("ip-192-0-2-9" in t and "82%" in t for t in titles(sev(f, "warn"))), [t for t in titles(f) if "limit" in t])
 
     # 13. Buttons without a size class (the detail pages' Back, hidden until a row opens, so the render probe never sees them)
     with open(os.path.join(BACKEND, "static", "styles.css"), encoding="utf-8") as fh:

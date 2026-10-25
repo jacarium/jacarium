@@ -1,0 +1,18 @@
+{% import "tabs/_ui.html" as ui %}
+{% import "tabs/_log_view.html" as logview %}
+{{ ui.findings(findings) }}
+<div class="panel rounded-lg shadow-sm">
+  {# The must-gather Log Viewer: the shared viewer (tabs/_log_view.html, diagnostics-ui.js diagLogView) over the
+     container, host service and node logs the gather holds (parsers/mustgather/log_viewer.py lists them, grouped by
+     namespace in the picker), read through the must-gather adapter (the paged, cancellable server-side search).
+     The page only picks the adapter; the look and the behaviour are the shared viewer's, the same as the
+     sosreport one. #}
+  {{ logview.viewer(chart_title='Logs per Source', source_label='All Sources', sources=data.available_logs, unavailable=data.unavailable_logs, date_range=data.date_range, source_noun='log',
+                    columns=['Timestamp', 'Level', 'Pod / node', 'Container / service', 'Message'],
+                    empty_title='No container or host logs in this must-gather',
+                    empty_text='Looked for namespaces/&lt;ns&gt;/pods/&lt;pod&gt;/&lt;container&gt;/&lt;container&gt;/logs/, host_service_logs/ and nodes/: a trimmed gather, or one collected without logs.') }}
+  {{ logview.alert_modal() }}
+</div>
+<script>
+  window.diagLogView.mount(document.getElementById('log-view'), window.diagLogView.adapters.mustgather({ directory: {{ directory | default('') | tojson }}, dateRange: {{ data.date_range | tojson }}, gatherTime: {{ data.gather_time | default(None) | tojson }} }));
+</script>

@@ -160,6 +160,11 @@
 {% macro kv_title(text) -%}
 <div class="ui-kv-title">{{ text }}</div>
 {%- endmacro %}
+{# a code block (a command, a unit file, a raw capture): the shared block with the copy icon button in its corner (the
+   script wraps the marked pre: diagTables.setupCodeBlocks); label = the button's name, e.g. 'Copy command' #}
+{% macro code(text, label='Copy') -%}
+<pre class="ui-code-text" data-code-copy="{{ label }}">{{ text }}</pre>
+{%- endmacro %}
 {% macro copy(text) -%}
 <button type="button" class="btn btn-secondary ui-copy" data-copy="{{ text }}">Copy</button>
 {%- endmacro %}
@@ -195,4 +200,22 @@
    {% call ui.fold('CPU C-states legend', open=True) %} ...content... {% endcall %} #}
 {% macro fold(title, open=False, extra='') -%}
 <details class="ui-details {{ extra }}"{% if open %} open{% endif %}><summary><span class="ui-card-title"><span>{{ title }}</span></span></summary>{{ caller() }}</details>
+{%- endmacro %}
+{# The detail page of a list (diagnostics-ui.js: diagDetail). The page registers its list and this view once:
+     window.diagDetail.register(listEl, viewEl, { rows: 'tbody tr[data-detail]', render: (key, view) => ... });
+   The bar: Back, the breadcrumb, the object's status badge, the quick actions, Prev / Next; then the title (it takes
+   the focus when the detail opens), the object's Findings strip and the sections the page renders into the body. #}
+{% macro detail_page(id, back='Back') -%}
+<section class="ui-detail" id="{{ id }}" hidden aria-hidden="true" aria-labelledby="{{ id }}-title">
+  <div class="ui-detail-bar">
+    <button type="button" class="btn btn-secondary btn-sm ui-detail-back" data-detail-back title="Back to the list (Escape)">{{ back }}</button>
+    <nav class="ui-detail-crumbs" aria-label="Breadcrumb"></nav>
+    <span class="ui-detail-badge"></span>
+    <div class="ui-detail-actions"></div>
+    <div class="ui-detail-nav"><button type="button" class="btn btn-secondary btn-sm" data-detail-prev disabled>Previous</button><span class="ui-detail-pos"></span><button type="button" class="btn btn-secondary btn-sm" data-detail-next disabled>Next</button></div>
+  </div>
+  <h2 class="ui-detail-title" id="{{ id }}-title" tabindex="-1"></h2>
+  <div class="ui-detail-findings"></div>
+  <div class="ui-detail-body"></div>
+</section>
 {%- endmacro %}

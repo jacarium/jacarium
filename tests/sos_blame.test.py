@@ -95,8 +95,8 @@ def main():
     check("to_seconds: '1 day, 0:00:01' -> 86401", blame.to_seconds("1 day, 0:00:01") == 86401.0)
     check("to_seconds: '2 days, 1:02:03.5' -> 176523.5", blame.to_seconds("2 days, 1:02:03.5") == 176523.5)
     check("to_seconds: a number, an empty value and junk", blame.to_seconds(12.5) == 12.5 and blame.to_seconds("") == 0.0 and blame.to_seconds(None) == 0.0 and blame.to_seconds("soon") == 0.0)
-    check("short_node_label: the OCP node name collapses to 'ip-10-0-42-46 [master]'", blame.short_node_label(mock_generate.OCP_NAME) == "ip-10-0-42-46 [master]", blame.short_node_label(mock_generate.OCP_NAME))
-    check("short_node_label: a worker, and a plain name unchanged", blame.short_node_label("sosreport-ip-10-0-1-2-worker-x") == "ip-10-0-1-2 [worker]" and blame.short_node_label("sosreport-web-01-2026") == "sosreport-web-01-2026")
+    check("short_node_label: the OCP node name collapses to 'ip-192-0-2-46 [master]'", blame.short_node_label(mock_generate.OCP_NAME) == "ip-192-0-2-46 [master]", blame.short_node_label(mock_generate.OCP_NAME))
+    check("short_node_label: a worker, and a plain name unchanged", blame.short_node_label("sosreport-ip-192-0-2-9-worker-x") == "ip-192-0-2-9 [worker]" and blame.short_node_label("sosreport-web-01-2026") == "sosreport-web-01-2026")
     check("rc_histogram: most frequent first, None kept", blame.rc_histogram([{"return_code": 1}, {"return_code": 0}, {"return_code": 0}, {}]) == {0: 2, 1: 1, None: 1})
     check("fmt_seconds: ms / s / min", (blame.fmt_seconds(0.034), blame.fmt_seconds(7.5), blame.fmt_seconds(189.93)) == ("34 ms", "7.5 s", "3 min 9.9 s"), (blame.fmt_seconds(0.034), blame.fmt_seconds(7.5), blame.fmt_seconds(189.93)))
 
@@ -127,7 +127,7 @@ def main():
           and s["timeouts"] == 0 and s["slowest"] == "ebpf" and s["top3_share"] > 100 and s["slowest_share"] == 88.0, str(s)[:300])
     check("OCP: the plugins' times exceed the run (threads), noted; the Gantt comes from the commands' times (no plugin start/end)", any("threads" in n for n in b["notes"]) and b["gantt"] and ebpf["offset_start"] is not None and ebpf["offset_end"] > ebpf["offset_start"], (b["notes"], ebpf["offset_start"], ebpf["offset_end"]))
     check("OCP: a plugin without commands is flagged (ceph_common) and plugins with no times still rank", any(p["no_commands"] and p["name"] == "ceph_common" for p in b["plugins"]))
-    check("OCP: the node label and sysinfo", b["node_label"] == "ip-10-0-42-46 [master]" and b["hostname"] == "ip-10-0-42-46.example.internal" and b["version"] == "4.5.6" and b["cmdline"].startswith("sos report --batch --label=master"), (b["node_label"], b["hostname"], b["cmdline"][:40]))
+    check("OCP: the node label and sysinfo", b["node_label"] == "ip-192-0-2-46 [master]" and b["hostname"] == "ip-192-0-2-46.example.internal" and b["version"] == "4.5.6" and b["cmdline"].startswith("sos report --batch --label=master"), (b["node_label"], b["hostname"], b["cmdline"][:40]))
     b = blame.parse(web)["blame"]
     s = b["summary"]
     check("web-01: 24 plugins in 113 s, example_app timed out at 60 s, the 127s counted, logs the slowest", s["plugins"] == 24 and s["timeouts"] == 1 and s["timeout_names"] == ["example_app"] and s["not_found"] == 5 and b["plugins"][0]["name"] == "example_app" and b["plugins"][1]["name"] == "logs", str(s)[:300])

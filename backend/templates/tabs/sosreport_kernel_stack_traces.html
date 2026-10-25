@@ -20,8 +20,9 @@
 {% set st = data.stack_traces or {} %}
 {% set summary = st.summary or {} %}
 {% set groups = st.groups or [] %}
-<div class="panel rounded-lg shadow-sm kd" id="kernel-stack-traces">
+{# the incident board only with an incident: with none the page is the Findings strip (its GOOD line says what was scanned) #}
 {% if groups %}
+<div class="panel rounded-lg shadow-sm kd" id="kernel-stack-traces">
   <div class="kd-strip">
     <div class="kd-stats">
       {{ stat('Traces', summary.total, (summary.groups ~ ' distinct') if summary.groups else '') }}
@@ -88,7 +89,6 @@
     </details>
   {% endfor %}
   </div>
-{% else %}
+</div>
 {% endif %}
 {% include "tabs/_kernel_diag.html" %}
-</div>

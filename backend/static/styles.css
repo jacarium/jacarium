@@ -129,7 +129,7 @@
 #diagnostics-content .ui-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); white-space: nowrap; }
 
 /* ---- Buttons: the .btn roles of the app; a plain <button> of an older template is a secondary button, a text-white / px-3.py-1 page button a primary one ---- */
-#diagnostics-content button:not(.btn):not(.lc-sort):not(.ui-link):not(.ui-icon-btn):not(.ui-chip):not(.ui-xrow-btn):not([class*="-link"]) {
+#diagnostics-content button:not(.btn):not(.lc-sort):not(.ui-sort):not(.ui-link):not(.ui-icon-btn):not(.ui-chip):not(.ui-xrow-btn):not(.ui-dr-day):not([class*="-link"]):not(th button) {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     height: 28px; padding: 0 10px;
     border: 1px solid var(--btn-secondary-border); border-radius: var(--radius-control, 8px);
@@ -137,8 +137,8 @@
     font: inherit; font-size: 12px; line-height: 1; white-space: nowrap; cursor: pointer;
     transition: background-color 0.15s, color 0.15s, border-color 0.15s;
 }
-#diagnostics-content button:not(.btn):not(.lc-sort):not(.ui-link):not(.ui-icon-btn):not(.ui-chip):not(.ui-xrow-btn):not([class*="-link"]):hover:not(:disabled) { background-color: var(--btn-secondary-bg-hover); }
-#diagnostics-content button:not(.btn):not(.lc-sort):not(.ui-link):not(.ui-icon-btn):not(.ui-chip):not(.ui-xrow-btn):not([class*="-link"]):disabled { background-color: var(--btn-secondary-disabled-bg); color: var(--btn-secondary-disabled-fg); cursor: not-allowed; }
+#diagnostics-content button:not(.btn):not(.lc-sort):not(.ui-sort):not(.ui-link):not(.ui-icon-btn):not(.ui-chip):not(.ui-xrow-btn):not(.ui-dr-day):not([class*="-link"]):not(th button):hover:not(:disabled) { background-color: var(--btn-secondary-bg-hover); }
+#diagnostics-content button:not(.btn):not(.lc-sort):not(.ui-sort):not(.ui-link):not(.ui-icon-btn):not(.ui-chip):not(.ui-xrow-btn):not(.ui-dr-day):not([class*="-link"]):not(th button):disabled { background-color: var(--btn-secondary-disabled-bg); color: var(--btn-secondary-disabled-fg); cursor: not-allowed; }
 #diagnostics-content button.px-3.py-1:not(.btn), #diagnostics-content button.px-4.py-2:not(.btn), #diagnostics-content button.text-white:not(.btn) {
     background-color: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-border);
 }
@@ -147,7 +147,7 @@
 #diagnostics-content .ui-legacy-current-page-removed, #diagnostics-content button.px-3.py-1.current-page:not(.btn), #diagnostics-content .btn.current-page { background-color: transparent; border: 2px solid var(--btn-primary-bg); color: var(--btn-primary-bg); }
 #diagnostics-content .btn.btn-sm { height: 30px; padding: 0 10px; font-size: 12px; }   /* the frame's small button: the fields' height, so a toolbar lines up */
 #diagnostics-content .btn:not(.btn-sm):not(.btn-md):not(.btn-lg) { height: 30px; padding: 0 12px; font-size: 12px; }   /* a .btn without a size class (the detail pages' Back, the Log Viewer's actions) gets the control size, never a bare label */
-#diagnostics-content .ui-link { background: none; border: 0; padding: 0; color: var(--os-blue); font: inherit; font-size: 12px; cursor: pointer; }
+#diagnostics-content .ui-link { background: none; border: 0; padding: 0; color: var(--link, var(--os-blue)); font: inherit; font-size: 12px; cursor: pointer; }   /* the app's link token, bridged */
 #diagnostics-content .ui-link:hover { text-decoration: underline; }
 #diagnostics-content .ui-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: var(--radius-control, 8px); background: none; color: var(--os-text-secondary); cursor: pointer; }
 #diagnostics-content .ui-icon-btn:hover { background: var(--os-card-secondary); color: var(--os-text-primary); }
@@ -201,6 +201,7 @@
 #diagnostics-content .ui-muted { color: var(--os-text-secondary); font-size: 12px; }   /* a secondary line: a hint under a value, a note after a figure */
 #diagnostics-content .ui-note-warn { border-left-color: var(--chart-warn); }
 #diagnostics-content .ui-note-bad { border-left-color: var(--chart-bad); }
+#diagnostics-content .ui-card-sub { font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--os-text-secondary); }   /* a card title's second word: what the figure means */
 #diagnostics-content .ui-stat-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); white-space: nowrap; }
 #diagnostics-content .ui-stat-value { display: block; font-size: 20px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
 #diagnostics-content .ui-stat-sub { display: block; font-size: 11px; color: var(--os-text-secondary); overflow-wrap: anywhere; }
@@ -226,6 +227,23 @@
 #diagnostics-content .ui-empty svg { width: 36px; height: 36px; opacity: 0.6; }
 #diagnostics-content .ui-empty-title { font-weight: 600; color: var(--os-text-primary); }
 
+/* ---- The page stack (diagTables.stack, tests: stackGaps): the page's top-level blocks - the Findings strip, the
+   cards, the chart grids, the detail sections - stack with ONE gap, --ui-stack-gap, on the content root and on the
+   templates' plain wrapper divs (the Tailwind spacing classes they carry never reached the frame); a hidden block
+   (a detail panel at rest) takes no gap ---- */
+#diagnostics-content.ui-stack, #diagnostics-content .ui-stack { row-gap: var(--ui-stack-gap); }
+#diagnostics-content.ui-stack:not(.grid), #diagnostics-content .ui-stack:not(.grid):not([style*="display: grid"]) { display: flex; flex-direction: column; min-width: 0; }
+#diagnostics-content.ui-stack > *, #diagnostics-content .ui-stack > * { margin-top: 0; margin-bottom: 0; }
+#diagnostics-content.ui-stack > .ui-grid-charts, #diagnostics-content .ui-stack > .ui-grid-charts { margin-bottom: 0; }
+/* ---- The sortable header's button (tabs/_table_head.html for the Audit grid; here for every <th>): .ui-sort, with
+   .lc-sort as its older name - the header's own type, no border or background, the primary colour on the active
+   column and under the pointer, the marker after the active label ---- */
+#diagnostics-content .ui-sort, #diagnostics-content .lc-sort, #diagnostics-content th > button { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; text-align: inherit; cursor: pointer; border-radius: 0; box-shadow: none; min-height: 0; height: auto; line-height: inherit; }
+#diagnostics-content .ui-sort:hover, #diagnostics-content .lc-sort:hover, #diagnostics-content th > button:hover { color: var(--os-text-primary); background: none; }
+#diagnostics-content .ui-sort:focus-visible, #diagnostics-content .lc-sort:focus-visible { outline: 2px solid var(--os-blue); outline-offset: 2px; border-radius: 2px; }
+#diagnostics-content .ui-sort.lc-sorted, #diagnostics-content .lc-sort.lc-sorted, #diagnostics-content .ui-sort.ui-sorted { color: var(--os-text-primary); }
+#diagnostics-content .ui-sort.lc-sorted::after, #diagnostics-content .lc-sort.lc-sorted::after, #diagnostics-content .ui-sort.ui-sorted::after { content: " \25BE"; }
+#diagnostics-content .ui-sort.lc-sorted.lc-asc::after, #diagnostics-content .lc-sort.lc-sorted.lc-asc::after, #diagnostics-content .ui-sort.ui-sorted.ui-asc::after { content: " \25B4"; }
 /* ---- Tables ---- */
 /* the table box: one bordered, rounded container (--radius-table) on the card colour; overflow: auto clips the
    header and the last row to the corners and still lets a sticky header stick inside it */
@@ -256,8 +274,34 @@
 #diagnostics-content table th i.fas { display: none; }   /* the older templates' sort arrows: aria-sort draws the marker */
 #diagnostics-content table td.whitespace-pre-wrap, #diagnostics-content table td.break-all { white-space: pre-wrap; word-break: break-all; }
 #diagnostics-content .overflow-x-auto { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-/* a wide table scrolls sideways inside its wrapper (the script wraps every table that has none) */
+/* a table not yet fitted (before the script runs, or one marked data-nofit) scrolls sideways inside its wrapper */
 #diagnostics-content .ui-table-wrap > table, #diagnostics-content .overflow-x-auto > table { width: max-content; min-width: 100%; }
+/* the fitted table (diagTables.fit): fixed layout on the box's width, the columns sized by the script's <colgroup>;
+   every cell on one line with an ellipsis (the whole value in its title), the headers free to wrap to two lines */
+#diagnostics-content .ui-table-wrap > table.ui-fit { width: 100%; min-width: 0; table-layout: fixed; }
+#diagnostics-content table.ui-fit th { white-space: normal; overflow-wrap: normal; line-height: 1.25; overflow: hidden; vertical-align: bottom; }
+/* the text columns wrap onto the next line in their column: natural breaks first (a space, a hyphen, the <wbr> the
+   fit puts after / . _ : = in identifiers), a long unbroken token broken only when nothing else fits; never a cut */
+#diagnostics-content table.ui-fit td { vertical-align: top; overflow: hidden; white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+/* the compact columns stay on one line at their natural width: numbers (right-aligned) and the chevron; a status
+   cell's badges and chips wrap as a row of chips when there are many */
+#diagnostics-content table.ui-fit td.ui-col-num, #diagnostics-content table.ui-fit td.ui-col-icon { white-space: nowrap; overflow-wrap: normal; }
+#diagnostics-content table.ui-fit td.ui-col-status { overflow-wrap: normal; }
+#diagnostics-content table.ui-fit td.ui-col-num, #diagnostics-content table.ui-fit th.ui-col-num { text-align: right; font-variant-numeric: tabular-nums; }
+#diagnostics-content table.ui-fit .ui-col-hidden { display: none; }
+#diagnostics-content table.ui-fit td .ui-chips { flex-wrap: wrap; }
+/* the long-content cells (a command line: td.ui-cmd, or data-w="clamp") show three lines; a click opens the whole value */
+#diagnostics-content table.ui-fit td.ui-cmd { max-width: none; min-width: 0; white-space: normal; }
+#diagnostics-content table.ui-fit .ui-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+#diagnostics-content table.ui-fit .ui-clamp.ui-clamp-open { display: block; -webkit-line-clamp: none; }
+/* the last resort: a genuinely wide table keeps its width and scrolls sideways, its first column sticky, a hint in the box's corner */
+#diagnostics-content .ui-table-wrap.ui-wide { position: relative; }
+#diagnostics-content .ui-table-wrap.ui-wide > table.ui-fit { width: max-content; min-width: 100%; table-layout: fixed; }
+#diagnostics-content table.ui-fit.ui-wide th:first-child, #diagnostics-content table.ui-fit.ui-wide td:first-child { position: sticky; left: 0; z-index: 1; background: var(--os-card); box-shadow: 1px 0 0 var(--os-border); }
+#diagnostics-content table.ui-fit.ui-wide th:first-child { background: var(--os-card-secondary); }
+#diagnostics-content .ui-scroll-hint { position: sticky; left: calc(100% - 72px); bottom: 6px; display: inline-block; width: 66px; padding: 2px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); background: var(--os-card-secondary); border: 1px solid var(--os-border); border-radius: var(--radius-xs, 6px); pointer-events: none; }
+#diagnostics-content .ui-table-note { font-size: 12px; color: var(--os-text-secondary); margin-top: 4px; }
+#diagnostics-content .ui-xrow-btn.ui-xrow-inline { margin-right: 6px; vertical-align: -3px; }
 @media (max-width: 640px) {
   /* every table stacks: each row a block, each cell a line with its header's text in front (data-label, filled by the script) */
   #diagnostics-content table.ui-table, #diagnostics-content table.ui-table tbody, #diagnostics-content table.ui-table tr, #diagnostics-content table.ui-table td { display: block; width: 100%; min-width: 0; max-width: none; }
@@ -267,6 +311,11 @@
   #diagnostics-content table.ui-table td { border: 0; padding: 2px 10px; text-align: left; }
   #diagnostics-content table.ui-table td:empty { display: none; }
   #diagnostics-content table.ui-table td[data-label]::before { content: attr(data-label); display: inline-block; min-width: 110px; margin-right: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); }
+  /* the stacked layout shows every column, wrapping (the fit's cuts and hidden columns are for the row layout) */
+  #diagnostics-content table.ui-fit td, #diagnostics-content table.ui-fit td.ui-col-hidden { display: block; white-space: normal; overflow: visible; overflow-wrap: anywhere; text-overflow: clip; }
+  #diagnostics-content table.ui-fit td.ui-col-num { text-align: left; }
+  #diagnostics-content table.ui-fit td.ui-col-hidden:empty { display: none; }
+  #diagnostics-content .ui-table-note, #diagnostics-content .ui-scroll-hint { display: none; }
   #diagnostics-content table.ui-table.ui-table-flat tr { display: flex; flex-wrap: wrap; gap: 0 10px; }
 }
 /* the count lines (Showing N of N) */
@@ -281,13 +330,17 @@
 #diagnostics-content .ui-chart[hidden], #diagnostics-content [data-chart-card][hidden] { display: none; }
 #diagnostics-content .ui-chart-note { position: absolute; top: 2px; right: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); pointer-events: none; }
 /* several chart cards side by side: three columns on a wide pane, two on a medium one, one under 720px; equal heights */
-#diagnostics-content .ui-grid-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: stretch; min-width: 0; margin-bottom: 12px; }
+/* the chart grid: as many 300 px columns as the pane holds (three cards share one row from ~1000 px), never a lone
+   half-width card: the last card of an odd set spans the row */
+#diagnostics-content .ui-grid-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; align-items: stretch; min-width: 0; margin-bottom: 12px; }
+#diagnostics-content .ui-grid-charts > [data-span] { grid-column: 1 / -1; }   /* a last card alone in its row spans it (the helper sets data-span from the layout) */
 #diagnostics-content .ui-grid-charts > * { min-width: 0; margin: 0; display: flex; flex-direction: column; }
 #diagnostics-content .ui-grid-charts > * > .ui-chart { flex: 1 1 auto; }
 /* a per-item chart with many categories (one bar per CPU, node, device) spans the whole grid: data-wide on the card, set by the
    template or by diagChart from 25 categories up (the bars thin out and the labels show every Nth from 64) */
 #diagnostics-content .ui-grid-charts > [data-wide] { grid-column: 1 / -1; }
-@media (min-width: 1360px) { #diagnostics-content .ui-grid-charts { grid-template-columns: repeat(3, minmax(0, 1fr)); } #diagnostics-content .ui-grid-charts.ui-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 721px) { #diagnostics-content .ui-grid-charts.ui-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1360px) { #diagnostics-content .ui-grid-charts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 720px) { #diagnostics-content .ui-grid-charts { grid-template-columns: minmax(0, 1fr); } }
 #diagnostics-content .ui-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); }
 #diagnostics-content .ui-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; background: var(--swatch); }
@@ -325,7 +378,7 @@
 }
 
 /* ---- The Findings strip (tabs/_ui.html findings(), parsers/findings.py): worst first, a square left accent per severity ---- */
-#diagnostics-content .ui-findings { margin-bottom: 12px; border: 1px solid var(--os-border); border-radius: var(--radius-sm, 8px); background: var(--os-card); min-width: 0; overflow: hidden; }
+#diagnostics-content .ui-findings { margin-bottom: 0; border: 1px solid var(--os-border); border-radius: var(--radius-sm, 8px); background: var(--os-card); min-width: 0; overflow: hidden; }
 #diagnostics-content .ui-findings-head { padding: 6px 10px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); background: var(--os-card-secondary); border-bottom: 1px solid var(--os-border); }
 #diagnostics-content .ui-findings-list { list-style: none; margin: 0; padding: 0; }
 #diagnostics-content .ui-finding { display: flex; align-items: flex-start; gap: 10px; padding: 6px 10px 6px 7px; border-left: 3px solid var(--os-border); border-bottom: 1px solid var(--os-divider); font-size: 12.5px; min-width: 0; }
@@ -375,6 +428,27 @@
 #diagnostics-content table td.ui-cmd { max-width: 48ch; min-width: 16ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono, monospace); font-size: 12px; }
 #diagnostics-content table tr.ui-expandable { cursor: pointer; }
 #diagnostics-content table tr.ui-expand-row td { padding: 0; border-bottom: 1px solid var(--os-border); }
+/* a details panel keeps to its cell: full width, never wider than the columns it spans (its own tables scroll inside their box) */
+#diagnostics-content table tr.ui-xrow-panel > td { padding: 0; min-width: 0; }
+#diagnostics-content .ui-xrow-body { width: auto; min-width: 0; box-sizing: border-box; overflow: hidden; }   /* a block beside its indent: never 100% plus the margin */
+#diagnostics-content .ui-xrow-body > * { max-width: 100%; box-sizing: border-box; }
+/* the code block (diagTables.codeBlock): full width in its box, wrapping text, the Copy button in its corner */
+#diagnostics-content .ui-code { position: relative; width: 100%; box-sizing: border-box; border: 1px solid var(--os-border); border-radius: var(--radius-xs, 6px); background: var(--os-card); }
+#diagnostics-content .ui-code > pre { margin: 0; padding: 8px 10px; padding-right: 44px; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono, monospace); font-size: 12px; box-sizing: border-box; max-width: 100%; }
+/* the block's copy control: the quiet icon button, 26 px, inset 6 px in the corner above the text, always there -
+   quiet at rest (70%), full on hover / focus; a check while "Copied" */
+#diagnostics-content .ui-code > .ui-code-copy { position: absolute; top: 6px; right: 6px; z-index: 1; width: 26px; height: 26px; border-radius: var(--radius-control, 8px); color: var(--os-text-secondary); background: var(--os-card); border: 1px solid var(--os-border); opacity: 0.7; transition: opacity 0.15s, color 0.15s; }
+#diagnostics-content .ui-code > .ui-code-copy:hover, #diagnostics-content .ui-code > .ui-code-copy:focus-visible, #diagnostics-content .ui-code:hover > .ui-code-copy { opacity: 1; }
+#diagnostics-content .ui-code > .ui-code-copy svg { width: 14px; height: 14px; }
+#diagnostics-content .ui-code > .ui-code-copy:hover { color: var(--os-text-primary); background: var(--os-card-secondary); border-color: var(--os-border); }
+#diagnostics-content .ui-code > .ui-code-copy.ui-copied { color: var(--btn-success-text); }
+/* a nested table in a row's details (table.ui-compact, set by the fit): fit to its content, left with the key/value
+   grid, at most the panel's width (then it scrolls in its own box), the lighter inline look */
+#diagnostics-content .ui-xrow-body .ui-table-wrap, #diagnostics-content .ui-detail-section-body .ui-table-wrap { width: 100%; max-width: 100%; box-sizing: border-box; }
+#diagnostics-content .ui-table-wrap > table.ui-fit.ui-compact { width: 100%; }
+#diagnostics-content table.ui-compact th.ui-col-num { text-align: right; }
+#diagnostics-content table.ui-compact th { background: transparent; border-bottom: 1px solid var(--os-border); }
+#diagnostics-content table.ui-compact td { height: 28px; padding: 4px 10px; }
 #diagnostics-content .ui-expand-body { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; background: var(--os-card-secondary); }
 #diagnostics-content .ui-expand-body pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono, monospace); font-size: 12px; }
 #diagnostics-content .ui-expand-body .ui-expand-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--os-text-secondary); }
@@ -406,7 +480,7 @@
 #diagnostics-content .shadow-md, #diagnostics-content .shadow-lg, #diagnostics-content .shadow-sm { box-shadow: none; }
 
 /* ---- The tokens of the shared components (the app's --radius-* scale, one spacing step) ---- */
-#diagnostics-content { --ui-gap: 8px; --radius-table: var(--radius-md, 10px);
+#diagnostics-content { --ui-gap: 8px; --ui-stack-gap: 16px; --radius-table: var(--radius-md, 10px);
   /* the categorical palette (src/index.css per theme) under the names the pages use: --lc-c0..7 (Log Collection), .ui-cat-1..8 */
   --lc-c0: var(--chart-cat-1); --lc-c1: var(--chart-cat-2); --lc-c2: var(--chart-cat-3); --lc-c3: var(--chart-cat-4);
   --lc-c4: var(--chart-cat-5); --lc-c5: var(--chart-cat-6); --lc-c6: var(--chart-cat-7); --lc-c7: var(--chart-cat-8); }
@@ -474,13 +548,14 @@
 #diagnostics-content .ui-xrow-body > * + * { margin-top: 10px; }
 #diagnostics-content .ui-xrow-actions { display: flex; flex-wrap: wrap; gap: var(--ui-gap); align-items: center; }
 /* the key/value grid of a panel: the label column like a table header, the values in the body font */
-#diagnostics-content .ui-kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px 20px; margin: 0; }
+#diagnostics-content .ui-kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 4px 20px; margin: 0; min-width: 0; }   /* pairs per row by the width: four wide, two around 1000 px, one under 640 */
 #diagnostics-content .ui-kv > div { display: grid; grid-template-columns: minmax(96px, 128px) 1fr; gap: 8px; align-items: baseline; min-width: 0; }
 #diagnostics-content .ui-kv dt { font-size: 11px; line-height: 1.5; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); font-weight: 600; margin: 0; }
-#diagnostics-content .ui-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; color: var(--os-text-primary); }
+#diagnostics-content .ui-kv dd { margin: 0; min-width: 0; white-space: normal; overflow: visible; overflow-wrap: anywhere; color: var(--os-text-primary); }   /* a value never clips: it wraps */
+#diagnostics-content .ui-xrow-body, #diagnostics-content .ui-xrow-body .ui-kv-title, #diagnostics-content .ui-xrow-body .ui-muted { white-space: normal; overflow-wrap: anywhere; }
 #diagnostics-content .ui-kv-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); font-weight: 600; margin: 0 0 4px; }
 #diagnostics-content .ui-mono, #diagnostics-content .ui-kv dd.ui-mono, #diagnostics-content .ui-xrow-body pre { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; }
-#diagnostics-content .ui-xrow-body pre { margin: 0; padding: 8px 10px; border: 1px solid var(--os-border); border-radius: var(--radius-sm, 8px); background: var(--os-card); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; }
+#diagnostics-content .ui-xrow-body pre:not(.ui-code-text) { margin: 0; padding: 8px 10px; border: 1px solid var(--os-border); border-radius: var(--radius-sm, 8px); background: var(--os-card); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; }
 #diagnostics-content .ui-copy { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; margin-left: 6px; font-size: 11px; vertical-align: middle; }
 #diagnostics-content .ui-copy.ui-copied { color: var(--btn-success-text); }
 #diagnostics-content .ui-files { margin: 0; padding: 0; list-style: none; }
@@ -496,3 +571,240 @@
   #diagnostics-content .ui-xrow-body { margin-left: 0; border-left: 0; }
   #diagnostics-content .ui-kv > div { grid-template-columns: 96px 1fr; }
 }
+
+/* ---- The detail page (diagnostics-ui.js diagDetail, tabs/_ui.html detail_page()): the bar with Back, the breadcrumb,
+   the status badge, the quick actions and Previous / Next; the title; the object's Findings; the sections (one card
+   level); the YAML viewer at the bottom ---- */
+#diagnostics-content [hidden] { display: none !important; }
+#diagnostics-content .ui-detail { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+#diagnostics-content .ui-detail-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+#diagnostics-content .ui-detail-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; font-size: 12.5px; color: var(--os-text-secondary); }
+#diagnostics-content .ui-detail-crumb { overflow-wrap: anywhere; }
+#diagnostics-content .ui-detail-here { color: var(--os-text-primary); font-weight: 600; }
+#diagnostics-content .ui-detail-sep { color: var(--os-text-secondary); opacity: 0.7; }
+#diagnostics-content .ui-detail-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+#diagnostics-content .ui-detail-nav { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--os-text-secondary); }
+#diagnostics-content .ui-detail-title { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; outline: none; }
+#diagnostics-content .ui-detail-findings:empty { display: none; }
+#diagnostics-content .ui-detail-findings .ui-findings { margin-bottom: 0; }
+#diagnostics-content .ui-detail-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+#diagnostics-content details.ui-detail-section > .ui-detail-section-body { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+#diagnostics-content .ui-detail-section-body > p { margin: 0; }
+#diagnostics-content .ui-detail-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 10px; min-width: 0; }   /* a lone card takes the row */
+#diagnostics-content .ui-detail-card { border: 1px solid var(--os-border); border-radius: var(--radius-xs, 6px); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; background: var(--os-card); }
+#diagnostics-content .ui-detail-card .ui-kv { grid-template-columns: 1fr; }
+#diagnostics-content .ui-detail-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+#diagnostics-content .ui-detail-card-title { font-weight: 600; overflow-wrap: anywhere; }
+#diagnostics-content .ui-detail-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+#diagnostics-content .ui-detail-list li { overflow-wrap: anywhere; }
+#diagnostics-content .ui-chip-static { cursor: default; }
+#diagnostics-content .ui-masked-dots { letter-spacing: 0.1em; color: var(--os-text-secondary); }
+#diagnostics-content .ui-masked-toggle, #diagnostics-content .ui-code-reveal { margin-left: 6px; }
+/* the transition: a short fade and rise from the motion tokens, none under prefers-reduced-motion */
+@keyframes ui-detail-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+#diagnostics-content .ui-detail.ui-detail-in { animation: ui-detail-in var(--motion-fast, 160ms) var(--motion-ease, cubic-bezier(0.2, 0, 0, 1)); }
+/* the row the detail came from, on the way back */
+@keyframes ui-row-hl { from { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--os-blue) 22%, transparent); } to { box-shadow: none; } }
+#diagnostics-content table tr.ui-row-hl > td { animation: ui-row-hl 1.5s ease-out; }
+#diagnostics-content table tr.ui-row-hl:focus-visible { outline: 2px solid var(--os-blue); outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) {
+  #diagnostics-content .ui-detail.ui-detail-in { animation: none; }
+  #diagnostics-content table tr.ui-row-hl > td { animation: none; box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--os-blue) 14%, transparent); }
+}
+/* ---- The code viewer (diagCode: the object as JSON, or YAML on its toggle): its own scroll box with the toolbar stuck to its top; highlight.js's token classes
+   take the theme's tokens (no highlight.js stylesheet) ---- */
+#diagnostics-content .ui-code-view { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--os-border); border-radius: var(--radius-xs, 6px); background: var(--os-card); max-height: 640px; overflow: auto; position: relative; }
+#diagnostics-content .ui-code-bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 8px; background: var(--os-card-secondary); border-bottom: 1px solid var(--os-border); }
+#diagnostics-content .ui-code-search { width: 220px; max-width: 100%; }
+#diagnostics-content .ui-code-count { margin: 0; min-width: 5em; }
+#diagnostics-content .ui-code-lines { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; line-height: 1.5; padding: 6px 0; min-width: 0; }
+#diagnostics-content .ui-code-formats { display: inline-flex; gap: 4px; margin-left: auto; }
+#diagnostics-content .ui-code-view .hljs-punctuation { color: var(--os-text-secondary); }
+#diagnostics-content .ui-code-line { display: flex; align-items: flex-start; min-width: 0; position: relative; padding-left: 16px; }
+#diagnostics-content .ui-code-line::before { content: attr(data-n); flex: 0 0 3.5em; text-align: right; padding-right: 10px; color: var(--os-text-secondary); opacity: 0.8; user-select: none; }
+#diagnostics-content .ui-code-line-text { flex: 1 1 auto; min-width: 0; white-space: pre; padding-right: 10px; color: var(--os-text-primary); }
+#diagnostics-content .ui-code-wrap .ui-code-line-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+#diagnostics-content .ui-code-fold { position: absolute; left: 0; top: 0; width: 16px; height: 18px; background: none; border: 0; padding: 0; font: inherit; font-size: 10px; line-height: 18px; color: var(--os-text-secondary); cursor: pointer; }
+#diagnostics-content .ui-code-fold:hover { color: var(--os-text-primary); }
+#diagnostics-content .ui-code-folded { color: var(--os-text-secondary); white-space: pre; }
+#diagnostics-content .ui-code-view .hljs-attr { color: var(--link, var(--os-blue)); cursor: pointer; border-radius: 2px; }
+#diagnostics-content .ui-code-view .hljs-attr:hover { text-decoration: underline; }
+#diagnostics-content .ui-code-view .hljs-attr:focus-visible { outline: 2px solid var(--os-blue); outline-offset: 1px; }
+#diagnostics-content .ui-code-view .hljs-string { color: var(--os-text-primary); }
+#diagnostics-content .ui-code-view .hljs-number { color: var(--chart-cat-7, var(--os-text-primary)); }
+#diagnostics-content .ui-code-view .hljs-literal { color: var(--chart-cat-2, var(--os-text-primary)); }
+#diagnostics-content .ui-code-view .hljs-bullet, #diagnostics-content .ui-code-view .hljs-comment, #diagnostics-content .ui-code-view .hljs-meta { color: var(--os-text-secondary); }
+#diagnostics-content .ui-code-view .hljs-type { color: var(--chart-cat-4, var(--os-text-primary)); }
+#diagnostics-content .ui-code-revealed { color: var(--os-text-primary); }
+#diagnostics-content .ui-code-hit { background: color-mix(in srgb, var(--chart-warn) 8%, transparent); }
+#diagnostics-content .ui-code-mark { background: color-mix(in srgb, var(--chart-warn) 40%, transparent); color: inherit; border-radius: 2px; }
+#diagnostics-content .ui-code-mark.ui-code-current { background: color-mix(in srgb, var(--chart-warn) 70%, transparent); outline: 1px solid var(--chart-warn); }
+@media (max-width: 640px) {
+  #diagnostics-content .ui-detail-actions { margin-left: 0; }
+  #diagnostics-content .ui-detail-cards { grid-template-columns: 1fr; }
+  #diagnostics-content .ui-code-search { width: 100%; }
+}
+/* ---- The shared Log Viewer (diagnostics-ui.js diagLogView, tabs/_log_view.html): the slider, the toolbar, the filter row, the
+   picker groups. Plain rules on the tokens; the controls, buttons and badges are the
+   shared ui-* rules above ---- */
+/* The Log Viewer's own layout (the slider, the file list, the table rows); the controls, buttons and badges are the shared ui-* rules of
+   backend/static/styles.css, the loading state the shared diagBusy */
+#diagnostics-content .lv-files-btn { min-width: 220px; max-width: 320px; }
+
+/* --- The header: slider, toolbar, filter row (lv-*) -------------------
+   Plain rules on the app's tokens:
+   the diagnostics frame has only the app's compiled Tailwind, so utility
+   classes this template alone would use are not available there. */
+#diagnostics-content .lv-slider { padding: 0 8px; }
+#diagnostics-content .lv-slider-labels { display: flex; justify-content: space-between; font-size: 12px; opacity: 0.7; margin-bottom: 2px; }
+#diagnostics-content #date-slider-container,
+#diagnostics-content #time-slider-container { cursor: pointer; }
+#diagnostics-content .lv-slider-area { position: relative; height: 32px; }
+#diagnostics-content .lv-slider-track,
+#diagnostics-content .lv-slider-highlight { position: absolute; top: 50%; height: 6px; margin-top: -3px; border-radius: 3px; }
+#diagnostics-content .lv-slider-track { left: 0; right: 0; background: var(--os-border); }
+#diagnostics-content .lv-slider-highlight { background: var(--os-blue); }
+
+/* Range slider styling: two transparent inputs over the track, centred on it */
+#diagnostics-content .range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 6px;
+  margin: -3px 0 0;
+  padding: 0;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+}
+
+#diagnostics-content .range-slider::-webkit-slider-track {
+  height: 6px;
+  background: transparent;
+  border-radius: 3px;
+}
+
+#diagnostics-content .range-slider::-moz-range-track {
+  height: 6px;
+  background: transparent;
+  border-radius: 3px;
+}
+
+#diagnostics-content .range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px; /* a 16px thumb centred on the 6px track */
+  background: var(--os-blue);
+  cursor: pointer;
+  border-radius: 50%;
+  border: 2px solid var(--os-card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+#diagnostics-content .range-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--os-blue);
+  cursor: pointer;
+  border-radius: 50%;
+  border: 2px solid var(--os-card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+#diagnostics-content .range-slider:hover::-webkit-slider-thumb {
+  background: var(--os-blue-hover);
+}
+
+#diagnostics-content .range-slider:hover::-moz-range-thumb {
+  background: var(--os-blue-hover);
+}
+
+/* The toolbar and the filter row: every control 32px tall on one baseline, wrapping when narrow.
+   The filter row sits outside the header's card padding (p-3 = 12px): it carries the same
+   padding, so the three rows share one left edge and one right edge. */
+#diagnostics-content .lv-toolbar,
+#diagnostics-content .lv-actions,
+#diagnostics-content .lv-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+#diagnostics-content .lv-filters { padding: 0 12px; }
+#diagnostics-content .lv-status { margin-left: auto; display: flex; align-items: center; min-height: 30px; font-size: 12px; white-space: nowrap; }
+
+#diagnostics-content .lv-files-btn { min-width: 220px; max-width: 320px; }
+
+#diagnostics-content .lv-grow { flex: 1 1 220px; min-width: 180px; }
+
+#diagnostics-content .lv-icon { width: 14px; height: 14px; flex: 0 0 auto; }
+#diagnostics-content .lv-icon-sm { width: 12px; height: 12px; }
+
+
+#diagnostics-content .ui-logview-group { padding: 6px 12px 2px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); }
+/* ---- A popover beside a control (diagPopover): the Log Viewer's file picker and calendar. Fixed in the frame, placed in the
+   pane's viewport by the script; a head that stays, a body that scrolls, a foot that stays ---- */
+#diagnostics-content .ui-popover { position: fixed; z-index: 50; display: flex; flex-direction: column; min-width: 0; background: var(--os-card); color: var(--os-text-primary); border: 1px solid var(--os-border); border-radius: var(--radius-card, 14px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); overflow: hidden; }
+#diagnostics-content .ui-popover.hidden { display: none; }
+#diagnostics-content .ui-popover-head { flex: 0 0 auto; padding: 8px; border-bottom: 1px solid var(--os-border); background: var(--os-card); }
+#diagnostics-content .ui-popover-head .ui-input { display: block; width: 100%; box-sizing: border-box; }
+#diagnostics-content .ui-popover-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+#diagnostics-content .ui-popover-foot { flex: 0 0 auto; border-top: 1px solid var(--os-border); background: var(--os-card); }
+#diagnostics-content .ui-popover-foot-actions { display: flex; gap: 8px; padding: 8px; }
+#diagnostics-content .ui-popover-foot-note { padding: 6px 12px; font-size: 12px; color: var(--os-text-secondary); border-bottom: 1px solid var(--os-border); }
+#diagnostics-content .lv-files-panel { width: 320px; max-width: calc(100vw - 16px); }
+#diagnostics-content .lv-files-panel .log-file-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; }
+#diagnostics-content .lv-files-panel .log-file-item:hover { background: var(--os-card-secondary); }
+#diagnostics-content .lv-files-panel .log-file-item > div { flex: 1 1 auto; min-width: 0; }
+#diagnostics-content .lv-files-name { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#diagnostics-content .lv-files-size { font-size: 12px; color: var(--os-text-secondary); }
+#diagnostics-content .lv-calendar { min-width: 280px; padding: 12px; }
+#diagnostics-content .lv-range-note { margin: 6px 0 10px; font-size: 12px; color: var(--os-text-secondary); }
+#diagnostics-content .lv-range-note[hidden] { display: none; }
+/* ---- The viewer's message box (the alert modal): the shared overlay and card, the primary button ---- */
+#diagnostics-content .ui-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5); }
+#diagnostics-content .ui-modal.hidden { display: none; }
+#diagnostics-content .ui-modal-card { width: 384px; max-width: 90vw; padding: 24px; background: var(--os-card); color: var(--os-text-primary); border: 1px solid var(--os-border); border-radius: var(--radius-card, 14px); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25); text-align: center; }
+#diagnostics-content .ui-modal-card h3 { margin: 12px 0 8px; font-size: 18px; font-weight: 600; }
+#diagnostics-content .ui-modal-card p { margin: 0 0 20px; font-size: 13px; color: var(--os-text-secondary); white-space: pre-wrap; }
+#diagnostics-content .ui-modal-icon { font-size: 40px; }
+/* ---- The date-range picker (diagDateRange): plain day cells, the start and end in the selected role, the days between on
+   a soft band with rounded ends, today ringed, the other months' days muted, the days outside the bounds disabled ---- */
+#diagnostics-content .ui-daterange { min-width: 0; padding: 12px; }
+#diagnostics-content .ui-dr-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+#diagnostics-content .ui-dr-title { font-size: 13px; font-weight: 600; color: var(--os-text-primary); }
+#diagnostics-content .ui-dr-nav { width: 28px; height: 28px; color: var(--os-text-secondary); }
+#diagnostics-content .ui-dr-nav:hover { background: var(--os-card-secondary); color: var(--os-text-primary); }
+#diagnostics-content .ui-dr-nav svg { width: 16px; height: 16px; }
+#diagnostics-content .ui-dr-dow, #diagnostics-content .ui-dr-grid { display: grid; grid-template-columns: repeat(7, 36px); }
+#diagnostics-content .ui-dr-dow span { padding: 4px 0; text-align: center; font-size: 11px; font-weight: 500; color: var(--os-text-secondary); }
+#diagnostics-content .ui-dr-grid { row-gap: 2px; }
+#diagnostics-content .ui-dr-day { position: relative; height: 32px; margin: 0; padding: 0; border: 0; border-radius: var(--radius-control, 8px); background: transparent; color: var(--os-text-primary); font: inherit; font-size: 12.5px; font-variant-numeric: tabular-nums; line-height: 32px; cursor: pointer; }
+#diagnostics-content .ui-dr-day:hover:not(:disabled) { background: var(--os-card-secondary); }
+#diagnostics-content .ui-dr-day.ui-dr-out { color: var(--os-text-secondary); opacity: 0.6; }
+#diagnostics-content .ui-dr-day:disabled, #diagnostics-content .ui-dr-day.ui-dr-off { color: var(--os-text-secondary); opacity: 0.35; cursor: not-allowed; }
+#diagnostics-content .ui-dr-day.ui-dr-today::after { content: ''; position: absolute; inset: 3px; border: 1px solid var(--os-blue); border-radius: inherit; pointer-events: none; }
+#diagnostics-content .ui-dr-day.ui-dr-in, #diagnostics-content .ui-dr-day.ui-dr-preview, #diagnostics-content .ui-dr-day.ui-dr-preview-end { background: var(--btn-selected-tint-strong); border-radius: 0; opacity: 1; }
+#diagnostics-content .ui-dr-day.ui-dr-preview-end { border-radius: var(--radius-control, 8px); }
+#diagnostics-content .ui-dr-grid .ui-dr-day:nth-child(7n+1).ui-dr-in, #diagnostics-content .ui-dr-grid .ui-dr-day:nth-child(7n+1).ui-dr-preview { border-top-left-radius: var(--radius-control, 8px); border-bottom-left-radius: var(--radius-control, 8px); }
+#diagnostics-content .ui-dr-grid .ui-dr-day:nth-child(7n).ui-dr-in, #diagnostics-content .ui-dr-grid .ui-dr-day:nth-child(7n).ui-dr-preview { border-top-right-radius: var(--radius-control, 8px); border-bottom-right-radius: var(--radius-control, 8px); }
+#diagnostics-content .ui-dr-day.ui-dr-start, #diagnostics-content .ui-dr-day.ui-dr-end { background: var(--btn-selected-bg); color: var(--btn-selected-fg); font-weight: 600; opacity: 1; border-radius: var(--radius-control, 8px); }
+#diagnostics-content .ui-dr-day.ui-dr-start:hover, #diagnostics-content .ui-dr-day.ui-dr-end:hover { background: var(--btn-selected-bg-hover, var(--btn-selected-bg)); }
+#diagnostics-content .ui-dr-day.ui-dr-start.ui-dr-has-end:not(.ui-dr-end) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+#diagnostics-content .ui-dr-day.ui-dr-end.ui-dr-has-end:not(.ui-dr-start) { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+#diagnostics-content .ui-dr-day.ui-dr-start.ui-dr-today::after, #diagnostics-content .ui-dr-day.ui-dr-end.ui-dr-today::after { border-color: var(--btn-selected-fg); opacity: 0.7; }
+#diagnostics-content .ui-dr-day:focus-visible { outline: 2px solid var(--os-blue); outline-offset: -2px; z-index: 1; }
+#diagnostics-content .ui-dr-foot { display: flex; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--os-border); }
+/* ---- A nested table in a row's details that the fit does not manage (table.ui-nested): the kind of a cell decides its
+   width - a number (.ui-num) or a status / badge (.ui-status) keeps its content on one line at its own width, only the
+   text cell (.ui-text) flexes and wraps. The outer table's fit rule (table.ui-fit td: wrap anywhere) reaches these
+   cells too, which stacked a "430 ms" one character per line; the kind rules take it back. ---- */
+#diagnostics-content .ui-xrow-body table.ui-nested { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 12px; }
+#diagnostics-content .ui-xrow-body table.ui-nested th { padding: 2px 12px 4px 0; border: 0; border-bottom: 1px solid var(--os-border); background: transparent; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; color: var(--os-text-secondary); white-space: nowrap; }
+#diagnostics-content .ui-xrow-body table.ui-nested td { height: auto; padding: 3px 12px 3px 0; border: 0; vertical-align: top; overflow: visible; line-height: 1.4; }
+#diagnostics-content .ui-xrow-body table.ui-nested td:last-child, #diagnostics-content .ui-xrow-body table.ui-nested th:last-child { padding-right: 0; }
+#diagnostics-content .ui-xrow-body table.ui-nested td.ui-text { width: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+#diagnostics-content .ui-xrow-body table.ui-nested td.ui-num, #diagnostics-content .ui-xrow-body table.ui-nested th.ui-num, #diagnostics-content .ui-xrow-body table.ui-nested td.ui-status, #diagnostics-content .ui-xrow-body table.ui-nested th.ui-status { width: 1%; white-space: nowrap; overflow-wrap: normal; }
+#diagnostics-content .ui-xrow-body table.ui-nested td.ui-num, #diagnostics-content .ui-xrow-body table.ui-nested th.ui-num { text-align: right; font-variant-numeric: tabular-nums; }
+/* every nested table, managed by the fit or not: a number or status cell stays on one line */
+#diagnostics-content .ui-xrow-body table td.ui-num, #diagnostics-content .ui-xrow-body table td.ui-col-num, #diagnostics-content .ui-xrow-body table td.ui-status, #diagnostics-content .ui-xrow-body table td.ui-col-status { white-space: nowrap; overflow-wrap: normal; }

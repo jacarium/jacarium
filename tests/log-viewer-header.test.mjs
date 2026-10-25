@@ -57,26 +57,30 @@ const FIXTURE_REPORT = 'sosreport-synthetic-2026';
 let failed = 0;
 const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}: ${name}${!ok && detail ? ' | ' + String(detail).slice(0, 500) : ''}`); if (!ok) failed++; };
 const template = fs.readFileSync(path.join(REPO, 'backend', 'templates', 'tabs', 'sosreport_log_viewer.html'), 'utf8');
+// the viewer's markup is the shared macro (tabs/_log_view.html) and its script the shared controller (diagLogView in
+// diagnostics-ui.js): the sosreport template only picks the adapter
+const view = fs.readFileSync(path.join(REPO, 'backend', 'templates', 'tabs', '_log_view.html'), 'utf8');
+const ui = fs.readFileSync(path.join(REPO, 'backend', 'static', 'diagnostics-ui.js'), 'utf8');
 
 // ---- static ----
 {
-  const header = template.slice(template.indexOf('<!-- Date Range Filter -->'), template.indexOf('<!-- Log Table -->'));
-  check('the slider track, highlight and inputs are styled by the template\'s own lv-* rules, not by utility classes the frame lacks', /class="lv-slider-track"/.test(header) && /id="date-range-highlight" class="lv-slider-highlight"/.test(header) && !/class="[^"]*(?:h-1\.5|top-1\/2|-translate-y-1\/2|bg-blue-500|bg-gray-300|dark:bg-gray-600)/.test(header));
+  const header = view.slice(view.indexOf('<!-- Date Range Filter -->'), view.indexOf('<!-- Log Table -->'));
+  check('the slider track, highlight and inputs are styled by the shared lv-* rules (backend/static/styles.css), not by utility classes the frame lacks', /class="lv-slider-track"/.test(header) && /id="date-range-highlight" class="lv-slider-highlight"/.test(header) && !/class="[^"]*(?:h-1\.5|top-1\/2|-translate-y-1\/2|bg-blue-500|bg-gray-300|dark:bg-gray-600)/.test(header));
   const ids = ['single-date-button', 'single-date-display', 'date-calendar', 'cal-prev-month', 'cal-next-month', 'cal-month-year', 'cal-grid', 'cal-today', 'cal-clear', 'date-start-label', 'date-end-label', 'date-slider-container', 'date-range-highlight', 'date-slider-start', 'date-slider-end', 'log-file-dropdown-btn', 'log-file-selection-display', 'log-file-dropdown-panel', 'log-file-search', 'log-file-list', 'select-all-logs', 'clear-all-logs', 'get-range-btn', 'load-logs-btn', 'export-csv-btn', 'loading-indicator', 'logs-loaded-info', 'loaded-count', 'filter-panel', 'log-search', 'log-exclude', 'severity-filter', 'process-filter'];
-  const missing = ids.filter((id) => (template.match(new RegExp(`id="${id}"`, 'g')) || []).length !== 1);
+  const missing = ids.filter((id) => (view.match(new RegExp(`id="${id}"`, 'g')) || []).length !== 1);
   check('every element id the script, the driver scripts and the tests rely on is present exactly once', missing.length === 0, missing.join(','));
-  const placeholders = [...header.matchAll(/placeholder="([^"]*)"/g)].map((m) => m[1]).filter((p) => !/log files/i.test(p));
-  check('the two filter fields have short placeholders ("Search logs", "Filter out"); each one\'s tooltip explains the comma, quotes and escape syntax; there is no hint button', placeholders.join('|') === 'Search logs|Filter out' && ['log-search', 'log-exclude'].every((id) => new RegExp(`id="${id}"[^>]*title="[^"]*commas[^"]*quotes[^"]*backslash`).test(header.replace(/\s+/g, ' '))) && !/filter-syntax-hint|lv-hint/.test(template), placeholders.join('|'));
+  const placeholders = [...header.matchAll(/placeholder="([^"]*)"/g)].map((m) => m[1]).filter((p) => !/log files|source_noun/i.test(p));   // the picker's own search ("Search log files...", a macro argument) is not a filter field
+  check('the two filter fields have short placeholders ("Search logs", "Filter out"); each one\'s tooltip explains the comma, quotes and escape syntax; there is no hint button', placeholders.join('|') === 'Search logs|Filter out' && ['log-search', 'log-exclude'].every((id) => new RegExp(`id="${id}"[^>]*title="[^"]*commas[^"]*quotes[^"]*backslash`).test(header.replace(/\s+/g, ' '))) && !/filter-syntax-hint|lv-hint/.test(ui), placeholders.join('|'));
   check('the driver script still finds the search field by its placeholder', fs.readFileSync(path.join(REPO, 'tests', 'helpers', 'diagnostics-driver', 'logviewer_filter.js'), 'utf8').includes("startsWith('Search logs')"));
   check('Load Logs is the accent button, the actions are grouped, the status sits in the toolbar', /id="load-logs-btn"[^>]*lv-primary/.test(header) && /class="lv-actions">[\s\S]*id="get-range-btn"[\s\S]*id="load-logs-btn"[\s\S]*id="export-csv-btn"[\s\S]*<\/div>\s*<!-- Status Indicators -->\s*<div class="lv-status">/.test(header) && !/&nbsp;/.test(header));
-  check('the export says what it exports (the rows the filters show) and exports filteredEntries', /id="export-csv-btn"[^>]*title="[^"]*rows the filters currently show/.test(header) && /exportCsvBtn\?\.addEventListener\('click'[\s\S]{0,600}filteredEntries\.forEach/.test(template));
-  check('typing is debounced, the selects apply at once', /const applyFiltersSoon = debounce\(applyFilters, 150\);\s*searchInput\?\.addEventListener\('input', applyFiltersSoon\);\s*document\.getElementById\('log-exclude'\)\?\.addEventListener\('input', applyFiltersSoon\);\s*severityFilter\?\.addEventListener\('change', applyFilters\);/.test(template));
-  check('a load re-applies the filters as set (no "only when every field is empty")', !/if \(!searchInput\.value && !severityFilter\.value && !processFilter\.value/.test(template));
+  check('the export says what it exports (the rows the filters show) and exports filteredEntries', /id="export-csv-btn"[^>]*title="[^"]*rows the filters currently show/.test(header) && /exportCsvBtn\?\.addEventListener\('click'[\s\S]{0,600}filteredEntries\.forEach/.test(ui));
+  check('typing is debounced, the selects apply at once', /const applyFiltersSoon = debounce\(applyFilters, 150\);\s*searchInput\?\.addEventListener\('input', applyFiltersSoon\);\s*document\.getElementById\('log-exclude'\)\?\.addEventListener\('input', applyFiltersSoon\);\s*severityFilter\?\.addEventListener\('change', applyFilters\);/.test(ui));
+  check('a load re-applies the filters as set (no "only when every field is empty")', !/if \(!searchInput\.value && !severityFilter\.value && !processFilter\.value/.test(ui));
 
   // the field parser, as the template defines it
-  const start = template.indexOf('  function parseCommaSeparated(input) {');
-  const end = template.indexOf('\n  }\n', start) + 4;
-  const parse = new Function(template.slice(start, end) + '\nreturn parseCommaSeparated;')();
+  const start = ui.indexOf('  function parseCommaSeparated(input) {');
+  const end = ui.indexOf('\n  }\n', start) + 4;
+  const parse = new Function(ui.slice(start, end) + '\nreturn parseCommaSeparated;')();
   const P = (s) => parse(s).join('|');
   check('parse: comma-separated terms, trimmed, lower-cased, empties dropped', P(' Error , FAIL,, ,timeout, ') === 'error|fail|timeout');
   check('parse: a quoted phrase keeps its comma and spaces', P('"error, fail", warn') === 'error, fail|warn' && P("'a, b'") === 'a, b');
@@ -87,6 +91,10 @@ const template = fs.readFileSync(path.join(REPO, 'backend', 'templates', 'tabs',
   check('parse: empty and blank input give no terms', P('') === '' && P('   ') === '' && P(',,,') === '');
 }
 
+  check('the sosreport Log Viewer template only picks the adapter: the shared include, the viewer macro, the alert modal and the mount call, no markup, script or style of its own',
+    /\{% import "tabs\/_log_view\.html" as logview %\}/.test(template) && /logview\.viewer\(/.test(template) && /logview\.alert_modal\(\)/.test(template) && /diagLogView\.mount\(/.test(template) && /adapters\.sosreport\(/.test(template)
+    && !/<style/.test(template) && !/<table/.test(template) && !/id="log-search"/.test(template) && template.split('\n').length < 30 && !/function /.test(template));
+  check('the shared stylesheet carries the lv-* rules under the frame root (the template has no style block)', /#diagnostics-content \.lv-slider-track/.test(fs.readFileSync(path.join(REPO, 'backend', 'static', 'styles.css'), 'utf8')) && !/<style/.test(template));
 // ---- the fixture's rows, for the expected counts (tests/helpers/diagnostics-driver/make_fixture.py) ----
 const MAIN_MSGS = ['info: example-daemon heartbeat ok, queue depth 3', 'warning: example-cache nearing capacity (80 percent)', 'error: example-worker failed to connect to 192.0.2.10:9999', 'debug: example-scheduler trace tick 42', 'notice: example-updater applied synthetic profile'];
 const MAIN_SEV = ['info', 'warning', 'error', 'debug', 'info'];
@@ -249,7 +257,7 @@ try {
     await setText('log-search', typed);
     const s = await shown();
     const want = expect({ search: terms });
-    check(`search ${JSON.stringify(typed)}: ${why} -> ${want} rows`, s.count === want && (want === 0 || /filtered from 3,400/.test(s.text)), JSON.stringify(s));
+    check(`search ${JSON.stringify(typed)}: ${why} -> ${want} rows`, s.count === want && (want === 0 || /in the loaded 3,400/.test(s.text)), JSON.stringify(s));
   }
   await setText('log-search', '');
   check('clearing the search brings every row back', (await shown()).count === 3400);
@@ -284,17 +292,21 @@ try {
   await setText('log-search', 'watch');
   await setText('log-exclude', 'reconnecting, nothing');
   const all = await shown();
-  check(`all filters together: level error + process edge-a + search "watch" with "reconnecting" filtered out -> ${expect({ severity: 'error', process: 'edge-a', search: ['watch'], exclude: ['reconnecting', 'nothing'] })} (no entries, says filtered from 3,400)`, all.count === 0 && /filtered from 3,400/.test(all.text), JSON.stringify(all));
+  check(`all filters together: level error + process edge-a + search "watch" with "reconnecting" filtered out -> ${expect({ severity: 'error', process: 'edge-a', search: ['watch'], exclude: ['reconnecting', 'nothing'] })} (no entries, says in the loaded 3,400)`, all.count === 0 && /in the loaded 3,400/.test(all.text), JSON.stringify(all));
   await setText('log-exclude', '');
   const combo = await shown();
   const wantCombo = expect({ severity: 'error', process: 'edge-a', search: ['watch'] });
-  check(`level error + process edge-a + search "watch": ${wantCombo} rows, the count says "of ${wantCombo} (filtered from 3,400)", Export CSV enabled`, combo.count === wantCombo && new RegExp(`of ${wantCombo.toLocaleString()} \\(filtered from 3,400\\)`).test(combo.text) && (await fev(`!document.getElementById('export-csv-btn').disabled`)), JSON.stringify(combo));
+  check(`level error + process edge-a + search "watch": ${wantCombo} rows, the count says "of ${wantCombo} in the loaded 3,400", Export CSV enabled`, combo.count === wantCombo && new RegExp(`of ${wantCombo.toLocaleString()} in the loaded 3,400`).test(combo.text) && (await fev(`!document.getElementById('export-csv-btn').disabled`)), JSON.stringify(combo));
 
   // a reload keeps the filters applied (table, counts, export)
   const reloaded = await loadAndWait(3400);
   const afterReload = await shown();
   check('after Load Logs again the filters still apply (was: the old rows stayed in the table, the counts and the export)', reloaded === 'Loaded 3,400 entries' && afterReload.count === wantCombo, JSON.stringify(afterReload));
-  await setSelect('severity-filter', ''); await setSelect('process-filter', ''); await setText('log-search', 'edge-sync');
+  // the filters go with a load (the reload above loaded the matches only): cleared and loaded again, every row is back
+  await setSelect('severity-filter', ''); await setSelect('process-filter', ''); await setText('log-search', '');
+  const plainAgain = await loadAndWait(3400);
+  check('with the filters cleared Load Logs loads every row again', plainAgain === 'Loaded 3,400 entries', plainAgain);
+  await setText('log-search', 'edge-sync');
 
   // debounced typing on 3,400 rows: ten quick keystrokes do not filter synchronously, the last one wins
   const typing = await fev(`(async () => { const i = document.getElementById('log-search'); const before = document.getElementById('entry-count-top').textContent; const t0 = performance.now(); for (const v of ['e', 'ed', 'edg', 'edge', 'edge-', 'edge-s', 'edge-sy', 'edge-syn', 'edge-sync', 'preferred']) { i.value = v; i.dispatchEvent(new Event('input', { bubbles: true })); } const elapsed = performance.now() - t0; const during = document.getElementById('entry-count-top').textContent; await new Promise((r) => setTimeout(r, 400)); return { elapsed, before, during, after: document.getElementById('entry-count-top').textContent }; })()`);
@@ -305,11 +317,17 @@ try {
   await sleep(200);
   const labels = await fev(`[document.getElementById('date-start-label').textContent, document.getElementById('date-end-label').textContent, document.getElementById('date-range-highlight').style.width]`);
   check('dragging the end handle to the first day updates the labels and the highlight', labels[0] === '2026-01-01' && labels[1] === '2026-01-01' && labels[2] === '0%', JSON.stringify(labels));
-  const dayOne = await loadAndWait(expect({ days: [1] }));
+  // the search "preferred" goes with the load: Jan 1's matches only arrive, and the status says so
+  const dayOneWant = expect({ days: [1], search: ['preferred'] });
+  const dayOne = await loadAndWait(dayOneWant);
   const dayOneShown = await shown();
-  check(`with the range on Jan 1 Load Logs loads ${expect({ days: [1] })} rows and the search "preferred" still applies: ${expect({ days: [1], search: ['preferred'] })}`, !!dayOne && dayOneShown.count === expect({ days: [1], search: ['preferred'] }), JSON.stringify({ dayOne, dayOneShown }));
+  check(`with the range on Jan 1 and the search "preferred" Load Logs loads the ${dayOneWant} matches only (of ${expect({ days: [1] })} rows that day) and the status says "${dayOneWant} matches across all 2 files"`, !!dayOne && dayOneShown.count === dayOneWant && new RegExp(`of ${dayOneWant} — ${dayOneWant} matches across all 2 files$`).test(dayOneShown.text), JSON.stringify({ dayOne, dayOneShown }));
+  const procsMatches = await fev(`[...document.getElementById('process-filter').options].map((o) => o.value).filter(Boolean).length`);
+  check('the process list is the processes of the loaded matches (the 3 edge processes)', procsMatches === 3, procsMatches);
+  await setText('log-search', '');
+  const dayOnePlain = await loadAndWait(expect({ days: [1] }));
   const procsDayOne = await fev(`[...document.getElementById('process-filter').options].map((o) => o.value).filter(Boolean).length`);
-  check('the process list is refreshed for the new range (the 20 daemons of Jan 1 plus the 3 edge processes)', procsDayOne === 23, procsDayOne);
+  check(`with the search cleared Load Logs loads Jan 1's ${expect({ days: [1] })} rows and the process list is refreshed for the new range (the 20 daemons of Jan 1 plus the 3 edge processes)`, !!dayOnePlain && procsDayOne === 23, JSON.stringify({ dayOnePlain, procsDayOne }));
 
   const pageErrors = app.errors.filter((e) => !/favicon|ResizeObserver loop/.test(e));
   check('no uncaught page errors', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));

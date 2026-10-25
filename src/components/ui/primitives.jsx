@@ -149,7 +149,7 @@ export const BUTTON = {
   warning: `sc-btn sc-btn-warning btn btn-warning ${BTN_SIZE.md}`,
   success: `sc-btn sc-btn-success btn btn-success ${BTN_SIZE.md}`,
   ghost: `sc-btn sc-btn-ghost btn btn-ghost ${BTN_SIZE.md}`,
-  link: `sc-btn sc-btn-link inline-flex items-center gap-1 text-os-blue hover:underline focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 rounded-sm`,
+  link: `sc-btn sc-btn-link inline-flex items-center gap-1 hover:underline focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 rounded-sm`,   // the colour: --link (src/index.css, Links)
 };
 
 /**

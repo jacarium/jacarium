@@ -23,8 +23,9 @@
 {% set summary = data.oom_summary or {} %}
 {% set events = data.oom_events or [] %}
 {% set TOP = 12 %}
-<div class="panel rounded-lg shadow-sm kd" id="kernel-oom-killer">
+{# the incident board only with an incident: with none the page is the Findings strip (its GOOD line says what was scanned) #}
 {% if events %}
+<div class="panel rounded-lg shadow-sm kd" id="kernel-oom-killer">
   <div class="kd-strip">
     <div class="kd-stats">
       {{ stat('OOM kills', summary.kills) }}
@@ -128,7 +129,6 @@
     </details>
   {% endfor %}
   </div>
-{% else %}
+</div>
 {% endif %}
 {% include "tabs/_kernel_diag.html" %}
-</div>

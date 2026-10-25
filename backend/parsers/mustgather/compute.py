@@ -12,8 +12,9 @@ def parse(directory):
         mod = globals()[sub]
         try:
             items = mod.findings(directory) if hasattr(mod, 'findings') else (mod.parse(directory) or {}).get('findings', [])
-        except Exception as e:  # noqa: BLE001
-            items = [finding('warn', f"{sub} could not be read", str(e)[:200])]
+        except Exception as e:  # noqa: BLE001 - a readable reason, never the raw exception
+            from parsers.mustgather._common import reason_of
+            items = [finding('warn', f"{sub} could not be read", reason_of(e))]
         for f in items:
             f = dict(f)
             if f.get('severity') in ('bad', 'warn') and not f.get('link'):

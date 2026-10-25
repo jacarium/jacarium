@@ -28,14 +28,27 @@ for (const [token, value] of Object.entries(SCALE)) {
   check(`@theme ${token} is ${value}`, m && m[1].trim() === value, m ? m[1] : 'missing');
 }
 
-// hand-written radii in index.css: tokens, 0, or a full round; 2px for the
+// a radius token's value in px: the scale itself, or a control token (--radius-control: var(--radius-sm)) followed to it
+const resolveRadius = (token, depth = 0) => {
+  if (SCALE[token]) return SCALE[token];
+  const m = new RegExp(`^\\s*${token}:\\s*([^;]+);`, 'm').exec(css);
+  if (!m || depth > 4) return null;
+  const val = m[1].trim();
+  const ref = /^var\((--radius(?:-\w+)?)\)$/.exec(val);
+  return ref ? resolveRadius(ref[1], depth + 1) : val;
+};
+
+// hand-written radii in index.css: tokens (with or without their fallback), 0, or a full round; 2px for the
 // inline text highlight (<mark>) is the one literal
 const literal = [];
 css.split('\n').forEach((line, i) => {
   const m = /border-radius:\s*([^;]+);/.exec(line);
   if (!m) return;
   const v = m[1].trim();
-  if (/^var\(--radius(-\w+)?\)( var\(--radius(-\w+)?\))*( 0)*$/.test(v) || v === '0' || /^(9999px|50%|calc\(infinity \* 1px\))$/.test(v)) return;
+  // a token may carry its px fallback (var(--radius-sm, 8px): a sheet loaded on its own still rounds), and the
+  // fallback must be the token's own value, so it cannot drift from the scale
+  const tokens = v.replace(/ 0\b/g, '').split(/\s+(?=var\()/);
+  if (tokens.every((t) => { const tm = /^var\((--radius(?:-\w+)?)(?:, (\d+px))?\)$/.exec(t); return tm && (!tm[2] || tm[2] === resolveRadius(tm[1])); }) || v === '0' || /^(9999px|50%|calc\(infinity \* 1px\))$/.test(v)) return;
   if (/\.markdown-preview mark/.test(css.split('\n').slice(Math.max(0, i - 6), i).join('\n')) && v === '2px') return;
   literal.push(`${i + 1}: ${v}`);
 });

@@ -5,7 +5,8 @@ import re
 from datetime import datetime, timezone, timedelta
 
 from parsers.findings import finding, no_data, recall, remember, sort_findings
-from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all, unreadable, unreadable_finding
+from parsers.mustgather import detail
 
 def parse(directory):
     result = {}
@@ -71,11 +72,12 @@ def parse(directory):
                     except:
                         yaml_content["_age_seconds"] = 0
 
+                # the detail page's data (findings, containers, events, logs, field ownership)
+                yaml_content['_detail'] = detail.pod_detail(yaml_content, detail.namespace_events(directory, namespace), directory, collection_time)
                 pods_json[pod_name] = yaml_content
             except Exception as e:
-                # Keep the pod in the list with a readable reason instead of
-                # failing the whole namespace.
-                pods_json[pod_name] = {"error": f"could not read {filepath}: {e}", "file": filepath}
+                # the pod stays in the list with a readable reason (never the raw exception) instead of failing the namespace
+                pods_json[pod_name] = {"error": unreadable(filepath, e, directory)['reason'], "file": unreadable(filepath, e, directory)['file']}
 
         result[namespace] = pods_json
     result['_nodes'] = per_node(result, directory)
@@ -111,11 +113,14 @@ def findings_for(result, collection_time):
     Pending for over ten minutes (warn), pods with five or more restarts (warn), Failed pods (warn), the counts."""
     out = []
     crash, oomed, pending, restarting, failed = [], [], [], [], []
+    broken = []
     total = 0
     for ns, pods in result.items():
         if ns.startswith('_') or not isinstance(pods, dict):
             continue
         for name, pod in pods.items():
+            if isinstance(pod, dict) and pod.get('error'):
+                broken.append({'file': pod.get('file') or f'{ns}/{name}', 'reason': pod.get('error')})
             if not isinstance(pod, dict) or pod.get("error"):
                 continue
             total += 1
@@ -132,21 +137,24 @@ def findings_for(result, collection_time):
             if restarts >= 5:
                 restarting.append((label, restarts, name))
     for label, state, name in crash[:10]:
-        out.append(finding("bad", f"{label} is in {state}", "the container fails to start or exits at once: its previous logs say why", query=name, count=3))
+        out.append(finding("bad", f"{label} is in {state}", "the container fails to start or exits at once: its previous logs say why", tab="log_collection", sub_tab="log_viewer", query=f"sources={label}", count=3))
     if len(crash) > 10:
         out.append(finding("bad", f"{len(crash) - 10} more pods failing to start", ", ".join(l for l, _, _ in crash[10:16]) + (" …" if len(crash) > 16 else ""), count=len(crash) - 10))
     for label, oom, name in oomed[:10]:
-        out.append(finding("bad", f"{label}: container {', '.join(oom)} OOMKilled", "the container hit its memory limit and was killed; raise the limit or find the leak", query=name, count=2))
+        out.append(finding("bad", f"{label}: container {', '.join(oom)} OOMKilled", "the container hit its memory limit and was killed; raise the limit or find the leak", tab="log_collection", sub_tab="log_viewer", query=f"sources={label}", count=2))
     for label, age, name in pending[:8]:
         out.append(finding("warn", f"{label} Pending for {age // 60} min", "unschedulable (no node fits, a volume missing) or waiting for its images: the events say which", tab="system", sub_tab="events", query=name, count=age // 60))
     for label, n, name in sorted(restarting, key=lambda x: -x[1])[:8]:
-        out.append(finding("warn", f"{label} restarted {n} times", "a container that keeps dying: its logs and the OOM / crash reasons above", query=name, count=n))
+        out.append(finding("warn", f"{label} restarted {n} times", "a container that keeps dying: its logs and the OOM / crash reasons above", tab="log_collection", sub_tab="log_viewer", query=f"sources={label}", count=n))
     for label, name in failed[:5]:
         out.append(finding("warn", f"{label} Failed", "the pod ended with an error (an evicted pod, a job that failed)", query=name))
     for n in (result.get('_nodes') or {}).get('rows', []):
         if n.get('capacity') and n['count'] / n['capacity'] >= 0.8:
             share = 100.0 * n['count'] / n['capacity']
             out.append(finding('bad' if share >= 95 else 'warn', f"{n['name']} at {share:.0f}% of its pod limit ({n['count']} of {n['capacity']})", 'the kubelet refuses new pods at the limit (max-pods)', query=n['name'], count=int(share)))
+    bf = unreadable_finding(broken, 'pod')
+    if bf:
+        out.append(bf)
     if not total:
         out.append(no_data("No pods in this must-gather", ['namespaces/*/pods/*/*.yaml'], 'trimmed gather'))
     elif not any(f["severity"] in ("bad", "warn") for f in out):
@@ -158,7 +166,7 @@ PHASE_ROLE = {'Running': 'ok', 'Succeeded': 'other', 'Completed': 'other', 'Pend
 
 
 def short_node(name):
-    """ip-10-0-1-2.us-east-2.compute.internal -> ip-10-0-1-2 (the common cloud suffixes and the region go)."""
+    """ip-192-0-2-9.us-east-2.compute.internal -> ip-192-0-2-9 (the common cloud suffixes and the region go)."""
     n = name
     for suf in DOMAIN_SUFFIXES:
         if n.endswith(suf):

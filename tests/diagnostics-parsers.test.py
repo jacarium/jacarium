@@ -183,8 +183,10 @@ def main():
     try:
         pods = mg_pod.parse(bad_mg)
         ns = pods.get("demo-ns", {})
-        check("pod: unreadable YAML is reported per pod with the file name, other pods still parsed",
-              "error" in ns.get("broken-pod", {}) and "broken-pod.yaml" in ns["broken-pod"]["error"]
+        # the record names the file (its own key since the readable reasons: the error text is the reason alone)
+        broken = ns.get("broken-pod", {})
+        check("pod: unreadable YAML is reported per pod with the file name and a readable reason, other pods still parsed",
+              "error" in broken and "broken-pod.yaml" in (broken.get("file", "") + broken["error"]) and "line 4" in broken["error"]
               and ns.get("good-pod", {}).get("status", {}).get("phase") == "Running",
               str(ns)[:300])
     except Exception as e:  # the old NameError path

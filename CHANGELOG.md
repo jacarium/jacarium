@@ -4,6 +4,38 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.3.7
+
+_2026-10-26_
+
+### [DIAGNOSTICS]
+
+Must-gather Log Viewer under Log Collection: every collected log (containers current and previous, host services, node journals, network), merged on one timeline, the same design as the sosreport viewer
+
+Log Viewer: search, exclude, level and source filters run over all the selected logs on the server; per-container and per-service chart; a date-range picker that highlights the selected range; loading progress and Cancel
+
+Open logs from a pod, a node, a Log Collection row or a crash finding goes straight to the Log Viewer with those logs loaded
+
+Detail pages for pods, nodes, deployments and the other workloads: findings for the object, structured sections, recent changes from managedFields and a JSON viewer with search, folding and masked secrets
+
+Tables fit the screen without a horizontal scrollbar: text wraps, numbers stay on one line, low-priority columns move into the expanded row
+
+Clicking a chart bar filters by that exact bar on every chart
+
+Journal logs in every journalctl format (incl. microseconds) show the real time, node and service
+
+Pages with nothing to report show only their findings; Audit without audit logs and empty must-gather lists no longer show an empty card
+
+Fixed: must-gather lists with an empty items field, Blame's expanded command rows and return codes, Export CSV downloading from Diagnostics
+
+### [UI]
+
+Links follow the theme, and every control keeps its rounded corners in every theme
+
+### [SECURITY]
+
+The privacy scan also catches IP addresses written as host names (ip-192-0-2-10)
+
 ## What's New in v3.3.6
 
 _2026-10-24_

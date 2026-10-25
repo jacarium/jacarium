@@ -1,4 +1,5 @@
 {% import "tabs/_ui.html" as ui %}
+{% import "tabs/_detail.html" as detail %}
 {{ ui.findings(findings) }}
 <div id="statefulSetPanel" class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm w-full">
@@ -32,53 +33,20 @@
  </div>
 </div>
 
-<div id="statefulSetDetailsPanel" style="display: none;">
- <div class="space-y-4">
- <div class="mb-4">
- <button onclick="window.backFromstatefulModal()" class="btn btn-secondary flex items-center gap-2">
- Back
- </button>
- </div>
+{{ ui.detail_page('statefulSetDetail') }}
 
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-info-circle mr-2"></i> Stateful Set Details
- </h3>
- <div class="overflow-x-auto">
- <table class="ui-table" id="statefulSetDetailsTable"></table>
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-file mr-2"></i> Stateful Set YAML
- </h2>
- <div class="mb-2">
- <input
- id="statefulSetYamlFilter"
- type="text"
- placeholder="Filter YAML lines..."
- class="ui-input w-full"
- />
- </div>
- <div id="statefulSetJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
- </div>
- </div>
-</div>
-
+{{ detail.k8s_detail_script() }}
 <script>
+ var byKey = {};   // "namespace/name" -> the statefulset, for the detail (declared first: the rows fill it as they render)
  var statefulSetsData = {{ data | tojson }};
+ delete statefulSetsData._unreadable;   // the files that could not be read: the Findings strip names them
  var flattenedstatefulSets = [];
  var currentSort = { key:"name", direction: 1 };
  var statefulsetCurrentPage = 1;
  var statefulsetPageSize = 100;
 
  var statefulSetPanel = document.getElementById("statefulSetPanel");
- var statefulSetJsonViewer = document.getElementById("statefulSetJsonViewer");
- var statefulSetDetailsTable = document.getElementById("statefulSetDetailsTable");
  var statefulSetNamespaceFilter = document.getElementById("statefulSetNamespaceFilter");
- var currentstatefulSet = null;
- var lastClickedRow = null;
 
  var showEmptyNamespacesCheckbox = document.getElementById("show-empty-namespaces")
 
@@ -134,10 +102,9 @@
  `;
 
  if (!rs.isPlaceholder) {
- row.onclick = () => {
- lastClickedRow = row;
- showstatefulSetDetails(rs);
- };
+ row.setAttribute('data-detail', rs.namespace + '/' + rs.name);
+ row.tabIndex = 0;
+ byKey[rs.namespace + '/' + rs.name] = rs;
  }
 
  body.appendChild(row);
@@ -166,81 +133,10 @@
  applystatefulSetFiltersAndRender();
  }
 
- function showstatefulSetDetails(rs) {
- currentstatefulSet = rs;
-
- statefulSetJsonViewer.innerHTML = renderJSONWithoutHighlight(rs.raw);
- document.getElementById("statefulSetPanel").style.setProperty('display', 'none', 'important');
- document.getElementById("statefulSetDetailsPanel").style.setProperty('display', 'grid', 'important');
-
- // Scroll to top - find the scrollable parent by walking up the DOM
- setTimeout(() => {
- function findScrollableParent(element) {
- let parent = element.parentElement;
- while (parent) {
- const overflow = window.getComputedStyle(parent).overflow;
- const overflowY = window.getComputedStyle(parent).overflowY;
- if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
- parent.scrollHeight > parent.clientHeight) {
- return parent;
- }
- parent = parent.parentElement;
- }
- return null;
- }
-
- const detailsPanel = document.getElementById("statefulSetDetailsPanel");
- const scrollableParent = findScrollableParent(detailsPanel);
- if (scrollableParent) {
- scrollableParent.scrollTo({top: 0, behavior: 'instant'});
- }
- }, 0);
-
- statefulSetDetailsTable.innerHTML = `
- <tr><td>Name:</td><td>${rs.name}</td></tr>
- <tr><td>Namespace:</td><td>${rs.namespace}</td></tr>
- <tr><td>Replica:</td><td>${rs.replicas}</td></tr>
- <tr><td>Available Replicas:</td><td>${rs.available || 0}</td></tr>
- <tr><td>Ready Replicas:</td><td>${rs.ready || 0}</td></tr>
- <tr><td>Age:</td><td>${rs.age || '-'}</td></tr>
- `;
-
- // Setup YAML filter
- const yamlFilterInput = document.getElementById('statefulSetYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- yamlFilterInput.removeEventListener('input', filterStatefulSetYaml);
- yamlFilterInput.addEventListener('input', filterStatefulSetYaml);
- }
- }
 
 
- function highlightJSON(line) {
- line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
- return line
- .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
- .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
- .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
- .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
- .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
- }
 
- function renderJSONWithoutHighlight(data, filter = '') {
- const formatted = JSON.stringify(data, null, 2);
- return formatted.split('\n')
- .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
- .map(line => {
- const highlighted = highlightJSON(line);
- return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
- }).join('');
- }
 
- function filterStatefulSetYaml() {
- if (!currentstatefulSet) return;
- const filterInput = document.getElementById('statefulSetYamlFilter');
- const filterValue = filterInput ? filterInput.value : '';
- statefulSetJsonViewer.innerHTML = renderJSONWithoutHighlight(currentstatefulSet.raw, filterValue);
- }
 
 
  function resetPodIndicators() {
@@ -370,23 +266,6 @@
  }
 
 
- window.backFromstatefulModal = function() {
- document.getElementById("statefulSetDetailsPanel").style.setProperty('display', 'none', 'important');
- document.getElementById("statefulSetPanel").style.setProperty('display', 'grid', 'important');
-
- const yamlFilterInput = document.getElementById('statefulSetYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- }
-
- // Scroll back to the last clicked row
- if (lastClickedRow) {
- setTimeout(() => {
- lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
- }, 0);
- }
- }
-
  var nsSet = new Set(flattenedstatefulSets.map(r => r.namespace));
  var nsSelect = document.getElementById("statefulSetNamespaceFilter");
  nsSet.forEach(ns => {
@@ -431,4 +310,29 @@
 
  updateNamespaceFilterOptions(showEmptyNamespacesCheckbox.checked);
  applystatefulSetFiltersAndRender();
+ const D = window.diagDetail, K = window.k8sDetail;
+ function renderStatefulSetDetail(key, view) {
+ const rs = byKey[key];
+ if (!rs || !rs.raw || !rs.raw.spec) return false;
+ const raw = rs.raw, d = raw._detail || {}; const spec = raw.spec || {}, st = raw.status || {}, meta = raw.metadata || {};
+ const want = spec.replicas !== undefined ? spec.replicas : 1, ready = st.readyReplicas || 0;
+ const badge = want && ready === 0 ? { kind: 'bad', text: '0/' + want + ' ready' } : (ready < want ? { kind: 'warn', text: ready + '/' + want + ' ready' } : { kind: 'ok', text: ready + '/' + want + ' ready' });
+ const up = spec.updateStrategy || {};
+ const pvcs = (spec.volumeClaimTemplates || []).map((t) => (t.metadata && t.metadata.name || '?') + (t.spec && t.spec.resources && t.spec.resources.requests && t.spec.resources.requests.storage ? ' (' + t.spec.resources.requests.storage + (t.spec.storageClassName ? ', ' + t.spec.storageClassName : '') + ')' : ''));
+ return K.page(view, {
+ name: rs.name, kind: 'StatefulSet', raw: raw, d: d, crumbs: ['Stateful Sets', rs.namespace, rs.name], badge: badge,
+ actions: [{ label: 'Open pods', tab: 'workloads', subTab: 'pod', query: rs.name, title: 'The Pods page, searched for this statefulset' }],
+ summary: [
+ ['Namespace', rs.namespace], ['Replicas', want + ' wanted, ' + (st.replicas || 0) + ' created, ' + ready + ' ready, ' + (st.availableReplicas || 0) + ' available'],
+ ['Revisions', st.currentRevision ? (st.currentRevision === st.updateRevision ? st.currentRevision : st.currentRevision + ' → ' + st.updateRevision) + ' (' + (st.currentReplicas || 0) + ' current, ' + (st.updatedReplicas || 0) + ' updated)' : ''],
+ ['Service', spec.serviceName], ['Pod management', spec.podManagementPolicy], ['Strategy', up.type ? up.type + (up.rollingUpdate && up.rollingUpdate.partition ? ' (partition ' + up.rollingUpdate.partition + ')' : '') : ''],
+ ['Volume claims', pvcs.length ? D.list(pvcs) : ''], ['Selector', K.labels((spec.selector || {}).matchLabels)],
+ ['Age', rs.age && rs.age !== '-' ? rs.age + ' (created ' + D.when(meta.creationTimestamp) + ')' : D.when(meta.creationTimestamp)],
+ ['Labels', K.labels(meta.labels)], ['Annotations', meta.annotations ? Object.keys(meta.annotations).length + ' (in the JSON below)' : ''],
+ ],
+ });
+ }
+ D.register(statefulSetPanel, document.getElementById('statefulSetDetail'), { rows: 'tbody tr[data-detail]', render: renderStatefulSetDetail });
+ window.showstatefulSetDetails = function (rs) { D.open(rs.namespace + '/' + rs.name); };
+ window.backFromstatefulModal = function () { D.back(); };
 </script>

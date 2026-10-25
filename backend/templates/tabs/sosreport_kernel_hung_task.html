@@ -20,8 +20,9 @@
 #}
 {% set summary = data.hung_summary or {} %}
 {% set groups = data.hung_groups or [] %}
-<div class="panel rounded-lg shadow-sm kd" id="kernel-hung-tasks">
+{# the incident board only with an incident: with none the page is the Findings strip (its GOOD line says what was scanned) #}
 {% if groups %}
+<div class="panel rounded-lg shadow-sm kd" id="kernel-hung-tasks">
   <div class="kd-strip">
     <div class="kd-stats">
       {{ stat('Reports', summary.reports, (summary.tasks ~ ' task' ~ ('s' if summary.tasks != 1 else '')) if summary.tasks else '') }}
@@ -78,7 +79,6 @@
     </details>
   {% endfor %}
   </div>
-{% else %}
+</div>
 {% endif %}
 {% include "tabs/_kernel_diag.html" %}
-</div>

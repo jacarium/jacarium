@@ -26,6 +26,8 @@
 {% import "tabs/_audit.html" as au %}
 {% set e = data.audit or {} %}
 {% set t = e.totals or {} %}
+{#- without audit logs the Findings strip (an INFO naming what was looked for) is the whole page: no panel, no controls -#}
+{% if e.available %}
 <div class="panel rounded-lg shadow-sm au" id="audit-events" data-directory="{{ directory }}">
 {{ au.styles() }}
 <style>
@@ -37,7 +39,6 @@
 #audit-events .ae-note { font-size: 12px; color: var(--os-text-secondary, #6a6e73); }
 #audit-events .ae-what { align-items: center; }
 </style>
-{% if e.available %}
   {% set notip = 'No request bodies recorded in these audit logs' %}
   <div class="ae-main" id="audit-events-card">
     <div class="ae-rows" id="audit-events-form">
@@ -350,7 +351,5 @@
     run();
   })();
   </script>
-{% else %}
-  {{ au.empty('No audit logs', e.reason or 'This must-gather carries no audit_logs/ with API server audit events.') }}
-{% endif %}
 </div>
+{% endif %}

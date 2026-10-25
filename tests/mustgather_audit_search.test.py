@@ -364,7 +364,7 @@ check("/audit_events_cancel answers ok and the directory's running search stops 
       and client.post("/audit_events_cancel", json={"directory": os.path.join(WORKDIR, "nope")}).status_code == 400 and client.post("/audit_events_cancel", json={}).status_code == 400,
       f"{cancel_state} {str(r_c)[:120]}")
 bridge = open(os.path.join(REPO, "src", "components", "DiagnosticsPage.jsx"), encoding="utf-8").read()
-check("the frame bridge allow-lists /audit_events_cancel next to the search, and nothing else new", "'/audit_events_search', '/audit_events_cancel']" in bridge)
+check("the frame bridge allow-lists /audit_events_cancel next to the search (the must-gather Log Viewer's search, cancel and date range follow), and nothing else new", "'/audit_events_search', '/audit_events_cancel', '/mustgather_log_search', '/mustgather_log_cancel', '/mustgather_log_date_range']" in bridge)
 os.environ["JACARIUM_REPORTS_ROOT"] = WORKDIR
 try:
     import reports_root  # noqa: E402

@@ -1,4 +1,5 @@
 {% import "tabs/_ui.html" as ui %}
+{% import "tabs/_detail.html" as detail %}
 {{ ui.findings(findings) }}
 <div id="nodePanel" class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm w-full">
@@ -12,31 +13,31 @@
  <table class="ui-table">
  <thead>
  <tr>
- <th class="cursor-pointer" onclick="window.sortNodesBy('name')">
+ <th class="cursor-pointer" data-w="flex" onclick="window.sortNodesBy('name')">
  Name <i id="node-indicator-name" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" onclick="window.sortNodesBy('ip')">
+ <th class="cursor-pointer" data-w="narrow" data-p="3" onclick="window.sortNodesBy('ip')">
  IP <i id="node-indicator-ip" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" onclick="window.sortNodesBy('cpu')">
+ <th class="cursor-pointer" data-w="num" onclick="window.sortNodesBy('cpu')">
  CPU <i id="node-indicator-cpu" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" onclick="window.sortNodesBy('memory')">
+ <th class="cursor-pointer" data-w="num" onclick="window.sortNodesBy('memory')">
  Memory <i id="node-indicator-memory" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" onclick="window.sortNodesBy('kubelet')">
+ <th class="cursor-pointer" data-w="narrow" data-p="2" onclick="window.sortNodesBy('kubelet')">
  Kubelet <i id="node-indicator-kubelet" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" onclick="window.sortNodesBy('osImage')">
+ <th class="cursor-pointer" data-w="text" data-p="3" onclick="window.sortNodesBy('osImage')">
  OS Image <i id="node-indicator-osImage" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" onclick="window.sortNodesBy('arch')">
+ <th class="cursor-pointer" data-w="narrow" data-p="3" onclick="window.sortNodesBy('arch')">
  Arch <i id="node-indicator-arch" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" onclick="window.sortNodesBy('ready')">
+ <th class="cursor-pointer" data-w="status" onclick="window.sortNodesBy('ready')">
  Ready <i id="node-indicator-ready" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" onclick="window.sortNodesBy('schedulable')">
+ <th class="cursor-pointer" data-w="status" data-p="2" onclick="window.sortNodesBy('schedulable')">
  Schedule <i id="node-indicator-schedulable" class="ml-1 fas text-sm"></i>
  </tr>
  </thead>
@@ -46,53 +47,14 @@
  </div>
 </div>
 
-<div id="nodeDetailsPanel" style="display: none;">
- <div class="space-y-4">
- <div class="mb-4">
- <button onclick="window.backFromNodeModal()" class="btn btn-secondary flex items-center gap-2">
- Back
- </button>
- </div>
+{{ ui.detail_page('nodeDetail') }}
 
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-info-circle mr-2"></i> Node Details
- </h3>
- <div class="overflow-x-auto">
- <table class="ui-table" id="nodeDetailsTable"></table>
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-stethoscope mr-2"></i> Node Conditions
- </h2>
- <div id="nodeConditionsTable" class="text-sm space-y-2"></div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-file mr-2"></i> Node YAML
- </h2>
- <div class="mb-2">
- <input
- id="nodeYamlFilter"
- type="text"
- placeholder="Filter YAML lines..."
- class="ui-input w-full"
- />
- </div>
- <div id="nodeJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
- </div>
- </div>
-</div>
-
+{{ detail.k8s_detail_script() }}
 <script>
  var nodeData = {{ data | tojson }};
 
  var flattenedNodes = [];
  var currentSort = { key:"name", direction: 1 };
- var currentNode = null;
  var nodeCurrentPage = 1;
  var nodePageSize = 50;
 
@@ -101,11 +63,8 @@
  var nodeSearchInput = document.getElementById("nodeSearchInput");
 
  var nodePanel = document.getElementById("nodePanel");
- var nodeDetailsPanel = document.getElementById("nodeDetailsPanel");
- var nodeDetailsTable = document.getElementById("nodeDetailsTable");
- var nodeJsonViewer = document.getElementById("nodeJsonViewer");
-
- var lastClickedRow = null;
+ var nodeDetailView = document.getElementById("nodeDetail");
+ var byKey = {};   // node name -> the parsed node, for the detail
 
  function flattenNodes() {
  flattenedNodes = [];
@@ -164,6 +123,9 @@
  paginatedNodes.forEach((n) => {
  const tr = document.createElement("tr");
  tr.className = "cursor-pointer border-b hover:bg-gray-50 dark:hover:bg-gray-800";
+ tr.setAttribute('data-detail', n.name);
+ tr.tabIndex = 0;
+ byKey[n.name] = n;
  tr.innerHTML = `
  <td>${n.name}</td>
  <td>${n.ip}</td>
@@ -175,10 +137,6 @@
  <td>${n.ready}</td>
  <td>${n.schedulable}</td>
  `;
- tr.onclick = () => {
- lastClickedRow = tr;
- showNodeDetails(n);
- };
  nodeTableBody.appendChild(tr);
  });
 
@@ -258,163 +216,65 @@
  return isNaN(f) ? 0 : f;
  }
 
- function showNodeDetails(node) {
- currentNode = node;
+ // ============================================================================
+ // THE DETAIL (the shared diagDetail component; the data is the parser's _detail record)
+ // ============================================================================
 
- const viewer = document.getElementById("nodeJsonViewer");
- viewer.innerHTML = renderJSONWithoutHighlight(node.raw);
-
- nodePanel.style.setProperty('display', 'none', 'important');
- nodeDetailsPanel.style.setProperty('display', 'grid', 'important');
-
- // Scroll to top - find the scrollable parent by walking up the DOM
- setTimeout(() => {
- function findScrollableParent(element) {
- let parent = element.parentElement;
- while (parent) {
- const overflow = window.getComputedStyle(parent).overflow;
- const overflowY = window.getComputedStyle(parent).overflowY;
- if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
- parent.scrollHeight > parent.clientHeight) {
- return parent;
+ const D = window.diagDetail, K = window.k8sDetail;
+ const METER_LABEL = { cpu: 'CPU', memory: 'Memory', pods: 'Pods', 'ephemeral-storage': 'Ephemeral storage' };
+ function renderNodeDetail(key, view) {
+ const n = byKey[key];
+ if (!n || !n.raw) return false;
+ const raw = n.raw, d = raw._detail || {}, s = d.summary || {};
+ D.header(view, {
+ title: n.name, crumbs: ['Nodes', n.name],
+ badge: d.badge || { kind: n.ready === 'True' ? 'ok' : 'bad', text: n.ready === 'True' ? 'Ready' : 'NotReady' },
+ actions: [
+ { label: 'Copy name', copy: n.name },
+ { label: 'Copy JSON', copy: window.diagCode.text(raw) },
+ { label: 'Open pods', tab: 'workloads', subTab: 'pod', query: n.name, title: 'The Pods page, searched for this node' },
+ // the node's journals and its role's host service logs (host_service_logs/masters or workers)
+ { label: 'Open node logs', tab: 'log_collection', subTab: 'log_viewer', query: 'sources=node:' + n.name + [...new Set((s.roles || ['worker']).map((r) => /master|control-plane/.test(r) ? 'masters' : r + 's'))].map((d) => ',host:' + d).join(''), title: 'The Log Viewer with this node\'s journals and its role\'s host service logs' },
+ ],
+ });
+ D.findings(view, d.findings || []);
+ const body = D.body(view);
+ const addr = (t) => ((s.addresses || []).find((a) => a.type === t) || {}).address || '';
+ body.appendChild(D.section('Summary', D.kv([
+ ['Roles', (s.roles || []).join(', ')], ['Internal IP', addr('InternalIP'), 'mono'], ['External IP', addr('ExternalIP'), 'mono'], ['Hostname', addr('Hostname')],
+ ['Kubelet', s.kubelet], ['Runtime', s.runtime], ['OS', s.os], ['Kernel', s.kernel], ['Arch', s.arch],
+ ['Created', s.created ? D.when(s.created) + (s.age ? ' (' + s.age + ' before the gather)' : '') : ''],
+ ['Schedulable', s.cordoned ? 'no (cordoned)' : 'yes'], ['Pod CIDR', s.pod_cidr, 'mono'], ['Provider ID', s.provider_id, 'mono'],
+ ['Machine', s.machine], ['MachineConfig', s.current_config ? s.current_config + (s.desired_config && s.desired_config !== s.current_config ? ' → ' + s.desired_config : '') + (s.mc_state ? ' (' + s.mc_state + ')' : '') : ''],
+ ['Images', d.images ? d.images + ' on the node' : ''], ['Volumes in use', d.volumes_in_use || ''],
+ ['Labels', K.labels(s.labels)], ['Annotations', s.annotations ? s.annotations + ' (in the JSON below)' : ''],
+ ]), { open: true }));
+ // Capacity vs allocatable: one meter per resource
+ const meters = d.meters || [];
+ body.appendChild(D.section('Capacity', meters.length ? D.table([{ text: 'Resource', w: 'narrow' }, { text: 'Capacity', w: 'num' }, { text: 'Allocatable', w: 'num' }, { text: 'Allocatable share', w: 'wide' }], meters.map((m) => {
+ const role = m.share === null ? 'muted' : (m.share < 50 ? 'warn' : 'ok');
+ return [METER_LABEL[m.resource] || m.resource, m.capacity, m.allocatable, m.capacity_raw ? D.meter(m.allocatable_raw || 0, m.capacity_raw, role, (m.share === null ? '' : m.share + '%'), 'the allocatable part of the capacity (the rest is reserved for the system and the kubelet)') : ''];
+ })) : 'No capacity recorded in status.', { open: true }));
+ body.appendChild(D.section('Conditions', K.conditions(d.conditions), { open: true, count: (d.conditions || []).length }));
+ const taints = d.taints || [];
+ body.appendChild(D.section('Taints', taints.length ? D.list(taints) : 'No taints: every pod may schedule here.', { count: taints.length }));
+ // the pods on this node (from every pod manifest in the gather)
+ const pods = d.pods || { count: 0, rows: [], phases: {} };
+ const podsWrap = D.el('div', 'ui-detail-stack');
+ if (pods.count) {
+ const chips = D.el('span', 'ui-detail-chips'); Object.keys(pods.phases).sort().forEach((ph) => { chips.appendChild(D.chip(ph + ' ' + pods.phases[ph])); }); podsWrap.appendChild(chips);
+ podsWrap.appendChild(D.table([{ text: 'Namespace', w: 'narrow' }, { text: 'Pod', w: 'wrap' }, { text: 'Phase', w: 'status' }], pods.rows.map((p) => [p.namespace, D.link(p.name, 'workloads', 'pod', 'detail=' + p.namespace + '/' + p.name, 'Open the pod'), D.badge(p.phase === 'Running' ? 'ok' : (p.phase === 'Succeeded' ? 'muted' : (p.phase === 'Pending' ? 'warn' : 'bad')), p.phase || '?')])));
+ if (pods.count > pods.rows.length) podsWrap.appendChild(D.el('p', 'ui-muted', (pods.count - pods.rows.length) + ' more not listed.'));
+ } else podsWrap.appendChild(D.el('p', 'ui-muted', 'No pod manifest in the gather names this node.'));
+ podsWrap.appendChild(D.link('Open the Pods page for ' + n.name, 'workloads', 'pod', n.name));
+ body.appendChild(D.section('Pods on this node', podsWrap, { open: true, count: pods.count }));
+ body.appendChild(D.section('Field ownership', K.ownership(d.ownership), { count: d.ownership ? d.ownership.total : 0 }));
+ body.appendChild(K.code(raw, 'Node'));
+ return true;
  }
- parent = parent.parentElement;
- }
- return null;
- }
-
- const scrollableParent = findScrollableParent(nodeDetailsPanel);
- if (scrollableParent) {
- scrollableParent.scrollTo({top: 0, behavior: 'instant'});
- }
- }, 0);
-
- const detailsTable = document.getElementById("nodeDetailsTable");
- detailsTable.innerHTML = `
- <tr><td>Name:</td><td>${node.name}</td></tr>
- <tr><td>IP:</td><td>${node.ip}</td></tr>
- <tr><td>Hostname:</td><td>${node.hostname}</td></tr>
- <tr><td>CPU:</td><td>${node.cpu}</td></tr>
- <tr><td>Memory:</td><td>${node.memory}</td></tr>
- <tr><td>Kubelet Version:</td><td>${node.kubelet}</td></tr>
- <tr><td>OS Image:</td><td>${node.osImage}</td></tr>
- <tr><td>Arch:</td><td>${node.arch}</td></tr>
- <tr><td>Ready:</td><td>${node.ready}</td></tr>
- <tr><td>Schedulable:</td><td>${node.schedulable}</td></tr>
- `;
-
- const conditions = node.raw?.status?.conditions || [];
- const conditionsTable = document.getElementById("nodeConditionsTable");
-
- if (conditions.length === 0) {
- conditionsTable.innerHTML =
- '<div class="p-4 rounded-lg">' +
- '<p class="text-center">No conditions available</p>' +
- '</div>';
- } else {
- let tableHTML =
- `<div class="text-sm mb-2">Showing ${conditions.length} condition(s)</div>` +
- '<table class="ui-table">' +
- '<thead>' +
- '<tr>' +
- '<th>Type</th>' +
- '<th>Status</th>' +
- '<th>Reason</th>' +
- '<th>Message</th>' +
- '<th>Last Heartbeat</th>' +
- '<th>Last Transition</th>' +
- '</tr>' +
- '</thead>' +
- '<tbody>';
-
- for (const cond of conditions) {
- tableHTML +=
- '<tr>' +
- `<td>${cond.type}</td>` +
- `<td>${cond.status}</td>` +
- `<td>${cond.reason}</td>` +
- `<td class="break-all">${cond.message}</td>` +
- `<td>${new Date(cond.lastHeartbeatTime).toLocaleString('en-US', {
-     month: 'short',
-     day: '2-digit',
-     year: 'numeric',
-     hour: '2-digit',
-     minute: '2-digit',
-     timeZone: 'UTC',
-     timeZoneName: 'short'
-   })}</td>` +
- `<td>${new Date(cond.lastTransitionTime).toLocaleString('en-US', {
-     month: 'short',
-     day: '2-digit',
-     year: 'numeric',
-     hour: '2-digit',
-     minute: '2-digit',
-     timeZone: 'UTC',
-     timeZoneName: 'short'
-   })}</td>` +
- '</tr>';
- }
-
- tableHTML += '</tbody></table>';
- conditionsTable.innerHTML = tableHTML;
- }
-
- // Setup YAML filter
- const yamlFilterInput = document.getElementById('nodeYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- yamlFilterInput.removeEventListener('input', filterNodeYaml);
- yamlFilterInput.addEventListener('input', filterNodeYaml);
- }
- }
-
-
- window.backFromNodeModal = function() {
- currentNode = null;
- nodeDetailsPanel.style.setProperty('display', 'none', 'important');
- nodePanel.style.setProperty('display', 'grid', 'important');
- nodeJsonViewer.innerHTML ="";
-
- const yamlFilterInput = document.getElementById('nodeYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- }
-
- // Scroll back to the last clicked row
- if (lastClickedRow) {
- setTimeout(() => {
- lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
- }, 0);
- }
- }
-
- function highlightJSON(line) {
- line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
- return line
- .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
- .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
- .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
- .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
- .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
- }
-
- function renderJSONWithoutHighlight(data, filter = '') {
- const formatted = JSON.stringify(data, null, 2);
- return formatted.split('\n')
- .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
- .map(line => {
- const highlighted = highlightJSON(line);
- return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
- }).join('');
- }
-
- function filterNodeYaml() {
- if (!currentNode) return;
- const filterInput = document.getElementById('nodeYamlFilter');
- const filterValue = filterInput ? filterInput.value : '';
- const viewer = document.getElementById('nodeJsonViewer');
- viewer.innerHTML = renderJSONWithoutHighlight(currentNode.raw, filterValue);
- }
+ D.register(nodePanel, nodeDetailView, { rows: 'tbody tr[data-detail]', render: renderNodeDetail });
+ window.showNodeDetails = function (node) { D.open(node.name); };
+ window.backFromNodeModal = function () { D.back(); };
 
  nodeSearchInput.addEventListener("input", () => {
  nodeCurrentPage = 1;

@@ -26,7 +26,7 @@ Output in `tests/fixtures/diagnostics-mock/out/`:
 | --- | --- |
 | `sosreport-web-01-2026-10-13-abcdef/` | extracted sosreport (569 files) - this is what the app opens |
 | `sosreport-web-01-2026-10-13-abcdef.tar.xz` | the same tree archived like `sos report` does (140 KiB) |
-| `sosreport-ip-10-0-42-46-master-cluster-7bffs-master-2026-10-01-asqizwl/` | manifest-only sosreport: an OpenShift master-like `sos report` run (59 plugins, `ebpf` failing 383 commands, `networking` with 1,875) for Sos Report > Blame |
+| `sosreport-ip-192-0-2-46-master-cluster-example-master-2026-10-01-abcdefg/` | manifest-only sosreport: an OpenShift master-like `sos report` run (59 plugins, `ebpf` failing 383 commands, `networking` with 1,875) for Sos Report > Blame |
 | `sosreport-old-01-2026-10-01-oldfmt/` | manifest-only sosreport from an older sos (no per-plugin timings): the Blame tab's empty state |
 | `must-gather.local.1234567890/` | extracted must-gather (143 files, incl. host_service_logs/, network_logs/ and the API audit logs under audit_logs/ for the Audit and Log Collection tabs) |
 | `must-gather.local.1234567890.tar.gz` | the same tree archived (51 KiB) |

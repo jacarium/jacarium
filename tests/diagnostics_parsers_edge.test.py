@@ -241,6 +241,32 @@ def main():
           "error" not in out and len(out["processes"]) == 2 and out["processes"][0]["thread_count"] == 1 and out["processes"][0]["threads"][0]["PID"] == "1" and out["processes"][1]["COMMAND"].startswith("/opt/app/bin/worker"), repr(out)[:300])
     old = report("ps-old", {"sos_commands/process/ps_auxwww": "USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND\nroot 1 0.0 0.1 1 1 ? Ss Oct12 1:23 /sbin/init\n"})
     check("ps: sos < 4's ps_auxwww is read when ps_auxwwwm is missing", processes.parse(old)["ps_auxwwwm"]["processes"][0]["COMMAND"] == "/sbin/init")
+    # the thread ids: a busy process at 28.5% whose threads carry their own averages (one short-lived thread at 95%)
+    psm = ("USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\n"
+           "svcuser    18130 28.5 61.2 601000 20000 ?        -    Sep19   0:00 /usr/libexec/example-worker --queue payments\n"
+           "svcuser        - 12.0    -      -     - -        Sl   Sep19 120:00 -\n"
+           "svcuser        - 95.0    -      -     - -        Rl   14:01   0:57 -\n"
+           "svcuser        -  3.1    -      -     - -        Sl   Sep19  31:00 -\n")
+    axo = ("18130 1 svcuser svcuser 18130 3 Sep19 example-worker 0::/system.slice/example-worker.service\n"
+           "18130 1 svcuser svcuser 18131 3 14:01 worker-thread 0::/system.slice/example-worker.service\n"
+           "18130 1 svcuser svcuser 18132 3 Sep19 example-worker 0::/system.slice/example-worker.service\n")
+    joined = report("ps-tids", {"sos_commands/process/ps_auxwwwm": psm, "sos_commands/process/ps_axo_pid_ppid_user_group_lwp_nlwp_start_time_comm_cgroup": axo})
+    out = processes.parse(joined)["ps_auxwwwm"]
+    proc = out["processes"][0]
+    threads = proc["threads"]
+    check("ps: the thread ids are joined from the ps axo ... lwp capture (by position, the counts agreeing)", out.get("thread_ids") is True and [t.get("TID") for t in threads] == ["18130", "18131", "18132"] and threads[1].get("NAME") == "worker-thread", [(t.get("TID"), t.get("NAME")) for t in threads])
+    check("ps: the process %CPU stays the lifetime average (28.5) while a thread shows 95", proc["%CPU"] == "28.5" and threads[1]["%CPU"] == "95.0")
+    elfl = ("F S UID        PID  PPID   LWP  C NLWP PRI  NI ADDR SZ WCHAN  STIME TTY          TIME CMD\n"
+            "4 S svcuser  18130     1 18130  0    3  80   0 -  1500 -      Sep19 ?        00:00:00 /usr/libexec/example-worker\n"
+            "1 R svcuser  18130     1 18131 95    3  80   0 -  1500 -      14:01 ?        00:00:57 /usr/libexec/example-worker\n"
+            "1 S svcuser  18130     1 18132  3    3  80   0 -  1500 -      Sep19 ?        00:31:00 /usr/libexec/example-worker\n")
+    joined2 = report("ps-elfl", {"sos_commands/process/ps_auxwwwm": psm, "sos_commands/process/ps_-elfL": elfl})
+    t2 = processes.parse(joined2)["ps_auxwwwm"]["processes"][0]["threads"]
+    check("ps: ps -elfL serves the thread ids when the axo capture is missing", [t.get("TID") for t in t2] == ["18130", "18131", "18132"], [t.get("TID") for t in t2])
+    alone = report("ps-notids", {"sos_commands/process/ps_auxwwwm": psm})
+    out3 = processes.parse(alone)["ps_auxwwwm"]
+    check("ps: without a thread-level capture the dataset says the ids were not captured", out3.get("thread_ids") is False and all(not t.get("TID") for t in out3["processes"][0]["threads"]))
+    check("ps: the CPU hog finding says the figure is averaged since start", any("averaged since start" in f["title"] for f in processes.parse(report("ps-hog", {"sos_commands/process/ps_auxwwwm": psm.replace("28.5", "88.6")}))["findings"]))
     check("ps: the three tabs share one parser", processes.parse_ps_file is _common.parse_ps_file and cgroups_cpu.parse_ps_file is _common.parse_ps_file and cgroups_memory.parse_ps_file is _common.parse_ps_file)
 
     shutil.rmtree(WORK, ignore_errors=True)

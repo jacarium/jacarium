@@ -53,8 +53,8 @@ def to_seconds(value):
 
 
 def short_node_label(node):
-    """'sosreport-ip-10-0-42-46-master-cluster-7bffs-master-2026-...' ->
-    'ip-10-0-42-46 [master]'; anything else comes back as it is."""
+    """'sosreport-ip-192-0-2-46-master-cluster-example-master-2026-...' ->
+    'ip-192-0-2-46 [master]'; anything else comes back as it is."""
     m = RE_IP_NODE.search(node or '')
     base = m.group(0) if m else (node or '')
     low = (node or '').lower()

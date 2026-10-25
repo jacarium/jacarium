@@ -1,4 +1,5 @@
 {% import "tabs/_ui.html" as ui %}
+{% import "tabs/_detail.html" as detail %}
 {{ ui.findings(findings) }}
 <div id="mcpPanel" class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm w-full">
@@ -52,62 +53,20 @@
  </div>
 </div>
 
-<div id="mcpDetailsPanel" style="display: none;">
- <div class="space-y-4">
- <div class="mb-4">
- <button onclick="window.backFromMcpModal()" class="btn btn-secondary flex items-center gap-2">
- Back
- </button>
- </div>
+{{ ui.detail_page('mcpDetail') }}
 
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-info-circle mr-2"></i> MCP Details
- </h3>
- <div class="overflow-x-auto">
- <table class="ui-table" id="mcpDetailsTable"></table>
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-heartbeat mr-2"></i> Conditions
- </h3>
- <div id="mcpConditionsTable" class="text-sm"></div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-cog mr-2"></i> Configuration Sources
- </h3>
- <div id="mcpConfigSourcesTable" class="text-sm"></div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-file mr-2"></i> MCP YAML
- </h2>
- <div class="mb-2">
- <input id="mcpYamlFilter" type="text" placeholder="Filter YAML lines..." class="ui-input w-full"/>
- </div>
- <div id="mcpJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
- </div>
- </div>
-</div>
-
-
+{{ detail.k8s_detail_script() }}
 <script>
+ var byKey = {};   // pool name -> the parsed pool, for the detail (declared first: the rows fill it as they render)
  var mcpsData = {{ data | tojson }};
  var currentSort = { key: null, direction: 1 };
  var mcpCurrentPage = 1;
  var mcpPageSize = 50;
- var currentMcpDetails = null;
 
  var mcpTableBody = document.getElementById("mcpTableBody");
  var mcpStatusFilter = document.getElementById("mcpStatusFilter");
  var mcpSearchInput = document.getElementById("mcpSearchInput");
  var mcpPanel = document.getElementById("mcpPanel");
- var mcpDetailsPanel = document.getElementById("mcpDetailsPanel");
 
  function getFilteredMcps() {
  var selectedStatus = mcpStatusFilter.value;
@@ -195,109 +154,15 @@
  '<td>' + mcp.degraded + '</td>' +
  '<td>' + machinesText + '</td>';
 
- row.onclick = function() { showMcpDetails(mcp); };
+ row.setAttribute('data-detail', mcp.name);
+ row.tabIndex = 0;
+ byKey[mcp.name] = mcp;
  return row;
  }
 
- function showMcpDetails(mcp) {
- currentMcpDetails = mcp;
- mcpPanel.style.display = "none";
- mcpDetailsPanel.style.display = "block";
 
- var detailsTable = document.getElementById("mcpDetailsTable");
- detailsTable.innerHTML =
- '<tr><td>Name:</td><td>' + mcp.name + '</td></tr>' +
- '<tr><td>Config:</td><td class="ui-mono">' + mcp.config_name + '</td></tr>' +
- '<tr><td>Paused:</td><td>' + (mcp.paused ? 'True' : 'False') + '</td></tr>' +
- '<tr><td>Updated:</td><td>' + mcp.updated + '</td></tr>' +
- '<tr><td>Updating:</td><td>' + mcp.updating + '</td></tr>' +
- '<tr><td>Degraded:</td><td>' + mcp.degraded + '</td></tr>' +
- '<tr><td>Machine Count:</td><td>' + mcp.machine_count + '</td></tr>' +
- '<tr><td>Ready Machine Count:</td><td>' + mcp.ready_machine_count + '</td></tr>' +
- '<tr><td>Updated Machine Count:</td><td>' + mcp.updated_machine_count + '</td></tr>' +
- '<tr><td>Degraded Machine Count:</td><td>' + mcp.degraded_machine_count + '</td></tr>' +
- '<tr><td>Unavailable Machine Count:</td><td>' + mcp.unavailable_machine_count + '</td></tr>';
 
- // Conditions
- var conditionsDiv = document.getElementById("mcpConditionsTable");
- if (mcp.conditions && mcp.conditions.length > 0) {
- var conditionsHtml = '<table class="ui-table"><thead><tr>' +
- '<th>Type</th>' +
- '<th>Status</th>' +
- '<th>Reason</th>' +
- '<th>Message</th>' +
- '</tr></thead><tbody>';
 
- mcp.conditions.forEach(function(condition) {
- conditionsHtml += '<tr>' +
- '<td>' + (condition.type || '-') + '</td>' +
- '<td>' + (condition.status || '-') + '</td>' +
- '<td>' + (condition.reason || '-') + '</td>' +
- '<td>' + (condition.message || '-') + '</td>' +
- '</tr>';
- });
- conditionsHtml += '</tbody></table>';
- conditionsDiv.innerHTML = conditionsHtml;
- } else {
- conditionsDiv.innerHTML = '<div class="text-gray-500">No conditions</div>';
- }
-
- // Configuration Sources
- var configSourcesDiv = document.getElementById("mcpConfigSourcesTable");
- if (mcp.configuration_sources && mcp.configuration_sources.length > 0) {
- var sourcesHtml = '<div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-sm space-y-1"><code class="text-xs">';
- mcp.configuration_sources.forEach(function(source) {
- sourcesHtml += source.name + '<br>';
- });
- sourcesHtml += '</code></div>';
- configSourcesDiv.innerHTML = sourcesHtml;
- } else {
- configSourcesDiv.innerHTML = '<div class="text-gray-500">No configuration sources</div>';
- }
-
- // YAML viewer
- renderMcpYaml();
- }
-
- function highlightJSON(line) {
- line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
- return line
- .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
- .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
- .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
- .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
- .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
- }
-
- function renderJSONWithoutHighlight(data, filter) {
- var formatted = JSON.stringify(data, null, 2);
- return formatted.split('\n')
- .filter(function(line) {
- return !filter || line.toLowerCase().includes(filter.toLowerCase());
- })
- .map(function(line) {
- var highlighted = highlightJSON(line);
- return '<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">' + highlighted + '</div>';
- }).join('');
- }
-
- function renderMcpYaml() {
- var viewer = document.getElementById("mcpJsonViewer");
- var filter = document.getElementById("mcpYamlFilter");
-
- function updateYaml() {
- var filterText = filter.value;
- viewer.innerHTML = renderJSONWithoutHighlight(currentMcpDetails.raw, filterText);
- }
-
- filter.oninput = updateYaml;
- updateYaml();
- }
-
- window.backFromMcpModal = function() {
- mcpDetailsPanel.style.display = "none";
- mcpPanel.style.display = "block";
- };
 
  function updateFilteredCount(total, start, end) {
  var countDiv = document.getElementById("filteredMcpCount");
@@ -444,4 +309,27 @@
  renderMcpTable();
  renderHealthChart();
 
+ const D = window.diagDetail, K = window.k8sDetail;
+ function renderMcpDetail(key, view) {
+ var mcp = byKey[key];
+ if (!mcp || !mcp.raw) return false;
+ var raw = mcp.raw, d = mcp.detail || {}, meta = raw.metadata || {}, spec = raw.spec || {};
+ var badge = mcp.degraded === 'True' ? { kind: 'bad', text: 'Degraded' } : (mcp.paused ? { kind: 'warn', text: 'Paused' } : (mcp.updating === 'True' ? { kind: 'warn', text: 'Updating' } : { kind: 'ok', text: 'Updated' }));
+ var sources = (mcp.configuration_sources || []).map(function (s) { return (s.kind ? s.kind + ' ' : '') + s.name; });
+ return K.page(view, {
+ name: mcp.name, kind: 'MachineConfigPool', raw: raw, d: d, crumbs: ['Machine Config Pools', mcp.name], badge: badge,
+ actions: [{ label: 'Open nodes', tab: 'compute', subTab: 'nodes', query: mcp.name, title: 'The Nodes page, searched for this pool' }],
+ summary: [
+ ['Rendered config', mcp.config_name, 'mono'], ['Paused', mcp.paused ? 'yes' : 'no'],
+ ['Machines', mcp.machine_count + ' in the pool: ' + mcp.ready_machine_count + ' ready, ' + mcp.updated_machine_count + ' updated' + (mcp.degraded_machine_count ? ', ' + mcp.degraded_machine_count + ' degraded' : '') + (mcp.unavailable_machine_count ? ', ' + mcp.unavailable_machine_count + ' unavailable' : '')],
+ ['Updated', mcp.updated], ['Updating', mcp.updating], ['Degraded', mcp.degraded],
+ ['Max unavailable', spec.maxUnavailable !== undefined ? String(spec.maxUnavailable) : ''], ['Node selector', K.labels((spec.nodeSelector || {}).matchLabels)], ['Config selector', K.labels((spec.machineConfigSelector || {}).matchLabels)],
+ ['Created', D.when(meta.creationTimestamp) + (d.age ? ' (' + d.age + ' before the gather)' : '')], ['Labels', K.labels(meta.labels)],
+ ],
+ sections: [{ title: 'Configuration sources', content: sources.length ? D.list(sources) : 'No configuration source recorded.', count: sources.length, open: false }],
+ });
+ }
+ D.register(mcpPanel, document.getElementById('mcpDetail'), { rows: 'tbody tr[data-detail]', render: renderMcpDetail });
+ window.showMcpDetails = function (mcp) { D.open(mcp.name); };
+ window.backFromMcpModal = function () { D.back(); };
 </script>

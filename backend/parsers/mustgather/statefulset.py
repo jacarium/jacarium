@@ -5,7 +5,8 @@ import re
 from datetime import datetime, timezone, timedelta
 
 from parsers.findings import finding, recall, remember, sort_findings, no_data
-from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all, collection_time as gather_time_of, list_items, unreadable, unreadable_finding
+from parsers.mustgather import detail
 
 def parse(directory):
     result = {}
@@ -39,6 +40,7 @@ def parse(directory):
     if not collection_time:
         collection_time = datetime.now(timezone.utc)
 
+    gather_time = collection_time
     directory = resolve_data_dir(directory)
 
     namespaces_path = os.path.join(directory, "namespaces")
@@ -59,8 +61,8 @@ def parse(directory):
                     with open(filepath, "r") as f:
                         yaml_content = safe_load(f)
 
-                    if yaml_content.get("kind") == "StatefulSetList" and "items" in yaml_content:
-                        for item in yaml_content["items"]:
+                    # a List (items may be null or empty: an empty namespace), a single object, or an empty document
+                    for item in list_items(yaml_content, 'StatefulSet'):
                             name = item.get("metadata", {}).get("name")
                             if name:
                                 # Calculate age
@@ -73,23 +75,16 @@ def parse(directory):
                                     except:
                                         item["_age_seconds"] = 0
                                 statefulset_json[name] = item
-                    else:
-                        name = yaml_content.get("metadata", {}).get("name")
-                        if name:
-                            # Calculate age
-                            created = yaml_content.get("metadata", {}).get("creationTimestamp")
-                            if created:
-                                try:
-                                    created_time = datetime.fromisoformat(created.replace('Z', '+00:00'))
-                                    age_diff = collection_time - created_time
-                                    yaml_content["_age_seconds"] = int(age_diff.total_seconds())
-                                except:
-                                    yaml_content["_age_seconds"] = 0
-                            statefulset_json[name] = yaml_content
 
-                except Exception as e:
-                    statefulset_json["error"] = {"error": str(e)}
+                except Exception as e:   # a broken file: a readable reason (never the raw exception), kept out of the namespace
+                    result.setdefault('_unreadable', []).append(unreadable(filepath, e, directory))
 
+        # the detail page's data: conditions, the object's events, field ownership
+        if statefulset_json:
+            events = detail.namespace_events(directory, namespace)
+            for name, d in statefulset_json.items():
+                if isinstance(d, dict) and 'spec' in d:
+                    d['_detail'] = detail.generic_detail(d, events, gather_time, 'the statefulset')
         result[namespace] = statefulset_json
 
     remember(('statefulset', directory), findings_for(result))
@@ -105,7 +100,12 @@ def findings_for(result):
     """The Findings strip: statefulsets with fewer ready replicas than wanted (warn; bad when none is ready), the counts."""
     out = []
     total = 0
+    bf = unreadable_finding(result.get('_unreadable') or [], 'statefulset')
+    if bf:
+        out.append(bf)
     for ns, items in result.items():
+        if ns.startswith('_') or not isinstance(items, dict):
+            continue
         for name, d in items.items():
             if not isinstance(d, dict) or d.get("error") or d.get("kind") not in (None, "StatefulSet"):
                 continue

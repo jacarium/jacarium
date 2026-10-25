@@ -43,7 +43,11 @@ for (const [token, value] of [['--radius-control', 'var(--radius-sm)'], ['--radi
   const m = new RegExp(`^\\s*${token}:\\s*([^;]+);`, 'm').exec(css);
   check(`token ${token} is ${value}`, m && m[1].trim() === value, m ? m[1] : 'missing');
 }
-check('base rule: every button takes the control radius and the normal weight', /button, \[role="button"\] \{\s*border-radius: var\(--radius-control\);\s*font-weight: var\(--weight-control\);/.test(css));
+// the base rules may carry the token's px fallback (var(--radius-control, 8px)); it must equal the token's value
+// (--radius-control is var(--radius-sm) = 8px, --radius-check 5px: the token checks above)
+const CONTROL = String.raw`var\(--radius-control(?:, 8px)?\)`;
+const CHECK = String.raw`var\(--radius-check(?:, 5px)?\)`;
+check('base rule: every button takes the control radius and the normal weight', new RegExp(String.raw`button, \[role="button"\] \{\s*border-radius: ${CONTROL};\s*font-weight: var\(--weight-control\);`).test(css));
 // An unlayered rule beats the utilities layer: a global `[title] { position: ... }`
 // once pulled every absolutely positioned element with a tooltip back into flow
 // (the node library filter's clear button rendered under its input).
@@ -52,8 +56,9 @@ check('base rule: every button takes the control radius and the normal weight', 
 // on, and on slid past the track (Settings > About > Updates, 3.1.10)
 check('the Toggle knob is anchored to the track (relative track, absolute left-0 knob that moves 2px off / 16px on)', /role="switch"[\s\S]{0,400}className=\{`relative /.test(prim) && /<span className=\{`absolute left-0 top-0\.5 h-3\.5 w-3\.5 rounded-full[^`]*\$\{checked \? 'translate-x-4' : 'translate-x-0\.5'\}/.test(prim));
 check('no global [title] rule positions tooltip-bearing elements', !/^\s*\[title\]\s*\{[^}]*position\s*:/m.test(css));
-check('base rule: text fields, selects and textareas take the control radius and the normal weight', /input:not\(\[type="checkbox"\]\)[^{]*,\s*select,\s*textarea \{\s*border-radius: var\(--radius-control\);\s*font-weight: var\(--weight-control\);/.test(css));
-check('base rule: checkboxes take the check radius and the accent colour, radios are round', /input\[type="checkbox"\] \{ border-radius: var\(--radius-check\); accent-color: var\(--os-blue\); \}/.test(css) && /input\[type="radio"\] \{ border-radius: 9999px; accent-color: var\(--os-blue\); \}/.test(css));
+check('base rule: text fields, selects and textareas take the control radius and the normal weight', new RegExp(String.raw`input:not\(\[type="checkbox"\]\)[^{]*,\s*select,\s*textarea \{\s*border-radius: ${CONTROL};\s*font-weight: var\(--weight-control\);`).test(css));
+check('base rule: checkboxes take the check radius and the accent colour, radios are round', new RegExp(String.raw`input\[type="checkbox"\] \{ border-radius: ${CHECK}; accent-color: var\(--os-blue\); \}`).test(css) && /input\[type="radio"\] \{ border-radius: 9999px; accent-color: var\(--os-blue\); \}/.test(css));
+check('no radius fallback drifts from its token (control 8px, check 5px)', [...css.matchAll(/var\(--radius-(control|check), (\d+px)\)/g)].every((m) => m[2] === ({ control: '8px', check: '5px' })[m[1]]));
 check('base rule: labels take the label weight', /label \{ font-weight: var\(--weight-label\); \}/.test(css));
 
 // the primitives' classes

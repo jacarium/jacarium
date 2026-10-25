@@ -95,6 +95,71 @@ def safe_load_all(stream):
     return yaml.load_all(stream, Loader=_LOADER)
 
 
+def list_items(doc, kind=None):
+    """The items of a must-gather list file, always a list of dicts:
+         - a *List document: its items; `items: null`, `items: []` and a missing key are an empty list (a valid,
+           empty namespace - not an unreadable file);
+         - a single object (a kind without List, e.g. one Secret): a one-item list;
+         - None (an empty file, a `null` document) or anything that is not a mapping: [].
+       kind, when given, keeps only the items of that kind (a stray object in a list is skipped)."""
+    if not isinstance(doc, dict):
+        return []
+    if 'items' in doc or str(doc.get('kind') or '').endswith('List'):
+        raw = doc.get('items')
+        items = raw if isinstance(raw, list) else []
+    else:
+        items = [doc]
+    out = [it for it in items if isinstance(it, dict)]
+    if kind:
+        out = [it for it in out if not it.get('kind') or it.get('kind') == kind]
+    return out
+
+
+def reason_of(exc):
+    """A short, readable reason for a file that could not be read - never the raw exception text in the UI."""
+    import yaml as _yaml
+    if isinstance(exc, _yaml.YAMLError):
+        mark = getattr(exc, 'problem_mark', None)
+        where = f' (line {mark.line + 1})' if mark is not None else ''
+        return f'not valid YAML{where}'
+    if isinstance(exc, UnicodeDecodeError):
+        return 'binary or non-UTF-8 content'
+    if isinstance(exc, PermissionError):
+        return 'no permission to read it'
+    if isinstance(exc, FileNotFoundError):
+        return 'the file is missing'
+    if isinstance(exc, IsADirectoryError):
+        return 'a directory where a file was expected'
+    if isinstance(exc, OSError):
+        return 'the file could not be read'
+    if isinstance(exc, (AttributeError, TypeError, KeyError, ValueError)):
+        return 'not the expected document shape'
+    return 'could not be parsed'
+
+
+def unreadable(path, exc, root=None):
+    """The record of a file that could not be read: its path (relative to the gather when root is given) and the
+    reason, for the Findings strip and the page."""
+    rel = path
+    if root:
+        try:
+            rel = os.path.relpath(path, root)
+        except ValueError:
+            rel = path
+    return {'file': rel, 'reason': reason_of(exc), 'error': reason_of(exc)}
+
+
+def unreadable_finding(records, what):
+    """One WARN naming the files that could not be read (the first with its reason), or None."""
+    from parsers.findings import finding
+    records = [r for r in records if isinstance(r, dict) and r.get('file')]
+    if not records:
+        return None
+    first = records[0]
+    more = f" (+{len(records) - 1} more)" if len(records) > 1 else ''
+    return finding('warn', f"{len(records)} {what} file{'s' if len(records) != 1 else ''} could not be read", f"{first['file']}: {first['reason']}{more}")
+
+
 def collection_time(directory):
     """The must-gather's collection time (UTC) from its `timestamp` file, else now."""
     import re

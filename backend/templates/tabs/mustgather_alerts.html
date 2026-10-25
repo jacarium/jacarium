@@ -1,7 +1,9 @@
 {% import "tabs/_ui.html" as ui %}
+{% import "tabs/_detail.html" as detail %}
 {{ ui.findings(findings) }}
-<div id="alertPanel" class="grid grid-cols-1 gap-4">
- <div class="panel rounded-lg shadow-sm w-full">
+{# the rules table is the page (its filters show the firing ones); the firing chart only while something fires; no rule at all: the strip alone #}
+<div id="alertPanel" class="grid grid-cols-1 gap-4"{% if not data or not data.all %} hidden{% endif %}>
+ <div class="panel rounded-lg shadow-sm w-full"{% if not (data and data.firing) %} hidden{% endif %}>
  <h3 class="text-lg font-medium mb-2">
  <i class="fas fa-chart-bar mr-2"></i> Firing Alerts by Severity
  </h3>
@@ -55,63 +57,15 @@
  </div>
 </div>
 
-<div id="alertDetailsPanel" style="display: none;">
- <div class="space-y-4">
- <div class="mb-4">
- <button onclick="window.backFromAlertModal()" class="btn btn-secondary flex items-center gap-2">
- Back
- </button>
- </div>
+{{ ui.detail_page('alertDetail') }}
 
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-info-circle mr-2"></i> Alert Details
- </h3>
- <div class="overflow-x-auto">
- <table class="ui-table" id="alertDetailsTable"></table>
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-tag mr-2"></i> Labels
- </h3>
- <div id="alertLabelsTable" class="text-sm"></div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h3 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-comment mr-2"></i> Annotations
- </h3>
- <div id="alertAnnotationsTable" class="text-sm"></div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-fire mr-2"></i> Active Alert Instances
- </h2>
- <div id="activeAlertsTable" class="text-sm"></div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-file mr-2"></i> Alert Rule JSON
- </h2>
- <div class="mb-2">
- <input id="alertJsonFilter" type="text" placeholder="Filter JSON lines..." class="ui-input w-full"/>
- </div>
- <div id="alertJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
- </div>
- </div>
-</div>
-
-
+{{ detail.k8s_detail_script() }}
 <script>
+ var byKey = {};   // "group/name" -> the parsed rule, for the detail (declared first: the rows fill it as they render)
  var alertsData = {{ data | tojson }};
  var currentSort = { key: null, direction: 1 };
  var alertCurrentPage = 1;
  var alertPageSize = 100;
- var currentAlertDetails = null;
 
  var alertTableBody = document.getElementById("alertTableBody");
  var alertSeverityFilter = document.getElementById("alertSeverityFilter");
@@ -119,7 +73,6 @@
  var alertSearchInput = document.getElementById("alertSearchInput");
  var showFiringOnlyCheckbox = document.getElementById("show-firing-only");
  var alertPanel = document.getElementById("alertPanel");
- var alertDetailsPanel = document.getElementById("alertDetailsPanel");
 
  function calculateAge(ageSeconds) {
  if (ageSeconds === undefined || ageSeconds === null) return '-';
@@ -248,126 +201,15 @@
  '<td>' + alert.alerts_count + '</td>' +
  '<td>' + activeSince + '</td>';
 
- row.onclick = function() { showAlertDetails(alert); };
+ row.setAttribute('data-detail', alert.group + '/' + alert.name);
+ row.tabIndex = 0;
+ byKey[alert.group + '/' + alert.name] = alert;
  return row;
  }
 
- function showAlertDetails(alert) {
- currentAlertDetails = alert;
- alertPanel.style.display = "none";
- alertDetailsPanel.style.display = "block";
 
- var detailsTable = document.getElementById("alertDetailsTable");
- detailsTable.innerHTML =
- '<tr><td>Name:</td><td>' + alert.name + '</td></tr>' +
- '<tr><td>Group:</td><td>' + alert.group + '</td></tr>' +
- '<tr><td>Severity:</td><td>' + alert.severity + '</td></tr>' +
- '<tr><td>State:</td><td>' + alert.state + '</td></tr>' +
- '<tr><td>Last Evaluation:</td><td>' + calculateAge(alert.age_seconds) + '</td></tr>' +
- '<tr><td>Query:</td><td class="ui-mono break-all">' + alert.query + '</td></tr>' +
- '<tr><td>Duration:</td><td>' + alert.duration + 's</td></tr>' +
- '<tr><td>Last Evaluation:</td><td>' + formatTimestamp(alert.last_evaluation) + '</td></tr>';
 
- // Labels
- var labelsDiv = document.getElementById("alertLabelsTable");
- if (alert.labels && Object.keys(alert.labels).length > 0) {
- var labelsHtml = '<div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-sm"><code class="text-xs">';
- for (var key in alert.labels) {
- labelsHtml += key + ': ' + alert.labels[key] + '<br>';
- }
- labelsHtml += '</code></div>';
- labelsDiv.innerHTML = labelsHtml;
- } else {
- labelsDiv.innerHTML = '<div class="text-gray-500">No labels</div>';
- }
 
- // Annotations
- var annotationsDiv = document.getElementById("alertAnnotationsTable");
- if (alert.annotations && Object.keys(alert.annotations).length > 0) {
- var annotationsHtml = '<div class="space-y-2">';
- for (var key in alert.annotations) {
- annotationsHtml += '<div><span class="font-semibold">' + key + ':</span><div class="text-xs mt-1 p-2 bg-gray-50 dark:bg-gray-800 rounded-sm">' + alert.annotations[key] + '</div></div>';
- }
- annotationsHtml += '</div>';
- annotationsDiv.innerHTML = annotationsHtml;
- } else {
- annotationsDiv.innerHTML = '<div class="text-gray-500">No annotations</div>';
- }
-
- // Active alert instances
- var activeAlertsDiv = document.getElementById("activeAlertsTable");
- if (alert.alerts && alert.alerts.length > 0) {
- var activeHtml = '<div class="overflow-x-auto"><table class="ui-table"><thead><tr>' +
- '<th>Labels</th>' +
- '<th>State</th>' +
- '<th>Active At</th>' +
- '<th>Value</th>' +
- '</tr></thead><tbody>';
-
- alert.alerts.forEach(function(instance) {
- var labels = instance.labels || {};
- // Format labels as key=value pairs with line breaks
- var labelsHtml = '';
- for (var key in labels) {
- labelsHtml += '<div class="whitespace-nowrap"><span class="text-blue-700 dark:text-blue-300">' + key + '</span>=<span class="text-green-700 dark:text-green-300">"' + labels[key] + '"</span></div>';
- }
-
- activeHtml += '<tr>' +
- '<td class="ui-mono max-w-md wrap-break-word">' + labelsHtml + '</td>' +
- '<td>' + instance.state + '</td>' +
- '<td>' + formatTimestamp(instance.activeAt) + '</td>' +
- '<td>' + (instance.value || '-') + '</td>' +
- '</tr>';
- });
- activeHtml += '</tbody></table></div>';
- activeAlertsDiv.innerHTML = activeHtml;
- } else {
- activeAlertsDiv.innerHTML = '<div class="text-gray-500">No active alert instances</div>';
- }
-
- // JSON viewer
- renderAlertJson();
- }
-
- function highlightJSON(line) {
- line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
- return line
- .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
- .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
- .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
- .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
- .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
- }
-
- function renderJSONWithoutHighlight(data, filter) {
- var formatted = JSON.stringify(data, null, 2);
- return formatted.split('\n')
- .filter(function(line) {
- return !filter || line.toLowerCase().includes(filter.toLowerCase());
- })
- .map(function(line) {
- var highlighted = highlightJSON(line);
- return '<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">' + highlighted + '</div>';
- }).join('');
- }
-
- function renderAlertJson() {
- var viewer = document.getElementById("alertJsonViewer");
- var filter = document.getElementById("alertJsonFilter");
-
- function updateJson() {
- var filterText = filter.value;
- viewer.innerHTML = renderJSONWithoutHighlight(currentAlertDetails.raw, filterText);
- }
-
- filter.oninput = updateJson;
- updateJson();
- }
-
- window.backFromAlertModal = function() {
- alertDetailsPanel.style.display = "none";
- alertPanel.style.display = "block";
- };
 
  function updateFilteredCount(total, start, end) {
  var countDiv = document.getElementById("filteredAlertCount");
@@ -521,4 +363,31 @@
  renderAlertTable();
  renderSeverityChart();
 
+ const D = window.diagDetail, K = window.k8sDetail;
+ function renderAlertDetail(key, view) {
+ var alert = byKey[key];
+ if (!alert || !alert.raw) return false;
+ var raw = alert.raw;
+ var sevKind = { critical: 'bad', warning: 'warn', info: 'muted' }[String(alert.severity || '').toLowerCase()] || 'muted';
+ var badge = alert.state === 'firing' ? { kind: 'bad', text: 'Firing' } : (alert.state === 'pending' ? { kind: 'warn', text: 'Pending' } : { kind: 'muted', text: alert.state || 'inactive' });
+ var instances = alert.alerts || [];
+ var labelsOf = function (m) { return K.labels(m) || ''; };
+ var annotations = Object.keys(alert.annotations || {}).sort().map(function (k) { return [k, String(alert.annotations[k])]; });
+ return K.page(view, {
+ name: alert.name, kind: 'Alert rule', raw: raw, crumbs: ['Alerts', alert.group, alert.name], badge: badge, codeTitle: 'Alert rule JSON',
+ summary: [
+ ['Group', alert.group], ['Severity', D.badge(sevKind, alert.severity || '?')], ['State', alert.state], ['For', alert.duration ? alert.duration + ' s' : ''],
+ ['Query', alert.query, 'mono'], ['Last evaluation', formatTimestamp(alert.last_evaluation) + (alert.age_seconds !== undefined ? ' (' + calculateAge(alert.age_seconds) + ' ago)' : '')],
+ ['Active since', formatTimestamp(alert.active_since)], ['Instances', alert.alerts_count],
+ ['Labels', labelsOf(alert.labels)],
+ ],
+ sections: [
+ { title: 'Annotations', content: annotations.length ? D.kv(annotations) : 'No annotations on the rule.', count: annotations.length },
+ { title: 'Active instances', content: instances.length ? D.table([{ text: 'Labels', w: 'wrap' }, { text: 'State', w: 'status' }, { text: 'Active at', w: 'num' }, { text: 'Value', w: 'num' }], instances.map(function (i) { return [labelsOf(i.labels), D.badge(i.state === 'firing' ? 'bad' : 'warn', i.state || '?'), formatTimestamp(i.activeAt), i.value || '']; })) : 'No instance of this rule is active.', count: instances.length },
+ ],
+ });
+ }
+ D.register(alertPanel, document.getElementById('alertDetail'), { rows: 'tbody tr[data-detail]', render: renderAlertDetail });
+ window.showAlertDetails = function (alert) { D.open(alert.group + '/' + alert.name); };
+ window.backFromAlertModal = function () { D.back(); };
 </script>

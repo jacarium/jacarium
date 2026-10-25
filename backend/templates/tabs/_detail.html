@@ -1,0 +1,142 @@
+{# The sections every must-gather detail page shares, built on diagDetail (backend/static/diagnostics-ui.js) from the
+   `_detail` record parsers/mustgather/detail.py attaches to each object: the Kubernetes conditions table, the
+   object's recent events, the container cards, the field ownership (managedFields) table and the JSON viewer
+   (diagCode, rendered when its section opens). A template imports this file and calls k8s_detail_script() once;
+   its own render function then composes the page from window.k8sDetail and window.diagDetail. #}
+{% macro k8s_detail_script() -%}
+<script>
+(function () {
+  var D = window.diagDetail;
+  var OWNER_TABS = { ReplicaSet: ['workloads', 'replicaset'], StatefulSet: ['workloads', 'statefulset'], DaemonSet: ['workloads', 'daemonset'], Deployment: ['workloads', 'deployment'], Node: ['compute', 'nodes'], MachineConfigPool: ['compute', 'mcp'] };
+  var KIND_BADGE = { human: 'warn', controller: 'muted', status: 'info' };
+  function text(v) { return v === undefined || v === null ? '' : String(v); }
+  // Kind name -> a cross-link to its page when there is one, else the text
+  function ownerLink(owner) {
+    if (!owner || !owner.name) return '';
+    var tab = OWNER_TABS[owner.kind];
+    return tab ? D.link(owner.kind + ' ' + owner.name, tab[0], tab[1], owner.name, 'Open the ' + owner.kind) : owner.kind + ' ' + owner.name;
+  }
+  function labels(map) {
+    var keys = Object.keys(map || {});
+    if (!keys.length) return '';
+    var wrap = D.el('span', 'ui-detail-chips');
+    keys.sort().forEach(function (k) { wrap.appendChild(D.chip(k + '=' + map[k], k + '=' + map[k])); });
+    return wrap;
+  }
+  function statusBadge(status, type) {
+    var ok = status === 'True';
+    var badKinds = { Degraded: true, ReplicaFailure: true, MemoryPressure: true, DiskPressure: true, PIDPressure: true, NetworkUnavailable: true, Failed: true };
+    var kind = badKinds[type] ? (ok ? 'bad' : 'ok') : (ok ? 'ok' : (status === 'False' ? 'warn' : 'muted'));
+    return D.badge(kind, status || 'Unknown');
+  }
+  // status.conditions: type, status, reason, message, since
+  function conditions(rows) {
+    if (!rows || !rows.length) return D.el('p', 'ui-muted', 'No conditions recorded on the object.');
+    return D.table([{ text: 'Type', w: 'narrow' }, { text: 'Status', w: 'status' }, { text: 'Reason', w: 'narrow' }, { text: 'Message', w: 'wrap' }, { text: 'Since', w: 'num' }],
+      rows.map(function (c) { return [c.type, statusBadge(c.status, c.type), c.reason, c.message, D.when(c.since)]; }));
+  }
+  // the object's recent events, the newest first (a Warning in amber), linked to the Events page
+  function events(rows, name) {
+    var wrap = D.el('div', 'ui-detail-stack');
+    if (!rows || !rows.length) wrap.appendChild(D.el('p', 'ui-muted', 'No event names this object in the gather (events are kept for an hour by default).'));
+    else wrap.appendChild(D.table([{ text: 'Type', w: 'status' }, { text: 'Reason', w: 'narrow' }, { text: 'Message', w: 'wrap' }, { text: 'Count', w: 'num' }, { text: 'Last seen', w: 'num' }, { text: 'From', w: 'narrow' }],
+      rows.map(function (e) { return { cells: [D.badge(e.type === 'Warning' ? 'warn' : 'muted', e.type), e.reason, e.message, e.count, D.when(e.last) + (e.relative ? ' (' + e.relative + ')' : ''), e.component], cls: e.type === 'Warning' ? 'ui-row-warn' : '' }; })));
+    if (name) wrap.appendChild(D.link('Open the Events page for ' + name, 'system', 'events', name));
+    return wrap;
+  }
+  function stateText(s) {
+    if (!s) return '';
+    var parts = [s.kind];
+    if (s.reason) parts.push(s.reason);
+    if (s.exit_code !== null && s.exit_code !== undefined) parts.push('exit code ' + s.exit_code);
+    if (s.started_at) parts.push('since ' + D.when(s.started_at));
+    if (s.finished_at) parts.push('ended ' + D.when(s.finished_at));
+    return parts.join(', ') + (s.message ? ': ' + s.message : '');
+  }
+  function stateBadge(s) {
+    if (!s) return D.badge('muted', 'no status');
+    if (s.kind === 'running') return D.badge('ok', 'running');
+    if (s.kind === 'terminated') return D.badge(s.exit_code === 0 ? 'muted' : 'bad', 'terminated' + (s.reason ? ': ' + s.reason : ''));
+    return D.badge(/BackOff|Err|Error|Invalid/.test(s.reason || '') ? 'bad' : 'warn', 'waiting' + (s.reason ? ': ' + s.reason : ''));
+  }
+  function envLine(e) {
+    var span = D.el('span'); span.appendChild(D.el('span', 'ui-mono', e.name));
+    if (e.from) span.appendChild(document.createTextNode(' ← ' + e.from));
+    else if (e.masked) { span.appendChild(document.createTextNode(' = ')); span.appendChild(D.masked(e.value)); }
+    else if (e.value) span.appendChild(document.createTextNode(' = ' + e.value));
+    return span;
+  }
+  function resources(map) { var keys = Object.keys(map || {}); return keys.length ? keys.sort().map(function (k) { return k + ' ' + map[k]; }).join(', ') : ''; }
+  // one card per container: image, state and last state, restarts, ready, resources, ports, probes, mounts, env
+  function containers(cards) {
+    if (!cards || !cards.length) return D.el('p', 'ui-muted', 'No containers in the spec.');
+    return D.cards(cards.map(function (c) {
+      var badges = [stateBadge(c.state)];
+      if (c.init) badges.unshift(D.badge('muted', 'init'));
+      if (c.restarts) badges.push(D.badge(c.restarts >= 5 ? 'warn' : 'muted', c.restarts + ' restart' + (c.restarts === 1 ? '' : 's')));
+      if (c.state) badges.push(D.badge(c.ready ? 'ok' : 'warn', c.ready ? 'ready' : 'not ready'));
+      var items = [
+        ['Image', c.image, 'mono'], ['Image ID', c.image_id ? c.image_id.replace(/^.*@/, '@').slice(0, 24) + (c.image_id.length > 24 ? '…' : '') : '', 'mono'],
+        ['State', stateText(c.state)], ['Last state', stateText(c.last_state)],
+        ['Requests', resources(c.requests)], ['Limits', resources(c.limits)],
+        ['Ports', (c.ports || []).join(', ')],
+        ['Liveness', (c.probes || {}).liveness], ['Readiness', (c.probes || {}).readiness], ['Startup', (c.probes || {}).startup],
+        ['Mounts', c.mounts && c.mounts.length ? D.list(c.mounts) : ''],
+        ['Env', c.env && c.env.length ? D.list(c.env.map(envLine)) : ''], ['Env from', (c.env_from || []).join(', ')],
+        ['Command', c.command, 'mono'], ['Args', c.args, 'mono'], ['Pull policy', c.pull_policy],
+      ];
+      return { title: c.name, badges: badges, body: D.kv(items) };
+    }));
+  }
+  // who last wrote which fields (metadata.managedFields): the newest entry first, a person's tool in amber
+  function ownership(own) {
+    var wrap = D.el('div', 'ui-detail-stack');
+    var entries = own && own.entries || [];
+    if (!entries.length) { wrap.appendChild(D.el('p', 'ui-muted', 'No managedFields on the object: the server recorded no field managers (an old cluster, or the gather trimmed them).')); return wrap; }
+    if (own.latest_human) wrap.appendChild(D.el('p', '', 'Last edited by a person’s tool: ' + own.latest_human.manager + (own.latest_human.relative ? ' ' + own.latest_human.relative : '') + (own.latest_human.when ? ' (' + own.latest_human.when + ')' : '') + '.'));
+    wrap.appendChild(D.table([{ text: 'Manager', w: 'narrow' }, { text: 'Operation', w: 'status' }, { text: 'Fields', w: 'wrap' }, { text: 'When', w: 'num' }],
+      entries.map(function (e) {
+        var fields = D.el('span', 'ui-detail-chips');
+        e.fields.forEach(function (f) { fields.appendChild(D.chip(f, f)); });
+        if (e.fields_total > e.fields.length) fields.appendChild(D.el('span', 'ui-muted', ' +' + (e.fields_total - e.fields.length) + ' more'));
+        var manager = D.el('span'); manager.appendChild(D.badge(KIND_BADGE[e.kind] || 'muted', e.kind)); manager.appendChild(document.createTextNode(' ' + e.manager));
+        return [manager, e.operation + (e.subresource ? ' (' + e.subresource + ')' : ''), fields, (e.when || '') + (e.relative ? ' (' + e.relative + ')' : '')];
+      })));
+    if (own.total > entries.length) wrap.appendChild(D.el('p', 'ui-muted', (own.total - entries.length) + ' older entries not shown.'));
+    wrap.appendChild(D.el('p', 'ui-muted', 'managedFields records which fields each manager owns and when it last wrote them, not the old values; the Audit page has the request bodies.'));
+    return wrap;
+  }
+  // the JSON viewer, rendered the first time its section opens (diagCode)
+  function code(raw, kind, title) {
+    var host = D.el('div');
+    var done = false;
+    return D.section(title || (kind + ' JSON'), host, { onOpen: function () { if (done) return; done = true; window.diagCode.render(host, raw, { kind: kind }); } });
+  }
+  function metadata(raw, d) {
+    var meta = raw.metadata || {};
+    return [['Namespace', meta.namespace], ['Created', D.when(meta.creationTimestamp) + (d.age ? ' (' + d.age + ' before the gather)' : '')], ['Owner', ownerLink(d.owner)], ['UID', meta.uid, 'mono'], ['Resource version', meta.resourceVersion], ['Labels', labels(meta.labels)], ['Annotations', meta.annotations ? Object.keys(meta.annotations).length + ' (in the JSON below)' : '']];
+  }
+  // a whole page for the simpler kinds: the header, the findings, Summary, the page's own sections, then (when the
+  // _detail record has them) the pod template, Conditions, Events and Field ownership, and the JSON viewer last
+  function page(view, spec) {
+    var d = spec.d || {};
+    var actions = [{ label: 'Copy name', copy: spec.name }, { label: 'Copy JSON', copy: window.diagCode.text(spec.raw) }].concat(spec.actions || []);
+    D.header(view, { title: spec.title || spec.name, crumbs: spec.crumbs, badge: spec.badge || d.badge, actions: actions });
+    D.findings(view, d.findings || []);
+    var body = D.body(view);
+    body.appendChild(D.section('Summary', D.kv(spec.summary), { open: true }));
+    (spec.sections || []).forEach(function (s) { if (s) body.appendChild(D.section(s.title, s.content, { open: s.open !== false, count: s.count })); });
+    if (d.containers && d.containers.length) body.appendChild(D.section('Pod template', containers(d.containers), { open: true, count: d.containers.length }));
+    // an empty Conditions section only where the kind reports conditions at all; an empty Events section only for a
+    // namespaced object (a cluster-scoped kind's events live nowhere the gather lists)
+    if (d.conditions && (d.conditions.length || (spec.raw.status && typeof spec.raw.status === 'object'))) body.appendChild(D.section('Conditions', conditions(d.conditions), { open: true, count: d.conditions.length }));
+    if (d.events && (d.events.length || (spec.raw.metadata && spec.raw.metadata.namespace))) body.appendChild(D.section('Events', events(d.events, spec.name), { open: true, count: d.events.length }));
+    if (d.ownership) body.appendChild(D.section('Field ownership', ownership(d.ownership), { count: d.ownership.total }));
+    (spec.after || []).forEach(function (s) { if (s) body.appendChild(D.section(s.title, s.content, { open: s.open !== false, count: s.count })); });
+    body.appendChild(code(spec.raw, spec.kind, spec.codeTitle));
+    return true;
+  }
+  window.k8sDetail = { page: page, ownerLink: ownerLink, labels: labels, statusBadge: statusBadge, conditions: conditions, events: events, containers: containers, ownership: ownership, code: code, metadata: metadata, stateText: stateText, text: text };
+})();
+</script>
+{%- endmacro %}

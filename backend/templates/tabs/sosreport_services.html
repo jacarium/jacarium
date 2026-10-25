@@ -22,13 +22,13 @@
       <thead>
         <tr>
           {{ ui.xrow_th() }}
-          <th data-key="name">Unit</th>
-          <th data-key="load">Load</th>
-          <th data-key="active" data-sorted="descending">Active</th>
-          <th data-key="description">Description</th>
-          <th data-key="memory" class="ui-num">Memory</th>
-          <th data-key="tasks" class="ui-num">Tasks</th>
-          <th data-key="since">Since</th>
+          <th data-key="name" data-w="text">Unit</th>
+          <th data-key="load" data-w="status" data-p="3">Load</th>
+          <th data-key="active" data-sorted="descending" data-w="status">Active</th>
+          <th data-key="description" data-w="flex">Description</th>
+          <th data-key="memory" class="ui-num" data-w="num">Memory</th>
+          <th data-key="tasks" class="ui-num" data-w="num">Tasks</th>
+          <th data-key="since" data-w="narrow" data-p="3">Since</th>
         </tr>
       </thead>
       <tbody id="unitTableBody">
@@ -67,9 +67,9 @@
           <div>{{ ui.kv_title('Drop-ins') }}<ul class="ui-files">{% for f in unit.drop_ins %}<li><span class="ui-mono">{{ f }}</span>{{ ui.copy(f) }}</li>{% endfor %}</ul></div>
           {% endif %}
           {% if unit.cgroup_lines %}
-          {% if unit.cgroup_lines | length > 12 %}{% call ui.fold('CGroup (' ~ unit.cgroup_lines | length ~ ' lines)') %}<pre>{{ unit.cgroup_lines | join('\n') }}</pre>{% endcall %}{% else %}<div>{{ ui.kv_title('CGroup') }}<pre>{{ unit.cgroup_lines | join('\n') }}</pre></div>{% endif %}
+          {% if unit.cgroup_lines | length > 12 %}{% call ui.fold('CGroup (' ~ unit.cgroup_lines | length ~ ' lines)') %}{{ ui.code(unit.cgroup_lines | join('\n'), 'Copy cgroup tree') }}{% endcall %}{% else %}<div>{{ ui.kv_title('CGroup') }}<pre>{{ unit.cgroup_lines | join('\n') }}</pre></div>{% endif %}
           {% endif %}
-          {% if unit.raw %}{% call ui.fold('Raw systemctl status') %}<pre>{{ unit.raw }}</pre>{% endcall %}{% endif %}
+          {% if unit.raw %}{% call ui.fold('Raw systemctl status') %}{{ ui.code(unit.raw, 'Copy systemctl status') }}{% endcall %}{% endif %}
         {% endcall %}
         {% endfor %}
       </tbody>

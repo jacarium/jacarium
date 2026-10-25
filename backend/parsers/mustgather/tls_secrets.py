@@ -4,7 +4,8 @@ import glob
 from datetime import datetime, timezone
 
 from parsers.findings import finding, recall, remember, sort_findings, no_data
-from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all, list_items, unreadable, unreadable_finding
+from parsers.mustgather import detail
 
 def parse(directory):
     result = []
@@ -69,15 +70,8 @@ def parse(directory):
             with open(filepath, "r") as f:
                 data = safe_load(f)
 
-            if not data:
-                continue
-
-            # Handle SecretList
-            items = []
-            if data.get("kind") == "SecretList" and "items" in data:
-                items = data["items"]
-            elif data.get("kind") == "Secret":
-                items = [data]
+            # a SecretList (items may be null or empty: an empty namespace), a single Secret, or an empty document
+            items = list_items(data, 'Secret')
 
             for secret in items:
                 if not secret:
@@ -122,15 +116,17 @@ def parse(directory):
                         "status": status,
                         "created": metadata.get("creationTimestamp", ""),
                         "annotations": annotations,
-                        "raw": secret
+                        "raw": secret,
+                        # the detail page's data: field ownership (a Secret has no conditions)
+                        "detail": detail.generic_detail(secret, [], collection_time, "the secret"),
                     })
 
                 except Exception as e:
                     # Skip secrets with invalid date format
                     continue
 
-        except Exception as e:
-            result.append({"error": str(e), "file": filepath})
+        except Exception as e:   # a broken file: a readable reason, never the raw exception
+            result.append(unreadable(filepath, e, directory))
 
     # expired first, then expiring soonest
     result.sort(key=lambda t: (0 if t.get('status') == 'Expired' else (1 if t.get('status') == 'Expiring Soon' else 2), t.get('days_left', 0)))
@@ -147,6 +143,10 @@ def findings_for(secrets):
     """The Findings strip: expired certificates (bad), ones expiring within 30 days (warn) and within 60 (info), the
     counts."""
     out = []
+    broken = unreadable_finding([t for t in secrets if t.get('file') and not t.get('status')], 'secrets')
+    if broken:
+        out.append(broken)
+    secrets = [t for t in secrets if t.get('status')]
     expired = [t for t in secrets if t.get('status') == 'Expired']
     soon = [t for t in secrets if t.get('status') == 'Expiring Soon' and t.get('days_left', 99) <= 30]
     later = [t for t in secrets if t.get('status') == 'Expiring Soon' and t.get('days_left', 0) > 30]

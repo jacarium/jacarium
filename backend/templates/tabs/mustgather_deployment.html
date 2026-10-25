@@ -1,4 +1,5 @@
 {% import "tabs/_ui.html" as ui %}
+{% import "tabs/_detail.html" as detail %}
 {{ ui.findings(findings) }}
 <div id="deploymentListPanel" class="grid grid-cols-1 gap-4">
  <div class="panel rounded-lg shadow-sm w-full">
@@ -18,12 +19,12 @@
  <table class="ui-table">
  <thead>
  <tr>
- <th class="cursor-pointer" data-sorted="ascending" onclick="window.sortBy('namespace')">Namespace <i id="deployment-indicator-namespace" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer" onclick="window.sortBy('name')">Name <i id="deployment-indicator-name" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer" onclick="window.sortBy('replicas')">Replicas <i id="deployment-indicator-replicas" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer" onclick="window.sortBy('updated')">Updated <i id="deployment-indicator-updated" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer" onclick="window.sortBy('available')">Available <i id="deployment-indicator-available" class="ml-1 fas text-sm"></i></th>
- <th class="cursor-pointer" onclick="window.sortBy('age')">Age <i id="deployment-indicator-age" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-sorted="ascending" data-w="narrow" data-p="2" onclick="window.sortBy('namespace')">Namespace <i id="deployment-indicator-namespace" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-w="flex" onclick="window.sortBy('name')">Name <i id="deployment-indicator-name" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-w="num" onclick="window.sortBy('replicas')">Replicas <i id="deployment-indicator-replicas" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-w="num" onclick="window.sortBy('updated')">Updated <i id="deployment-indicator-updated" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-w="num" onclick="window.sortBy('available')">Available <i id="deployment-indicator-available" class="ml-1 fas text-sm"></i></th>
+ <th class="cursor-pointer" data-w="narrow" data-p="2" onclick="window.sortBy('age')">Age <i id="deployment-indicator-age" class="ml-1 fas text-sm"></i></th>
  </tr>
  </thead>
  <tbody id="deployment-table-body">
@@ -33,67 +34,26 @@
  </div>
 </div>
 
-<div id="deploymentPanel" style="display: none;">
- <div class="space-y-4">
- <div class="mb-4">
- <button onclick="window.backFromDeploymentModal()" class="btn btn-secondary flex items-center gap-2">
- Back
- </button>
- </div>
+{{ ui.detail_page('deploymentDetail') }}
 
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-info-circle mr-2"></i> Deployment Details
- </h2>
- <div class="overflow-x-auto">
- <table class="ui-table" id="deploymentDetailsTable"></table>
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-stethoscope mr-2"></i> Deployment Conditions
- </h2>
- <div id="deploymentConditionsTable" class="text-sm space-y-2">
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-file mr-2"></i> Deployment YAML
- </h2>
- <div class="mb-2">
- <input
- id="deploymentYamlFilter"
- type="text"
- placeholder="Filter YAML lines..."
- class="ui-input w-full"
- />
- </div>
- <div id="deploymentJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
- </div>
- </div>
-</div>
-
+{{ detail.k8s_detail_script() }}
 <script>
 
  var deploymentsData = {{ data | tojson }};
+ delete deploymentsData._unreadable;   // the files that could not be read: the Findings strip names them
  var currentSort = { key: 'namespace', direction: 1 };
  var deploymentCurrentPage = 1;
  var deploymentPageSize = 100;
 
  var deploymentTableBody = document.getElementById("deployment-table-body");
- var deploymentDetailsTable = document.getElementById("deploymentDetailsTable");
- var viewer = document.getElementById("deploymentJsonViewer");
  var namespaceDeploymentFilter = document.getElementById("deploymentNamespaceFilter");
  var searchDeploymentInput = document.getElementById("search-input");
 
  var deploymentListPanel = document.getElementById("deploymentListPanel");
- var deploymentPanel = document.getElementById("deploymentPanel");
+ var deploymentDetailView = document.getElementById("deploymentDetail");
+ var byKey = {};   // "namespace/name" -> the parsed deployment, for the detail
 
  var flattenedDeployments = [];
- var currentDeployment = null;
- var lastClickedRow = null;
 
  Object.entries(deploymentsData).forEach(([ns, deploymentsInNamespace]) => {
  Object.entries(deploymentsInNamespace).forEach(([name, dep]) => {
@@ -219,6 +179,9 @@
  `;
  row.style.cursor = 'default';
  } else {
+ row.setAttribute('data-detail', dep.namespace + '/' + dep.name);
+ row.tabIndex = 0;
+ byKey[dep.namespace + '/' + dep.name] = dep;
  row.innerHTML = `
  <td>${dep.namespace}</td>
  <td>${dep.name}</td>
@@ -227,10 +190,6 @@
  <td>${dep.available}</td>
  <td>${dep.age}</td>
  `;
- row.addEventListener("click", () => {
- lastClickedRow = row;
- openDeploymentDetails(dep);
- });
  }
 
  deploymentTableBody.appendChild(row);
@@ -261,10 +220,6 @@
  applyFiltersAndRender();
  }
 
- function openDeploymentDetails(dep) {
- currentDeployment = dep;
- showDeploymentDetails(dep);
- }
 
 
  function resetPodIndicators() {
@@ -358,153 +313,54 @@
  return num;
  }
 
- function showDeploymentDetails(dep) {
- currentDeployment = dep;
+ // ============================================================================
+ // THE DETAIL (the shared diagDetail component; the data is the parser's _detail record)
+ // ============================================================================
 
- viewer.innerHTML = renderJSONWithoutHighlight(dep.raw);
- deploymentListPanel.style.setProperty('display', 'none', 'important');
- deploymentPanel.style.setProperty('display', 'block', 'important');
-
- // Scroll to top - find the scrollable parent by walking up the DOM
- setTimeout(() => {
- function findScrollableParent(element) {
- let parent = element.parentElement;
- while (parent) {
- const overflow = window.getComputedStyle(parent).overflow;
- const overflowY = window.getComputedStyle(parent).overflowY;
- if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
- parent.scrollHeight > parent.clientHeight) {
- return parent;
+ const D = window.diagDetail, K = window.k8sDetail;
+ function renderDeploymentDetail(key, view) {
+ const dep = byKey[key];
+ if (!dep || !dep.raw || dep.name === 'No deployments') return false;
+ const raw = dep.raw, d = raw._detail || {}, s = d.summary || {};
+ D.header(view, {
+ title: dep.name, crumbs: ['Deployments', dep.namespace, dep.name],
+ badge: d.badge || { kind: 'muted', text: dep.available + '/' + dep.replicas + ' available' },
+ actions: [
+ { label: 'Copy name', copy: dep.name },
+ { label: 'Copy JSON', copy: window.diagCode.text(raw) },
+ { label: 'Open pods', tab: 'workloads', subTab: 'pod', query: dep.name, title: 'The Pods page, searched for this deployment' },
+ { label: 'Open events', tab: 'system', subTab: 'events', query: dep.name, title: 'The Events page, searched for this deployment' },
+ ],
+ });
+ D.findings(view, d.findings || []);
+ const body = D.body(view);
+ const n = (v) => (v === null || v === undefined ? '' : String(v));
+ body.appendChild(D.section('Summary', D.kv([
+ ['Namespace', dep.namespace],
+ ['Replicas', s.replicas !== undefined ? s.replicas + ' wanted, ' + s.updated + ' updated, ' + s.ready + ' ready, ' + s.available + ' available' + (s.unavailable ? ', ' + s.unavailable + ' unavailable' : '') : ''],
+ ['Strategy', s.strategy ? s.strategy + (s.strategy === 'RollingUpdate' ? ' (max surge ' + n(s.max_surge) + ', max unavailable ' + n(s.max_unavailable) + ')' : '') : ''],
+ ['Min ready', s.min_ready ? s.min_ready + ' s' : ''], ['Progress deadline', s.progress_deadline ? s.progress_deadline + ' s' : ''], ['Revision history', n(s.revision_history)],
+ ['Revision', s.revision], ['Generation', s.generation !== undefined && s.generation !== null ? s.generation + (s.observed !== undefined && s.observed !== null ? ' (observed ' + s.observed + ')' : '') : ''],
+ ['Paused', s.paused ? 'yes' : ''], ['Selector', K.labels(s.selector)],
+ ['Age', s.age ? s.age + ' (created ' + D.when(s.created) + ')' : D.when(s.created)],
+ ['Labels', K.labels(s.labels)], ['Annotations', s.annotations ? s.annotations + ' (in the JSON below)' : ''],
+ ]), { open: true }));
+ const cards = d.containers || [];
+ body.appendChild(D.section('Pod template', K.containers(cards), { open: true, count: cards.length }));
+ body.appendChild(D.section('Conditions', K.conditions(d.conditions), { open: true, count: (d.conditions || []).length }));
+ const rs = d.replicasets || [];
+ body.appendChild(D.section('ReplicaSets', rs.length
+ ? D.table([{ text: 'Name', w: 'wrap' }, { text: 'Revision', w: 'num' }, { text: 'Replicas', w: 'num' }, { text: 'Ready', w: 'num' }, { text: 'Available', w: 'num' }, { text: 'Age', w: 'num' }],
+ rs.map((r, i) => ({ cells: [D.link(r.name, 'workloads', 'replicaset', 'detail=' + dep.namespace + '/' + r.name, 'Open the ReplicaSet'), r.revision + (i === 0 ? ' (current)' : ''), r.replicas, r.ready, r.available, r.age], cls: '' })))
+ : 'No ReplicaSet of this deployment in the gather (namespaces/' + dep.namespace + '/apps/replicasets.yaml).', { open: true, count: rs.length }));
+ body.appendChild(D.section('Events', K.events(d.events, dep.name), { open: true, count: (d.events || []).length }));
+ body.appendChild(D.section('Field ownership', K.ownership(d.ownership), { count: d.ownership ? d.ownership.total : 0 }));
+ body.appendChild(K.code(raw, 'Deployment'));
+ return true;
  }
- parent = parent.parentElement;
- }
- return null;
- }
-
- const scrollableParent = findScrollableParent(deploymentPanel);
- if (scrollableParent) {
- scrollableParent.scrollTo({top: 0, behavior: 'instant'});
- }
- }, 0);
-
- deploymentDetailsTable.innerHTML = `
- <tr><td>Name:</td><td>${dep.name}</td></tr>
- <tr><td>Namespace:</td><td>${dep.namespace}</td></tr>
- <tr><td>Replicas:</td><td>${dep.replicas}</td></tr>
- <tr><td>Updated:</td><td>${dep.updated}</td></tr>
- <tr><td>Available:</td><td>${dep.available}</td></tr>
- <tr><td>Age:</td><td>${dep.age}</td></tr>
- `;
-
- const conditions = dep.raw?.status?.conditions || [];
- const conditionsTable = document.getElementById("deploymentConditionsTable");
-
- if (conditions.length === 0) {
- conditionsTable.innerHTML =
- '<div class="p-4 rounded-lg">' +
- '<p class="text-center">No conditions available</p>' +
- '</div>';
- } else {
- let tableHTML =
- `<div class="text-sm mb-2">Showing ${conditions.length} condition(s)</div>` +
- '<table class="ui-table">' +
- '<thead>' +
- '<tr>' +
- '<th>Type</th>' +
- '<th>Status</th>' +
- '<th>Reason</th>' +
- '<th>Message</th>' +
- '<th>Last Updated</th>' +
- '<th>Last Transition</th>' +
- '</tr>' +
- '</thead>' +
- '<tbody>';
-
- for (const cond of conditions) {
- tableHTML +=
- '<tr>' +
- `<td>${cond.type}</td>` +
- `<td>${cond.status}</td>` +
- `<td>${cond.reason}</td>` +
- `<td class="break-all">${cond.message}</td>` +
- `<td>${new Date(cond.lastUpdateTime).toLocaleString('en-US', {
-     month: 'short',
-     day: '2-digit',
-     year: 'numeric',
-     hour: '2-digit',
-     minute: '2-digit',
-     timeZone: 'UTC',
-     timeZoneName: 'short'
-   })}</td>` +
- `<td>${new Date(cond.lastTransitionTime).toLocaleString('en-US', {
-     month: 'short',
-     day: '2-digit',
-     year: 'numeric',
-     hour: '2-digit',
-     minute: '2-digit',
-     timeZone: 'UTC',
-     timeZoneName: 'short'
-   })}</td>` +
- '</tr>';
- }
-
- tableHTML += '</tbody></table>';
- conditionsTable.innerHTML = tableHTML;
- }
-
- // Setup YAML filter
- const yamlFilterInput = document.getElementById('deploymentYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- yamlFilterInput.removeEventListener('input', filterDeploymentYaml);
- yamlFilterInput.addEventListener('input', filterDeploymentYaml);
- }
- }
-
- function highlightJSON(line) {
- line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
- return line
- .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
- .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
- .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
- .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
- .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
- }
-
- function renderJSONWithoutHighlight(data, filter = '') {
- const formatted = JSON.stringify(data, null, 2);
- return formatted.split('\n')
- .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
- .map(line => {
- const highlighted = highlightJSON(line);
- return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
- }).join('');
- }
-
- function filterDeploymentYaml() {
- if (!currentDeployment) return;
- const filterInput = document.getElementById('deploymentYamlFilter');
- const filterValue = filterInput ? filterInput.value : '';
- viewer.innerHTML = renderJSONWithoutHighlight(currentDeployment.raw, filterValue);
- }
-
- window.backFromDeploymentModal = function() {
- deploymentPanel.style.setProperty('display', 'none', 'important');
- deploymentListPanel.style.setProperty('display', 'grid', 'important');
- viewer.innerHTML = '';
-
- const yamlFilterInput = document.getElementById('deploymentYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- }
-
- // Scroll back to the last clicked row
- if (lastClickedRow) {
- setTimeout(() => {
- lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
- }, 0);
- }
- }
+ D.register(deploymentListPanel, deploymentDetailView, { rows: 'tbody tr[data-detail]', render: renderDeploymentDetail });
+ window.showDeploymentDetails = function (dep) { D.open(dep.namespace + '/' + dep.name); };
+ window.backFromDeploymentModal = function () { D.back(); };
 
  updateNamespaceFilterOptions(showEmptyNamespacesCheckbox.checked);
  applyFiltersAndRender();

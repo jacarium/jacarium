@@ -305,7 +305,7 @@ def verify_mustgather(client, directory):
     lc = (d.get("log_collection") or {}).get("log_collection") or {}
     sections = {s["key"]: s for s in lc.get("sections", [])}
     check("Log Collection: last tab; sections for the top-level dirs, namespaces, container logs, host service, audit and network logs",
-          list(res)[-1] == "log_collection" and list(sections) == ["top", "namespaces", "pod_logs", "host", "audit", "network"], str(list(sections)))
+          "log_collection" in list(res)[-2:] and list(sections) == ["top", "namespaces", "pod_logs", "host", "audit", "network"], str(list(sections)))   # the Log Viewer is its sub-tab, after it
     check("Log Collection: every section largest first, the workers' kubelet log the largest host service log, master-0 the largest audit log",
           all([i["size"] for i in s["rows"]] == sorted([i["size"] for i in s["rows"]], reverse=True) for s in sections.values())
           and sections["host"]["rows"][0]["name"] == "workers/kubelet_service.log" and sections["audit"]["rows"][0]["name"].startswith("kube-apiserver/"),

@@ -94,13 +94,13 @@
 
 
 
-.bl-rc { display: inline-flex; flex-wrap: wrap; gap: 3px; }
+.bl-rc { display: flex; flex-wrap: wrap; gap: 3px; }   /* block-level: under 640px it wraps on its own line below the cell's label instead of overflowing beside it */
 .bl-cmds > td { padding: 0 0 0 0; background: var(--os-card-secondary, #f0f0f0); white-space: normal; }
 .bl-cmds-inner { padding: 0; }
 .bl-cmds-note { font-size: 12px; color: var(--os-text-secondary, #6a6e73); margin-bottom: 4px; }
-.bl-cmd-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.bl-cmd-table td { padding: 2px 8px 2px 0; border: 0; white-space: nowrap; vertical-align: top; }
-.bl-cmd-table td.bl-exec { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); width: 100%; }
+/* the command rows: the shared nested table (table.ui-nested, styles.css) sizes the time, share and rc cells to their
+   content and lets only the command wrap */
+.bl-cmd-table td.bl-exec { font-family: var(--font-mono, "Red Hat Mono", Consolas, monospace); }
 .bl-cmd-table tr[hidden] { display: none; }
 .bl-notes { font-size: 12px; color: var(--os-text-secondary, #6a6e73); margin-top: 8px; }
 
@@ -167,13 +167,13 @@
     <thead><tr>
       <th class="ui-xrow-th" aria-label="Details"></th>
       <th class="ui-num bl-num" data-key="rank">#</th>
-      <th data-key="name">Plugin</th>
+      <th data-key="name" data-w="narrow">Plugin</th>
       <th class="ui-num bl-num bl-sorted" aria-sort="descending" data-key="seconds" data-dir="desc">Run time</th>
-      <th class="ui-num bl-num" data-key="share">Share</th>
-      <th class="ui-num bl-num" data-key="commands">Commands</th>
+      <th class="ui-num bl-num" data-key="share" data-w="num" data-p="3">Share</th>
+      <th class="ui-num bl-num" data-key="commands" data-w="num" data-p="2">Commands</th>
       <th class="ui-num bl-num" data-key="failed">Failed</th>
-      <th data-key="timeout">Timeout</th>
-      <th data-key="rc">Return codes</th>
+      <th data-key="timeout" data-w="status" data-p="3">Timeout</th>
+      <th data-key="rc" data-w="flex">Return codes</th>
     </tr></thead>
     <tbody>
     {% for p in b.plugins %}
@@ -187,7 +187,7 @@
         <td class="ui-num bl-num">{{ p.commands_count }}</td>
         <td class="ui-num bl-num">{% if p.failed %}<span class="ui-badge ui-badge-warn bl-tag bl-tag-warn">{{ p.failed }}</span>{% else %}0{% endif %}</td>
         <td>{% if p.timeout_hit %}<span class="ui-badge ui-badge-bad bl-tag bl-tag-bad">timed out{% if p.timeout %} at {{ p.timeout }} s{% endif %}</span>{% elif p.timeout %}<span class="bl-stat-sub">{{ p.timeout }} s</span>{% endif %}</td>
-        <td><span class="bl-rc">{% for r in p.rc[:6] %}<span class="bl-tag {% if r.rc == '0' %}bl-tag-ok{% elif r.rc == '127' %}bl-tag-warn{% elif r.rc == 'none' %}bl-tag-muted{% else %}bl-tag-bad{% endif %}" title="return code {{ r.rc }}">{{ r.rc }}: {{ r.count }}</span>{% endfor %}{% if p.rc|length > 6 %}<span class="ui-badge ui-badge-muted bl-tag bl-tag-muted">+{{ p.rc|length - 6 }}</span>{% endif %}</span></td>
+        <td><span class="bl-rc">{% for r in p.rc[:6] %}<span class="ui-badge {% if r.rc == '0' %}ui-badge-ok{% elif r.rc == '127' %}ui-badge-warn{% elif r.rc == 'none' %}ui-badge-muted{% else %}ui-badge-bad{% endif %} bl-tag" title="{{ r.count }} command{{ 's' if r.count != 1 else '' }} {% if r.rc == 'none' %}without a return code{% else %}returned {{ r.rc }}{% if r.rc == '127' %} (not found){% elif r.rc == '0' %} (ok){% endif %}{% endif %}">{% if r.rc == 'none' %}no rc{% else %}rc {{ r.rc }}{% endif %} &times;{{ r.count }}</span>{% endfor %}{% if p.rc|length > 6 %}<span class="ui-badge ui-badge-muted bl-tag">+{{ p.rc|length - 6 }}</span>{% endif %}</span></td>
       </tr>
       <tr class="bl-cmds ui-xrow-panel" hidden>
         <td colspan="9" data-label=""><div class="bl-cmds-inner ui-xrow-body">
@@ -195,14 +195,18 @@
           <div class="bl-cmds-note">No individual command recorded: the time went into the plugin's own code and file copies{% if p.files_count %} ({{ p.files_count }} file spec{{ 's' if p.files_count != 1 else '' }}){% endif %}.</div>
           {% else %}
           <div class="bl-cmds-note">{{ p.commands|length }} command{{ 's' if p.commands|length != 1 else '' }} by run time{% if p.commands|length > TOP_CMDS %} &middot; <button type="button" class="bl-link bl-cmds-all" data-all="show all {{ p.commands|length }}" data-top="show the top {{ TOP_CMDS }}">show all {{ p.commands|length }}</button>{% endif %}</div>
-          <table class="bl-cmd-table">
+          <table class="ui-nested bl-cmd-table">
+            <thead><tr><th class="ui-num">Time</th><th class="ui-num" title="of the plugin's run time">Share</th><th class="ui-status">Return code</th><th class="ui-text">Command</th></tr></thead>
+            <tbody>
             {% for c in p.commands %}
             <tr class="bl-cmd{% if c.failed %} bl-cmd-failed{% endif %}"{% if loop.index > TOP_CMDS %} hidden data-extra="1"{% endif %}>
-              <td class="bl-num bl-mono">{{ c.time }}</td>
-              <td><span class="bl-tag {% if c.rc_label == '0' %}bl-tag-ok{% elif c.rc_label == '127' %}bl-tag-warn{% elif c.rc_label == 'none' %}bl-tag-muted{% else %}bl-tag-bad{% endif %}">rc {{ c.rc_label }}</span></td>
-              <td class="bl-exec">{{ c.exec }}</td>
+              <td class="ui-num bl-mono">{{ c.time }}</td>
+              <td class="ui-num">{{ (100 * c.seconds / p.seconds)|round(1) if p.seconds else 0 }}%</td>
+              <td class="ui-status"><span class="ui-badge {% if c.rc_label == '0' %}ui-badge-ok{% elif c.rc_label == '127' %}ui-badge-warn{% elif c.rc_label == 'none' %}ui-badge-muted{% else %}ui-badge-bad{% endif %} bl-tag" title="{% if c.rc_label == '127' %}command not found{% elif c.rc_label == 'none' %}no return code recorded{% elif c.rc_label == '0' %}succeeded{% else %}failed{% endif %}">{% if c.rc_label == 'none' %}no rc{% else %}rc {{ c.rc_label }}{% endif %}</span></td>
+              <td class="ui-text bl-exec">{{ c.exec }}</td>
             </tr>
             {% endfor %}
+            </tbody>
           </table>
           {% endif %}
         </div></td>

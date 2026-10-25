@@ -1,4 +1,5 @@
 {% import "tabs/_ui.html" as ui %}
+{% import "tabs/_detail.html" as detail %}
 {{ ui.findings(findings) }}
 <div id="podListPanel" class="grid grid-cols-1 gap-4">
  <div class="ui-grid-charts ui-grid-2">
@@ -56,31 +57,31 @@
  <table class="ui-table">
  <thead>
  <tr>
- <th class="cursor-pointer" data-key="namespace" data-sorted="ascending">
+ <th class="cursor-pointer" data-key="namespace" data-sorted="ascending" data-w="narrow" data-p="2">
  Namespace <i id="pod-indicator-namespace" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" data-key="name">
+ <th class="cursor-pointer" data-key="name" data-w="flex">
  Name <i id="pod-indicator-name" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" data-key="node">
+ <th class="cursor-pointer" data-key="node" data-w="text" data-p="2">
  Node <i id="pod-indicator-node" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" data-key="conditions">
+ <th class="cursor-pointer" data-key="conditions" data-w="status" data-p="3">
  Conditions <i id="pod-indicator-conditions" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" data-key="ready">
+ <th class="cursor-pointer" data-key="ready" data-w="num">
  Ready <i id="pod-indicator-ready" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" data-key="restarts">
+ <th class="cursor-pointer" data-key="restarts" data-w="num">
  Restarts <i id="pod-indicator-restarts" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" data-key="status">
+ <th class="cursor-pointer" data-key="status" data-w="status">
  Status <i id="pod-indicator-status" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" data-key="ip">
+ <th class="cursor-pointer" data-key="ip" data-w="narrow" data-p="3">
  IP <i id="pod-indicator-ip" class="ml-1 fas text-sm"></i>
  </th>
- <th class="cursor-pointer" data-key="age">
+ <th class="cursor-pointer" data-key="age" data-w="narrow" data-p="2">
  Age <i id="pod-indicator-age" class="ml-1 fas text-sm"></i>
  </th>
  </tr>
@@ -94,39 +95,9 @@
  </div>
 </div>
 
-<div id="podPanel" style="display: none;">
- <div class="space-y-4">
- <div class="mb-4">
- <button onclick="window.backFromPodModal()" class="btn btn-secondary flex items-center gap-2">
- Back
- </button>
- </div>
+{{ ui.detail_page('podDetail') }}
 
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-info-circle mr-2"></i> Container Status
- </h2>
- <div id="containerDetailsTable" class="text-sm space-y-2">
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-file mr-2"></i> Pod YAML
- </h2>
- <div class="mb-2">
- <input
- id="podYamlFilter"
- type="text"
- placeholder="Filter YAML lines..."
- class="ui-input w-full"
- />
- </div>
- <div id="jsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
- </div>
- </div>
-</div>
-
+{{ detail.k8s_detail_script() }}
 <script>
  // ============================================================================
  // DATA & STATE MANAGEMENT
@@ -153,13 +124,10 @@
  const filterStatus = document.getElementById('filter-status');
  const showEmptyCheckbox = document.getElementById('show-empty-namespaces');
 
- // Modal elements
  const podListPanel = document.getElementById("podListPanel");
- const podDetailsPanel = document.getElementById("podPanel");
- const jsonViewer = document.getElementById("jsonViewer");
+ const podDetailView = document.getElementById("podDetail");
+ const byKey = {};   // "namespace/name" -> the parsed pod, for the detail
 
- let currentPod = null;
- let lastClickedRow = null;
 
  // ============================================================================
  // UTILITY FUNCTIONS
@@ -394,6 +362,9 @@
  row.style.cursor = 'default';
  } else {
  row.className += " cursor-pointer";
+ row.setAttribute('data-detail', pod.namespace + '/' + pod.name);
+ row.tabIndex = 0;
+ byKey[pod.namespace + '/' + pod.name] = pod;
  row.innerHTML = `
  <td>${pod.namespace}</td>
  <td>${pod.name}</td>
@@ -405,11 +376,6 @@
  <td>${pod.ip}</td>
  <td>${pod.age}</td>
  `;
- row.addEventListener('click', () => {
- console.log('Row clicked for pod:', pod.name);
- lastClickedRow = row;
- window.showPodDetails(pod);
- });
  }
 
  tableBody.appendChild(row);
@@ -521,14 +487,14 @@
  const ph = PHASE_OF(pod.status);
  r.values[ph] = (r.values[ph] || 0) + 1;
  });
- const nodeRows = Object.values(perNode).sort((a, b) => b.count - a.count || a.node.localeCompare(b.node));
+ const nodeRows = Object.values(perNode).sort((a, b) => b.count - a.count || a.node.localeCompare(b.node)).map((r) => Object.assign(r, { key: r.node }));   // the key the chart hands a click: the node's full name (the select's value), not the shown short name
  const phases = ['Running', 'Pending', 'Failed', 'Unknown', 'Succeeded'].filter((p) => nodeRows.some((r) => r.values[p]));
  podsPerNodeChart = window.diagChart.categoryBars('podsPerNodeChart', nodeRows, {
  stacks: phases.map((p) => ({ key: p, label: p, role: PHASE_ROLE[p] })),
  value: (r, k) => r.values[k] || 0,
  capacity: (r) => r.capacity,
  tooltip: (r) => [r.count + ' pods on ' + r.node],
- onRow: (r) => { filterNode.value = r.node; filterNode.dispatchEvent(new Event('change')); },
+ onRow: (r) => { filterNode.value = r.node; filterNode.dispatchEvent(new Event('change')); },   // r.key = r.node (the select's value), set where the rows are built
  });
 
  // Pods per status chart
@@ -559,155 +525,76 @@
  }
 
  // ============================================================================
- // POD DETAILS MODAL
+ // THE DETAIL (the shared diagDetail component; the data is the parser's _detail record)
  // ============================================================================
 
-
- /**
- * Render JSON with highlighted matches
- */
- function highlightJSON(line) {
- // Escape HTML
- line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
- // Highlight JSON syntax
- return line
- .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:') // Keys
- .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>') // String values
- .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>') // Booleans
- .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>') // null
- .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>'); // Numbers
- }
-
- /**
- * Render JSON without search highlighting but with syntax highlighting
- */
- function renderJSONWithoutHighlight(data, filter = '') {
- const formatted = JSON.stringify(data, null, 2);
- return formatted.split('\n')
- .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
- .map(line => {
- const highlighted = highlightJSON(line);
- return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
- }).join('');
- }
-
- function filterPodYaml() {
- if (!currentPod) return;
- const filterInput = document.getElementById('podYamlFilter');
- const filterValue = filterInput ? filterInput.value : '';
- jsonViewer.innerHTML = renderJSONWithoutHighlight(currentPod.raw, filterValue);
- }
-
- /**
- * Show pod details modal
- */
- window.showPodDetails = function(pod) {
- currentPod = pod;
-
- // Show details panel, hide list panel
- podDetailsPanel.style.setProperty('display', 'block', 'important');
- podListPanel.style.setProperty('display', 'none', 'important');
-
- // Scroll to top - find the scrollable parent by walking up the DOM
- setTimeout(() => {
- function findScrollableParent(element) {
- let parent = element.parentElement;
- while (parent) {
- const overflow = window.getComputedStyle(parent).overflow;
- const overflowY = window.getComputedStyle(parent).overflowY;
- if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
- parent.scrollHeight > parent.clientHeight) {
- return parent;
- }
- parent = parent.parentElement;
- }
- return null;
- }
-
- const scrollableParent = findScrollableParent(podDetailsPanel);
- if (scrollableParent) {
- scrollableParent.scrollTo({top: 0, behavior: 'instant'});
- }
- }, 0);
-
- // Render YAML
- jsonViewer.innerHTML = renderJSONWithoutHighlight(pod.raw);
-
- // Render container status table
- const containerStatuses = pod.raw?.status?.containerStatuses || [];
- const detailsTable = document.getElementById('containerDetailsTable');
-
- if (containerStatuses.length === 0) {
- detailsTable.innerHTML = `
- `;
- } else {
- let tableHTML = `
- <div class="text-sm mb-2">Showing ${containerStatuses.length} container(s)</div>
- <table class="ui-table">
- <thead>
- <tr>
- <th>Name</th>
- <th>Ready</th>
- <th>Container ID</th>
- <th>Image</th>
- <th>Image ID</th>
- <th>Restart Count</th>
- <th>Started</th>
- <th>Start Time</th>
- </tr>
- </thead>
- <tbody>`;
-
- containerStatuses.forEach(cs => {
- const startTime = cs.state?.running?.startedAt || 'N/A';
- tableHTML += `
- <tr>
- <td>${cs.name}</td>
- <td>${cs.ready ? 'Yes' : 'No'}</td>
- <td class="break-all">${cs.containerID || 'N/A'}</td>
- <td class="break-all">${cs.image}</td>
- <td class="break-all">${cs.imageID}</td>
- <td>${cs.restartCount}</td>
- <td>${cs.started ? 'Yes' : 'No'}</td>
- <td>${startTime}</td>
- </tr>`;
+ const D = window.diagDetail, K = window.k8sDetail;
+ const PHASE_BADGE = { Running: 'ok', Completed: 'muted', Succeeded: 'muted', Pending: 'warn', Failed: 'bad', Unknown: 'bad' };
+ function renderPodDetail(key, view) {
+ const pod = byKey[key];
+ if (!pod || !pod.raw || pod.name === 'No Pods') return false;
+ const raw = pod.raw, d = raw._detail || {}, s = d.summary || {};
+ D.header(view, {
+ title: pod.name, crumbs: ['Pods', pod.namespace, pod.name],
+ badge: d.badge || { kind: PHASE_BADGE[pod.status] || 'muted', text: pod.status },
+ actions: [
+ { label: 'Copy name', copy: pod.name },
+ { label: 'Copy JSON', copy: window.diagCode.text(raw) },
+ { label: 'Open events', tab: 'system', subTab: 'events', query: pod.name, title: 'The Events page, searched for this pod' },
+ { label: 'Open logs', tab: 'log_collection', subTab: 'log_viewer', query: 'sources=' + pod.namespace + '/' + pod.name, title: 'The Log Viewer with this pod\'s container logs (current and previous)' },
+ ],
  });
-
- tableHTML += '</tbody></table>';
- detailsTable.innerHTML = tableHTML;
+ D.findings(view, d.findings || []);
+ const body = D.body(view);
+ // Summary: the key / value grid
+ const ips = (s.ips || []).filter((ip) => ip !== s.ip);
+ body.appendChild(D.section('Summary', D.kv([
+ ['Namespace', pod.namespace],
+ ['Node', s.node ? D.link(s.node, 'compute', 'nodes', s.node, 'Open the node') : '(unscheduled)'],
+ ['Phase', s.phase], ['State', s.state !== s.phase ? s.state : ''], ['Ready', s.ready], ['Restarts', s.restarts],
+ ['QoS', s.qos], ['Pod IP', s.ip + (ips.length ? ', ' + ips.join(', ') : ''), 'mono'], ['Host IP', s.host_ip, 'mono'],
+ ['Age', s.age ? s.age + ' (created ' + D.when(s.created) + ')' : D.when(s.created)], ['Started', D.when(s.started)],
+ ['Owner', K.ownerLink(s.owner)], ['Service account', s.service_account], ['Priority class', s.priority_class],
+ ['Labels', K.labels(s.labels)], ['Annotations', s.annotations ? s.annotations + ' (in the JSON below)' : ''], ['UID', s.uid, 'mono'],
+ ]), { open: true }));
+ // Containers: one card each
+ const cards = d.containers || [];
+ body.appendChild(D.section('Containers', K.containers(cards), { open: true, count: cards.length }));
+ // Conditions
+ body.appendChild(D.section('Conditions', K.conditions(d.conditions), { open: true, count: (d.conditions || []).length }));
+ // Volumes
+ const vols = d.volumes || [];
+ body.appendChild(D.section('Volumes', vols.length ? D.table([{ text: 'Name', w: 'narrow' }, { text: 'Kind', w: 'status' }, { text: 'Source', w: 'wrap' }], vols.map((v) => [v.name, v.kind, v.source])) : 'No volumes.', { count: vols.length }));
+ // Scheduling: node selector, tolerations, affinity (folded)
+ const sc = d.scheduling || {};
+ const sel = Object.keys(sc.node_selector || {});
+ body.appendChild(D.section('Scheduling', D.kv([
+ ['Node selector', sel.length ? K.labels(sc.node_selector) : ''],
+ ['Tolerations', sc.tolerations && sc.tolerations.length ? D.list(sc.tolerations) : ''],
+ ['Affinity', (sc.affinity || []).length ? sc.affinity.join(', ') + ' (in the JSON below)' : ''],
+ ['Topology spread', sc.topology_spread ? sc.topology_spread + ' constraint' + (sc.topology_spread === 1 ? '' : 's') : ''],
+ ['Priority', sc.priority !== null && sc.priority !== undefined ? String(sc.priority) + (sc.priority_class ? ' (' + sc.priority_class + ')' : '') : sc.priority_class],
+ ['Scheduler', sc.scheduler && sc.scheduler !== 'default-scheduler' ? sc.scheduler : ''], ['Runtime class', sc.runtime_class],
+ ['Restart policy', sc.restart_policy], ['DNS policy', sc.dns_policy], ['Host network', sc.host_network ? 'yes' : ''],
+ ['Termination grace', sc.termination_grace !== null && sc.termination_grace !== undefined ? sc.termination_grace + ' s' : ''],
+ ])));
+ // Events: the pod's own, newest first
+ body.appendChild(D.section('Events', K.events(d.events, pod.name), { open: true, count: (d.events || []).length }));
+ // Logs: the container log files the gather holds
+ const logs = d.logs || [];
+ body.appendChild(D.section('Container logs', logs.length
+ ? D.table([{ text: 'Container', w: 'narrow' }, { text: 'Log', w: 'status' }, { text: 'Size', w: 'num' }, { text: 'Path', w: 'wrap' }],
+ logs.map((l) => [l.container, l.kind + (l.empty ? ' (empty)' : ''), l.size, D.el('span', 'ui-mono', l.path)]))
+ : 'No container log in the gather for this pod (namespaces/' + pod.namespace + '/pods/' + pod.name + '/*/*/logs/).', { open: true, count: logs.length }));
+ // Field ownership (managedFields, folded)
+ body.appendChild(D.section('Field ownership', K.ownership(d.ownership), { count: d.ownership ? d.ownership.total : 0 }));
+ // the JSON viewer, rendered when opened
+ body.appendChild(K.code(raw, 'Pod'));
+ return true;
  }
-
- // Setup YAML filter
- const yamlFilterInput = document.getElementById('podYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- yamlFilterInput.removeEventListener('input', filterPodYaml);
- yamlFilterInput.addEventListener('input', filterPodYaml);
- }
-
- console.log('showPodDetails completed');
- };
-
- /**
- * Go back to pod list from details view
- */
- window.backFromPodModal = function() {
- podDetailsPanel.style.setProperty('display', 'none', 'important');
- podListPanel.style.setProperty('display', 'grid', 'important');
-
- const yamlFilterInput = document.getElementById('podYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- }
-
- // Scroll back to the last clicked row
- if (lastClickedRow) {
- setTimeout(() => {
- lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
- }, 0);
- }
- };
+ D.register(podListPanel, podDetailView, { rows: 'tbody tr[data-detail]', render: renderPodDetail });
+ window.showPodDetails = function (pod) { D.open(pod.namespace + '/' + pod.name); };
+ window.backFromPodModal = function () { D.back(); };
 
  // ============================================================================
  // EVENT LISTENERS
@@ -747,23 +634,11 @@
  // INITIALIZATION
  // ============================================================================
 
- console.log('=== Pod Template Initialization ===');
- console.log('podListPanel:', podListPanel);
- console.log('podDetailsPanel (podPanel):', podDetailsPanel);
- console.log('jsonViewer:', jsonViewer);
- console.log('tableBody:', tableBody);
-
- if (!podListPanel) console.error('podListPanel not found!');
- if (!podDetailsPanel) console.error('podDetailsPanel not found!');
- if (!jsonViewer) console.error('jsonViewer not found!');
- if (!tableBody) console.error('tableBody not found!');
-
  flattenedPods = flattenPodData(false);
  populateFilterOptions();
  renderCharts();
  renderTable(flattenedPods);
 
- console.log('=== Initialization Complete ===');
 
  // Watch for theme changes and re-render charts
  const themeObserver = new MutationObserver((mutations) => {

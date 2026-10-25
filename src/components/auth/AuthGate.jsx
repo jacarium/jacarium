@@ -142,7 +142,7 @@ export function LoginPage({ onDone = () => window.location.reload() }) {
           Sign in
         </button>
         <p className="text-[11px] text-os-text-muted" data-testid="download-desktop-hint">
-          Prefer the desktop app? <a href="/api/downloads/" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">Download it from this server</a> and link it to your account.
+          Prefer the desktop app? <a href="/api/downloads/" target="_blank" rel="noopener noreferrer" className="link hover:underline">Download it from this server</a> and link it to your account.
         </p>
       </form>
     </Card>

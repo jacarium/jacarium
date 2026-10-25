@@ -3,7 +3,8 @@ import glob
 import yaml
 
 from parsers.findings import finding, recall, remember, sort_findings
-from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all, collection_time as gather_time_of
+from parsers.mustgather import detail
 
 
 def load_yaml(path):
@@ -93,6 +94,8 @@ def parse(directory):
         for file in glob.glob(os.path.join(operators_path, "*.yaml")):
             data = load_yaml(file)
             if data:
+                # the detail page's data: conditions and field ownership
+                data['_detail'] = detail.generic_detail(data, [], gather_time_of(directory), 'the operator')
                 operators.append(data)
         return operators
 

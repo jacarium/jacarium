@@ -36,7 +36,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(here, '..');
@@ -49,6 +49,10 @@ const require = createRequire(import.meta.url);
 const FILES = [
   ['chart.js/dist/chart.umd.js', 'chart.umd.js'],
   ['chart.js/LICENSE.md', 'chart.umd.LICENSE.md'],
+  // the detail pages' code viewer (js-yaml's browser build; highlight.js is built below)
+  ['js-yaml/dist/js-yaml.min.js', 'js-yaml.min.js'],
+  ['js-yaml/LICENSE', 'js-yaml.LICENSE'],
+  ['highlight.js/LICENSE', 'highlight.LICENSE'],
   ['tailwindcss/LICENSE', 'tailwind.LICENSE'],
   ['@fortawesome/fontawesome-free/css/all.min.css', 'fontawesome/css/all.min.css'],
   ['@fortawesome/fontawesome-free/LICENSE.txt', 'fontawesome/LICENSE.txt'],
@@ -95,6 +99,28 @@ async function compileTailwind() {
   return fs.statSync(out).size;
 }
 
+// highlight.js ships no browser build: its CommonJS core and the json / yaml languages are wrapped into one
+// classic script by src/utils/highlightBundle.js (the Diagnostics frame inlines the same text), written here as
+// highlight-json-yaml.js for the standalone dashboard's layout.html.
+async function buildHighlight() {
+  let wrap;
+  try {
+    ({ wrapHighlightCommonJs: wrap } = await import(pathToFileURL(path.join(REPO, 'src', 'utils', 'highlightBundle.js')).href));
+  } catch {
+    throw new Error('Missing src/utils/highlightBundle.js - run from a full checkout');
+  }
+  const readPkg = (rel) => {
+    const p = path.join(NODE_MODULES, rel);
+    if (!fs.existsSync(p)) throw new Error(`Missing ${path.relative(REPO, p)} - run "npm install" first`);
+    return fs.readFileSync(p, 'utf8');
+  };
+  const text = wrap(readPkg('highlight.js/lib/core.js'), { json: readPkg('highlight.js/lib/languages/json.js'), yaml: readPkg('highlight.js/lib/languages/yaml.js') });
+  const out = path.join(VENDOR, 'highlight-json-yaml.js');
+  fs.mkdirSync(VENDOR, { recursive: true });
+  fs.writeFileSync(out, text);
+  return fs.statSync(out).size;
+}
+
 async function run() {
   let count = 0;
   let bytes = 0;
@@ -115,6 +141,8 @@ async function run() {
     }
   }
   bytes += await compileTailwind();
+  count += 1;
+  bytes += await buildHighlight();
   count += 1;
   console.log(`[vendor-assets] ${count} files (${Math.round(bytes / 1024)} KB) -> ${path.relative(REPO, VENDOR)}/`);
 }

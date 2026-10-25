@@ -2,11 +2,13 @@ import os
 import yaml
 
 from parsers.findings import finding, recall, remember, sort_findings, no_data
-from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all
+from parsers.mustgather._common import resolve_data_dir, safe_load, safe_load_all, collection_time, unreadable, unreadable_finding
+from parsers.mustgather import detail
 
 def parse(directory):
     result = {}
 
+    gather_time = collection_time(directory)   # the gather's own time, for the ages and 'n min before the gather'
     directory = resolve_data_dir(directory)
 
     nodes_path = os.path.join(directory, "cluster-scoped-resources", "core", "nodes")
@@ -22,17 +24,18 @@ def parse(directory):
             with open(file_path, "r") as f:
                 node_content = safe_load(f)
 
-            if node_content and "metadata" in node_content:
+            if isinstance(node_content, dict) and "metadata" in node_content:
                 node_name = node_content["metadata"].get("name", filename.replace(".yaml", ""))
+                # the detail page's data (findings, capacity meters, conditions, the pods on the node, field ownership)
+                node_content['_detail'] = detail.node_detail(node_content, directory, gather_time)
                 result[node_name] = node_content
+            elif node_content is None:
+                continue   # an empty file: nothing to list, not an unreadable file
             else:
-                result[filename] = {"kind": "Error", "message": "Missing metadata", "filename": filename}
+                result[filename] = {"kind": "Error", "message": "not a Node document (no metadata)", "file": os.path.relpath(file_path, directory)}
 
-        except Exception as e:
-            result[filename] = {
-                "kind": "Error",
-                "message": f"Failed to parse {filename}: {str(e)}",
-            }
+        except Exception as e:   # a broken file: a readable reason, never the raw exception
+            result[filename] = {"kind": "Error", "message": unreadable(file_path, e, directory)['reason'], "file": unreadable(file_path, e, directory)['file']}
 
     remember(('nodes', directory), findings_for(result))
     return result
@@ -53,6 +56,9 @@ def findings_for(result):
     """The Findings strip: nodes NotReady or Unknown (bad), pressure conditions (warn), cordoned nodes (warn), a kubelet
     version skew across the nodes (info), the counts by role when nothing is wrong."""
     out = []
+    bf = unreadable_finding([{'file': v.get('file') or n, 'reason': v.get('message') or ''} for n, v in result.items() if isinstance(v, dict) and v.get('kind') == 'Error'], 'node')
+    if bf:
+        out.append(bf)
     nodes = [(n, v) for n, v in result.items() if isinstance(v, dict) and v.get("kind") != "Error"]
     versions = {}
     for name, node in nodes:

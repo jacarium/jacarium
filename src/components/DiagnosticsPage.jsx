@@ -13,6 +13,12 @@ import { onBackendInfo } from '../utils/platform';
 // Relative path on purpose: chart.js's package "exports" map does not expose
 // dist/chart.umd.js, so the bare specifier cannot be resolved by Vite.
 import chartUmdSource from '../../node_modules/chart.js/dist/chart.umd.js?raw';
+// The detail pages' code viewer (diagCode in diagnostics-ui.js): js-yaml's browser build inlined the same way
+// (the frame is an isolated context, and the app works without a network); the syntax highlighting is done by
+// the parent on the frame's request (the "/highlight" message below) through src/utils/codeHighlight.js, the
+// app's one highlight.js entry point (its json and yaml grammars), so no second copy of highlight.js is shipped.
+import jsYamlSource from '../../node_modules/js-yaml/dist/js-yaml.min.js?raw';
+import { highlightCode } from '../utils/codeHighlight';
 // The shared frame script (the busy state and the chart helper every plugin uses): one file, inlined into every
 // tab's frame after Chart.js and the theme bridge; the standalone Flask dashboard links the same file.
 import diagnosticsUiSource from '../../backend/static/diagnostics-ui.js?raw';
@@ -77,6 +83,9 @@ function getDiagnosticsChartScriptTag() {
 function getDiagnosticsUiScriptTag() {
   return `<script>${diagnosticsUiSource}</script>`;
 }
+function getDiagnosticsCodeScriptTags() {
+  return `<script>${jsYamlSource}</script>`;
+}
 
 // Normalize a tab fragment before embedding it in the iframe srcdoc.
 //
@@ -107,10 +116,10 @@ function normalizeFragmentHtml(html) {
 // not listed here is refused - a malicious diagnostic payload must NOT be able
 // to reach sensitive authenticated routes (e.g. /api/execute-ssh) through this
 // channel. One-shot POSTs vs streamed (SSE) responses are allowlisted separately.
-const DIAGNOSTICS_API_ALLOWLIST = new Set(['/get_log_date_range', '/parse_haproxy_log', '/audit_event_body', '/audit_events_search', '/audit_events_cancel']);
+const DIAGNOSTICS_API_ALLOWLIST = new Set(['/get_log_date_range', '/parse_haproxy_log', '/audit_event_body', '/audit_events_search', '/audit_events_cancel', '/mustgather_log_search', '/mustgather_log_cancel', '/mustgather_log_date_range']);
 const DIAGNOSTICS_API_STREAM_ALLOWLIST = new Set(['/parse_log_viewer_stream']);
 
-function buildDiagnosticsSrcDoc(fragmentHtml, theme) {
+function buildDiagnosticsSrcDoc(fragmentHtml, theme, tabKey) {
   // Reuse the app's own styling so the frame matches the surrounding UI. We do
   // NOT copy <link>/<style> DOM nodes: in a packaged build the compiled Tailwind
   // is a <link href="file://.../assets/index-*.css">, and copying that into the
@@ -162,6 +171,7 @@ function buildDiagnosticsSrcDoc(fragmentHtml, theme) {
   html, body { margin: 0 !important; padding: 0 !important; background: transparent !important; height: auto !important; overflow: hidden !important; }
 </style>
 ${getDiagnosticsChartScriptTag()}
+${getDiagnosticsCodeScriptTags()}
 <script>
 (function () {
   // Theme colours for the templates' scripts (Chart.js options): the os-*
@@ -318,6 +328,9 @@ ${normalizeFragmentHtml(fragmentHtml)}
   // Report content height to the parent so the OUTER page scrolls as one flow
   // (no nested scrollbar), matching the previous inline-injected behavior.
   var lastHeight = -1;
+  // the tab this document shows: every height report names it, so a cross-link's query (handed over on the first
+  // report of its target page) never lands in the page being left
+  var TAB_KEY = ${JSON.stringify(String(tabKey || ''))};
   function reportHeight() {
     // Measure <body>, NOT document.documentElement: the root element's
     // scrollHeight is floored at the iframe's own (parent-imposed) viewport
@@ -332,7 +345,7 @@ ${normalizeFragmentHtml(fragmentHtml)}
     if (h !== lastHeight) {
       lastHeight = h;
       try {
-        parent.postMessage({ __diagnosticsIframe: true, type: 'height', height: h }, '*');
+        parent.postMessage({ __diagnosticsIframe: true, type: 'height', height: h, tab: TAB_KEY }, '*');
       } catch (e) { /* parent cross-origin postMessage is always permitted */ }
     }
   }
@@ -462,7 +475,8 @@ export default function DiagnosticsPage() {
   // Latest tabs/loadTab for the iframe message handler (registered once).
   const tabsRef = useRef([]);
   const loadTabRef = useRef(() => {});
-  const pendingQueryRef = useRef(null);   // a cross-link's search term for the tab being opened (see open-tab / apply-query)
+  const pendingQueryRef = useRef(null);   // a cross-link's query for the tab being opened: { query, key } (see open-tab / apply-query)
+  const contentKeyRef = useRef('');        // the tab (or sub-tab) the current content belongs to (baked into its document)
   // The phone layout: the parser tabs are a drawer under a page header
   const { isMobile } = useMobile();
   const [innerSidebarVisible, setInnerSidebarVisible] = useState(() => {
@@ -578,10 +592,12 @@ export default function DiagnosticsPage() {
       if (data && data.__diagnosticsIframe && data.type === 'height') {
         frame.style.height = `${data.height}px`;
         postViewport();
-        // a cross-link's search term, handed to the page on its first height report (the page is up by then)
-        if (pendingQueryRef.current) {
-          const q = pendingQueryRef.current; pendingQueryRef.current = null;
-          frame.contentWindow.postMessage({ __diagnosticsApi: true, dir: 'down', type: 'apply-query', query: q }, '*');
+        // a cross-link's query, handed to its target page on that page's first height report (the page is up by
+        // then; a report from the page being left names another tab and is not it)
+        const pending = pendingQueryRef.current;
+        if (pending && (!data.tab || data.tab === pending.key)) {
+          pendingQueryRef.current = null;
+          frame.contentWindow.postMessage({ __diagnosticsApi: true, dir: 'down', type: 'apply-query', query: pending.query }, '*');
         }
       }
       // The frame's view of the theme it applied (computed card / divider /
@@ -630,7 +646,7 @@ export default function DiagnosticsPage() {
         if (!known) return;
         if (subTab && !(known.sub_tabs || []).some(st => st.tab_name === subTab)) return;
         setExpandedTabs(prev => (prev.includes(tab) ? prev : [...prev, tab]));
-        pendingQueryRef.current = typeof d.query === 'string' && d.query ? d.query.slice(0, 200) : null;
+        pendingQueryRef.current = typeof d.query === 'string' && d.query ? { query: d.query.slice(0, 200), key: subTab || tab } : null;
         loadTabRef.current(tab, subTab);
         return;
       }
@@ -647,6 +663,17 @@ export default function DiagnosticsPage() {
       if (type === 'stream-abort') {
         const reader = activeStreams.get(requestId);
         if (reader) { activeStreams.delete(requestId); try { await reader.cancel(); } catch { /* already closed */ } }
+        return;
+      }
+      if (type === 'request' && path === '/highlight') {
+        // The code viewer's syntax colours: the parent highlights the frame's text with the app's own highlight.js
+        // (codeHighlight.js, json / yaml) and answers escaped HTML - nothing leaves the app, and the frame carries no
+        // highlighter of its own. Not a backend path: handled here, before the allowlist.
+        const text = body && typeof body.text === 'string' ? body.text.slice(0, 2 * 1024 * 1024) : '';
+        const language = body && body.language === 'yaml' ? 'yaml' : 'json';
+        let html = null;
+        try { html = highlightCode(text, language); } catch { html = null; }
+        post({ type: 'response', requestId, ok: typeof html === 'string', status: 200, json: { html } });
         return;
       }
       if (type !== 'request' && type !== 'stream-request') return;
@@ -879,6 +906,7 @@ export default function DiagnosticsPage() {
     setActiveTab(tabName);
     setActiveSubTab(subTabName);
     setLoading(true);
+    contentKeyRef.current = '';
     setContent('<div class="flex items-center justify-center py-10"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-os-blue"></div></div>');
 
     try {
@@ -904,6 +932,7 @@ export default function DiagnosticsPage() {
       // buildDiagnosticsSrcDoc); its <script> tags execute natively in the
       // frame's opaque origin, so no manual extraction/execution is needed
       // (and none of it runs with renderer/electronAPI privileges anymore).
+      contentKeyRef.current = subTabName || tabName;
       setContent(data.html);
 
     } catch (err) {
@@ -966,7 +995,7 @@ export default function DiagnosticsPage() {
     // reload/session-restore where ThemeContext applies the class after render.
     // Theme changes AFTER bake are handled via postMessage (see below), not by
     // rebuilding the document, so this depends only on `content`.
-    return buildDiagnosticsSrcDoc(content, appTheme());
+    return buildDiagnosticsSrcDoc(content, appTheme(), contentKeyRef.current);
   }, [content]);
 
   // The tab-loading pill: the same "Loading <tab>… 2.1 s" pill the plugins show for their own work (diagBusy), here in the
@@ -1004,7 +1033,7 @@ export default function DiagnosticsPage() {
         ref={iframeRef}
         title="Diagnostics content"
         data-tab={activeSubTab || activeTab}
-        sandbox="allow-scripts"
+        sandbox="allow-scripts allow-downloads"
         srcDoc={iframeSrcDoc}
         onLoad={() => {
           // Re-assert the current theme once the frame is live, in case its

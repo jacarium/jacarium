@@ -1,4 +1,5 @@
 {% import "tabs/_ui.html" as ui %}
+{% import "tabs/_detail.html" as detail %}
 {{ ui.findings(findings) }}
 <div id="operatorListPanel" class="space-y-4">
  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -86,47 +87,11 @@
 </div>
 
 
-<div id="operatorPanel" style="display: none;">
- <div class="space-y-4">
- <div class="mb-4">
- <button onclick="window.backFromOperatorModal()" class="btn btn-secondary flex items-center gap-2">
- Back
- </button>
- </div>
+{{ ui.detail_page('operatorDetail') }}
 
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-info-circle mr-2"></i> Operator Details
- </h2>
- <div class="overflow-x-auto">
- <table class="ui-table" id="operatorDetailsTable"></table>
- </div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-stethoscope mr-2"></i> Operator Conditions
- </h2>
- <div id="operatorConditionsTable" class="text-sm space-y-2"></div>
- </div>
-
- <div class="panel rounded-lg shadow-sm">
- <h2 class="text-lg font-medium flex items-center mb-2">
- <i class="fas fa-file mr-2"></i> Operator YAML
- </h2>
- <div class="mb-2">
- <input
- id="operatorYamlFilter"
- type="text"
- placeholder="Filter YAML lines..."
- class="ui-input w-full"
- />
- </div>
- <div id="operatorJsonViewer" class="flex-1 overflow-y-auto text-sm font-mono max-h-[60vh] border border-gray-200 dark:border-gray-700 rounded-sm p-3 bg-gray-50 dark:bg-gray-900 break-all"></div>
- </div>
- </div>
-</div>
+{{ detail.k8s_detail_script() }}
 <script>
+ var byKey = {};   // operator name -> the flattened operator, for the detail (declared first: the rows fill it as they render)
  var clusterOperators = {{ data.cluster_operators | tojson }};
  var currentOperatorSort = { key: 'lastTransitionTime', direction: -1 };
  var operatorCurrentPage = 1;
@@ -137,14 +102,9 @@
  var filteredOperatorCount = document.getElementById("filteredOperatorCount");
 
  var operatorListPanel = document.getElementById("operatorListPanel");
- var operatorPanel = document.getElementById("operatorPanel");
 
- var operatorDetailsViewer = document.getElementById("operatorJsonViewer");
- var operatorDetailsTable = document.getElementById("operatorDetailsTable");
 
  var flattenedOperators = [];
- var currentOperator = null;
- var lastClickedRow = null;
 
  function flattenOperators() {
  flattenedOperators = clusterOperators.map(op => {
@@ -206,10 +166,9 @@
  <td>${lastTransitionDisplay}</td>
  `;
 
- row.addEventListener("click", () => {
- lastClickedRow = row;
- showOperatorDetails(op);
- });
+ row.setAttribute('data-detail', op.name);
+ row.tabIndex = 0;
+ byKey[op.name] = op;
  operatorTableBody.appendChild(row);
  });
 
@@ -285,158 +244,9 @@
  applyOperatorFiltersAndRender();
  }
 
- function showOperatorDetails(op) {
- currentOperator = op;
 
- operatorDetailsViewer.innerHTML = renderJSONWithoutHighlight(op.raw);
- operatorListPanel.style.setProperty('display', 'none', 'important');
- operatorPanel.style.setProperty('display', 'grid', 'important');
 
- // Scroll to top - find the scrollable parent by walking up the DOM
- setTimeout(() => {
- function findScrollableParent(element) {
- let parent = element.parentElement;
- while (parent) {
- const overflow = window.getComputedStyle(parent).overflow;
- const overflowY = window.getComputedStyle(parent).overflowY;
- if ((overflow === 'auto' || overflow === 'scroll' || overflowY === 'auto' || overflowY === 'scroll') &&
- parent.scrollHeight > parent.clientHeight) {
- return parent;
- }
- parent = parent.parentElement;
- }
- return null;
- }
 
- const scrollableParent = findScrollableParent(operatorPanel);
- if (scrollableParent) {
- scrollableParent.scrollTo({top: 0, behavior: 'instant'});
- }
- }, 0);
-
- operatorDetailsTable.innerHTML = `
- <tr><td>Name:</td><td>${op.name}</td></tr>
- <tr><td>Available:</td><td>${op.available}</td></tr>
- <tr><td>Progressing:</td><td>${op.progressing}</td></tr>
- <tr><td>Degraded:</td><td>${op.degraded}</td></tr>
- `;
-
- const conditions = op.raw?.status?.conditions || [];
-
- const conditionsTable = document.getElementById("operatorConditionsTable");
-
- if (conditions.length === 0) {
- conditionsTable.innerHTML =
- '<div class="p-4 rounded-lg">' +
- '<p class="text-center">No conditions available</p>' +
- '</div>';
- } else {
- conditions.sort((a, b) => {
- const timeA = a.lastTransitionTime ? new Date(a.lastTransitionTime).getTime() : 0;
- const timeB = b.lastTransitionTime ? new Date(b.lastTransitionTime).getTime() : 0;
- return timeB - timeA;
- });
-
- let tableHTML =
- `<div class="text-sm mb-2">Showing ${conditions.length} condition(s)</div>` +
- '<table class="ui-table">' +
- '<thead>' +
- '<tr>' +
- '<th>Type</th>' +
- '<th>Status</th>' +
- '<th>Reason</th>' +
- '<th>Message</th>' +
- '<th>Last Updated</th>' +
- '<th>Last Transition</th>' +
- '</tr>' +
- '</thead>' +
- '<tbody>';
-
- for (const cond of conditions) {
- tableHTML +=
- '<tr>' +
- `<td>${cond.type}</td>` +
- `<td>${cond.status}</td>` +
- `<td>${cond.reason || ''}</td>` +
- `<td class="break-all">${cond.message || ''}</td>` +
- `<td>${cond.lastUpdateTime ? new Date(cond.lastUpdateTime).toLocaleString('en-US', {
-     month: 'short',
-     day: '2-digit',
-     year: 'numeric',
-     hour: '2-digit',
-     minute: '2-digit',
-     timeZone: 'UTC',
-     timeZoneName: 'short'
-   }) : ''}</td>` +
- `<td>${cond.lastTransitionTime ? new Date(cond.lastTransitionTime).toLocaleString('en-US', {
-     month: 'short',
-     day: '2-digit',
-     year: 'numeric',
-     hour: '2-digit',
-     minute: '2-digit',
-     timeZone: 'UTC',
-     timeZoneName: 'short'
-   }) : ''}</td>` +
- '</tr>';
- }
-
- tableHTML += '</tbody></table>';
- conditionsTable.innerHTML = tableHTML;
- }
-
- // Setup YAML filter
- const yamlFilterInput = document.getElementById('operatorYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- yamlFilterInput.removeEventListener('input', filterOperatorYaml);
- yamlFilterInput.addEventListener('input', filterOperatorYaml);
- }
- }
-
- function highlightJSON(line) {
- line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
- return line
- .replace(/"([^"]+)":/g, '<span class="text-blue-700 dark:text-blue-300">"$1"</span>:')
- .replace(/:\s*"([^"]*)"/g, ': <span class="text-green-700 dark:text-green-300">"$1"</span>')
- .replace(/:\s*(true|false)/g, ': <span class="text-blue-600 dark:text-blue-400">$1</span>')
- .replace(/:\s*(null)/g, ': <span class="text-gray-500 dark:text-gray-400">$1</span>')
- .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="text-orange-600 dark:text-orange-400">$1</span>');
- }
-
- function renderJSONWithoutHighlight(data, filter = '') {
- const formatted = JSON.stringify(data, null, 2);
- return formatted.split('\n')
- .filter(line => !filter || line.toLowerCase().includes(filter.toLowerCase()))
- .map(line => {
- const highlighted = highlightJSON(line);
- return `<div class="text-gray-900 dark:text-gray-100 text-sm font-mono whitespace-pre-wrap break-all">${highlighted}</div>`;
- }).join('');
- }
-
- function filterOperatorYaml() {
- if (!currentOperator) return;
- const filterInput = document.getElementById('operatorYamlFilter');
- const filterValue = filterInput ? filterInput.value : '';
- operatorDetailsViewer.innerHTML = renderJSONWithoutHighlight(currentOperator.raw, filterValue);
- }
-
- window.backFromOperatorModal = function() {
- operatorPanel.style.setProperty('display', 'none', 'important');
- operatorListPanel.style.setProperty('display', 'grid', 'important');
- operatorDetailsViewer.innerHTML = '';
-
- const yamlFilterInput = document.getElementById('operatorYamlFilter');
- if (yamlFilterInput) {
- yamlFilterInput.value = '';
- }
-
- // Scroll back to the last clicked row
- if (lastClickedRow) {
- setTimeout(() => {
- lastClickedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
- }, 0);
- }
- }
 
  flattenOperators();
  applyOperatorFiltersAndRender();
@@ -491,4 +301,25 @@
  totalTimeEl.textContent = 'N/A';
  }
  })();
+ const D = window.diagDetail, K = window.k8sDetail;
+ function renderOperatorDetail(key, view) {
+ const op = byKey[key];
+ if (!op || !op.raw) return false;
+ const raw = op.raw, d = raw._detail || {}, st = raw.status || {}, meta = raw.metadata || {};
+ const badge = op.degraded === 'True' ? { kind: 'bad', text: 'Degraded' } : (op.available !== 'True' ? { kind: 'bad', text: 'Unavailable' } : (op.progressing === 'True' ? { kind: 'warn', text: 'Progressing' } : { kind: 'ok', text: 'Available' }));
+ const versions = (st.versions || []).map((v) => v.name + ' ' + v.version);
+ const related = (st.relatedObjects || []).map((r) => (r.group ? r.group + '/' : '') + r.resource + (r.namespace ? ' ' + r.namespace + '/' : ' ') + (r.name || '*'));
+ return K.page(view, {
+ name: op.name, kind: 'ClusterOperator', raw: raw, d: d, crumbs: ['Cluster Operators', op.name], badge: badge,
+ summary: [
+ ['Available', op.available], ['Progressing', op.progressing], ['Degraded', op.degraded], ['Last transition', D.when(op.lastTransitionTime)],
+ ['Versions', versions.length ? D.list(versions) : ''], ['Created', D.when(meta.creationTimestamp) + (d.age ? ' (' + d.age + ' before the gather)' : '')],
+ ['Annotations', meta.annotations ? Object.keys(meta.annotations).length + ' (in the JSON below)' : ''],
+ ],
+ after: [{ title: 'Related objects', content: related.length ? D.list(related) : 'No related object listed.', count: related.length, open: false }],
+ });
+ }
+ D.register(operatorListPanel, document.getElementById('operatorDetail'), { rows: 'tbody tr[data-detail]', render: renderOperatorDetail });
+ window.showOperatorDetails = function (op) { D.open(op.name); };
+ window.backFromOperatorModal = function () { D.back(); };
 </script>
