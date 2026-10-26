@@ -116,6 +116,9 @@ jobs:
           mkdir -p out
           found=0
           for s in sboms/*.spdx.json; do
+            # the package-level copy of an image SBOM (what the attestations carry) lists the same packages as
+            # the full document: scanning both would count every finding twice
+            case "$s" in *.packages.spdx.json) continue ;; esac
             n="$(basename "$s" .spdx.json)"
             # shellcheck disable=SC2086
             "$grype" "sbom:$s" $vexarg --ignore-states not-fixed,wont-fix --only-fixed -o json --file "out/$n.json" -q || true

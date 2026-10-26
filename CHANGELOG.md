@@ -4,6 +4,18 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.4.2
+
+_2026-10-27_
+
+### [SECURITY]
+
+Release pipeline fix: the container image's SBOM attestation carries a package-level copy of the SBOM (every package, licence and dependency; the file list left out), as the full document is over GitHub's 16 MB attestation limit. The full SPDX and CycloneDX SBOMs are still attached to the release
+
+The weekly vulnerability rescan reads each image SBOM once, and the installers' SBOMs are checked against the attestation size limit when they are built
+
+Versions follow Semantic Versioning from now on: patch releases for fixes and security updates, minor releases for new features
+
 ## What's New in v3.4.1
 
 _2026-10-27_

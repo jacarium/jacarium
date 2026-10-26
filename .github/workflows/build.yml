@@ -129,6 +129,10 @@ jobs:
           "$syft" scan "dir:$unpacked" --source-name jacarium --source-version "$VERSION" \
             -o "spdx-json=out/sbom/jacarium-${VERSION}-${PLATFORM}.spdx.json" \
             -o "cyclonedx-json=out/sbom/jacarium-${VERSION}-${PLATFORM}.cdx.json"
+          # the installer SBOM is attested as it is (about 250 KB: Syft does not look inside app.asar); the
+          # attestation refuses anything over 16 MiB - said here, next to the cause, rather than in the attest job
+          size="$(wc -c < "out/sbom/jacarium-${VERSION}-${PLATFORM}.spdx.json" | tr -d ' ')"
+          [ "$size" -le 16777216 ] || { echo "::error::the installer SBOM is $size bytes, over the 16 MiB attestation limit - make a package-level copy as the image SBOM does (.github/scripts/sbom-packages.py)"; exit 1; }
           ls -la out/sbom
 
       # The checksums the attest job checks the downloaded files against: the
@@ -243,6 +247,8 @@ jobs:
           "$syft" scan "docker-archive:out/images/jacarium-${ARCH}.tar" --source-name jacarium --source-version "${VERSION}-${ARCH}" \
             -o "spdx-json=out/sbom/jacarium-${VERSION}-image-${ARCH}.spdx.json" \
             -o "cyclonedx-json=out/sbom/jacarium-${VERSION}-image-${ARCH}.cdx.json"
+          # the attested copy: packages only (the full SPDX is ~18 MB, over actions/attest's 16 MiB limit)
+          python3 .github/scripts/sbom-packages.py "out/sbom/jacarium-${VERSION}-image-${ARCH}.spdx.json" "out/sbom/jacarium-${VERSION}-image-${ARCH}.packages.spdx.json"
           ls -la out/sbom
 
       # The gate: a High / Critical finding with a fix fails the build unless the release's VEX
@@ -435,13 +441,13 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: subjects/jacarium-amd64.tar
-          sbom-path: subjects/jacarium-${{ needs.installers.outputs.version }}-image-amd64.spdx.json
+          sbom-path: subjects/jacarium-${{ needs.installers.outputs.version }}-image-amd64.packages.spdx.json
 
       - name: SBOM attestation, image archive arm64
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: subjects/jacarium-arm64.tar
-          sbom-path: subjects/jacarium-${{ needs.installers.outputs.version }}-image-arm64.spdx.json
+          sbom-path: subjects/jacarium-${{ needs.installers.outputs.version }}-image-arm64.packages.spdx.json
 
       # The VEX as an attestation on everything it speaks about (the installers and the image archives):
       #   gh attestation verify <file> --repo jacarium/jacarium --predicate-type https://openvex.dev/ns/v0.2.0
@@ -603,14 +609,14 @@ jobs:
         with:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.push.outputs.digest_amd64 }}
-          sbom-path: images/jacarium-${{ env.VERSION }}-image-amd64.spdx.json
+          sbom-path: images/jacarium-${{ env.VERSION }}-image-amd64.packages.spdx.json
 
       - name: SBOM attestation of the arm64 image
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.push.outputs.digest_arm64 }}
-          sbom-path: images/jacarium-${{ env.VERSION }}-image-arm64.spdx.json
+          sbom-path: images/jacarium-${{ env.VERSION }}-image-arm64.packages.spdx.json
 
       - name: VEX attestation of the manifest list
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
@@ -633,8 +639,8 @@ jobs:
           for d in "$DIGEST" "$DIGEST_AMD64" "$DIGEST_ARM64"; do
             "$cosign" sign --yes "${IMAGE}@${d}"
           done
-          "$cosign" attest --yes --type spdxjson --predicate images/jacarium-"${VERSION}"-image-amd64.spdx.json "${IMAGE}@${DIGEST_AMD64}"
-          "$cosign" attest --yes --type spdxjson --predicate images/jacarium-"${VERSION}"-image-arm64.spdx.json "${IMAGE}@${DIGEST_ARM64}"
+          "$cosign" attest --yes --type spdxjson --predicate images/jacarium-"${VERSION}"-image-amd64.packages.spdx.json "${IMAGE}@${DIGEST_AMD64}"
+          "$cosign" attest --yes --type spdxjson --predicate images/jacarium-"${VERSION}"-image-arm64.packages.spdx.json "${IMAGE}@${DIGEST_ARM64}"
           for d in "$DIGEST" "$DIGEST_AMD64" "$DIGEST_ARM64"; do
             "$cosign" attest --yes --type openvex --predicate images/jacarium-"${VERSION}".openvex.json "${IMAGE}@${d}"
           done

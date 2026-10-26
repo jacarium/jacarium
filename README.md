@@ -47,7 +47,10 @@ yourself.
   artifact attestations, Sigstore), and verified by the release job before
   the draft release exists.
 - **SBOMs** (SPDX and CycloneDX JSON) per installer platform and per image
-  architecture, attached to every release and attested.
+  architecture, attached to every release and attested (for the image, the
+  attested document is the package-level copy `...packages.spdx.json`: the
+  full SPDX with every file is attached too but is over the 16 MiB
+  attestation limit).
 - **Signed images**: `quay.io/zerodayz/jacarium` is signed with cosign,
   keyless, the SBOM attached as a cosign attestation.
 - **Signed source**: the release commit and tag are SSH-signed; the public

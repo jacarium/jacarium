@@ -4,10 +4,10 @@
  *
  * On a THROWAWAY git repository built here (synthetic package.json, lock,
  * README, CHANGELOG.md, versions/ and commits; never this repo) it must:
- *   - pick the next version by stepping the patch (0-99) and rolling over
- *     (2.6.0 -> 2.6.1, 2.6.9 -> 2.6.10, x.y.99 -> x.(y+1).0, x.9.99 ->
- *     (x+1).0.0; the minor 0-9), take an explicit version instead, and refuse
- *     one that is not greater than the current version or out of range;
+ *   - pick the next version by Semantic Versioning, no upper limit on any part
+ *     (patch by default 2.6.9 -> 2.6.10, --minor 2.6.7 -> 2.7.0, --major
+ *     2.6.7 -> 3.0.0), take an explicit version instead, and refuse one that is
+ *     not greater than the current version;
  *   - find the previous release at tag v<current> when it exists, else at
  *     the commit that set the current version in package.json;
  *   - with --dry-run print the summary and entry and write nothing;
@@ -52,17 +52,17 @@ function check(name, cond, detail) {
 // ---------- 1. the version rule (pure) ----------
 console.log('\n--- 1. nextVersion ---');
 {
-  const threw = (c, t) => { try { nextVersion(c, t); return null; } catch (e) { return e.message; } };
+  const threw = (c, t, b) => { try { nextVersion(c, t, b); return null; } catch (e) { return e.message; } };
   check('default steps the patch digit: 2.6.0 -> 2.6.1', nextVersion('2.6.0', null) === '2.6.1');
-  check('the patch goes past 9: 2.6.9 -> 2.6.10', nextVersion('2.6.9', null) === '2.6.10');
-  check('x.y.99 rolls into the minor: 2.6.99 -> 2.7.0', nextVersion('2.6.99', null) === '2.7.0');
-  check('x.9.99 rolls into the major: 2.9.99 -> 3.0.0', nextVersion('2.9.99', null) === '3.0.0');
-  check('an explicit two-digit patch is allowed: 2.5.5 + 2.5.42 -> 2.5.42', nextVersion('2.5.5', '2.5.42') === '2.5.42');
+  check('the patch has no upper limit: 2.6.9 -> 2.6.10, 2.6.99 -> 2.6.100', nextVersion('2.6.9', null) === '2.6.10' && nextVersion('2.6.99', null) === '2.6.100');
+  check('--minor bumps the minor and resets the patch: 2.6.7 -> 2.7.0, 2.9.3 -> 2.10.0', nextVersion('2.6.7', null, 'minor') === '2.7.0' && nextVersion('2.9.3', null, 'minor') === '2.10.0');
+  check('--major bumps the major and resets the rest: 2.6.7 -> 3.0.0', nextVersion('2.6.7', null, 'major') === '3.0.0');
+  check('an explicit multi-digit version is allowed: 2.5.5 + 2.12.42 -> 2.12.42', nextVersion('2.5.5', '2.12.42') === '2.12.42');
   check('an explicit greater version wins: 2.5.5 + 2.6.0 -> 2.6.0', nextVersion('2.5.5', '2.6.0') === '2.6.0');
   check('an explicit version equal to the current one is rejected', /not greater/.test(threw('2.5.5', '2.5.5') || ''));
   check('an explicit lower version is rejected', /not greater/.test(threw('2.5.5', '2.4.9') || ''));
-  check('an explicit patch above 99 is rejected', /the patch must be 0-99/.test(threw('2.5.5', '2.5.100') || ''));
-  check('an explicit minor above 9 is rejected', /the minor 0-9/.test(threw('2.5.5', '2.10.0') || ''));
+  check('a numeric (not lexical) comparison: 2.5.10 is greater than 2.5.9', nextVersion('2.5.9', '2.5.10') === '2.5.10' && /not greater/.test(threw('2.5.10', '2.5.9') || ''));
+  check('an unknown bump is rejected', /Unknown bump/.test(threw('2.5.5', null, 'huge') || ''));
   check('a malformed version is rejected', /Invalid version/.test(threw('2.5.5', '2.6') || ''));
 }
 
@@ -109,9 +109,13 @@ commit('Fix the beta dialog', '2026-02-03');
 // ---------- 2. dry run (no tag yet: previous release = the package.json commit) ----------
 console.log('\n--- 2. dry run without a tag ---');
 {
-  const r = run(['--dry-run']);
+  const plain = run(['--dry-run']);
+  check('the default bump is the patch, with no upper limit: 2.5.99 -> 2.5.100', plain.ok && /Release 2\.5\.99 -> 2\.5\.100 \(dry run/.test(plain.stderr), plain.stderr.split('\n')[0]);
+  const r = run(['--dry-run', '--minor']);
   check('dry run succeeds', r.ok, r.stderr.slice(0, 300));
-  check('the default next version is 2.6.0 (2.5.99 rolls the patch into the minor)', /Release 2\.5\.99 -> 2\.6\.0 \(dry run/.test(r.stderr), r.stderr.split('\n')[0]);
+  check('--minor: 2.5.99 -> 2.6.0', /Release 2\.5\.99 -> 2\.6\.0 \(dry run/.test(r.stderr), r.stderr.split('\n')[0]);
+  const both = run(['2.6.0', '--minor', '--dry-run']);
+  check('an explicit version and --minor together are refused', !both.ok && /not both/.test(both.stderr), both.stderr.split('\n')[0]);
   check('the previous release is the commit that set 2.5.99 in package.json (the baseline commit), so only the 2 later commits are listed', /\(commit that set 2\.5\.99 in package\.json\): 2 commits, 2 kept in \d+ categor/.test(r.stderr), r.stderr.split('\n')[1]);
   check('the baseline commit itself is outside the range (not listed, like 1d2a75b in this repo)', !/Baseline snapshot/.test(r.stdout) && !/Baseline snapshot/.test(r.stderr));
   check('the entry is printed, nothing written, package.json untouched', /export const version = '2\.6\.0'/.test(r.stdout) && !fs.existsSync(path.join(VERSIONS, 'v2.6.0.js')) && readJson('package.json').version === '2.5.99');

@@ -3,11 +3,15 @@
  * Local, offline release. Nothing here pushes, publishes or talks to a
  * remote - the repository has none.
  *
- *   npm run release                 prepare the next version: step by one,
- *                                   the patch 0-99, the minor 0-9, rolling over
- *                                   (2.6.0 -> 2.6.1 ... 2.6.99 -> 2.7.0 ... 2.9.99 -> 3.0.0)
- *   npm run release -- 2.7.0        prepare that exact version (must be greater
- *                                   than the current one; patch 0-99, minor 0-9)
+ *   Semantic Versioning (semver.org), no upper limit on any part:
+ *   npm run release                 the next PATCH (fixes, security updates):
+ *                                   3.4.1 -> 3.4.2 (... 3.4.9 -> 3.4.10 ...)
+ *   npm run release -- --minor      the next MINOR (new features, nothing breaks):
+ *                                   3.4.7 -> 3.5.0
+ *   npm run release -- --major      the next MAJOR (users must act: a migration,
+ *                                   a removed feature): 3.4.7 -> 4.0.0
+ *   npm run release -- 3.5.0        prepare that exact version (must be greater
+ *                                   than the current one)
  *   npm run release -- --dry-run    show what would change, write nothing
  *   npm run release:tag             commit the prepared release and create
  *                                   the local annotated tag vX.Y.Z
@@ -41,16 +45,19 @@ const { execFileSync, spawnSync } = require('child_process');
 const whatsNew = require('./whats-new-from-git.cjs');
 
 function usage() {
-  console.error('Usage: node scripts/release.cjs [<X.Y.Z>] [--dry-run] [--yes] [--trailer <line>] [--repo <dir>]');
+  console.error('Usage: node scripts/release.cjs [<X.Y.Z> | --minor | --major] [--dry-run] [--yes] [--trailer <line>] [--repo <dir>]');
   console.error('       node scripts/release.cjs tag [--yes] [--trailer <line>] [--repo <dir>] [--skip-privacy-scan]');
 }
 
 function parseArgs(argv) {
-  const args = { command: 'prepare', target: null, dryRun: false, yes: false, trailers: [], repo: path.resolve(__dirname, '..'), skipPrivacyScan: false };
+  const args = { command: 'prepare', target: null, bump: 'patch', dryRun: false, yes: false, trailers: [], repo: path.resolve(__dirname, '..'), skipPrivacyScan: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === 'tag') args.command = 'tag';
     else if (a === '--dry-run') args.dryRun = true;
+    else if (a === '--minor') args.bump = 'minor';
+    else if (a === '--major') args.bump = 'major';
+    else if (a === '--patch') args.bump = 'patch';
     else if (a === '--skip-privacy-scan') args.skipPrivacyScan = true;
     else if (a === '--yes' || a === '-y') args.yes = true;
     else if (a === '--repo') args.repo = path.resolve(argv[++i]);
@@ -72,27 +79,23 @@ function writeJson(file, data) {
 }
 
 /**
- * The next version. Without an explicit target: step the patch by one; the
- * patch runs 0-99 and the minor 0-9, each rolling over into the next part
- * (2.6.99 -> 2.7.0, 2.9.99 -> 3.0.0). An explicit X.Y.Z must be greater than
- * the current version, with the patch in 0-99 and the minor in 0-9.
+ * The next version, by Semantic Versioning (semver.org): no upper limit on any
+ * part. Without an explicit target the bump says which part moves: patch
+ * (default; fixes and security updates) 3.4.9 -> 3.4.10, minor (new features)
+ * 3.4.7 -> 3.5.0, major (users must act) 3.4.7 -> 4.0.0. An explicit X.Y.Z must
+ * be greater than the current version.
  */
-const PATCH_MAX = 99;   // releases are frequent: x.y.0 ... x.y.99, then x.(y+1).0
-const MINOR_MAX = 9;
-
-function nextVersion(current, target) {
+function nextVersion(current, target, bump = 'patch') {
   if (target) {
     if (!/^\d+\.\d+\.\d+$/.test(target)) throw new Error(`Invalid version "${target}" - use X.Y.Z`);
-    const [, tMinor, tPatch] = target.split('.').map(Number);
-    if (tPatch > PATCH_MAX || tMinor > MINOR_MAX) throw new Error(`Version ${target}: the patch must be 0-${PATCH_MAX} and the minor 0-${MINOR_MAX} (versions step 2.6.${PATCH_MAX} -> 2.7.0 -> ... -> 2.${MINOR_MAX}.${PATCH_MAX} -> 3.0.0)`);
     if (compareVersions(target, current) <= 0) throw new Error(`New version ${target} is not greater than the current ${current}`);
     return target;
   }
-  let [major, minor, patch] = current.split('.').map(Number);
-  patch += 1;
-  if (patch > PATCH_MAX) { patch = 0; minor += 1; }
-  if (minor > MINOR_MAX) { minor = 0; major += 1; }
-  return `${major}.${minor}.${patch}`;
+  const [major, minor, patch] = current.split('.').map(Number);
+  if (bump === 'major') return `${major + 1}.0.0`;
+  if (bump === 'minor') return `${major}.${minor + 1}.0`;
+  if (bump !== 'patch') throw new Error(`Unknown bump "${bump}" - use patch, minor or major`);
+  return `${major}.${minor}.${patch + 1}`;
 }
 
 function compareVersions(a, b) {
@@ -159,7 +162,8 @@ async function prepare(args) {
   const versionsDir = path.join(repo, 'src', 'whats-new', 'versions');
   const pkg = readJson(pkgFile);
   const current = pkg.version;
-  const version = nextVersion(current, args.target);
+  if (args.target && args.bump !== 'patch') throw new Error('Give either an explicit version or --minor / --major, not both');
+  const version = nextVersion(current, args.target, args.bump);
   if (fs.existsSync(path.join(versionsDir, `v${version}.js`))) throw new Error(`src/whats-new/versions/v${version}.js already exists - is ${version} already prepared? (npm run release:tag finishes it)`);
   if (git(repo, 'tag', '-l', `v${version}`)) throw new Error(`Tag v${version} already exists`);
 

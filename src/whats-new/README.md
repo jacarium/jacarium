@@ -8,14 +8,15 @@ published.
 ## How to release
 
 ```bash
-npm run release              # next version; or an explicit one: npm run release -- 2.7.0
+npm run release              # next patch; --minor / --major; or an explicit one: npm run release -- 3.5.0
 # review src/whats-new/versions/vX.Y.Z.js, tidy the lines if you like
 npm run release:tag          # commit "Release vX.Y.Z" and create the local annotated tag vX.Y.Z
 ```
 
-Versions step by one with every digit 0-9 and rolling over:
-2.6.0 → 2.6.1 → … → 2.6.9 → 2.7.0 → … → 2.9.9 → 3.0.0. An explicit version
-must be greater than the current one and keep every part in 0-9.
+Versions follow Semantic Versioning (semver.org), with no upper limit on any
+part: `npm run release` steps the patch (3.4.9 → 3.4.10), `--minor` the minor
+(3.4.7 → 3.5.0), `--major` the major (4.0.0). An explicit version must be
+greater than the current one.
 
 `npm run release` needs a clean working tree. It bumps `package.json` and
 `package-lock.json`, writes the new entry from `git log <previous release>..HEAD`

@@ -4,11 +4,13 @@
 # workflow (installers, container image, draft release). Optionally deploy
 # it to your own home server too (--deploy).
 #
-#   scripts/publish-release.sh                 the next version (3.1.9 -> 3.2.0 ...)
-#   scripts/publish-release.sh 3.2.1           an exact version (every part 0-9)
+#   scripts/publish-release.sh                 the next patch (Semantic Versioning: 3.4.9 -> 3.4.10)
+#   scripts/publish-release.sh --minor         the next minor (3.4.7 -> 3.5.0); --major the next major (4.0.0)
+#   scripts/publish-release.sh 3.5.0           an exact version (greater than the current one)
 #   scripts/publish-release.sh --dry-run       show the plan and the release notes, change nothing
 #
 # Options:
+#   --minor, --major the part to step for the next version (the patch without them; not with an exact version)
 #   --yes            no questions (also skips the pause to review the notes before tagging)
 #   --dry-run        print the plan and the release notes, change nothing
 #   --deploy         also deploy it to your home server (DEPLOY_TARGET)
@@ -67,6 +69,7 @@ REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
 
 VERSION_ARG=""
+BUMP=patch
 YES=false
 DRY_RUN=false
 SKIP_CHECKS=false
@@ -76,6 +79,9 @@ RESUME_ARG=false
 while [ $# -gt 0 ]; do
     case "$1" in
         --yes|-y) YES=true ;;
+        --minor) BUMP=minor ;;
+        --major) BUMP=major ;;
+        --patch) BUMP=patch ;;
         --dry-run) DRY_RUN=true ;;
         --skip-checks) SKIP_CHECKS=true ;;
         --deploy) DEPLOY=true ;;
@@ -101,6 +107,8 @@ if ! $SKIP_PUBLIC && [ -z "$PUBLIC_DIR" ]; then
 fi
 if $DEPLOY && [ -z "$DEPLOY_TARGET" ]; then die "--deploy needs DEPLOY_TARGET in $CONFIG"; fi
 if $RESUME_ARG && { $SKIP_PUBLIC || [ -n "$VERSION_ARG" ]; }; then die "--resume publishes the current version: no version argument, no --skip-public"; fi
+if [ -n "$VERSION_ARG" ] && [ "$BUMP" != patch ]; then die "give either an exact version or --$BUMP, not both"; fi
+if $RESUME_ARG && [ "$BUMP" != patch ]; then die "--resume publishes the current version: no --$BUMP"; fi
 
 confirm() {  # <question> - true to go on
     $YES && return 0
@@ -189,8 +197,8 @@ else
         die "v$CURRENT is tagged here but not on GitHub. Choose: 'scripts/publish-release.sh --resume' publishes v$CURRENT, or 'scripts/publish-release.sh $(node -e "console.log(require(process.argv[1]).nextVersion(process.argv[2], null))" "$REPO/scripts/release.cjs" "$CURRENT" 2>/dev/null || echo X.Y.Z)' releases the next version (v$CURRENT then stays unpublished)"
     fi
     $UNPUBLISHED && log_warning "v$CURRENT is tagged here but not on GitHub; releasing $VERSION_ARG anyway (v$CURRENT stays unpublished)"
-    VERSION="$(node -e "const r=require(process.argv[1]); console.log(r.nextVersion(process.argv[2], process.argv[3] || null))" \
-        "$REPO/scripts/release.cjs" "$CURRENT" "$VERSION_ARG" 2>"$TMP/version.err")" || die "$(sed -n 's/^Error: //p' "$TMP/version.err" | head -1 | grep . || head -1 "$TMP/version.err")"
+    VERSION="$(node -e "const r=require(process.argv[1]); console.log(r.nextVersion(process.argv[2], process.argv[3] || null, process.argv[4]))" \
+        "$REPO/scripts/release.cjs" "$CURRENT" "$VERSION_ARG" "$BUMP" 2>"$TMP/version.err")" || die "$(sed -n 's/^Error: //p' "$TMP/version.err" | head -1 | grep . || head -1 "$TMP/version.err")"
 fi
 TAG="v$VERSION"
 
@@ -215,7 +223,7 @@ if ! $RESUME; then
     git -C "$REPO" rev-parse -q --verify "refs/tags/$TAG" >/dev/null && die "$TAG already exists in this repository"
     if ! $SKIP_PUBLIC && [ "$(remote_tag_state "$TAG")" = present ]; then die "$TAG already exists on GitHub - pick another version"; fi
     # The notes the release would write (stdout) and its commit list (stderr)
-    release_args=(); [ -n "$VERSION_ARG" ] && release_args+=("$VERSION_ARG")
+    release_args=(); [ -n "$VERSION_ARG" ] && release_args+=("$VERSION_ARG"); [ "$BUMP" = patch ] || release_args+=("--$BUMP")
     node "$REPO/scripts/release.cjs" "${release_args[@]+"${release_args[@]}"}" --dry-run >"$TMP/notes.js" 2>"$TMP/plan.txt" \
         || { cat "$TMP/plan.txt"; die "the release command refused (see above)"; }
     { grep -vE '^[[:space:]]*$' "$TMP/plan.txt" || true; } | sed -n '1,40p'

@@ -7,7 +7,8 @@
  * title read package.json, the window reads versions/index.js, so a
  * mismatch here means the app would show two different versions.
  *
- * Also checks the version format the release command enforces (parts 0-9)
+ * Also checks the version format the release command enforces (X.Y.Z with
+ * numeric parts of any size - Semantic Versioning, so 3.4.10 follows 3.4.9)
  * for the CURRENT version only - older entries such as v2.4.20 predate the
  * rule and keep displaying.
  *
@@ -36,7 +37,7 @@ const lock = JSON.parse(read('package-lock.json'));
 const version = pkg.version;
 console.log(`package.json version: ${version}`);
 
-check('package.json version is X.Y.Z with every part 0-9 (release rule)', /^\d\.\d\.\d$/.test(version), version);
+check('package.json version is X.Y.Z, numeric parts of any size (Semantic Versioning: 3.4.10 is a version)', /^\d+\.\d+\.\d+$/.test(version), version);
 check('package-lock.json root version matches', lock.version === version, lock.version);
 check('package-lock.json packages[""] version matches', lock.packages && lock.packages[''] && lock.packages[''].version === version, lock.packages?.['']?.version);
 

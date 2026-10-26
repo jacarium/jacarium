@@ -69,7 +69,7 @@ check('release.yml: the release downloads the installers, SBOM and VEX artifacts
 version, arch = '3.9.9', 'x86_64'
 rpm_name = f'jacarium-{version}.{arch}.rpm'
 others = [f'jacarium-{version}-linux-x64.spdx.json', f'jacarium-{version}-linux-x64.cdx.json', f'jacarium-{version}-linux-arm64.spdx.json',
-          f'jacarium-{version}-macos-arm64.spdx.json', f'jacarium-{version}-image-amd64.spdx.json', f'jacarium-{version}-image-arm64.cdx.json', f'jacarium-{version}.openvex.json', 'SHA256SUMS.txt']
+          f'jacarium-{version}-macos-arm64.spdx.json', f'jacarium-{version}-image-amd64.spdx.json', f'jacarium-{version}-image-arm64.cdx.json', f'jacarium-{version}-image-amd64.packages.spdx.json', f'jacarium-{version}.openvex.json', 'SHA256SUMS.txt']
 build_text = read('.github/workflows/build.yml')
 check('build.yml names the SBOMs jacarium-<version>-<platform>.spdx.json / .cdx.json and jacarium-<version>-image-<arch>.*', 'jacarium-${VERSION}-${PLATFORM}.spdx.json' in build_text and 'jacarium-${VERSION}-image-${ARCH}.cdx.json' in build_text)
 check('no other asset name matches the RPM pattern the spec downloads', all(not re.fullmatch(r'jacarium-[\d.]+\.(x86_64|aarch64)\.rpm', o) for o in others) and rpm_name not in others)

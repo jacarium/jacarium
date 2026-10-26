@@ -234,5 +234,33 @@ check('CODEOWNERS covers .github, the release scripts, deploy and the lock files
 single_paths = re.findall(r'^\s*(?:sbom-path|predicate-path):\s*(\S+)', read('.github/workflows/build.yml'), re.M)
 check('build.yml: every sbom-path / predicate-path names one file (no wildcard), versioned by an expression', bool(single_paths) and all('*' not in p and '?' not in p and '${{' in p for p in single_paths), single_paths)
 
+# The image SPDX from Syft is ~18 MB (21 000 file entries), over actions/attest's 16 MiB SBOM limit (v3.4.1's
+# attest job: "SBOM file exceeds maximum allowed size"): the image attestations use the package-level copy.
+bw = read('.github/workflows/build.yml')
+image_sboms = re.findall(r'(?:sbom-path:|--predicate)\s+([^\n]*?image-(?:amd64|arm64)\S*)', bw)
+check('build.yml: every image SBOM attestation (actions/attest and cosign) uses the package-level .packages.spdx.json, made after Syft', len(image_sboms) == 6 and all(x.endswith('.packages.spdx.json') for x in image_sboms) and bw.index('cyclonedx-json=out/sbom/jacarium-${VERSION}-image-${ARCH}.cdx.json') < bw.index('python3 .github/scripts/sbom-packages.py'), image_sboms)
+check('scan.yml: the weekly rescan skips the package-level copies (the same packages as the full SPDX - no double counting)', 'case "$s" in *.packages.spdx.json) continue ;; esac' in workflows['scan.yml'][0])
+check('build.yml: the installers job stops with a clear message if an installer SBOM ever exceeds the 16 MiB attestation limit', '[ "$size" -le 16777216 ]' in runs(jobs['installers']) and 'sbom-packages.py' in runs(jobs['installers']))
+check('the release notes, SECURITY.md and README say which image SBOM is attested (the package-level copy) and why', 'packages.spdx.json' in workflows['release.yml'][0] and 'packages.spdx.json' in read('SECURITY.md') and 'packages.spdx.json' in readme)
+import json as _json, subprocess as _sp, tempfile as _tf
+with _tf.TemporaryDirectory() as _d:
+    _full = {'spdxVersion': 'SPDX-2.3', 'SPDXID': 'SPDXRef-DOCUMENT', 'name': 'synthetic', 'documentNamespace': 'https://example.test/sbom/1',
+             'creationInfo': {'created': '2026-01-01T00:00:00Z', 'creators': ['Tool: synthetic']},
+             'packages': [{'SPDXID': 'SPDXRef-P1', 'name': 'alpha', 'filesAnalyzed': True, 'packageVerificationCode': {'packageVerificationCodeValue': '0' * 40}, 'externalRefs': [{'referenceType': 'purl', 'referenceLocator': 'pkg:rpm/alpha@1'}]},
+                          {'SPDXID': 'SPDXRef-P2', 'name': 'beta', 'filesAnalyzed': False}],
+             'files': [{'SPDXID': f'SPDXRef-F{i}', 'fileName': f'/usr/lib/f{i}' + 'x' * 2000} for i in range(9000)],
+             'relationships': [{'spdxElementId': 'SPDXRef-DOCUMENT', 'relatedSpdxElement': 'SPDXRef-P1', 'relationshipType': 'DESCRIBES'},
+                               {'spdxElementId': 'SPDXRef-P2', 'relatedSpdxElement': 'SPDXRef-P1', 'relationshipType': 'DEPENDENCY_OF'}]
+                              + [{'spdxElementId': 'SPDXRef-P1', 'relatedSpdxElement': f'SPDXRef-F{i}', 'relationshipType': 'CONTAINS'} for i in range(9000)]}
+    _in, _out = os.path.join(_d, 'full.json'), os.path.join(_d, 'out.json')
+    with open(_in, 'w') as fh: _json.dump(_full, fh)
+    _r = _sp.run([sys.executable, '-I', os.path.join(REPO, '.github', 'scripts', 'sbom-packages.py'), _in, _out], capture_output=True, text=True)
+    _o = _json.load(open(_out)) if _r.returncode == 0 else {}
+    check('sbom-packages.py keeps every package and package relationship, drops the files and their relationships, marks files not analysed, takes its own namespace',
+          _r.returncode == 0 and [p['name'] for p in _o['packages']] == ['alpha', 'beta'] and 'files' not in _o and len(_o['relationships']) == 2
+          and all(p['filesAnalyzed'] is False and 'packageVerificationCode' not in p for p in _o['packages'])
+          and _o['packages'][0]['externalRefs'][0]['referenceLocator'] == 'pkg:rpm/alpha@1' and _o['documentNamespace'] == 'https://example.test/sbom/1/packages'
+          and os.path.getsize(_out) < os.path.getsize(_in) / 100, _r.stderr)
+
 print(f"\n{'FAILED' if failed else 'All checks passed'} ({failed} failed)")
 sys.exit(1 if failed else 0)
