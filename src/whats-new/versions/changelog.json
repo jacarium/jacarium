@@ -1,5 +1,17 @@
 [
   {
+    "version": "3.4.3",
+    "date": "2026-10-27",
+    "features": [
+      {
+        "category": "SECURITY",
+        "description": [
+          "Release pipeline fix: cosign signs in to Quay with the release's short-lived keyless robot token, so the container images get their cosign signatures and their SBOM and VEX attestations in the registry (3.4.2's images were pushed and attested with GitHub, but cosign was refused)"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.4.2",
     "date": "2026-10-27",
     "features": [

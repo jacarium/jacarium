@@ -145,6 +145,21 @@ check('build.yml/publish: its only checkout is a sparse one of .github (persist-
 check('build.yml/publish: no build step, no stored-secret fallback (secrets. never referenced)', not BUILD_CMD.search(runs(publish)) and 'secrets.' not in yaml.safe_dump(publish) and 'QUAY_TOKEN' not in yaml.safe_dump(publish))
 check('build.yml/publish: attests the pushed digests (manifest list and both architectures) and signs with cosign', sum(1 for s in steps(publish) if 'attest-build-provenance' in str(s.get('uses') or '')) == 3 and 'cosign' in runs(publish) and 'sign --yes' in runs(publish) and 'attest --yes --type spdxjson' in runs(publish))
 check('build.yml/publish: cosign verifies its own signature with the workflow identity before the job ends', '--certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/build.yml@${GITHUB_REF}"' in runs(publish))
+# v3.4.2: cosign pushed its signatures anonymously (UNAUTHORIZED) - podman's login is invisible to cosign, which
+# reads the Docker config through go-containerregistry's keychain. cosign signs in itself, in the sign-in step,
+# with the same robot token on stdin, into the job's own DOCKER_CONFIG directory, removed at sign-out.
+pub_steps = steps(publish)
+i_signin = next((i for i, s in enumerate(pub_steps) if 'podman login quay.io' in str(s.get('run') or '')), None)
+i_sign = next((i for i, s in enumerate(pub_steps) if '" sign --yes' in str(s.get('run') or '')), None)
+i_out = next((i for i, s in enumerate(pub_steps) if 'podman logout quay.io' in str(s.get('run') or '')), None)
+signin_run = str(pub_steps[i_signin].get('run') or '') if i_signin is not None else ''
+check('build.yml/publish: cosign logs in to quay.io in the sign-in step (fetched through fetch-tool.sh), before the signing step', i_signin is not None and i_sign is not None and i_signin < i_sign and 'fetch-tool.sh cosign' in signin_run and '"$cosign" login quay.io -u "$QUAY_ROBOT" --password-stdin' in signin_run, (i_signin, i_sign))
+token_lines = [l.strip() for l in runs(publish).splitlines() if '$token' in l]
+ALLOWED_TOKEN_LINE = re.compile(r'^(printf \'%s\' "\$token" \| \S.* --password-stdin( >/dev/null)?|echo "::add-mask::\$token"|if \[ "\$status" != 200 \] \|\| \[ -z "\$token" \]; then|if \[ -n "\$token" \].*)$')
+check('build.yml/publish: the robot token travels on stdin only (printf | ... --password-stdin, to podman and cosign), is masked, and never reaches a command line, GITHUB_ENV or GITHUB_OUTPUT',
+      len([l for l in token_lines if '--password-stdin' in l]) == 2 and all(ALLOWED_TOKEN_LINE.match(l) for l in token_lines) and not re.search(r'token[^\n]*>>\s*"\$GITHUB_(ENV|OUTPUT)"', runs(publish)), [l for l in token_lines if not ALLOWED_TOKEN_LINE.match(l)])
+check("build.yml/publish: DOCKER_CONFIG is a directory of this job (runner.temp) and the sign-out step removes it", str((publish.get('env') or {}).get('DOCKER_CONFIG', '')).startswith('${{ runner.temp }}/') and i_out is not None and 'rm -rf "$DOCKER_CONFIG"' in str(pub_steps[i_out].get('run') or '') and pub_steps[i_out].get('if') == 'always()', (publish.get('env') or {}).get('DOCKER_CONFIG'))
+check("build.yml/publish: the job's timeout is below the robot token's one-hour life, so the credential cannot expire before the signatures are pushed", isinstance(publish.get('timeout-minutes'), int) and publish['timeout-minutes'] < 60, publish.get('timeout-minutes'))
 scn = workflows['scan.yml'][1]
 scn_jobs = scn.get('jobs') or {}
 check('scan.yml: lockfiles (push / pull_request / schedule / dispatch) with security-events: write, rescan on schedule only with issues: write, both without id-token', {'lockfiles', 'rescan'} <= set(scn_jobs) and perms_of(scn_jobs['lockfiles']) == {'contents': 'read', 'security-events': 'write'} and perms_of(scn_jobs['rescan']) == {'contents': 'read', 'security-events': 'write', 'issues': 'write'} and 'schedule' in str(scn_jobs['rescan'].get('if')), {k: perms_of(v) for k, v in scn_jobs.items()})

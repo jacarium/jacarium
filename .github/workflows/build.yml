@@ -494,6 +494,9 @@ jobs:
       attestations: write    # store the provenance and SBOM attestations
     env:
       QUAY_ROBOT: zerodayz+github_release     # the federated robot account (see the Quay setup notes)
+      # cosign's registry credentials live here, a directory of this job alone (removed at sign-out):
+      # cosign reads the Docker config, never what podman login wrote (see the sign-in step)
+      DOCKER_CONFIG: ${{ runner.temp }}/cosign-docker-config
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
@@ -558,7 +561,16 @@ jobs:
           fi
           echo "::add-mask::$token"
           printf '%s' "$token" | podman login quay.io -u "$QUAY_ROBOT" --password-stdin
-          echo "signed in keylessly"
+          # cosign signs in on its own, with the same one-hour token on stdin: it resolves registry
+          # credentials through go-containerregistry's keychain, which reads the Docker config
+          # (~/.docker/config.json, else $DOCKER_CONFIG/config.json) and falls back to podman's auth.json only
+          # when no Docker config exists at all - the runner has one, so podman's login was invisible to it and
+          # v3.4.2's `cosign sign` pushed anonymously (UNAUTHORIZED). The login lands in the job's own
+          # DOCKER_CONFIG directory, which the keychain reads first with the variable set.
+          mkdir -p "$DOCKER_CONFIG"
+          cosign="$(.github/scripts/fetch-tool.sh cosign)"
+          printf '%s' "$token" | "$cosign" login quay.io -u "$QUAY_ROBOT" --password-stdin >/dev/null
+          echo "signed in keylessly (podman and cosign; the robot token lasts an hour, this job at most 45 minutes)"
 
       # --format v2s2 everywhere: the docker manifest format carries the
       # HEALTHCHECK; a list pushed as OCI would convert the images and drop it.
@@ -628,7 +640,10 @@ jobs:
 
       # Keyless cosign signatures and SBOM attestations next to the image in
       # the registry (cosign's tag-based storage, which quay.io serves): the
-      # certificate names this workflow file at the release tag.
+      # certificate names this workflow file at the release tag. The registry
+      # credential is the one `cosign login` stored at sign-in (DOCKER_CONFIG);
+      # the robot token it holds lasts an hour and this job is capped well below
+      # that, so it cannot expire before the signatures are pushed.
       - name: Sign the pushed digests with cosign (keyless; pinned and verified binary)
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
@@ -649,6 +664,8 @@ jobs:
             --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null
           echo "signed and verified ${IMAGE}@${DIGEST}"
 
-      - name: Sign out of quay.io
+      - name: Sign out of quay.io (podman and cosign)
         if: always()
-        run: podman logout quay.io || true
+        run: |
+          podman logout quay.io || true
+          rm -rf "$DOCKER_CONFIG"
