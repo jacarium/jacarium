@@ -24,7 +24,7 @@ python-socketio==5.16.2
 google-api-python-client==2.199.0
 google-auth-oauthlib==1.4.0
 google-auth==2.56.3
-pytz==2026.3.post1
+pytz==2026.5
 selenium==4.47.0
 webdriver-manager==4.1.2
 lancedb==0.34.0
