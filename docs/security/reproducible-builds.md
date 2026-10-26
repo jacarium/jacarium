@@ -1,0 +1,64 @@
+# Reproducible builds
+
+Can the container image be rebuilt bit for bit from the same commit? Almost: every layer but one, and the one
+is known, explained and measured file by file. The desktop installers are not reproducible and are not claimed
+to be (below).
+
+## The container image
+
+Measured on 2026-10-26 (podman 5.3, arm64, `deploy/Containerfile` on the SLSA L3 branch), the same tracked tree
+built twice from scratch (`--no-cache`), the two images compared layer by layer, the differing layers' tarballs
+compared file by file (`podman save`, then every member's size, mode, owner, mtime and content hash):
+
+| build | identical layers | what differed, by file |
+|---|---|---|
+| as it was | 4 of 19 (the base image's) | every layer: the build's wall-clock time in every file's mtime |
+| with `--timestamp 0` | 17 of 19 | the `dnf -y install` layer: `var/lib/rpm/rpmdb.sqlite` (install times), `var/lib/dnf/repos/*/countme` (dnf's countme cookie), `var/log/rhsm/rhsm.log`, the dnf logs and history; the `pip install` layer: 406 `.pyc` files - pip's own, compiled at `pip install --upgrade pip` with the source mtime in their header |
+| with `--timestamp` and the fixes below | 18 of 19 | the `dnf -y install` layer only, and in it only `var/lib/rpm/rpmdb.sqlite`: the rpm database records the second each package was installed (`rpm -q --qf '%{INSTALLTIME}'`), which no option fixes |
+
+The fixes, in `deploy/Containerfile`:
+
+- pip is pinned (`pip==26.2.1`) instead of "whatever is newest at build time", and installed with
+  `--no-compile` like the application packages; afterwards `python -m compileall -f --invalidation-mode
+  unchecked-hash` over both site-packages directories (`lib` and `lib64`) writes bytecode that carries a hash of
+  its source and no time, and is never re-validated - an immutable image does not need that;
+- after `dnf -y install`: `/var/log/dnf*`, `/var/log/hawkey.log`, `/var/lib/dnf/history.sqlite*`, `/var/log/rhsm`
+  and `/var/lib/dnf/repos/*/countme` are removed;
+- every build passes `--timestamp` with the commit's time (`git log -1 --format=%ct`): the release workflow
+  (`.github/workflows/build.yml`), `deploy/deploy-podman.sh` and the check below. The image's `created` time
+  and every file's mtime are then the commit's, not the build's. (`deploy/deploy-to-host.sh` builds on the
+  target host from an exported tree and does not pass it; that path is for the home server, not the published
+  image.)
+
+What stays: the rpm database of the runtime stage differs by the install times of the packages the Containerfile
+adds (`epel-release`, `openssh-clients`, `sshpass`, `openssl`); the layer's digest therefore differs, and so does
+the image id. Removing the rpm database is not an option (scanners and `rpm -q` read it); setting the time is not
+one either (rpm has no `SOURCE_DATE_EPOCH` for install times). Moving those packages out of the image would make
+it reproducible; that is a product decision, not taken.
+
+`.github/workflows/reproducible.yml` builds the current commit twice every Saturday (and on request) and compares
+the layers: the one layer allowed to differ is the first layer after the base image's (the dnf step; the base's
+layer count is read from the pinned base image, not from the history), any other difference fails the job, and
+the summary lists every layer. To run the check by hand:
+
+```bash
+epoch="$(git log -1 --format=%ct)"
+for n in 1 2; do podman build --no-cache --format docker --timestamp "$epoch" -f deploy/Containerfile -t "localhost/jacarium:repro-$n" .; done
+diff <(podman image inspect --format '{{json .RootFS.Layers}}' localhost/jacarium:repro-1 | tr , '\n') \
+     <(podman image inspect --format '{{json .RootFS.Layers}}' localhost/jacarium:repro-2 | tr , '\n')
+# which files differ inside a layer: save both images and compare that layer's tar member by member
+```
+
+Dependencies are exact (`package-lock.json` with `npm ci`, `backend/requirements.lock`, pip pinned, base images
+by digest, Taskwarrior by checksum), so the inputs of a build are fixed by the commit; the UI build (Vite), the
+central server's `npm ci`, the Taskwarrior build and every COPY layer produced identical layers in every
+measurement once the timestamps were fixed.
+
+## The desktop installers
+
+Not reproducible, and not measured in depth: electron-builder's `.dmg`, `.AppImage`, `.deb` and `.rpm` embed
+build times, and the PyInstaller bundle of the backend embeds the build's file order and timestamps. What the
+release does instead is to make the build itself verifiable: every installer carries SLSA Build L3 provenance
+naming the commit and the workflow that produced it, and its SBOM. Reproducibility of the installers would need
+`SOURCE_DATE_EPOCH` support through electron-builder and PyInstaller and a normalised packaging step; it is not
+on the list.

@@ -72,6 +72,8 @@ def parse(directory):
                     except:
                         yaml_content["_age_seconds"] = 0
 
+                # READY and STATUS as kubectl prints them (detail.readiness): the list and the per-node chart read these
+                yaml_content['_ready'] = detail.readiness(yaml_content)
                 # the detail page's data (findings, containers, events, logs, field ownership)
                 yaml_content['_detail'] = detail.pod_detail(yaml_content, detail.namespace_events(directory, namespace), directory, collection_time)
                 pods_json[pod_name] = yaml_content
@@ -105,7 +107,16 @@ def _pod_state(pod):
         for st in ((c.get("state") or {}).get("terminated"), (c.get("lastState") or {}).get("terminated")):
             if st and st.get("reason") == "OOMKilled":
                 oom.append(c.get("name") or "?")
+    # an init container that has not finished names the state as kubectl does (Init:CrashLoopBackOff, Init:0/2)
+    r = detail.readiness(pod)
+    if r['status'].startswith('Init:'):
+        waiting = r['status']
     return (waiting or phase), restarts, sorted(set(oom))
+
+
+def _bare(state):
+    """The reason without kubectl's Init: prefix (the crash checks read the reason itself)."""
+    return state[5:] if isinstance(state, str) and state.startswith('Init:') else state
 
 
 def findings_for(result, collection_time):
@@ -126,7 +137,7 @@ def findings_for(result, collection_time):
             total += 1
             state, restarts, oom = _pod_state(pod)
             label = f"{ns}/{name}"
-            if state in ("CrashLoopBackOff", "Error", "ImagePullBackOff", "ErrImagePull", "CreateContainerConfigError", "CreateContainerError", "RunContainerError", "InvalidImageName"):
+            if _bare(state) in ("CrashLoopBackOff", "Error", "ImagePullBackOff", "ErrImagePull", "CreateContainerConfigError", "CreateContainerError", "RunContainerError", "InvalidImageName"):
                 crash.append((label, state, name))
             if oom:
                 oomed.append((label, oom, name))
@@ -189,7 +200,7 @@ def per_node(result, directory):
             node = (pod.get('spec') or {}).get('nodeName') or '(unscheduled)'
             state, restarts, oom = _pod_state(pod)
             phase = (pod.get('status') or {}).get('phase') or 'Unknown'
-            if state in ('CrashLoopBackOff', 'Error', 'ImagePullBackOff', 'ErrImagePull', 'CreateContainerConfigError', 'CreateContainerError'):
+            if _bare(state) in ('CrashLoopBackOff', 'Error', 'ImagePullBackOff', 'ErrImagePull', 'CreateContainerConfigError', 'CreateContainerError'):
                 phase = 'Failed'
             r = rows.setdefault(node, {'name': node, 'short': short_node(node), 'count': 0, 'phases': {}, 'role': '', 'capacity': None})
             r['count'] += 1

@@ -27,9 +27,9 @@
 # .npmrc applies to npm packages).
 
 # ---------------------------------------------------------------------------
-# UI build (Vite) - node 24.20.0 (2026-08-27)
+# UI build (Vite) - node 24.21.0 (2026-09-07; image 2026-10-06)
 # ---------------------------------------------------------------------------
-FROM docker.io/library/node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS ui
+FROM docker.io/library/node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS ui
 WORKDIR /src
 # bash: scripts/build-ui.sh; git: optional for the What's New page
 RUN apt-get update \
@@ -53,7 +53,7 @@ LABEL com.jacarium.image=deploy com.jacarium.stage=ui
 # Taskwarrior 2.6.2 from source: EPEL 9 does not carry it, and the backend
 # is verified against 2.6 (the version Debian / Ubuntu ship).
 # ---------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9/python-314:1-1788315051@sha256:e37299619160cddc01c9bc2178f2cb8fe6abb2b759cdc823466720d660c1f7ff AS taskwarrior
+FROM registry.access.redhat.com/ubi9/python-314:1-1792864219@sha256:840cb26cf8d90055a9d7811953773d7a4204ce9fb82ef34a0775a1bb26a3a892 AS taskwarrior
 USER 0
 RUN dnf -y install gcc-c++ cmake make libuuid-devel \
  && dnf clean all
@@ -70,16 +70,24 @@ RUN curl -fsSL -o task.tar.gz "https://github.com/GothenburgBitFactory/taskwarri
 LABEL com.jacarium.image=deploy com.jacarium.stage=taskwarrior
 
 # ---------------------------------------------------------------------------
-# Caddy 2.11.7 (2026-10-06): a static binary, copied into the UBI image
+# Caddy 2.11.7 (2026-10-06): a static binary, copied into the UBI image.
+# It is built with Go 1.26.8 and golang.org/x/net 0.59.0 (`caddy build-info`);
+# the Go advisories against those (GO-2026-6599/6600/6603/6610-6617) wait for
+# the next upstream Caddy release - no self-built Caddy here (see the VEX).
 # ---------------------------------------------------------------------------
 FROM docker.io/library/caddy:2.11.7@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af AS caddy
 
 # ---------------------------------------------------------------------------
-# Runtime - ubi9/python-314 1-1788315051 (2026-09-02): Python 3.14, the same
-# minor version as the desktop venv, so backend/requirements.lock is one set
-# of wheels for both
+# Runtime - ubi9/python-314 1-1792864219 (2026-10-24, RHEL 9.8: ca-certificates
+# 2026.2.92 for CVE-2026-114406, the el9_8 fixes for apr-util, gzip, perl,
+# libattr, expat, httpd): Python 3.14, the same minor version as the desktop
+# venv, so backend/requirements.lock is one set of wheels for both. OS fixes
+# land with a base-image bump (no dnf update in the build: the image stays
+# reproducible from the pinned digest). This build was two days old when
+# pinned - the one-off exception for the critical ca-certificates fix, with
+# Red Hat's image signature verified (docs/security/urgent-updates.md).
 # ---------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9/python-314:1-1788315051@sha256:e37299619160cddc01c9bc2178f2cb8fe6abb2b759cdc823466720d660c1f7ff
+FROM registry.access.redhat.com/ubi9/python-314:1-1792864219@sha256:840cb26cf8d90055a9d7811953773d7a4204ce9fb82ef34a0775a1bb26a3a892
 LABEL org.opencontainers.image.title="Jacarium" \
       org.opencontainers.image.description="Jacarium UI + backend behind Caddy (HTTPS)" \
       org.opencontainers.image.url="https://jacarium.com"
@@ -87,10 +95,14 @@ LABEL org.opencontainers.image.title="Jacarium" \
 USER 0
 # openssh-clients: the workflow SSH node runs the ssh binary; sshpass (EPEL)
 # for password logins; openssl generates the self-signed certificate.
+# (what carries the build's time is removed - the dnf logs and history, the
+# subscription-manager log, dnf's countme cookies: the layer then differs
+# between two builds of the same commit only by the rpm database's install
+# times - docs/security/reproducible-builds.md)
 RUN dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
  && dnf -y install openssh-clients sshpass openssl \
  && dnf clean all \
- && rm -rf /var/cache/dnf
+ && rm -rf /var/cache/dnf /var/log/dnf* /var/log/hawkey.log /var/lib/dnf/history.sqlite* /var/log/rhsm /var/lib/dnf/repos/*/countme
 
 COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy
 COPY --from=taskwarrior /opt/taskwarrior/bin/task /usr/local/bin/task
@@ -103,8 +115,16 @@ WORKDIR /app
 # requirements.lock pins every package to the versions the desktop venv and
 # the PyInstaller build use (backend/lock-requirements.sh regenerates it).
 COPY backend/requirements.txt backend/requirements.lock /app/backend/
-RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir -r /app/backend/requirements.txt -c /app/backend/requirements.lock
+# pip pinned (26.2.1, 2026-08-04; the seven-day rule like every other
+# version here) rather than "whatever is newest at build time". --no-compile,
+# then hash-based bytecode: a .pyc compiled at install time embeds the
+# source's modification time, so two builds of the same commit differed;
+# unchecked-hash .pyc files carry a hash of the source instead and are never
+# re-validated, which an immutable image does not need
+# (docs/security/reproducible-builds.md)
+RUN pip install --no-cache-dir --no-compile --upgrade 'pip==26.2.1' \
+ && pip install --no-cache-dir --no-compile -r /app/backend/requirements.txt -c /app/backend/requirements.lock \
+ && python -m compileall -q -f --invalidation-mode unchecked-hash /opt/app-root/lib/python3.14/site-packages /opt/app-root/lib64/python3.14/site-packages
 
 COPY backend /app/backend
 # the version the server reports (package.json) and the protocol it speaks (protocol.json)

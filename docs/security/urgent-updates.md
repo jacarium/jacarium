@@ -1,0 +1,96 @@
+# Urgent dependency updates
+
+Every run of `npm run deps:urgent` (scripts/urgent-dep-update.cjs): a dependency installed past `.npmrc`'s `min-release-age` on the user's explicit request, with the checks that were run first.
+
+The same log holds the Python counterpart: `backend/lock-requirements.sh --past-cooldown NAME==VERSION`, a release
+younger than the 7-day cooldown locked on the user's explicit request, after the checks below were done by hand
+(there is no script for PyPI yet): the publisher is the same as the previous release's (PyPI's PEP 740 provenance -
+the Trusted Publisher's repository, workflow and environment - where the project publishes one; the project page's
+maintainers and the sdist compared with the project's git tag where it does not), no new dependency, no new build
+hook, no new subprocess / socket / network / eval / ctypes use in the changed files, and the age.
+
+## 2026-10-26 - certifi==2026.10.19, brotli==1.2.1, pillow==13.0.0, fastembed==0.9.1
+
+Reason: Quay's scan of the published image (critical): pillow GHSA-8g5g-8vmr-9782, GHSA-w889-685w-c8fh,
+GHSA-332p-7hrc-92wf, GHSA-5x8w-8jj5-q52h, GHSA-v9pv-5gc8-w2m6; brotli PYSEC-2026-4322 / GHSA-9v8h-qqgm-4m35; certifi
+GHSA-6q48-6c7w-9gw2 / PYSEC-2026-4320. fastembed 0.9.1 is not a fix: it is the first fastembed that allows pillow 13
+(0.8.0 to 0.9.0 pin `pillow<13`), so pillow 13 cannot be installed without it.
+
+- certifi 2026.7.22 -> 2026.10.19: uploaded 2026-10-20 02:24 UTC, 6.3 days old. PEP 740 provenance on the sdist and
+  the wheel, the same Trusted Publisher as 2026.7.22 (GitHub certifi/python-certifi, release.yml, environment
+  release). No dependencies before or after. sdist: 19 -> 19 files, 5 changed (the version in `__init__.py`,
+  `setup.py`, `cacert.pem`, the two PKG-INFO), nothing added or removed, no new risky call.
+- brotli 1.2.0 -> 1.2.1: uploaded 2026-10-22 13:57 UTC, 3.8 days old. No PEP 740 provenance (1.2.0 had none either);
+  the project page lists the maintainers google_opensource, eustas, anthrotype (unchanged); the sdist's `c/` and
+  `python/` trees are identical to the GitHub tag v1.2.1 (118 files, only the generated egg-info differs). No
+  dependencies. sdist: 200 -> 200 files, 5 changed (`c/common/version.h`, `c/dec/decode.c`, `c/include/brotli/decode.h`,
+  the two PKG-INFO - the decoder fix); the manylinux cp314 wheel differs only in the compiled `_brotli` module. No
+  new risky call.
+- pillow 12.3.0 -> 13.0.0: uploaded 2026-10-16 22:15 UTC, 9.5 days old (older than the cooldown; the bypass is for
+  fastembed). PEP 740 provenance on the sdist and the cp314 wheels for macOS arm64, manylinux x86_64 and aarch64,
+  the same Trusted Publisher as 12.3.0 (GitHub python-pillow/Pillow, wheels.yml, environment release-pypi). No
+  runtime dependencies before or after; requires-python 3.10 -> 3.11. sdist: 1723 -> 1728 files, 339 changed (a
+  major release: 75 C/H files, the PIL plugins, tests and docs), 12 added (test images for the advisories, the 13.0.0
+  release notes, a raqm data header), 7 removed (test images, an install script, a libtiff patch); `setup.py`,
+  `pyproject.toml` and `MANIFEST.in` changed for the version and the Python floor; no new risky call. Pillow 13's
+  breaking changes (I-mode PNG clipping, `get_child_images` moved, `ImageColor.getcolor` premultiplied, removed
+  `Image._show` / `ImageCms` product fields / `ExifTags.IFD.Makernote`) touch nothing here: no Jacarium module imports
+  PIL; pillow is installed only because fastembed requires it (its image models, which Jacarium never loads).
+- fastembed 0.8.0 -> 0.9.1: uploaded 2026-10-24 18:23 UTC, 1.6 days old. No PEP 740 provenance (0.8.0 had none
+  either); PyPI's project page was behind its bot challenge, so the maintainers could not be read; the sdist's
+  `fastembed/` tree is identical to the GitHub tag v0.9.1 (69 files), whose release (2026-10-24 18:32 UTC) names
+  the same changes. The dependency set is unchanged (huggingface-hub, loguru, mmh3, numpy, onnxruntime, pillow,
+  py-rust-stemmers, requests, tokenizers, tqdm - markers reworded, pillow `<13` -> `<14`); the project moved its
+  build to uv (`[tool.uv.build-backend]`, pure-Python wheel, no build hook); the author list now also names the
+  original author (NirantK). sdist: 64 -> 75 files, 11 added (new model classes: potion static embeddings,
+  SigLIP, LateOn, inference-free SPLADE, safetensors / external-data helpers), 42 changed; the new and changed
+  modules import nothing beyond the dependency set and the standard library; no new risky call. 0.9.0 / 0.9.1
+  changes that matter here: built-in models download from Hugging Face only, and the default model
+  `BAAI/bge-small-en-v1.5` now resolves to `Qdrant/bge-small-en-v1.5-onnx-Q` (since 0.8.1) - the model is
+  re-downloaded into the new cache directory on first use; mean-pooling models return float32 (not float64).
+  Functional check: the RAG tests (tests/rag_*.test.py) and the lock consistency test after the install.
+
+filelock 3.32.5 -> 4.2.2 moved in the same lock run, within the cooldown (uploaded 2026-10-18, 8.1 days; Quay named
+4.2.1 as the fix; 4.2.2 is the newest under the cutoff): the same Trusted Publisher (GitHub tox-dev/filelock,
+release.yaml, environment release), no dependencies, new `ctypes` / `socket` use in `_util.py` (the hard-link
+owner lookup of the new read-write lock; huggingface_hub uses `FileLock` only).
+
+Lock: `backend/lock-requirements.sh --past-cooldown certifi==2026.10.19 --past-cooldown brotli==1.2.1
+--past-cooldown pillow==13.0.0 --past-cooldown fastembed==0.9.1 --upgrade-package filelock` (fastembed bumped in
+requirements.txt, where it is direct); the lock changed in exactly those five lines. Checks after the install: see
+the commit.
+
+## 2026-10-26 - base image ubi9/python-314 1-1792864219 (ca-certificates 2026.2.92)
+
+Reason: CVE-2026-114406 (critical) in ca-certificates 2025.2.80_v9.0.305-91.el9, fixed in RHEL 9.8 by
+2026.2.92_v9.0.319-90.3.el9_8 (the one CRITICAL the local trivy scan of the image left after the Python fixes
+above). Only the ubi9/python-314 build 1-1792864219 (2026-10-24) carries it - the 2026-10-22 build 1-1792671590
+still has the old bundle - so the image moved to a build two days old; the user approved this one-off exception
+to the seven-day rule for the critical fix.
+
+- Registry: pulled from registry.access.redhat.com, pinned by its manifest-list digest
+  sha256:840cb26cf8d90055a9d7811953773d7a4204ce9fb82ef34a0775a1bb26a3a892.
+- Red Hat's signatures (simple signing, published at access.redhat.com/webassets/docker/content/sigstore) of the
+  amd64 manifest sha256:00042efeae337876121f99333e29731b7191d76bd9a233c719abeea02ef23d98 and the arm64 manifest
+  sha256:3c2bef569683edca80c50e5cc9b7ce82360a770b7554bfce72521eb3bdee651b verified with gpg against Red Hat's
+  release key 2, fingerprint 567E347AD0044ADE55BA8A5F199E2F91FD431D51 (the published fingerprint; the key file
+  taken from /etc/pki/rpm-gpg of the base image already in use, because the key downloads from
+  access.redhat.com/security/data answered with a web page): GOODSIG / VALIDSIG, the signed payloads naming
+  exactly those digests and registry.access.redhat.com/ubi9/python-314, creator konflux-signing.
+- RPM difference to the previous base 1-1792067380 (2026-10-15): 469 -> 470 packages, 18 changed, 1 added, 0
+  removed - ca-certificates 2025.2.80_v9.0.305-91.el9 -> 2026.2.92_v9.0.319-90.3.el9_8; expat and expat-devel
+  2.5.0-6.el9_8.5 -> .7; httpd, httpd-core, httpd-devel, httpd-filesystem, httpd-tools, mod_ldap, mod_lua,
+  mod_session, mod_ssl 2.4.62-13.el9_8.6 -> .9; emacs-filesystem 27.2-18.el9_8.2 -> .3; kernel-headers
+  5.14.0-687.58.1 -> 687.60.1.el9_8; openssh and openssh-clients 9.9p1-12 -> 13.el9_8; environment-modules
+  5.3.0-2.el9 -> el9_8.1; perl-URI 5.09-3.el9 -> el9_8.1; added perl-Unicode-Normalize. Every change is a RHEL
+  9.8 erratum; python3.14 stays 3.14.8-1.el9_8 and openssl-libs 3.5.8-2.el9_8.
+- Side effect: of the 67 OS findings the previous scan marked "fix available" (expat CVE-2026-77214, the four
+  httpd CVEs, emacs-filesystem CVE-2026-96442, the ca-certificates one and the rest), every one is gone - trivy
+  on the new image: 0 OS findings with a fix available, 235 HIGH without one (RHEL has no fix yet: kernel-headers,
+  libX11, util-linux, libbrotli, ...), no CRITICAL; the image went from 311 to 244 HIGH+CRITICAL findings. The
+  remaining non-OS findings are unchanged (Caddy's Go toolchain, pip's vendored copies).
+
+Checks after the build: tests/container-deploy.test.mjs builds and drives the image (121 checks), rpm -q inside
+shows ca-certificates 2026.2.92_v9.0.319-90.3.el9_8, a TLS smoke test with the image's Python reaches pypi.org
+and quay.io through the system bundle (/etc/pki/tls/cert.pem, ssl's default context) and through requests /
+certifi, and refuses a self-signed certificate; deploy-podman-machine passes.

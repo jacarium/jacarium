@@ -1,0 +1,53 @@
+# CodeQL (SAST) over the JavaScript / TypeScript (the app, the central
+# server, the Electron shell) and the Python (the Flask backend) sources: on
+# every push and pull request to main and weekly, the results in the
+# Security tab (Code scanning). github/codeql-action is GitHub's own
+# (the user allows GitHub-created actions), pinned to the full commit of its
+# release like every action here. No build is needed for either language
+# (build-mode: none), so no dependency's install script runs in this job.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '41 5 * * 2'   # Tuesdays, 05:41 UTC
+
+# Nothing by default; the job says what it needs
+permissions: {}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      security-events: write   # upload the results to Code scanning
+      contents: read
+      actions: read            # the workflow run's own metadata, for the upload
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { language: javascript-typescript, build-mode: none }
+          - { language: python, build-mode: none }
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # the default query suite plus the security-extended one
+          queries: security-extended
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          category: /language:${{ matrix.language }}

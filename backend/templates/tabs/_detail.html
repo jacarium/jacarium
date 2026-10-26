@@ -16,12 +16,37 @@
     var tab = OWNER_TABS[owner.kind];
     return tab ? D.link(owner.kind + ' ' + owner.name, tab[0], tab[1], owner.name, 'Open the ' + owner.kind) : owner.kind + ' ' + owner.name;
   }
+  // a long key, value or field path breaks at its natural places (after / . - = _ : [ ]) before the chip has to
+  // break it anywhere
+  function breakable(text) {
+    var frag = document.createDocumentFragment();
+    String(text).split(/([\/.\-=_:\[\]])/).forEach(function (part) {
+      if (!part) return;
+      frag.appendChild(document.createTextNode(part));
+      if (/^[\/.\-=_:\[\]]$/.test(part)) frag.appendChild(document.createElement('wbr'));
+    });
+    return frag;
+  }
+  // the labels (or annotations) as wrapped chips: the key muted, "=" and the value in the text colour; a label without
+  // a value (node-role.kubernetes.io/master) shows the key alone
+  // the labels that say what a node is come first: its roles, its hostname, where it runs, what it is; then the rest
+  // alphabetically
+  var LABEL_RANK = [/^node-role\.kubernetes\.io\//, /^kubernetes\.io\/hostname$/, /^topology\.kubernetes\.io\/region$/, /^topology\.kubernetes\.io\/zone$/,
+    /^failure-domain\.beta\.kubernetes\.io\/(region|zone)$/, /\/zone$/, /\/region$/, /^(node|beta)\.kubernetes\.io\/instance-type$/];
+  function labelRank(k) { for (var i = 0; i < LABEL_RANK.length; i++) { if (LABEL_RANK[i].test(k)) return i; } return LABEL_RANK.length; }
   function labels(map) {
     var keys = Object.keys(map || {});
     if (!keys.length) return '';
-    var wrap = D.el('span', 'ui-detail-chips');
-    keys.sort().forEach(function (k) { wrap.appendChild(D.chip(k + '=' + map[k], k + '=' + map[k])); });
-    return wrap;
+    keys.sort(function (a, b) { return (labelRank(a) - labelRank(b)) || (a < b ? -1 : a > b ? 1 : 0); });
+    var nodes = keys.map(function (k) {
+      var v = map[k];
+      var has = v !== '' && v !== null && v !== undefined;
+      var c = D.chip('', has ? k + '=' + v : k);
+      var key = D.el('span', 'ui-chip-key'); key.appendChild(breakable(k)); c.appendChild(key);
+      if (has) { c.appendChild(document.createTextNode('=')); var val = D.el('span', 'ui-chip-val'); val.appendChild(breakable(String(v))); c.appendChild(val); }
+      return c;
+    });
+    return D.chips(nodes, { key: 'labels:' + keys.length + ':' + keys.join(',').length + ':' + keys[0] });
   }
   function statusBadge(status, type) {
     var ok = status === 'True';
@@ -72,9 +97,11 @@
     if (!cards || !cards.length) return D.el('p', 'ui-muted', 'No containers in the spec.');
     return D.cards(cards.map(function (c) {
       var badges = [stateBadge(c.state)];
-      if (c.init) badges.unshift(D.badge('muted', 'init'));
+      if (c.init) badges.unshift(D.badge('muted', c.sidecar ? 'sidecar' : 'init'));
       if (c.restarts) badges.push(D.badge(c.restarts >= 5 ? 'warn' : 'muted', c.restarts + ' restart' + (c.restarts === 1 ? '' : 's')));
-      if (c.state) badges.push(D.badge(c.ready ? 'ok' : 'warn', c.ready ? 'ready' : 'not ready'));
+      // ready / not ready is a regular container's (and a sidecar's) state; an init container is done or not
+      if (c.state && !(c.init && !c.sidecar)) badges.push(D.badge(c.ready ? 'ok' : 'warn', c.ready ? 'ready' : 'not ready'));
+      if (c.init && !c.sidecar && c.state) badges.push(c.state.kind === 'terminated' && c.state.exit_code === 0 ? D.badge('ok', 'done') : D.badge(c.state.kind === 'running' ? 'warn' : 'bad', c.state.kind === 'running' ? 'still running' : 'not done'));
       var items = [
         ['Image', c.image, 'mono'], ['Image ID', c.image_id ? c.image_id.replace(/^.*@/, '@').slice(0, 24) + (c.image_id.length > 24 ? '…' : '') : '', 'mono'],
         ['State', stateText(c.state)], ['Last state', stateText(c.last_state)],
@@ -96,9 +123,10 @@
     if (own.latest_human) wrap.appendChild(D.el('p', '', 'Last edited by a person’s tool: ' + own.latest_human.manager + (own.latest_human.relative ? ' ' + own.latest_human.relative : '') + (own.latest_human.when ? ' (' + own.latest_human.when + ')' : '') + '.'));
     wrap.appendChild(D.table([{ text: 'Manager', w: 'narrow' }, { text: 'Operation', w: 'status' }, { text: 'Fields', w: 'wrap' }, { text: 'When', w: 'num' }],
       entries.map(function (e) {
-        var fields = D.el('span', 'ui-detail-chips');
-        e.fields.forEach(function (f) { fields.appendChild(D.chip(f, f)); });
-        if (e.fields_total > e.fields.length) fields.appendChild(D.el('span', 'ui-muted', ' +' + (e.fields_total - e.fields.length) + ' more'));
+        // each path as a wrapped chip (spec.template.spec.containers[name=…].volumeMounts[mountPath=…] breaks at its dots
+        // and brackets), the list folded past its first 15 like the labels; the server's own cap noted after it
+        var fields = D.chips(e.fields.map(function (f) { var c = D.chip('', f); c.appendChild(breakable(f)); return c; }), { key: 'fields:' + e.manager + ':' + (e.when || '') + ':' + e.fields_total });
+        if (e.fields_total > e.fields.length) fields.appendChild(D.el('span', 'ui-muted', ' +' + (e.fields_total - e.fields.length) + ' not listed'));
         var manager = D.el('span'); manager.appendChild(D.badge(KIND_BADGE[e.kind] || 'muted', e.kind)); manager.appendChild(document.createTextNode(' ' + e.manager));
         return [manager, e.operation + (e.subresource ? ' (' + e.subresource + ')' : ''), fields, (e.when || '') + (e.relative ? ' (' + e.relative + ')' : '')];
       })));

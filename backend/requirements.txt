@@ -28,6 +28,6 @@ pytz==2026.3.post1
 selenium==4.47.0
 webdriver-manager==4.1.2
 lancedb==0.34.0
-fastembed==0.8.0
+fastembed==0.9.1
 markdown==3.10.3
 gunicorn==26.2.0

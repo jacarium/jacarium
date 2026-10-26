@@ -200,11 +200,28 @@ async function prepare(args) {
   fs.writeFileSync(changelogFile, changelogMd);
   updateMetainfo(repo, version);
   updateCoprSpec(repo, version);
+  writeVex(repo, version);
   log(`Prepared ${version}. Review src/whats-new/versions/v${version}.js (edit freely), then finish with: npm run release:tag`);
 
   const answer = args.yes ? 'y' : await ask(`Commit and create the local tag v${version} now? [y/N] `);
   if (answer === 'y' || answer === 'yes') return tag({ ...args, yes: true });
   return { version, written: true, tagged: false };
+}
+
+/**
+ * The release's VEX document, vex/jacarium-<version>.openvex.json, from the reviewed decisions
+ * (scripts/vex.py, PyYAML from the backend venv when there is one): committed with the release, attested by
+ * the release workflow, which also checks it against a fresh generation. A repository without the script (the
+ * tests' throwaway repositories) writes none.
+ */
+function writeVex(repo, version) {
+  const script = path.join(repo, 'scripts', 'vex.py');
+  if (!fs.existsSync(script)) return;
+  const venv = path.join(repo, 'backend', 'venv', 'bin', 'python');
+  const python = fs.existsSync(venv) ? venv : 'python3';
+  const r = spawnSync(python, [script, '--version', version], { cwd: repo, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`the VEX document could not be written (${python} scripts/vex.py --version ${version}): ${(r.stderr || r.stdout || '').trim().split('\n').slice(-3).join(' | ')}`);
+  log(r.stdout.trim());
 }
 
 /**
@@ -272,9 +289,26 @@ async function tag(args) {
   const trailers = (args.trailers || []).filter(Boolean);
   const message = trailers.length ? `Release ${tagName}\n\n${trailers.join('\n')}` : `Release ${tagName}`;
   git(repo, 'commit', '-m', message);
-  git(repo, 'tag', '-a', tagName, '-m', `Release ${version}`);
-  console.error(`Committed and tagged ${tagName} (no remote, nothing pushed).`);
-  return { version, tagged: true };
+  // Signed when this repository is set up for SSH signing (gpg.format ssh + user.signingkey), as the public
+  // clone must be (scripts/release-sign.sh); here it is optional - this tag never leaves the machine, the one
+  // GitHub sees is made in the public clone - so a repository without a key gets the annotated tag as before.
+  const signed = sshSigningConfigured(repo);
+  git(repo, 'tag', signed ? '-s' : '-a', tagName, '-m', `Release ${version}`);
+  if (signed) {
+    try { git(repo, 'verify-tag', tagName); } catch (err) {
+      throw new Error(`${tagName} was signed but does not verify (${(err.stderr || err.message || '').toString().trim().split('\n')[0]}) - is the signing key's public half in .github/allowed_signers and gpg.ssh.allowedSignersFile set here?`);
+    }
+  } else {
+    console.error('Note: this tag is not signed (no gpg.format ssh / user.signingkey in this repository); the public release tag is signed by scripts/publish-release.sh.');
+  }
+  console.error(`Committed and tagged ${tagName}${signed ? ' (signed, verified)' : ''} (no remote, nothing pushed).`);
+  return { version, tagged: true, signed };
+}
+
+/** True when `git tag -s` would sign with SSH here: gpg.format ssh and a user.signingkey. */
+function sshSigningConfigured(repo) {
+  const get = (key) => { try { return git(repo, 'config', '--get', key); } catch { return ''; } };
+  return get('gpg.format') === 'ssh' && get('user.signingkey') !== '';
 }
 
 if (require.main === module) {

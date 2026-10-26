@@ -4,6 +4,38 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.3.8
+
+_2026-10-26_
+
+### [SECURITY]
+
+SLSA Build Level 3 provenance for the desktop installers and the container image: built by an isolated reusable workflow, verified by the release before publishing (gh attestation verify)
+
+SBOMs in SPDX and CycloneDX for every installer and the image, attached to the release and attested
+
+The container image is signed with Sigstore cosign (keyless, recorded in the Rekor transparency log)
+
+Release commits and tags are signed and verified before they are pushed
+
+A VEX statement (OpenVEX) with every release, saying which scanner findings affect Jacarium and why
+
+Continuous scanning: OSV-Scanner on the lock files, a Grype gate on the image, a weekly rescan of the published SBOMs
+
+Reproducible container image: 18 of 19 layers byte-identical between two builds, checked weekly
+
+OpenSSF Scorecard, CodeQL code scanning and Dependabot (7-day cooldown); SECURITY.md with private reporting and response targets
+
+Container image security updates: a newer Red Hat UBI 9 base (ca-certificates and OS fixes) and Pillow, brotli, certifi, filelock
+
+### [DIAGNOSTICS]
+
+Pod READY and STATUS as kubectl shows them: finished init containers no longer counted, failing init containers shown as Init:CrashLoopBackOff, an Init containers section on the detail
+
+Chips never overflow: long labels wrap inside them, long lists show the first 15 with Show more
+
+No overlapping text in tables and detail pages, including Field ownership paths
+
 ## What's New in v3.3.7
 
 _2026-10-26_

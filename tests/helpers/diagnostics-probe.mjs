@@ -304,6 +304,17 @@ export const probeComponents = (frame, opts) => frame.evaluate((opts) => {
     Array.from(c.children).filter((p) => p.textContent.trim() && vis(p)).forEach((p) => { const ps = getComputedStyle(p); const pc = contrast(ps.color, cs.backgroundColor, cardBg) ; const eff = pc * Math.max(0.5, Number(ps.opacity) || 1); if (eff < 4.5) why.push('"' + p.textContent.trim().slice(0, 12) + '" contrast ' + pc.toFixed(2) + (Number(ps.opacity) < 1 ? ' at opacity ' + ps.opacity : '')); });
     const dot = c.querySelector('.ui-dot, .lc-dot');
     if (dot && transparent(getComputedStyle(dot).backgroundColor)) why.push('an invisible dot');
+    // the chip keeps inside its container, and its text inside the pill: a child element by its box (an ellipsized
+    // span), a bare text node by its laid-out range (a long label wraps inside the pill, never past its border)
+    const cr2 = c.getBoundingClientRect();
+    const pr2 = c.parentElement ? c.parentElement.getBoundingClientRect() : cr2;
+    if (cr2.right > pr2.right + 1 || cr2.left < pr2.left - 1) why.push('wider than its container (' + Math.round(cr2.width) + ' in ' + Math.round(pr2.width) + 'px)');
+    Array.from(c.childNodes).forEach((nd) => {
+      let b = null;
+      if (nd.nodeType === 1) { if (!vis(nd)) return; b = nd.getBoundingClientRect(); }
+      else if (nd.nodeType === 3 && nd.nodeValue.trim()) { const rg = document.createRange(); rg.selectNodeContents(nd); b = rg.getBoundingClientRect(); }
+      if (b && b.width && (b.right > cr2.right + 1 || b.left < cr2.left - 1 || b.top < cr2.top - 1 || b.bottom > cr2.bottom + 1)) why.push('text outside the pill ("' + (nd.textContent || '').trim().slice(0, 20) + '", ' + Math.round(Math.max(b.right - cr2.right, b.bottom - cr2.bottom)) + 'px past)');
+    });
     const prev = chips[i - 1];
     if (prev && prev.parentElement === c.parentElement && Math.abs(prev.getBoundingClientRect().top - c.getBoundingClientRect().top) < 4) { const g = c.getBoundingClientRect().left - prev.getBoundingClientRect().right; if (g < 5.5) why.push('gap ' + Math.round(g) + 'px to the previous chip'); }
     if (why.length) out.chips.push('"' + c.textContent.trim().slice(0, 24) + '": ' + why.join('; '));
@@ -930,6 +941,42 @@ export const emptyBoxes = (frame) => frame.evaluate(() => {
   return boxes.filter((b) => !boxes.some((o) => o !== b && o.contains(b))).map((b) => name(b) + ' ' + Math.round(b.getBoundingClientRect().height) + 'px').slice(0, 8);
 });
 
+/** In every table row and every kv pair of the page, the text boxes of adjacent cells never intersect (a value that paints
+ *  over its neighbour: a nowrap chip, a long path, an unbroken digest). { problems, rows } */
+export const rowOverlap = (frame) => frame.evaluate(() => {
+  const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; };
+  // a cell's painted text: its laid-out range, cut by every clipping box up to the row (overflow hidden / auto / scroll)
+  const box = (el) => {
+    const rg = document.createRange(); rg.selectNodeContents(el); let r = rg.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) return null;
+    r = { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+    for (let n = el; n && n.tagName !== 'TR' && n.tagName !== 'DL'; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (/(hidden|clip|auto|scroll)/.test(cs.overflowX) || /(hidden|clip|auto|scroll)/.test(cs.overflowY)) { const c = n.getBoundingClientRect(); r = { left: Math.max(r.left, c.left), right: Math.min(r.right, c.right), top: Math.max(r.top, c.top), bottom: Math.min(r.bottom, c.bottom) }; }
+    }
+    return r.right > r.left && r.bottom > r.top ? r : null;
+  };
+  const hit = (a, b) => !!a && !!b && a.right > b.left + 1 && b.right > a.left + 1 && a.bottom > b.top + 1 && b.bottom > a.top + 1;
+  const desc = (el) => { const cs = getComputedStyle(el); return el.tagName.toLowerCase() + (el.className ? '.' + String(el.className).split(/\s+/).slice(0, 2).join('.') : '') + '{' + cs.display + ',' + cs.whiteSpace + ',' + cs.overflowX + '}'; };
+  const where = (el) => { const t = el.closest('table'); const s = el.closest('details.ui-detail-section'); return (t && t.id ? '#' + t.id : '') + (t ? '<' + String(t.className).split(/\s+/).slice(0, 3).join('.') + '>' : '') + (s ? ' [' + (s.querySelector('summary') || { textContent: '' }).textContent.trim().slice(0, 24) + ']' : '') || 'table'; };
+  const problems = []; let rows = 0;
+  document.querySelectorAll('#diagnostics-content tr').forEach((tr) => {
+    const cells = Array.from(tr.cells).filter(vis);
+    if (cells.length < 2) return;
+    rows += 1;
+    for (let i = 0; i + 1 < cells.length; i++) {
+      const a = box(cells[i]), b = box(cells[i + 1]);
+      if (hit(a, b)) problems.push(where(tr) + ': "' + cells[i].textContent.trim().slice(0, 18) + '" ' + desc(cells[i]) + ' overlaps "' + cells[i + 1].textContent.trim().slice(0, 18) + '" ' + desc(cells[i + 1]) + ' (' + Math.round(a.right - b.left) + 'px)');
+    }
+  });
+  document.querySelectorAll('#diagnostics-content .ui-kv > div').forEach((d) => {
+    const dt = d.querySelector('dt'), dd = d.querySelector('dd');
+    if (!dt || !dd || !vis(dd)) return;
+    rows += 1;
+    if (hit(box(dt), box(dd))) problems.push('kv "' + dt.textContent.trim().slice(0, 18) + '" overlaps its value');
+  });
+  return { problems: problems.slice(0, 8), rows };
+});
 /** The page is the Findings strip alone: its visible top-level children, the first finding's text, the controls. */
 export const stripOnly = (frame) => frame.evaluate(() => {
   const root = document.querySelector('#diagnostics-content') || document.body;

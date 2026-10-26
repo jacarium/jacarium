@@ -1,7 +1,7 @@
 {
   "name": "jacarium",
   "private": true,
-  "version": "3.3.7",
+  "version": "3.3.8",
   "description": "Everything you know and use for technical work, in one place.",
   "homepage": "https://jacarium.com",
   "desktopName": "com.jacarium.app.desktop",
@@ -39,6 +39,7 @@
     "preview": "vite preview",
     "release": "node scripts/release.cjs",
     "release:tag": "node scripts/release.cjs tag",
+    "vex": "backend/venv/bin/python scripts/vex.py",
     "deps:urgent": "node scripts/urgent-dep-update.cjs",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "backend:build": "cd backend && bash build_backend.sh",

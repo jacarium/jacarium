@@ -244,6 +244,7 @@ def container_cards(pod):
                 'name': c.get('name') or '?', 'init': init, 'image': c.get('image') or '', 'image_id': st.get('imageID') or '',
                 'state': _state_of(st.get('state')), 'last_state': _state_of(st.get('lastState')),
                 'restarts': int(st.get('restartCount') or 0), 'ready': bool(st.get('ready')), 'started': bool(st.get('started')),
+                'sidecar': bool(init and c.get('restartPolicy') == 'Always'),
                 'requests': {k: human_quantity(k, v) for k, v in (res.get('requests') or {}).items()},
                 'limits': {k: human_quantity(k, v) for k, v in (res.get('limits') or {}).items()},
                 'ports': [f"{p.get('containerPort')}/{p.get('protocol') or 'TCP'}" + (f" ({p['name']})" if p.get('name') else '') for p in c.get('ports') or [] if isinstance(p, dict)],
@@ -322,6 +323,66 @@ def pod_scheduling(pod):
     }
 
 
+def readiness(pod):
+    """READY and STATUS as kubectl prints them (printers.go podStatus). READY counts the regular containers and the
+    native sidecars (an init container with restartPolicy Always): ready ones / all of them - an init container that
+    ran and finished is not one of them, and a status the spec has no container for is not counted either. STATUS is
+    the phase, or what the first unfinished init container is doing (Init:i/n, Init:<reason>, Init:ExitCode:n), or the
+    last container's waiting / terminated reason, Completed for a pod that ran to the end, Terminating when it is
+    being deleted. {ready, total, text, status, initializing, init: {total, done, sidecars}}"""
+    spec = pod.get('spec') or {}
+    status = pod.get('status') or {}
+    meta = pod.get('metadata') or {}
+    regular = [c.get('name') for c in spec.get('containers') or [] if isinstance(c, dict)]
+    inits = [c for c in spec.get('initContainers') or [] if isinstance(c, dict)]
+    sidecars = [c.get('name') for c in inits if c.get('restartPolicy') == 'Always']
+    by = {c.get('name'): c for c in status.get('containerStatuses') or [] if isinstance(c, dict)}
+    iby = {c.get('name'): c for c in status.get('initContainerStatuses') or [] if isinstance(c, dict)}
+    total = len(regular) + len(sidecars)
+    ready = sum(1 for n in regular if (by.get(n) or {}).get('ready')) + sum(1 for n in sidecars if (iby.get(n) or {}).get('ready'))
+    reason = status.get('reason') or status.get('phase') or 'Unknown'
+    initializing = False
+    done = 0
+    for i, c in enumerate(inits):
+        st = iby.get(c.get('name')) or {}
+        s = st.get('state') or {}
+        term, wait = s.get('terminated') or {}, s.get('waiting') or {}
+        if term and term.get('exitCode') == 0:
+            done += 1
+            continue
+        if c.get('restartPolicy') == 'Always' and st.get('started'):
+            done += 1
+            continue
+        if term:
+            reason = f"Init:{term['reason']}" if term.get('reason') else (f"Init:Signal:{term['signal']}" if term.get('signal') else f"Init:ExitCode:{term.get('exitCode')}")
+        elif wait.get('reason') and wait['reason'] != 'PodInitializing':
+            reason = f"Init:{wait['reason']}"
+        else:
+            reason = f"Init:{i}/{len(inits)}"
+        initializing = True
+        break
+    if not initializing:
+        has_running = False
+        for n in reversed(regular):
+            st = by.get(n) or {}
+            s = st.get('state') or {}
+            wait, term = s.get('waiting') or {}, s.get('terminated') or {}
+            if wait.get('reason'):
+                reason = wait['reason']
+            elif term:
+                reason = term.get('reason') or (f"Signal:{term['signal']}" if term.get('signal') else f"ExitCode:{term.get('exitCode')}")
+            elif st.get('ready') and s.get('running'):
+                has_running = True
+        if reason == 'Completed' and has_running:
+            reason = 'Running' if any(c.get('type') == 'Ready' and c.get('status') == 'True' for c in status.get('conditions') or [] if isinstance(c, dict)) else 'NotReady'
+    if meta.get('deletionTimestamp'):
+        reason = 'Unknown' if status.get('reason') == 'NodeLost' else 'Terminating'
+    if reason == 'Succeeded':
+        reason = 'Completed'
+    return {'ready': ready, 'total': total, 'text': f"{ready}/{total}", 'status': reason, 'initializing': initializing,
+            'init': {'total': len(inits), 'done': done, 'sidecars': sidecars}}
+
+
 def pod_state(pod):
     """('phase or waiting reason', restarts, [OOMKilled containers]) - the same reading as pod.py's."""
     status = pod.get('status') or {}
@@ -343,17 +404,22 @@ def pod_badge(pod):
     state, restarts, oom = pod_state(pod)
     status = pod.get('status') or {}
     phase = status.get('phase') or '?'
+    r = readiness(pod)
+    if r['status'].startswith('Init:'):
+        # an init container that fails is the pod's problem (kubectl's Init:CrashLoopBackOff); one still running is a wait
+        bare = r['status'][5:]
+        return {'kind': 'bad' if bare in CRASH or bare in PULL or bare.startswith('ExitCode') or bare.startswith('Signal') else 'warn', 'text': r['status']}
     if state in CRASH or state in PULL or phase in ('Failed', 'Unknown'):
         return {'kind': 'bad', 'text': state}
     if phase == 'Pending' or state in SETUP:
         return {'kind': 'warn', 'text': state}
+    if r['status'] == 'Terminating':
+        return {'kind': 'muted', 'text': 'Terminating'}
     if phase == 'Succeeded':
         return {'kind': 'muted', 'text': 'Completed'}
     if phase == 'Running':
-        total = len((pod.get('spec') or {}).get('containers') or [])
-        ready = sum(1 for c in status.get('containerStatuses') or [] if c.get('ready'))
-        if total and ready < total:
-            return {'kind': 'warn', 'text': f'Running, {ready}/{total} ready'}
+        if r['total'] and r['ready'] < r['total']:
+            return {'kind': 'warn', 'text': f"Running, {r['text']} ready"}
         return {'kind': 'ok', 'text': 'Running'}
     return {'kind': PHASE_BADGE.get(phase, 'muted'), 'text': state}
 
@@ -423,13 +489,15 @@ def pod_findings(pod, events, ownership, gather, namespace=''):
     edit = managed_fields.finding_for(ownership or [], 'the pod')
     if edit:
         out.append(edit)
+    r = readiness(pod)
+    if r['initializing'] and not any(f['severity'] == 'bad' for f in out):
+        # an init container not yet through: the pod waits for it (a failing one is a bad line above already)
+        out.append(finding('warn', r['status'], f"init container {r['init']['done'] + 1} of {r['init']['total']} has not finished: the pod stays Pending until every init container exits with code 0", **link))
     if not any(f['severity'] in ('bad', 'warn') for f in out):
-        total = len(spec.get('containers') or [])
-        ready = sum(1 for c in statuses if c.get('ready'))
         if phase == 'Succeeded':
             out.append(finding('good', 'Completed', 'every container exited with code 0'))
         elif phase == 'Running':
-            out.append(finding('good', f"Running, {ready}/{total} containers ready", 'no restart, no failed probe, every condition True'))
+            out.append(finding('good', f"Running, {r['text']} containers ready", 'no restart, no failed probe, every condition True'))
     return sort_findings(out)
 
 
@@ -480,7 +548,7 @@ def pod_detail(pod, events, directory, gather):
             'ips': [x.get('ip') for x in status.get('podIPs') or [] if isinstance(x, dict) and x.get('ip')],
             'age': duration(pod.get('_age_seconds')), 'created': meta.get('creationTimestamp') or '', 'started': status.get('startTime') or '',
             'owner': owner, 'service_account': sched['service_account'], 'priority_class': sched['priority_class'],
-            'restarts': restarts, 'ready': f"{sum(1 for c in status.get('containerStatuses') or [] if c.get('ready'))}/{len(spec.get('containers') or [])}",
+            'restarts': restarts, 'ready': readiness(pod)['text'], 'status': readiness(pod)['status'], 'init': readiness(pod)['init'],
             'labels': {str(k): str(v) for k, v in (meta.get('labels') or {}).items()},
             'annotations': len(meta.get('annotations') or {}),
             'uid': meta.get('uid') or '',

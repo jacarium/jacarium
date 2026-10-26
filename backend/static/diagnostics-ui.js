@@ -641,6 +641,9 @@
     var row = t.closest ? t.closest('tr.ui-xrow') : null;
     if (!row) return;
     if (t.closest('a, input, select, textarea, label, details, button:not(.ui-xrow-btn)')) return;
+    // a row that opens a detail page (data-detail) opens it on a click; at a width that hides columns only its
+    // chevron shows them - otherwise Back from the detail would find the row expanded without anyone asking
+    if (row.classList.contains('ui-xrow-auto') && row.hasAttribute('data-detail') && !t.closest('.ui-xrow-btn')) return;
     setOpen(row);
   });
   // the clipboard in the sandboxed frame: the async API where it is allowed, execCommand on a scratch textarea else
@@ -668,6 +671,8 @@
     if (e.key !== 'Enter' && e.key !== ' ') return;
     var t = e.target;
     if (!t.classList || !t.classList.contains('ui-xrow')) return;
+    // Enter on a row that opens a detail opens the detail (its own handler); the hidden columns stay to the chevron
+    if (t.classList.contains('ui-xrow-auto') && t.hasAttribute('data-detail')) return;
     e.preventDefault();
     setOpen(t);
   });
@@ -1468,6 +1473,27 @@
   // ---- the shared pieces of a detail page ----
   function badge(kind, text, title) { var b = el('span', 'ui-badge ui-badge-' + (kind || 'muted'), text); if (title) b.title = title; return b; }
   function chip(text, title) { var c = el('span', 'ui-chip ui-chip-static', text); if (title) c.title = title; return c; }
+  // a list of chips with a fold: the first `limit` (15) shown, "Show N more" - a quiet link button in the same cell,
+  // aria-expanded - shows them all, "Show less" folds again. The state is kept per list (opts.key, else the list's
+  // size and first chip), so it survives a Back and a return to the page.
+  var CHIPS_LIMIT = 15;
+  var chipsOpen = {};
+  function chips(nodes, opts) {
+    opts = opts || {};
+    var limit = opts.limit || CHIPS_LIMIT;
+    var key = opts.key || (nodes.length + ':' + (nodes[0] ? nodes[0].textContent : ''));
+    var wrap = el('span', 'ui-detail-chips');
+    var show = function (open) { nodes.forEach(function (n, i) { n.hidden = !open && i >= limit; }); };
+    nodes.forEach(function (n) { wrap.appendChild(n); });
+    if (nodes.length > limit) {
+      var more = el('button', 'ui-link ui-chips-more'); more.type = 'button';
+      var label = function (open) { more.textContent = open ? 'Show less' : 'Show ' + (nodes.length - limit) + ' more'; more.setAttribute('aria-expanded', String(!!open)); more.title = open ? 'Fold the list to its first ' + limit : 'Show all ' + nodes.length; };
+      more.addEventListener('click', function () { chipsOpen[key] = !chipsOpen[key]; show(chipsOpen[key]); label(chipsOpen[key]); });
+      show(!!chipsOpen[key]); label(!!chipsOpen[key]);
+      wrap.appendChild(more);
+    }
+    return wrap;
+  }
   function meter(value, max, role, text, title) {
     var pct = max ? 100 * (value || 0) / max : 0; pct = Math.max(0, Math.min(100, pct));
     var m = el('span', 'ui-meter'); m.setAttribute('data-role', role || 'ok'); m.setAttribute('role', 'meter'); m.setAttribute('aria-valuenow', String(value || 0)); m.setAttribute('aria-valuemin', '0'); m.setAttribute('aria-valuemax', String(max || 100)); if (title) m.title = title;
@@ -1541,6 +1567,8 @@
       var d = el('div'); d.appendChild(el('dt', '', it[0]));
       var dd = el('dd', it[2] ? 'ui-' + it[2] : '');
       if (v instanceof Node) dd.appendChild(v); else dd.textContent = String(v);
+      // a chip list takes the grid's whole width: the chips flow several to a row and the folded list stays short
+      if (v instanceof Node && v.classList && v.classList.contains('ui-detail-chips')) d.classList.add('ui-kv-wide');
       d.appendChild(dd); dl.appendChild(d);
     });
     return dl;
@@ -1593,7 +1621,7 @@
   // still be rendering, so the key is tried again for two seconds)
   function applyQuery(q) { var m = /^detail=(.+)$/.exec(String(q || '')); if (!m) return false; var key = m[1]; var tries = 0; (function go() { if (openKey(key) || tries++ > 20) return; setTimeout(go, 100); })(); return true; }
 
-  window.diagDetail = { register: register, open: openKey, back: function () { var r = current(); if (r) r.back(); }, current: current, header: header, findings: findings, body: body, section: section, kv: kv, cards: cards, link: link, table: table, badge: badge, chip: chip, meter: meter, list: list, masked: masked, when: when, secretish: function (name) { return SECRETISH.test(String(name || '')); }, applyQuery: applyQuery, el: el };
+  window.diagDetail = { register: register, open: openKey, back: function () { var r = current(); if (r) r.back(); }, chips: chips, current: current, header: header, findings: findings, body: body, section: section, kv: kv, cards: cards, link: link, table: table, badge: badge, chip: chip, meter: meter, list: list, masked: masked, when: when, secretish: function (name) { return SECRETISH.test(String(name || '')); }, applyQuery: applyQuery, el: el };
 })();
 
 /*

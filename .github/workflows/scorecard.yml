@@ -1,0 +1,52 @@
+# OpenSSF Scorecard: the repository's own supply-chain posture, scored
+# weekly and on every push to main, published to api.scorecard.dev (the
+# badge in README.md and https://scorecard.dev/viewer/?uri=github.com/jacarium/jacarium)
+# and uploaded as SARIF to the Security tab (Code scanning).
+#
+# ossf/scorecard-action is the ONE third-party action this repository runs
+# (the user's explicit exception: publishing results to the Scorecard API,
+# which the badge needs, is only possible through this action's OIDC
+# identity - a pinned scorecard binary cannot publish). It is pinned to the
+# full commit of its release, as every action here, and
+# tests/github_workflows.test.py allows it in this file only. The set-up is
+# the action's documented hardened one: read-all at the top, the job holds
+# only what the action and the SARIF upload need, no other steps.
+name: Scorecard
+
+on:
+  # a change to the branch protection / rulesets rescored at once
+  branch_protection_rule:
+  schedule:
+    - cron: '27 6 * * 1'   # Mondays, 06:27 UTC
+  push:
+    branches: [main]
+
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      security-events: write   # the SARIF upload to Code scanning
+      id-token: write          # publish_results: the action signs the results with the workflow's OIDC identity
+      contents: read
+      actions: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run Scorecard
+        uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload the SARIF to Code scanning
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          sarif_file: results.sarif

@@ -16,14 +16,17 @@ on:
   release:
     types: [published]
 
-permissions:
-  contents: read
+# Nothing by default; the job says what it needs (the same contents: read
+# as before, declared where tests/github_workflows.test.py looks for it)
+permissions: {}
 
 jobs:
   copr:
     name: Fedora COPR (robincernin/jacarium)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - name: Install copr-cli
         # pinned: bump on purpose after checking its release notes

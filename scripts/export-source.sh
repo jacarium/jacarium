@@ -24,9 +24,12 @@
 # and dot-directories are left out - except the ones building Jacarium
 # needs (EXPORTED_DOTFILES below: the .gitignore files, .nvmrc, the .npmrc
 # supply-chain settings, the container build's ignore files, COPR's
-# .copr/Makefile), which are exported like any other file. Every other
-# dot-path in <dest> is never touched or deleted - its .git, a .github/
-# with the release workflow, stay as they are.
+# .copr/Makefile), which are exported like any other file, and the whole
+# of .github/ (EXPORTED_DOTDIRS: the release workflows, the pinned tools,
+# the allowed signing keys, CODEOWNERS), which is mirrored - a file gone
+# from .github/ here is deleted there too, so no stale workflow keeps
+# running in the public repository. Every other dot-path in <dest> is never
+# touched or deleted - its .git stays as it is.
 #
 # Files the destination's own .gitignore ignores (node_modules after an
 # `npm install` there, a build) are never deleted: they cannot be committed
@@ -45,11 +48,13 @@ set -euo pipefail
 # The dot-files a build from the published source needs (the release
 # workflow reads .nvmrc; deploy/Containerfile copies .npmrc and its build
 # context honours .containerignore / .dockerignore; COPR runs .copr/Makefile
-# to make the SRPM from packaging/copr); every other dot-path (.github/,
-# .claude/, editor settings) stays out
+# to make the SRPM from packaging/copr), and the dot-directories mirrored
+# whole (.github/: the workflows GitHub runs for the public repository);
+# every other dot-path (.claude/, editor settings) stays out
 EXPORTED_DOTFILES=(.gitignore .nvmrc .npmrc .containerignore .dockerignore
     backend/.gitignore jacarium-central/.gitignore jacarium-central/.npmrc
     .copr/Makefile)
+EXPORTED_DOTDIRS=(.github)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -140,21 +145,30 @@ for f in "${EXPORTED_DOTFILES[@]}"; do
     [ -f "$STAGE/$f" ] || continue
     mkdir -p "$KEEP/$(dirname "$f")" && cp -p "$STAGE/$f" "$KEEP/$f"
 done
+# the mirrored dot-directories, whole (every tracked file under them)
+for d in "${EXPORTED_DOTDIRS[@]}"; do
+    [ -d "$STAGE/$d" ] || continue
+    (cd "$STAGE" && find "$d" -type f -print) | while IFS= read -r f; do mkdir -p "$KEEP/$(dirname "$f")" && cp -p "$STAGE/$f" "$KEEP/$f"; done
+done
 # (the pruned paths minus the exported dot-files and their dot-directories:
 # .copr is pruned as a directory and comes back with its Makefile)
-SKIPPED_DOT="$(cd "$STAGE" && find . -mindepth 1 -name '.*' -prune -print | sed 's|^\./||' | sort | { grep -vxF -f <(printf '%s\n' "${EXPORTED_DOTFILES[@]}" "${EXPORTED_DOTFILES[@]%/*}") || true; })"
+SKIPPED_DOT="$(cd "$STAGE" && find . -mindepth 1 -name '.*' -prune -print | sed 's|^\./||' | sort | { grep -vxF -f <(printf '%s\n' "${EXPORTED_DOTFILES[@]}" "${EXPORTED_DOTFILES[@]%/*}" "${EXPORTED_DOTDIRS[@]}") || true; })"
 (cd "$STAGE" && find . -mindepth 1 -name '.*' -prune -exec rm -rf {} +)
 # (a kept file under a dot-directory, .copr/Makefile, needs its directory back)
 (cd "$KEEP" && find . -type f -print) | while IFS= read -r f; do f="${f#./}"; mkdir -p "$STAGE/$(dirname "$f")"; cp -p "$KEEP/$f" "$STAGE/$f"; done
 
 # Regular files and symlinks, relative paths, never under a dot-path - plus
-# the exported dot-files that exist there
+# the exported dot-files that exist there and everything under the mirrored
+# dot-directories (so a file gone from .github/ here is removed there)
 list_files() {
     (
         cd "$1"
         find . -mindepth 1 -name '.*' -prune -o \( -type f -o -type l \) -print | sed 's|^\./||'
         for f in "${EXPORTED_DOTFILES[@]}"; do
             if [ -f "$f" ] || [ -L "$f" ]; then echo "$f"; fi
+        done
+        for d in "${EXPORTED_DOTDIRS[@]}"; do
+            [ -d "$d" ] && find "$d" -mindepth 1 \( -type f -o -type l \) -print
         done
     ) | LC_ALL=C sort
 }

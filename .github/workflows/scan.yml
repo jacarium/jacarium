@@ -1,0 +1,153 @@
+# Continuous vulnerability scanning, with pinned and verified binaries
+# (.github/tools.env, .github/scripts/fetch-tool.sh):
+#   lockfiles   on every push and pull request to main, and weekly:
+#               OSV-Scanner over the three lock files (the app's and the
+#               central server's package-lock.json, backend/requirements.lock).
+#               The not_affected decisions of vex/decisions.yaml are its ignore
+#               list (scripts/vex.py writes it); anything else fails the job
+#               and lands in Code scanning as SARIF.
+#   rescan      weekly: the SBOMs of the latest published release, downloaded
+#               from the release itself, scanned with Grype against today's
+#               database - so a CVE published after the release shows up
+#               without a rebuild. High / Critical findings with a fix that
+#               the release's VEX does not cover go to the job summary, to
+#               Code scanning, and into one issue (updated, not duplicated).
+# Both jobs run no project code but the VEX script (Python, no dependency
+# beyond PyYAML on the runner) and build nothing. The image itself is scanned
+# at build time in build.yml (Grype, failing on High / Critical with a fix).
+name: Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '13 4 * * 3'   # Wednesdays, 04:13 UTC
+  workflow_dispatch:
+
+# Nothing by default; every job says what it needs
+permissions: {}
+
+jobs:
+  lockfiles:
+    name: Lock files (OSV-Scanner)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write   # the SARIF upload
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The VEX decisions as OSV-Scanner's ignore list
+        run: |
+          version="$(jq -r .version package.json)"
+          python3 scripts/vex.py --version "$version" --out "$RUNNER_TEMP/vex.json" --osv-config "$RUNNER_TEMP/osv-scanner.toml"
+          cat "$RUNNER_TEMP/osv-scanner.toml"
+
+      - name: Scan the lock files (osv-scanner, pinned and verified)
+        run: |
+          osv="$(.github/scripts/fetch-tool.sh osv-scanner)"
+          set +e
+          "$osv" scan --config "$RUNNER_TEMP/osv-scanner.toml" \
+            -L package-lock.json -L jacarium-central/package-lock.json -L requirements.txt:backend/requirements.lock \
+            --format sarif --output osv.sarif
+          rc=$?
+          "$osv" scan --config "$RUNNER_TEMP/osv-scanner.toml" \
+            -L package-lock.json -L jacarium-central/package-lock.json -L requirements.txt:backend/requirements.lock \
+            --format table > osv.txt 2>&1 || true
+          set -e
+          { echo '## OSV-Scanner'; echo; echo '```'; cat osv.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          # 0 = nothing found, 1 = vulnerabilities found (the SARIF says which), anything else is a tool error
+          case "$rc" in 0) echo "no known vulnerability in the lock files" ;; 1) echo "::error::OSV-Scanner found vulnerabilities not covered by vex/decisions.yaml - see the summary and Code scanning"; echo "FOUND=1" >> "$GITHUB_ENV" ;; *) echo "::error::osv-scanner exit $rc"; exit "$rc" ;; esac
+
+      - name: Upload the SARIF to Code scanning
+        if: always() && hashFiles('osv.sarif') != ''
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          sarif_file: osv.sarif
+          category: osv-scanner
+
+      - name: Fail on findings
+        if: env.FOUND == '1'
+        run: exit 1
+
+  rescan:
+    name: Latest release SBOMs (Grype)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write   # the SARIF upload
+      issues: write            # the one tracking issue
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out (.github and the VEX only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github
+            vex
+          sparse-checkout-cone-mode: true
+
+      - name: The latest release's SBOMs
+        run: |
+          tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)"
+          [ -n "$tag" ] || { echo "no published release yet - nothing to rescan"; echo "SKIP=1" >> "$GITHUB_ENV"; exit 0; }
+          mkdir -p sboms
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.spdx.json' --dir sboms
+          ls -la sboms
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+          echo "VERSION=${tag#v}" >> "$GITHUB_ENV"
+
+      - name: Scan them (grype, pinned and verified; the release's VEX applied)
+        if: env.SKIP != '1'
+        run: |
+          grype="$(.github/scripts/fetch-tool.sh grype)"
+          vex="vex/jacarium-${VERSION}.openvex.json"
+          [ -f "$vex" ] && vexarg="--vex $vex" || { vexarg=""; echo "::warning::no $vex in the repository - scanning without a VEX"; }
+          mkdir -p out
+          found=0
+          for s in sboms/*.spdx.json; do
+            n="$(basename "$s" .spdx.json)"
+            # shellcheck disable=SC2086
+            "$grype" "sbom:$s" $vexarg --ignore-states not-fixed,wont-fix --only-fixed -o json --file "out/$n.json" -q || true
+            # shellcheck disable=SC2086
+            "$grype" "sbom:$s" $vexarg --ignore-states not-fixed,wont-fix --only-fixed -o sarif --file "out/$n.sarif" -q || true
+            hc="$(jq '[.matches[] | select(.vulnerability.severity == "High" or .vulnerability.severity == "Critical")] | length' "out/$n.json")"
+            echo "$n: $hc High / Critical with a fix"
+            found=$((found + hc))
+          done
+          { echo "## Grype on the SBOMs of $TAG"; echo; for f in out/*.json; do n="$(basename "$f" .json)"; echo "### $n"; jq -r '.matches[] | select(.vulnerability.severity == "High" or .vulnerability.severity == "Critical") | "- \(.vulnerability.id) \(.artifact.name) \(.artifact.version) -> \(.vulnerability.fix.versions | join(", ")) (\(.vulnerability.severity))"' "$f"; echo; done; } >> "$GITHUB_STEP_SUMMARY"
+          echo "FOUND=$found" >> "$GITHUB_ENV"
+          # one SARIF for Code scanning: the image SBOMs' (the installers' findings are listed in the summary and the issue)
+          first="$(ls out/*image-amd64.sarif 2>/dev/null | head -1)"; [ -n "$first" ] && cp "$first" rescan.sarif || true
+
+      - name: Upload the SARIF to Code scanning
+        if: env.SKIP != '1' && hashFiles('rescan.sarif') != ''
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          sarif_file: rescan.sarif
+          category: grype-rescan
+
+      # One issue carries the state: created on the first finding, a comment added when the set changes, left
+      # alone otherwise. Nothing is created when nothing is found.
+      - name: Track the findings in one issue
+        if: env.SKIP != '1' && env.FOUND != '0'
+        run: |
+          title="Rescan: ${FOUND} High / Critical finding(s) with a fix in the SBOMs of ${TAG}"
+          body="$(cat "$GITHUB_STEP_SUMMARY")"$'\n\n'"Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. A finding that does not affect Jacarium gets a not_affected decision in vex/decisions.yaml; a real one a release."
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search 'in:title "Rescan:"' --json number --jq '.[0].number' 2>/dev/null || true)"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+            gh issue edit "$existing" --repo "$GITHUB_REPOSITORY" --title "$title"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body" --label security
+          fi

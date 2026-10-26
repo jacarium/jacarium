@@ -17,8 +17,8 @@ to 45 and EPEL 10, x86_64 and aarch64).
   `%global jacarium_version` is only the fallback for a build by hand;
   `npm run release` bumps it with package.json and adds the `%changelog`
   entry.
-- `github-workflow-copr.yml` is the public clone's
-  `.github/workflows/copr.yml`: it asks COPR to build when a GitHub release
-  is published (a workflow of its own, so publishing re-runs nothing else).
+- `.github/workflows/copr.yml` (at the repository root, exported with the
+  rest of `.github/`) asks COPR to build when a GitHub release is published
+  (a workflow of its own, so publishing re-runs nothing else).
 
 How to release it, test it locally and set COPR up: `docs/HOW_TO_RELEASE.md`.

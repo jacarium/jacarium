@@ -1,0 +1,67 @@
+# Dependabot: version-update pull requests for every ecosystem this
+# repository pins (npm twice, pip, the GitHub actions, the container base
+# images), each with the same seven-day cooldown the rest of the dependency
+# policy keeps (.npmrc min-release-age, backend/lock-requirements.sh): a
+# release is proposed only once it is a week old. Security updates are
+# exempt from the cooldown by Dependabot's design - those are the ones that
+# go through the urgent-update checks (docs/security/urgent-updates.md)
+# before they are merged. Nothing merges on its own: every pull request is
+# reviewed and the lock files regenerated with the project's own scripts.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /jacarium-central
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 7
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 7
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: /deploy
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3

@@ -128,6 +128,10 @@ def mask(s):
 
 # ---- generic patterns (text files) ------------------------------------
 SAFE_DOMAIN = re.compile(r'^(?:[a-z0-9-]+\.)*(?:example|test|sample|dummy|placeholder|localhost|invalid)(?:\.[a-z0-9-]+)*$', re.I)
+# Published signing identities that look like addresses but belong to no person: the Sigstore project's
+# release identity, which .github/scripts/fetch-tool.sh verifies cosign's own release against (exactly this
+# string - a change here is a change of the trust root and shows up in review)
+PUBLIC_IDENTITIES = {'keyless@projectsigstore.iam.gserviceaccount.com'}
 # a real address ends in an alphabetic TLD: python@3.14, pi@192.168.0.50 and
 # a user:password@<private IP> URL are not e-mail (the private-IP form has its
 # own check)
@@ -250,7 +254,7 @@ for path in paths:
     for lineno, line in enumerate(text.split('\n'), 1):
         for m in EMAIL.finditer(line):
             domain = m.group(0).split('@', 1)[1]
-            if not SAFE_DOMAIN.match(domain):
+            if not SAFE_DOMAIN.match(domain) and m.group(0) not in PUBLIC_IDENTITIES:
                 found('email', path, lineno, mask(m.group(0)))
         for m in USER_AT_PRIVATE_IP.finditer(line):
             if m.group(1).lower() not in GENERIC_USERS:

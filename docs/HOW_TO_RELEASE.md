@@ -36,6 +36,36 @@ target) live outside the repository, in `~/.config/jacarium/release.env` -
 see `scripts/publish-release.sh --help`. On GitHub you then approve the
 `quay` environment when the image job waits, and publish the draft release.
 
+**Signed.** The commit and the tag in the public clone are SSH-signed
+(`scripts/release-sign.sh`: `git commit -S`, `git tag -s`, both verified
+against `.github/allowed_signers` before the push); the clone must have
+`gpg.format ssh` and `user.signingkey` set, or step 1 stops with the
+instructions. There is no unsigned path. Anyone verifies a release with
+`git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag vX.Y.Z`.
+
+**The VEX.** `npm run release` also writes `vex/jacarium-X.Y.Z.openvex.json`
+from `vex/decisions.yaml` (`scripts/vex.py`); review the decisions before a
+release - a scanner finding that does not affect Jacarium gets a
+`not_affected` entry with the reason verified in the code, one with a fix
+pending an `affected` entry - and run `npm run vex -- --version X.Y.Z --scan
+<grype or trivy json>` to see which findings have no decision yet. The
+release workflow refuses a tag whose committed VEX does not match the
+decisions.
+
+**What the workflow does with the tag.** `.github/workflows/release.yml`
+calls the reusable `build.yml`: the installers and the image are built in
+jobs that can sign nothing, their SBOMs (Syft) and the VEX are collected, the
+build provenance (SLSA Build L3), the SBOM and VEX attestations are signed
+in a job that runs no project code, the image is pushed to quay.io after the
+`quay` approval, attested and cosign-signed, and the release job verifies
+every attestation with `gh attestation verify` before it creates the draft
+release (the installers, `SHA256SUMS.txt`, the SBOMs and the VEX; the notes
+end with the verify commands). The image build also runs Grype: a High or
+Critical finding with a fix that the VEX does not cover fails the release -
+decide it in `vex/decisions.yaml` first (or fix it). README.md's "Verify
+this release" block and SECURITY.md describe the result; the GitHub settings
+the flow expects are in `docs/security/github-settings.md`.
+
 Without `--yes` it pauses after writing the release notes so you can edit
 `src/whats-new/versions/vX.Y.Z.js` before it tags. If a run stops after the
 tag (a failed push, a deploy error), fix the cause and run it again with
@@ -64,12 +94,12 @@ COPR's own GitHub webhook reacts to pushes and tag creation (it would build
 on the tag push, before the assets exist, and fail), and its "custom"
 webhook starts a build of the default branch on ANY POST - GitHub sends
 one for every release action, the draft's creation and each edit included -
-so neither fits. The trigger is a workflow of its own in the public clone,
-`.github/workflows/copr.yml`, that runs only on `release: published` and asks
+so neither fits. The trigger is a workflow of its own,
+`.github/workflows/copr.yml` (tracked here and exported to the public clone
+with the rest of `.github/`), that runs only on `release: published` and asks
 COPR to build exactly that tag with `copr-cli` (python + pip, no third-party
-action): `packaging/copr/github-workflow-copr.yml` is a copy of it. It is not
-part of `release.yml`, so publishing a release re-runs none of the build or
-image jobs.
+action). It is not part of `release.yml`, so publishing a release re-runs
+none of the build or image jobs.
 If it ever fails (an expired token, say), the same build by hand, with
 `copr-cli` and your token file at `~/.config/copr`:
 
@@ -94,10 +124,10 @@ copr-cli buildscm --clone-url https://github.com/jacarium/jacarium.git --commit 
    next.
 3. GitHub > jacarium/jacarium > Settings > Secrets and variables > Actions >
    New repository secret: name `COPR_API_TOKEN`, value = that token file.
-4. In the public clone, copy `packaging/copr/github-workflow-copr.yml` to
-   `.github/workflows/copr.yml`, commit and push it there (like
-   `release.yml` it lives only in the public clone; the export does not
-   touch `.github/`).
+4. Nothing to copy: `.github/workflows/copr.yml` is tracked in this
+   repository and reaches the public clone with the next export
+   (`scripts/export-source.sh` mirrors `.github/` whole, like `release.yml`
+   and `build.yml`).
 5. Publish a release as usual (`scripts/publish-release.sh`, then publish
    the draft on GitHub). The `copr` job starts within a minute, COPR builds
    both architectures for every chroot (a few minutes each), and

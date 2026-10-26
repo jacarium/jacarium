@@ -1,0 +1,20 @@
+# Who reviews changes to the release machinery and the supply-chain controls (GitHub asks these owners for a
+# review on pull requests that touch the paths; with "Require review from Code Owners" on the main branch's
+# ruleset, such a change cannot merge without them). The workflows, the pinned tools, the signing keys, the
+# release and export scripts, the container build and the packaging.
+/.github/                 @robincernin
+/scripts/publish-release.sh   @robincernin
+/scripts/export-source.sh     @robincernin
+/scripts/release.cjs          @robincernin
+/scripts/privacy-scan.sh      @robincernin
+/scripts/urgent-dep-update.cjs @robincernin
+/deploy/                  @robincernin
+/packaging/               @robincernin
+/backend/lock-requirements.sh @robincernin
+/backend/requirements.txt     @robincernin
+/backend/requirements.lock    @robincernin
+/package.json             @robincernin
+/package-lock.json        @robincernin
+/.npmrc                   @robincernin
+/SECURITY.md              @robincernin
+/vex/                     @robincernin

@@ -162,19 +162,17 @@
  const podIP = status.podIP || '';
  const age = calculateAge(podInfo._age_seconds);
 
+ // READY and STATUS as kubectl prints them, read by the backend (parsers/mustgather/detail.py readiness: the regular
+ // containers and the native sidecars, never an init container that ran and finished); the init containers as a hint
+ const r = podInfo._ready || null;
  const containers = spec.containers || [];
  const containerStatuses = status.containerStatuses || [];
- const ready = `${containerStatuses.filter(c => c.ready).length}/${containers.length}`;
+ const ready = r ? r.text : `${containerStatuses.filter(c => c.ready).length}/${containers.length}`;
+ let podStatus = r ? r.status : (status.phase || '-');
+ if (!r && podStatus === 'Succeeded') podStatus = 'Completed';
+ const initHint = r && r.init && r.init.total ? `init ${r.init.done}/${r.init.total}${r.init.done === r.init.total ? ' done' : ''}` : '';
 
- // Determine pod status
- let podStatus = status.phase || '-';
- if (podStatus === 'Running' && ready !== `${containers.length}/${containers.length}`) {
- podStatus = 'Not Ready';
- } else if (podStatus === 'Succeeded') {
- podStatus = 'Completed';
- }
-
- const restartCount = containerStatuses.reduce((acc, cs) => acc + (cs.restartCount || 0), 0);
+ const restartCount = containerStatuses.concat(status.initContainerStatuses || []).reduce((acc, cs) => acc + (cs.restartCount || 0), 0);
 
  // Format conditions
  const conditions = (status.conditions || []).map(c => {
@@ -191,6 +189,7 @@
  node: nodeName,
  conditions,
  ready,
+ init_hint: initHint,
  restarts: restartCount,
  status: podStatus,
  ip: podIP,
@@ -370,7 +369,7 @@
  <td>${pod.name}</td>
  <td>${pod.node}</td>
  <td>${pod.conditions}</td>
- <td>${pod.ready}</td>
+ <td>${pod.ready}${pod.init_hint ? ` <span class="ui-muted ui-init-hint" title="the init containers: done / total (not counted in READY)">${pod.init_hint}</span>` : ''}</td>
  <td>${pod.restarts}</td>
  <td>${pod.status}</td>
  <td>${pod.ip}</td>
@@ -471,7 +470,8 @@
  const s = String(status || '');
  if (s === 'Running') return 'Running';
  if (s === 'Succeeded' || s === 'Completed') return 'Succeeded';
- if (s === 'Pending' || s === 'ContainerCreating' || s === 'PodInitializing' || s === 'Init') return 'Pending';
+ if (/^Init:/.test(s)) return /BackOff|Error|Err|ExitCode|Signal|Invalid/.test(s) ? 'Failed' : 'Pending';
+ if (s === 'Pending' || s === 'ContainerCreating' || s === 'PodInitializing' || s === 'Init' || s === 'NotReady' || s === 'Terminating') return 'Pending';
  if (s === 'Unknown' || s === '-') return 'Unknown';
  return 'Failed';
  };
@@ -551,15 +551,18 @@
  body.appendChild(D.section('Summary', D.kv([
  ['Namespace', pod.namespace],
  ['Node', s.node ? D.link(s.node, 'compute', 'nodes', s.node, 'Open the node') : '(unscheduled)'],
- ['Phase', s.phase], ['State', s.state !== s.phase ? s.state : ''], ['Ready', s.ready], ['Restarts', s.restarts],
+ ['Phase', s.phase], ['Status', s.status && s.status !== s.phase ? s.status : ''], ['Ready', s.ready], ['Init containers', s.init && s.init.total ? `${s.init.done}/${s.init.total} done${s.init.sidecars && s.init.sidecars.length ? ` (${s.init.sidecars.length} sidecar${s.init.sidecars.length === 1 ? '' : 's'}, counted in Ready)` : ''}` : ''], ['Restarts', s.restarts],
  ['QoS', s.qos], ['Pod IP', s.ip + (ips.length ? ', ' + ips.join(', ') : ''), 'mono'], ['Host IP', s.host_ip, 'mono'],
  ['Age', s.age ? s.age + ' (created ' + D.when(s.created) + ')' : D.when(s.created)], ['Started', D.when(s.started)],
  ['Owner', K.ownerLink(s.owner)], ['Service account', s.service_account], ['Priority class', s.priority_class],
  ['Labels', K.labels(s.labels)], ['Annotations', s.annotations ? s.annotations + ' (in the JSON below)' : ''], ['UID', s.uid, 'mono'],
  ]), { open: true }));
  // Containers: one card each
+ // the init containers on their own (open while one is still running or failed), then the containers
  const cards = d.containers || [];
- body.appendChild(D.section('Containers', K.containers(cards), { open: true, count: cards.length }));
+ const inits = cards.filter((c) => c.init), regular = cards.filter((c) => !c.init);
+ if (inits.length) body.appendChild(D.section('Init containers', K.containers(inits), { open: inits.some((c) => !c.sidecar && !(c.state && c.state.kind === 'terminated' && c.state.exit_code === 0)), count: inits.length }));
+ body.appendChild(D.section('Containers', K.containers(regular), { open: true, count: regular.length }));
  // Conditions
  body.appendChild(D.section('Conditions', K.conditions(d.conditions), { open: true, count: (d.conditions || []).length }));
  // Volumes

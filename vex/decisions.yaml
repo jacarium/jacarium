@@ -1,0 +1,115 @@
+# The reviewed VEX decisions: one entry per advisory the scanners report against a release of Jacarium, with the
+# status in OpenVEX terms and the reason. scripts/vex.py turns this file into vex/jacarium-<version>.openvex.json
+# (validated against vex/openvex_json_schema_0.2.0.json), the OSV-Scanner ignore list (the not_affected ids)
+# and what Grype's --vex reads. Nothing is claimed not_affected without a reason verified in the code or the
+# deployment - the impact statement says where the vulnerable code is and why it never runs here.
+#
+# Fields: id (the primary identifier the scanners use), aliases (other ids for the same issue), status
+# (not_affected | affected | fixed | under_investigation), justification (OpenVEX's list, for not_affected),
+# impact (the verified reason, for not_affected), action (what is pending or what the user should do, for
+# affected), notes, products (image and / or desktop; default image), components (package URLs of the affected
+# component inside the product), versions (the releases the decision applies to; default all), decided_by,
+# decided_on. A fixed advisory stays here as "fixed" for the releases it was fixed in, so a rescan of an older
+# release's SBOM still reads the right status.
+decisions:
+
+  # ---- Caddy's Go toolchain and golang.org/x/net (deploy/Containerfile: caddy 2.11.7, go1.26.8, x/net 0.59.0).
+  # Caddy terminates TLS and serves HTTP/1.1 and HTTP/2 on 8443 (deploy/Caddyfile): the server-side denial-of-
+  # service issues are reachable by anyone who can reach that port. The self-hosting guide keeps the port on the
+  # LAN / a VPN, never on the internet, which limits who that is; it does not remove the issue. Caddy acts as no
+  # TLS client here (auto_https off, no ACME, the upstreams are plain http on localhost), which is why the x509
+  # chain-verification issue is not_affected. Fix pending: the next Caddy release built with Go >= 1.26.10 and
+  # x/net >= 0.60.0 (no self-built Caddy, by decision).
+  - id: CVE-2026-78669
+    aliases: [GO-2026-6603]
+    status: affected
+    components: [pkg:golang/stdlib@1.26.8, pkg:golang/golang.org/x/net@v0.59.0]
+    action: >-
+      Fix pending: the next upstream Caddy release built with Go 1.26.9+ and golang.org/x/net 0.60.0+ (the
+      image moves to it the week it is published). Until then keep port 8443 on your LAN or VPN, as the
+      self-hosting guide says: the issue is a denial of service of the HTTP/2 server by a client that can reach it.
+    notes: net/http and x/net/http2 denial of service; Caddy serves HTTP/2 on 8443.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+
+  - id: CVE-2026-78667
+    status: affected
+    components: [pkg:golang/stdlib@1.26.8]
+    action: >-
+      Fix pending: the next upstream Caddy release built with Go 1.26.9+. Denial of service of the HTTP server
+      through crafted Range headers; keep port 8443 on your LAN or VPN until then.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+
+  - id: CVE-2026-97031
+    status: affected
+    components: [pkg:golang/stdlib@1.26.8]
+    action: >-
+      Fix pending: the next upstream Caddy release built with Go 1.26.9+. Denial of service of the TLS server
+      through multiple ECH outer extensions in a ClientHello; keep port 8443 on your LAN or VPN until then.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+
+  - id: CVE-2026-111943
+    status: not_affected
+    justification: vulnerable_code_not_in_execute_path
+    components: [pkg:golang/stdlib@1.26.8]
+    impact: >-
+      crypto/x509's chain verification with untrusted intermediates runs when a Go program verifies a peer's
+      certificate as a TLS client. Caddy in this image never does: deploy/Caddyfile sets auto_https off (no
+      ACME), serves its own certificate from /data/certs, and proxies to plain-http upstreams on localhost
+      (reverse_proxy to the Flask backend and the central server); it verifies no certificate. The fix (Go
+      1.26.10) arrives with the next Caddy release anyway.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+
+  # ---- pip's private copies in the image (/opt/app-root/lib/python3.14/site-packages/pip/_vendor, and the
+  # system pip under /usr/lib/python3.14): pip vendors urllib3 2.7.0 and msgpack 1.1.2 for its own use. Only pip
+  # imports them, and pip runs only while the image is built (deploy/Containerfile's pip install); the running
+  # application imports its own urllib3, 2.8.0 from backend/requirements.lock, and no msgpack. The copies move
+  # when pip ships newer ones (the Containerfile upgrades pip at build time).
+  - id: CVE-2026-97687
+    status: not_affected
+    justification: vulnerable_code_not_in_execute_path
+    components: [pkg:pypi/urllib3@2.7.0]
+    impact: >-
+      This is pip's vendored urllib3 (pip/_vendor/urllib3, pip 26.2.2's vendor.txt), imported by pip alone; pip
+      runs only during the image build. The application and its packages import the urllib3 that
+      backend/requirements.lock installs (2.8.0, which has the fix), never pip's copy. The HTTPS-proxy TLS
+      override needs an HTTPS proxy configured for a running urllib3, which the image has nowhere.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+
+  - id: CVE-2026-97689
+    status: not_affected
+    justification: vulnerable_code_not_in_execute_path
+    components: [pkg:pypi/urllib3@2.7.0]
+    impact: >-
+      pip's vendored urllib3 (pip/_vendor), imported by pip alone, which runs only while the image is built; the
+      application's urllib3 is 2.8.0 from backend/requirements.lock, where the chunked-encoding fix is in.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+
+  - id: GHSA-6v7p-g79w-8964
+    status: not_affected
+    justification: vulnerable_code_not_in_execute_path
+    components: [pkg:pypi/msgpack@1.1.2]
+    impact: >-
+      pip's vendored msgpack (pip/_vendor/msgpack), which pip uses for its HTTP cache during an install; pip runs
+      only while the image is built. Nothing in backend/requirements.lock depends on msgpack and the application
+      never imports it, so no Unpacker is ever reused on untrusted data at runtime.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+
+  - id: CVE-2025-47273
+    status: not_affected
+    justification: vulnerable_code_not_in_execute_path
+    components: [pkg:pypi/setuptools@70.3.0]
+    impact: >-
+      setuptools' PackageIndex.download is the easy_install-era downloader, run only by setup.py-driven installs
+      that fetch distributions by URL. No setuptools module is importable by either interpreter in the image
+      (the application's /opt/app-root/bin/python and the system python3.14 both answer ModuleNotFoundError,
+      checked in the built image): the scanner's hit is package metadata of the base image's build tooling, not
+      an installed package, and the application installs nothing at runtime.
+    decided_by: maintainer
+    decided_on: 2026-10-26

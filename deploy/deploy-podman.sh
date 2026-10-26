@@ -90,7 +90,10 @@ build_image() {
     log_info "Building $IMAGE_NAME from deploy/Containerfile..."
     # --format docker: the OCI image format has no HEALTHCHECK, so podman
     # would drop the Containerfile's and `status` would show "n/a".
-    podman build --format docker -f "$SCRIPT_DIR/Containerfile" -t "$IMAGE_NAME" "$REPO_ROOT"
+    # --timestamp: the layers' and the image's time is the commit's, not the build's, so two builds of one
+    # commit match (docs/security/reproducible-builds.md); outside a git checkout the build's time is used
+    epoch="$(git -C "$REPO_ROOT" log -1 --format=%ct 2>/dev/null || date +%s)"
+    podman build --format docker --timestamp "$epoch" -f "$SCRIPT_DIR/Containerfile" -t "$IMAGE_NAME" "$REPO_ROOT"
     log_success "Image built"
     # The build superseded the previous image (the tag moved on) and possibly
     # the untagged results of the ui / taskwarrior stages; remove what this

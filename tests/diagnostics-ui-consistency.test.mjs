@@ -61,7 +61,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { probeComponents, stability, toggleDetails, exerciseXrows, exerciseSort, exercisePager, pagerShapes, containment, barSizingCheck, roleColours, fontCheck, tablesFit, stackGaps, hiddenColumns, headerButtons, chartGrid, expandStability, nestedTables, panelClipping, yLabelsInside, codeBlocks, emptyBoxes, stripOnly, clickableCharts, lastPick, controlRadius } from './helpers/diagnostics-probe.mjs';
+import { probeComponents, rowOverlap, stability, toggleDetails, exerciseXrows, exerciseSort, exercisePager, pagerShapes, containment, barSizingCheck, roleColours, fontCheck, tablesFit, stackGaps, hiddenColumns, headerButtons, chartGrid, expandStability, nestedTables, panelClipping, yLabelsInside, codeBlocks, emptyBoxes, stripOnly, clickableCharts, lastPick, controlRadius } from './helpers/diagnostics-probe.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const req = createRequire(path.join(REPO, 'package.json'));
@@ -612,6 +612,7 @@ try {
         if (key === 'audit') { await frame.evaluate(() => { const v = document.getElementById('ae-verb'); if (v && v.options.length > 1) { v.selectedIndex = 1; v.dispatchEvent(new Event('change', { bubbles: true })); } const b = document.getElementById('ae-search'); if (b) b.click(); }); await page.waitForTimeout(1500); }
         const wide = await (async () => { await frameWidth(page, 1920); const r = await layout(frame); return r; })();
         const pw = await probeComponents(frame, { width: 1920 });
+        const ro1920 = await rowOverlap(frame);
         const cw = await containment(frame);
         const strips = cw.n.canvases ? await stripsUnderCards(page, frame, cw.cards) : [];
         // the tables fit their box at 1920, at the app's 1280 content width and at 1360 (below)
@@ -671,6 +672,8 @@ try {
         { const hcp = hc1280.problems.map((p) => '1280: ' + p).concat(hc1010.problems.map((p) => '1010: ' + p)); if (hc1280.tables || hc1010.tables || hcp.length) check(`${tag}: a table whose columns hide at 1280 / 1010 gives every row the chevron, the opened row shows the hidden values, and the note under the table says so`, hcp.length === 0, hcp.slice(0, 6).join(' | ').slice(0, 900)); }
         { const tfp = tf1010.problems.map((p) => '1010: ' + p).concat(tf1010.wide.filter((id) => !WIDE_TABLES[id]).map((id) => '1010: ' + id + ' is a wide table not on the allow-list')); if (tf1010.tables) check(`${tag}: at 1010 too, every table fits its box (${tf1010.tables} tables)`, tfp.length === 0, tfp.slice(0, 6).join(' | ').slice(0, 800)); }
         const pn = await probeComponents(frame, { width: 420 });
+        const ro420 = await rowOverlap(frame);
+        { const rop = ro1920.problems.map((p) => '1920: ' + p).concat(ro420.problems.map((p) => '420: ' + p)); if (ro1920.rows || ro420.rows) check(`${tag}: in every table row and kv pair the text of adjacent cells never overlaps (${ro1920.rows} rows at 1920, ${ro420.rows} at 420)`, rop.length === 0, rop.slice(0, 6).join(' | ').slice(0, 900)); }
         const cn = await containment(frame);
         check(`${tag}: the layout probe is clean at 1920 and 420 (nothing clipped, past the edge, no tall cell, no header overflow, no blank run)`, wide.ok && narrow.ok, JSON.stringify({ wide: wide.ok ? 'ok' : wide, narrow: narrow.ok ? 'ok' : narrow }).slice(0, 1200));
         const comp = (field, label) => { const bad = pw[field].map((x) => '1920: ' + x).concat(pn[field].map((x) => '420: ' + x)); check(`${tag}: ${label} (${pw.n[field === 'findings' ? 'findingsItems' : field] || 0})`, bad.length === 0, bad.slice(0, 6).join(' | ').slice(0, 1200)); };

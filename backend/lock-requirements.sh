@@ -19,10 +19,18 @@
 #                                                      (repeatable)
 #   backend/lock-requirements.sh --upgrade             re-resolve everything to the newest
 #                                                      allowed versions
+#   backend/lock-requirements.sh --past-cooldown X==V  lock X at exactly V although V is
+#                                                      younger than the cooldown (repeatable;
+#                                                      see below)
 #
 # Supply-chain cooldown: like .npmrc's min-release-age=7 and the pip
 # --uploaded-prior-to=P7D in the build scripts, only releases uploaded to
-# PyPI at least 7 days ago are considered.
+# PyPI at least 7 days ago are considered. --past-cooldown is the one-off
+# bypass for a security fix younger than that, on the user's explicit
+# request only (the Python counterpart of `npm run deps:urgent`): the named
+# package is exempted from the cutoff and pinned to exactly that version;
+# the checks (publisher / Trusted Publisher provenance, the diff) are done
+# by hand first and the run is noted in docs/security/urgent-updates.md.
 #
 # Needs python3 and network access. Uses `uv` from PATH when present,
 # otherwise installs it into a temporary venv for the duration of the run
@@ -39,6 +47,7 @@ cd "$(dirname "$SELF")"
 
 UPGRADE_ALL=0
 UPGRADE_PACKAGES=()
+PAST_COOLDOWN=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --upgrade|-U) UPGRADE_ALL=1 ;;
@@ -46,10 +55,20 @@ while [ $# -gt 0 ]; do
             [ $# -ge 2 ] || { echo "error: $1 needs a package name" >&2; exit 2; }
             UPGRADE_PACKAGES+=("$2"); shift ;;
         --upgrade-package=*) UPGRADE_PACKAGES+=("${1#*=}") ;;
-        -h|--help) sed -n '2,34p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --past-cooldown)
+            [ $# -ge 2 ] || { echo "error: $1 needs NAME==VERSION" >&2; exit 2; }
+            PAST_COOLDOWN+=("$2"); shift ;;
+        --past-cooldown=*) PAST_COOLDOWN+=("${1#*=}") ;;
+        -h|--help) sed -n '2,45p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "error: unknown argument $1 (see --help)" >&2; exit 2 ;;
     esac
     shift
+done
+for spec in "${PAST_COOLDOWN[@]+"${PAST_COOLDOWN[@]}"}"; do
+    case "$spec" in
+        *==*) ;;
+        *) echo "error: --past-cooldown takes NAME==VERSION, got '$spec'" >&2; exit 2 ;;
+    esac
 done
 
 CUTOFF="$(python3 -c 'import datetime as d; print((d.datetime.now(d.timezone.utc) - d.timedelta(days=7)).strftime("%Y-%m-%dT00:00:00Z"))')"
@@ -75,11 +94,14 @@ PREVIOUS_LOCK=""
 if [ "$UPGRADE_ALL" = "0" ] && [ -f requirements.lock ]; then
     PREVIOUS_LOCK="$PWD/requirements.lock"
 fi
-python3 - "$TMP/project/pyproject.toml" "$PREVIOUS_LOCK" "${UPGRADE_PACKAGES[@]+"${UPGRADE_PACKAGES[@]}"}" <<'EOF'
+PAST_COOLDOWN_ARG="$(IFS=,; echo "${PAST_COOLDOWN[*]+"${PAST_COOLDOWN[*]}"}")"
+python3 - "$TMP/project/pyproject.toml" "$PREVIOUS_LOCK" "$PAST_COOLDOWN_ARG" "${UPGRADE_PACKAGES[@]+"${UPGRADE_PACKAGES[@]}"}" <<'EOF'
 import os, re, sys
 
-out, previous, *moving = sys.argv[1:]
+out, previous, past_cooldown, *moving = sys.argv[1:]
 moving = {m.lower().replace("_", "-") for m in moving}
+# --past-cooldown NAME==VERSION: exact pins exempted from the cutoff (uv's exclude-newer-package = false)
+past = [p.strip() for p in past_cooldown.split(",") if p.strip()]
 
 def entries(path):
     for line in open(path, encoding="utf-8"):
@@ -94,7 +116,8 @@ deps = list(entries("requirements.txt"))
 # requirements.txt always wins for the packages it names; the previous lock
 # only holds the indirect ones in place.
 moving |= {name_of(d) for d in deps}
-constraints = []
+moving |= {name_of(p) for p in past}
+constraints = list(past)
 if previous:
     for line in entries(previous):
         if name_of(line) not in moving:
@@ -110,7 +133,11 @@ with open(out, "w", encoding="utf-8") as f:
     f.write(f"dependencies = {toml_list(deps)}\n\n")
     f.write("[tool.uv]\npackage = false\n")
     f.write(f"constraint-dependencies = {toml_list(constraints)}\n")
-print(f"{len(deps)} direct dependencies, {len(constraints)} versions kept from the previous lock")
+    if past:
+        exempt = ", ".join(f'"{name_of(p)}" = false' for p in past)
+        f.write(f"exclude-newer-package = {{ {exempt} }}\n")
+print(f"{len(deps)} direct dependencies, {len(constraints) - len(past)} versions kept from the previous lock"
+      + (f", {len(past)} pinned past the cooldown: {', '.join(past)}" if past else ""))
 EOF
 
 # --python: any installed 3.14 (uv downloads one only when there is none);

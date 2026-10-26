@@ -27,10 +27,19 @@
 #                  commits "Release vX.Y.Z" and tags vX.Y.Z here
 #   3. deploy      only with --deploy: deploy/deploy-to-host.sh <DEPLOY_TARGET>
 #   4. export      scripts/export-source.sh <PUBLIC_DIR> --ref vX.Y.Z
-#   5. publish     in the public clone: commit "Jacarium X.Y.Z", push, tag
-#                  vX.Y.Z, push the tag - which starts the release workflow
+#   5. publish     in the public clone: the SIGNED commit "Jacarium X.Y.Z" and
+#                  the SIGNED tag vX.Y.Z (scripts/release-sign.sh: SSH signing
+#                  with the key configured in the clone, both verified against
+#                  .github/allowed_signers), then push the commit and the tag -
+#                  which starts the release workflow
 # Then, on GitHub: approve the "quay" environment when the image job waits,
 # and publish the draft release (the script prints the links).
+#
+# Signing: the public clone must be set up for SSH signing (gpg.format ssh,
+# user.signingkey = your release signing key, whose public half is in
+# .github/allowed_signers); step 1 checks it and stops with the instructions
+# otherwise - there is no unsigned fallback. Anyone verifies a release with
+#   git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag vX.Y.Z
 #
 # Resuming: if a run stopped after step 2 (the version is tagged here but not
 # on GitHub), run it again with --resume: it goes on with steps 3-5 for that
@@ -111,9 +120,11 @@ remaining_publish() {
     echo "    scripts/publish-release.sh --resume   (goes on with $TAG)"
     echo "  or by hand:"
     echo "    scripts/export-source.sh \"$PUBLIC_DIR\" --ref $TAG"
-    echo "    git -C \"$PUBLIC_DIR\" add -A && git -C \"$PUBLIC_DIR\" commit -m \"Jacarium $VERSION\""
-    echo "    git -C \"$PUBLIC_DIR\" push origin $BRANCH"
-    echo "    git -C \"$PUBLIC_DIR\" tag -a $TAG -m \"Jacarium $VERSION\" && git -C \"$PUBLIC_DIR\" push origin $TAG"
+    echo "    scripts/release-sign.sh \"$PUBLIC_DIR\" $VERSION      # the signed commit and tag, verified"
+    echo "    git -C \"$PUBLIC_DIR\" push origin $BRANCH && git -C \"$PUBLIC_DIR\" push origin $TAG"
+    echo "  (by hand without the script: git -C \"$PUBLIC_DIR\" add -A && git -C \"$PUBLIC_DIR\" commit -S -m \"Jacarium $VERSION\","
+    echo "   git -C \"$PUBLIC_DIR\" tag -s $TAG -m \"Jacarium $VERSION\", then verify-commit HEAD and verify-tag $TAG"
+    echo "   with -c gpg.ssh.allowedSignersFile=.github/allowed_signers before pushing)"
 }
 
 remote_tag_state() {  # prints present / absent, dies when GitHub can't be asked
@@ -150,7 +161,11 @@ if ! $SKIP_PUBLIC; then
         [ "$BEHIND" = 0 ] || die "GitHub has $BEHIND commit(s) the public clone doesn't - nothing should be committed there directly; pull them (git -C \"$PUBLIC_DIR\" pull) and move any change into this repository"
         # (unpushed commits are checked below, once it is known whether this run resumes)
     fi
-    [ -f "$PUBLIC_DIR/.github/workflows/release.yml" ] || die "$PUBLIC_DIR/.github/workflows/release.yml is missing - a tag without it builds nothing (it lives only in the public clone)"
+    # the release workflow is exported from this repository's .github/ (export-source.sh); a clone without it has
+    # never had an export, and a tag there would build nothing
+    [ -f "$PUBLIC_DIR/.github/workflows/release.yml" ] || [ -f "$REPO/.github/workflows/release.yml" ] || die "no release workflow: neither $PUBLIC_DIR/.github/workflows/release.yml nor $REPO/.github/workflows/release.yml exists - a tag without it builds nothing"
+    # the signed commit and tag need the clone's SSH signing set-up; found out now, before anything is tagged here
+    "$REPO/scripts/release-sign.sh" --check "$PUBLIC_DIR" || die "set the public clone up for SSH signing first (see above)"
     log_info "public clone $PUBLIC_DIR ($ORIGIN, $BRANCH)"
 fi
 if $DEPLOY; then log_info "home server $DEPLOY_TARGET"; fi
@@ -284,26 +299,19 @@ if ! $SKIP_PUBLIC; then
     EXPORTED="$(node -p "require('$PUBLIC_DIR/package.json').version" 2>/dev/null || echo '?')"
     [ "$EXPORTED" = "$VERSION" ] || { remaining_publish; die "the public clone's package.json says $EXPORTED after the export, not $VERSION"; }
 
-    step "5. publish: commit, push, tag $TAG"
+    step "5. publish: signed commit and tag $TAG, push"
     if [ -z "$(git -C "$PUBLIC_DIR" status --porcelain)" ]; then
         log_warning "the export changed nothing in the public clone (it already holds $TAG's files)"
     else
         git -C "$PUBLIC_DIR" status --short | sed -n '1,30p'
     fi
-    confirm "Commit, push and tag $TAG on GitHub (this starts the release workflow)?" || { remaining_publish; exit 0; }
-    if [ -n "$(git -C "$PUBLIC_DIR" status --porcelain)" ]; then
-        git -C "$PUBLIC_DIR" add -A
-        git -C "$PUBLIC_DIR" commit -q -m "Jacarium $VERSION"
-    fi
+    confirm "Sign and commit, tag $TAG, and push both to GitHub (this starts the release workflow)?" || { remaining_publish; exit 0; }
+    # the signed commit and the signed tag, each verified against the exported .github/allowed_signers; nothing
+    # is pushed unless both verify (scripts/release-sign.sh says what failed and how to fix it)
+    "$REPO/scripts/release-sign.sh" "$PUBLIC_DIR" "$VERSION" || { remaining_publish; die "the signed commit / tag did not go through - nothing was pushed"; }
     git -C "$PUBLIC_DIR" push -q origin "$BRANCH" || { remaining_publish; die "the push to $BRANCH was rejected - nothing was tagged on GitHub"; }
-    if git -C "$PUBLIC_DIR" rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-        [ "$(git -C "$PUBLIC_DIR" rev-parse "$TAG^{commit}")" = "$(git -C "$PUBLIC_DIR" rev-parse HEAD)" ] \
-            || die "the public clone already has a local tag $TAG on another commit - delete it (git -C \"$PUBLIC_DIR\" tag -d $TAG) and run --resume"
-    else
-        git -C "$PUBLIC_DIR" tag -a "$TAG" -m "Jacarium $VERSION"
-    fi
     git -C "$PUBLIC_DIR" push -q origin "$TAG" || { remaining_publish; die "pushing the tag failed"; }
-    log_success "pushed $TAG - the release workflow is starting"
+    log_success "pushed the signed $TAG - the release workflow is starting"
 fi
 
 echo
@@ -314,6 +322,7 @@ On GitHub:
   1. https://github.com/$GITHUB_REPO/actions - when "Publish the image to Quay" waits:
      Review deployments > quay > Approve and deploy
   2. https://github.com/$GITHUB_REPO/releases - check the draft "Jacarium $VERSION"
-     (8 files), then Edit > Publish release
+     (the installers, their SBOMs and SHA256SUMS.txt; the workflow verified every
+     attestation before creating it), then Edit > Publish release
 EOF
 fi

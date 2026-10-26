@@ -9,6 +9,15 @@ Everything you know and use for technical work, in one place.
 
 [jacarium.com](https://jacarium.com) · [AGPL-3.0 licence](LICENSE) · [Support Jacarium](#support-jacarium) · [Changelog](CHANGELOG.md)
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/jacarium/jacarium/badge)](https://scorecard.dev/viewer/?uri=github.com/jacarium/jacarium)
+[![CodeQL](https://github.com/jacarium/jacarium/actions/workflows/codeql.yml/badge.svg)](https://github.com/jacarium/jacarium/actions/workflows/codeql.yml)
+[![Release build](https://github.com/jacarium/jacarium/actions/workflows/release.yml/badge.svg)](https://github.com/jacarium/jacarium/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/jacarium/jacarium)](https://github.com/jacarium/jacarium/releases/latest)
+[![COPR build](https://copr.fedorainfracloud.org/coprs/robincernin/jacarium/package/jacarium/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/robincernin/jacarium/)
+[![SLSA Build Level 3](https://slsa.dev/images/gh-badge-level3.svg)](#security--supply-chain)
+<!-- OpenSSF Best Practices, once the project is registered at https://www.bestpractices.dev (the id comes from the registration):
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/<id>/badge)](https://www.bestpractices.dev/projects/<id>) -->
+
 <br clear="all">
 
 > **Built by an engineer, for engineers who troubleshoot.**
@@ -22,6 +31,89 @@ Everything you know and use for technical work, in one place.
 | | |
 |---|---|
 | ![Documents view with a Kubernetes upgrade runbook open](docs/screenshots/01-documents.webp) | ![Split view: a runbook's Markdown source on the left, a rendered architecture document with a diagram on the right](docs/screenshots/02-documents-split.webp) |
+
+## Security & supply chain
+
+As an engineer and DevSecOps Certified AI Security Professional, currently
+working towards becoming a Software Supply Chain Security Expert, I make
+security the priority in this app: what you download can be traced back to
+the exact source and the exact build that produced it, and you can check it
+yourself.
+
+- **SLSA Build L3 provenance** for every installer, the container image and
+  the SBOMs: built by the reusable workflow
+  [`.github/workflows/build.yml`](.github/workflows/build.yml) on
+  GitHub-hosted runners, signed in a job that runs no project code (GitHub
+  artifact attestations, Sigstore), and verified by the release job before
+  the draft release exists.
+- **SBOMs** (SPDX and CycloneDX JSON) per installer platform and per image
+  architecture, attached to every release and attested.
+- **Signed images**: `quay.io/zerodayz/jacarium` is signed with cosign,
+  keyless, the SBOM attached as a cosign attestation.
+- **Signed source**: the release commit and tag are SSH-signed; the public
+  keys are in [`.github/allowed_signers`](.github/allowed_signers).
+- **Dependency policy**: nothing younger than 7 days is installed (npm
+  `min-release-age`, the Python lock, pip, Dependabot's cooldown), base
+  images are pinned by digest, GitHub actions by full commit - only
+  GitHub's own actions (`actions/*`, `github/codeql-action`) plus one
+  explicit exception, `ossf/scorecard-action`, which alone can publish the
+  Scorecard results behind the badge above. Third-party tools run as pinned
+  binaries verified against [`.github/tools.env`](.github/tools.env) and
+  their upstream signatures. The rare urgent exception is logged in
+  [`docs/security/urgent-updates.md`](docs/security/urgent-updates.md).
+- **Continuous checks**: CodeQL over the JavaScript and Python sources and
+  the OpenSSF Scorecard weekly and on every push (the badges above);
+  OSV-Scanner over the lock files on every push, Grype over the image at
+  build time (a High or Critical finding with a fix fails the build unless
+  the VEX says it does not apply) and weekly over the SBOMs of the latest
+  release, so a CVE published after a release is flagged without a rebuild;
+  the published source scanned for personal data and secrets before every
+  release.
+- **VEX**: every release ships an [OpenVEX](https://openvex.dev) statement,
+  `jacarium-X.Y.Z.openvex.json`, generated from the reviewed decisions in
+  [`vex/decisions.yaml`](vex/decisions.yaml): which scanner findings do not
+  affect Jacarium and why (verified in the code, never assumed), and which
+  have a fix pending.
+- **Reproducible image build**: the same commit builds to the same layers
+  except one (the rpm database's install times), checked weekly in CI;
+  what was measured and what remains is in
+  [`docs/security/reproducible-builds.md`](docs/security/reproducible-builds.md).
+
+**Verify this release** - with the [GitHub CLI](https://cli.github.com/)
+(`gh`), [cosign](https://docs.sigstore.dev/cosign/system_config/installation/)
+and git; replace `<file>` with a downloaded installer and `X.Y.Z` with the
+version:
+
+```bash
+# an installer or SBOM: who built it, from which commit, on which runner
+gh attestation verify <file> --repo jacarium/jacarium \
+  --signer-workflow jacarium/jacarium/.github/workflows/build.yml --deny-self-hosted-runners
+# its SBOM attestation
+gh attestation verify <file> --repo jacarium/jacarium \
+  --signer-workflow jacarium/jacarium/.github/workflows/build.yml --predicate-type https://spdx.dev/Document/v2.3
+# the container image: provenance, then the cosign signature and the SBOM attestation
+gh attestation verify oci://quay.io/zerodayz/jacarium:X.Y.Z --repo jacarium/jacarium \
+  --signer-workflow jacarium/jacarium/.github/workflows/build.yml --deny-self-hosted-runners
+cosign verify quay.io/zerodayz/jacarium:X.Y.Z \
+  --certificate-identity https://github.com/jacarium/jacarium/.github/workflows/build.yml@refs/tags/vX.Y.Z \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+cosign verify-attestation --type spdxjson quay.io/zerodayz/jacarium:X.Y.Z-amd64 \
+  --certificate-identity https://github.com/jacarium/jacarium/.github/workflows/build.yml@refs/tags/vX.Y.Z \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+# the VEX statement of the release (which scanner findings do not affect Jacarium, and why): attached to the
+# release as jacarium-X.Y.Z.openvex.json, attested on every installer, and attached to the image
+gh attestation verify <file> --repo jacarium/jacarium \
+  --signer-workflow jacarium/jacarium/.github/workflows/build.yml --predicate-type https://openvex.dev/ns/v0.2.0
+cosign verify-attestation --type openvex quay.io/zerodayz/jacarium:X.Y.Z \
+  --certificate-identity https://github.com/jacarium/jacarium/.github/workflows/build.yml@refs/tags/vX.Y.Z \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+# the source: the signed release tag and commit, in a clone of the repository
+git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag vX.Y.Z
+git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-commit vX.Y.Z^{commit}
+```
+
+Found a security issue? Please report it privately, as described in
+[SECURITY.md](SECURITY.md).
 
 ## What it does
 
@@ -116,21 +208,11 @@ indicator): [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## Built with security in mind
 
-As an engineer and DevSecOps Certified AI Security Professional, currently
-working towards becoming a Software Supply Chain Security Expert, I make
-security the priority in this app.
-
-1. **Scanning and updates.** Jacarium is continuously scanned against known
-   vulnerabilities and continuously updated. Its own code is checked too,
-   not only the packages it relies on.
-2. **Dependency checks.** Every dependency is checked, and so are their
-   dependencies: scanned for end-of-life software and verified against
-   their code licenses.
-3. **Test-driven development.** Jacarium is built test-first: tests are
-   written before the code they cover.
-
-Found a security issue? Please report it privately, as described in
-[SECURITY.md](SECURITY.md).
+Security comes first in this project - see
+[Security & supply chain](#security--supply-chain) above for what is signed,
+attested and verified, and [SECURITY.md](SECURITY.md) for the policy.
+Jacarium is also built test-first: tests are written before the code they
+cover, including the tests for the security controls themselves.
 
 ## Your notes stay on your infrastructure
 

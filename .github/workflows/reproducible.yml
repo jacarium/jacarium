@@ -1,0 +1,83 @@
+# Reproducible build check of the container image: the same commit built
+# twice from scratch (--no-cache) with the layer timestamps fixed to the
+# commit's time (--timestamp, what build.yml and deploy/deploy-podman.sh use
+# too), and the two images compared layer by layer. The job fails when any
+# layer differs except the one known not to reproduce yet: the `dnf -y
+# install` step, whose rpm database records the install time of the packages
+# it adds (docs/security/reproducible-builds.md says what was measured, what
+# was fixed and what remains). Weekly and on request; nothing is published.
+name: Reproducible build
+
+on:
+  schedule:
+    - cron: '52 3 * * 6'   # Saturdays, 03:52 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  image:
+    name: Build the image twice and compare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Podman (preinstalled on GitHub's Ubuntu images; Ubuntu's own archive otherwise)
+        run: |
+          if ! command -v podman >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends podman
+          fi
+          podman --version
+
+      - name: Build twice, from scratch, with the commit's timestamp
+        run: |
+          epoch="$(git log -1 --format=%ct)"
+          echo "SOURCE_DATE_EPOCH=$epoch" >> "$GITHUB_ENV"
+          for n in 1 2; do
+            podman build --no-cache --format docker --timestamp "$epoch" -f deploy/Containerfile -t "localhost/jacarium:repro-$n" . > "build-$n.log" 2>&1 \
+              || { tail -40 "build-$n.log"; echo "::error::build $n failed"; exit 1; }
+            podman image inspect "localhost/jacarium:repro-$n" > "inspect-$n.json"
+            echo "build $n: $(podman image inspect --format '{{.Id}}' "localhost/jacarium:repro-$n")"
+          done
+
+      # The runtime stage's first own layer is the `dnf -y install` step (deploy/Containerfile), the one layer
+      # allowed to differ: its index is the number of layers the pinned base image brings (inspected here - the
+      # build pulled it), so the allowance does not depend on reading the image history.
+      - name: Compare the layers
+        run: |
+          base="$(grep -E '^FROM registry.access.redhat.com/ubi9/python-314' deploy/Containerfile | tail -1 | awk '{print $2}')"
+          podman image inspect "$base" > base.json
+          python3 - <<'EOF'
+          import json
+          a, b = (json.load(open(f'inspect-{n}.json'))[0] for n in (1, 2))
+          base_n = len(json.load(open('base.json'))[0]['RootFS']['Layers'])
+          la, lb = a['RootFS']['Layers'], b['RootFS']['Layers']
+          hist = [h for h in reversed(a.get('History') or []) if not h.get('empty_layer')]   # best effort labels
+          rows, bad = [], []
+          for i, (x, y) in enumerate(zip(la, lb)):
+              created_by = (hist[i].get('created_by') if i < len(hist) else '') or ''
+              same = x == y
+              allowed = i == base_n   # the dnf layer: the rpm database's install times
+              label = 'base image' if i < base_n else ('dnf -y install (rpm database install times)' if i == base_n else created_by[:90].replace('|', '/'))
+              rows.append(f"| {i} | {'same' if same else 'DIFFERS' + (' (allowed)' if allowed else '')} | `{label}` |")
+              if not same and not allowed:
+                  bad.append(i)
+          same_count = sum(1 for x, y in zip(la, lb) if x == y)
+          summary = [f"## Reproducible build: {same_count} of {len(la)} layers identical, image ids {'equal' if a['Id'] == b['Id'] else 'different'}", '',
+                     '| layer | result | step |', '|---|---|---|'] + rows
+          open('summary.md', 'w').write('\n'.join(summary) + '\n')
+          print('\n'.join(summary))
+          if len(la) != len(lb):
+              raise SystemExit(f'::error::{len(la)} layers vs {len(lb)}')
+          if bad:
+              raise SystemExit(f'::error::layers {bad} differ between two builds of the same commit (only the dnf layer may)')
+          print('reproducible up to the known rpm-database layer' if same_count < len(la) else 'fully reproducible: identical image ids')
+          EOF
+          cat summary.md >> "$GITHUB_STEP_SUMMARY"

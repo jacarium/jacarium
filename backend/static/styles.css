@@ -308,11 +308,15 @@
   #diagnostics-content table.ui-table thead { display: none; }
   #diagnostics-content table.ui-table tr { border-bottom: 1px solid var(--os-border); padding: 4px 0; }
   #diagnostics-content table.ui-table tr:last-child { border-bottom: 0; }
-  #diagnostics-content table.ui-table td { border: 0; padding: 2px 10px; text-align: left; }
+  #diagnostics-content table.ui-table td { border: 0; padding: 2px 10px; text-align: left; height: auto; }   /* a stacked cell grows with its wrapped content */
+  /* the nested (compact) table's 28 px row height is set after this block: the stacked rule outranks it */
+  #diagnostics-content table.ui-table.ui-compact td, #diagnostics-content table.ui-fit.ui-compact td { height: auto; }
   #diagnostics-content table.ui-table td:empty { display: none; }
   #diagnostics-content table.ui-table td[data-label]::before { content: attr(data-label); display: inline-block; min-width: 110px; margin-right: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); }
   /* the stacked layout shows every column, wrapping (the fit's cuts and hidden columns are for the row layout) */
-  #diagnostics-content table.ui-fit td, #diagnostics-content table.ui-fit td.ui-col-hidden { display: block; white-space: normal; overflow: visible; overflow-wrap: anywhere; text-overflow: clip; }
+  /* a stacked cell grows with its wrapped content (the row layout's fixed 32 px height let a wrapped value paint over
+     the next cell) */
+  #diagnostics-content table.ui-fit td, #diagnostics-content table.ui-fit td.ui-col-hidden { display: block; height: auto; white-space: normal; overflow: visible; overflow-wrap: anywhere; text-overflow: clip; }
   #diagnostics-content table.ui-fit td.ui-col-num { text-align: left; }
   #diagnostics-content table.ui-fit td.ui-col-hidden:empty { display: none; }
   #diagnostics-content .ui-table-note, #diagnostics-content .ui-scroll-hint { display: none; }
@@ -550,6 +554,7 @@
 /* the key/value grid of a panel: the label column like a table header, the values in the body font */
 #diagnostics-content .ui-kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 4px 20px; margin: 0; min-width: 0; }   /* pairs per row by the width: four wide, two around 1000 px, one under 640 */
 #diagnostics-content .ui-kv > div { display: grid; grid-template-columns: minmax(96px, 128px) 1fr; gap: 8px; align-items: baseline; min-width: 0; }
+#diagnostics-content .ui-kv > div.ui-kv-wide { grid-column: 1 / -1; }   /* a pair holding a chip list spans the grid */
 #diagnostics-content .ui-kv dt { font-size: 11px; line-height: 1.5; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); font-weight: 600; margin: 0; }
 #diagnostics-content .ui-kv dd { margin: 0; min-width: 0; white-space: normal; overflow: visible; overflow-wrap: anywhere; color: var(--os-text-primary); }   /* a value never clips: it wraps */
 #diagnostics-content .ui-xrow-body, #diagnostics-content .ui-xrow-body .ui-kv-title, #diagnostics-content .ui-xrow-body .ui-muted { white-space: normal; overflow-wrap: anywhere; }
@@ -597,7 +602,18 @@
 #diagnostics-content .ui-detail-card-title { font-weight: 600; overflow-wrap: anywhere; }
 #diagnostics-content .ui-detail-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
 #diagnostics-content .ui-detail-list li { overflow-wrap: anywhere; }
-#diagnostics-content .ui-chip-static { cursor: default; }
+/* ---- a chip is as wide as its content up to its container and never wider (max-width: 100% above; overflow hidden so
+   nothing paints past the pill). A one-line chip (a filter tag) ellipsizes its parts inside the pill - the title carries
+   the whole. A label / annotation chip (.ui-chip-static) wraps inside the pill instead, at the breaks its builder marks
+   (<wbr> after / . - = _ :) and anywhere as the last resort; the key reads muted, the value in the text colour ---- */
+#diagnostics-content .ui-chip { overflow: hidden; }
+#diagnostics-content .ui-chip > .ui-chip-text, #diagnostics-content .ui-chip > .ui-chip-key, #diagnostics-content .ui-chip > .ui-chip-val { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#diagnostics-content .ui-chip .ui-chip-key { color: var(--os-text-secondary); font-weight: 500; }
+#diagnostics-content .ui-chip-static { cursor: default; display: inline-block; height: auto; min-height: 26px; padding: 2px 10px; line-height: 20px; border-radius: 13px; white-space: normal; overflow-wrap: anywhere; vertical-align: top; box-sizing: border-box; }
+#diagnostics-content .ui-chip-static > .ui-chip-key, #diagnostics-content .ui-chip-static > .ui-chip-val { display: inline; white-space: normal; overflow: visible; text-overflow: clip; }
+#diagnostics-content .ui-detail-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; max-width: 100%; align-items: center; }
+#diagnostics-content table td .ui-chip-static { height: auto; min-height: 22px; padding: 1px 8px; line-height: 18px; }   /* a label chip in a row wraps like the others, at the row's size */
+#diagnostics-content .ui-chips-more { font-size: 12px; white-space: nowrap; }   /* the fold of a long chip list: a quiet link in the same cell */
 #diagnostics-content .ui-masked-dots { letter-spacing: 0.1em; color: var(--os-text-secondary); }
 #diagnostics-content .ui-masked-toggle, #diagnostics-content .ui-code-reveal { margin-left: 6px; }
 /* the transition: a short fade and rise from the motion tokens, none under prefers-reduced-motion */

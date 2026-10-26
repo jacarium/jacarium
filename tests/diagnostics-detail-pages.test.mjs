@@ -28,6 +28,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { probeComponents, rowOverlap } from './helpers/diagnostics-probe.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const req = createRequire(path.join(REPO, 'package.json'));
@@ -224,6 +225,21 @@ try {
     const frame = await openTab(page, 'pod');
     check(`${theme}: the Pods page renders`, !!frame);
     if (!frame) { await context.close(); continue; }
+    // READY and STATUS as kubectl prints them: a finished init container is not counted (2/2, "init 1/1 done"), a native
+    // sidecar is (2/2), an init container in CrashLoopBackOff gives 0/1 and Init:CrashLoopBackOff, a container not ready 1/2 Running
+    const readyRows = await frame.evaluate(() => { const out = {}; ['demo-app/demo-api-7c8d9e0f1-init0', 'demo-app/demo-sidecar-5a6b7c8d9-side0', 'demo-app/demo-migrate-1a2b3c4d5-crash', 'demo-app/demo-proxy-9f8e7d6c5-half0', 'payments-demo/payments-worker-7b8c9d0e1-efghi'].forEach((k) => { const r = document.querySelector(`tr[data-detail="${k}"]`); if (!r) { out[k] = null; return; } out[k] = { ready: r.cells[4].textContent.trim(), status: r.cells[6].textContent.trim(), restarts: r.cells[5].textContent.trim() }; }); return out; });
+    check(`${theme}: the list's READY / STATUS follow kubectl: ${JSON.stringify(readyRows).slice(0, 400)}`,
+      readyRows['demo-app/demo-api-7c8d9e0f1-init0'] && readyRows['demo-app/demo-api-7c8d9e0f1-init0'].ready === '2/2 init 1/1 done' && readyRows['demo-app/demo-api-7c8d9e0f1-init0'].status === 'Running'
+      && readyRows['demo-app/demo-sidecar-5a6b7c8d9-side0'] && readyRows['demo-app/demo-sidecar-5a6b7c8d9-side0'].ready === '2/2 init 1/1 done' && readyRows['demo-app/demo-sidecar-5a6b7c8d9-side0'].status === 'Running'
+      && readyRows['demo-app/demo-migrate-1a2b3c4d5-crash'] && readyRows['demo-app/demo-migrate-1a2b3c4d5-crash'].ready === '0/1 init 0/1' && readyRows['demo-app/demo-migrate-1a2b3c4d5-crash'].status === 'Init:CrashLoopBackOff' && readyRows['demo-app/demo-migrate-1a2b3c4d5-crash'].restarts === '6'
+      && readyRows['demo-app/demo-proxy-9f8e7d6c5-half0'] && readyRows['demo-app/demo-proxy-9f8e7d6c5-half0'].ready === '1/2' && readyRows['demo-app/demo-proxy-9f8e7d6c5-half0'].status === 'Running'
+      && readyRows['payments-demo/payments-worker-7b8c9d0e1-efghi'] && readyRows['payments-demo/payments-worker-7b8c9d0e1-efghi'].ready === '0/1' && readyRows['payments-demo/payments-worker-7b8c9d0e1-efghi'].status === 'CrashLoopBackOff', JSON.stringify(readyRows));
+    // the init-crash pod's detail: the badge, the Init containers section first (open, the container not done), the finding
+    await frame.evaluate(() => { document.querySelector('tr[data-detail="demo-app/demo-migrate-1a2b3c4d5-crash"]').click(); }); await sleep(700);
+    const initDetail = await frame.evaluate(() => { const v = document.querySelector('.ui-detail:not([hidden])'); if (!v) return null; const secs = Array.from(v.querySelectorAll('details.ui-detail-section')); const init = secs.find((d) => d.querySelector('summary').textContent.trim().startsWith('Init containers')); const kv = {}; v.querySelectorAll('.ui-kv > div').forEach((d) => { kv[d.querySelector('dt').textContent] = d.querySelector('dd').textContent.trim(); }); return { badge: v.querySelector('.ui-detail-badge').textContent.trim(), sections: secs.map((d) => d.querySelector('summary').textContent.trim()), initOpen: !!(init && init.open), initBadges: init ? Array.from(init.querySelectorAll('.ui-detail-card .ui-badge')).map((b) => b.textContent.trim()) : [], findings: Array.from(v.querySelectorAll('.ui-finding-title')).map((f) => f.textContent), ready: kv.Ready, status: kv.Status, initKv: kv['Init containers'] }; });
+    check(`${theme}: the init-crash pod's detail: badge "${initDetail && initDetail.badge}", Ready ${initDetail && initDetail.ready}, "Init containers" first and open with the init badge, not done, CrashLoopBackOff waiting and the restarts; the finding names the init container`,
+      !!initDetail && initDetail.badge === 'Init:CrashLoopBackOff' && initDetail.ready === '0/1' && initDetail.status === 'Init:CrashLoopBackOff' && initDetail.initKv === '0/1 done' && initDetail.sections[1] === 'Init containers 1' && initDetail.sections[2] === 'Containers 1' && initDetail.initOpen && initDetail.initBadges.includes('init') && initDetail.initBadges.includes('not done') && initDetail.initBadges.some((b) => /waiting: CrashLoopBackOff/.test(b)) && initDetail.initBadges.includes('6 restarts') && initDetail.findings.some((f) => f === 'db-migrate is in CrashLoopBackOff'), JSON.stringify(initDetail).slice(0, 700));
+    await frame.evaluate(() => window.diagDetail.back()); await sleep(500);
     // the list scrolled so the crash pod's row is in view, then the row clicked
     const before = await frame.evaluate((key) => {
       const row = document.querySelector(`tr[data-detail="${key}"]`); if (!row) return null;
@@ -254,6 +270,19 @@ try {
     check(`${theme}: the Container logs section lists current (empty) and previous with their sizes`, logs.length === 3 && logs[0].join('|') === 'worker|current (empty)|0 B' && logs[1].join('|') === 'worker|previous|994 B', JSON.stringify(logs));
     // field ownership (folded): newest first, the person's tool flagged
     const own = await frame.evaluate(() => { const sec = Array.from(document.querySelectorAll('.ui-detail:not([hidden]) details.ui-detail-section')).find((d) => d.querySelector('summary').textContent.trim().startsWith('Field ownership')); const wasOpen = sec.open; sec.open = true; const rows = Array.from(sec.querySelectorAll('tbody tr')).map((r) => ({ manager: r.cells[0].textContent.trim(), kind: r.cells[0].querySelector('.ui-badge').textContent, fields: r.cells[2].querySelectorAll('.ui-chip').length })); return { wasOpen, rows, note: sec.querySelector('.ui-detail-section-body p').textContent }; });
+    // every section open: the paths of Field ownership (a long one among them) wrap inside their chips, no text of
+    // adjacent cells overlaps anywhere in the detail (Containers, Conditions, Volumes, Events, Field ownership), every
+    // chip keeps inside its pill and its cell - at 1360 and at 420
+    const sectionStates = await frame.evaluate(() => Array.from(document.querySelectorAll('.ui-detail:not([hidden]) details.ui-detail-section')).map((d) => d.open));
+    for (const fw of [1360, 420]) {
+      if (fw === 420) await frameWidth(page, 420);
+      await frame.evaluate(() => { document.querySelectorAll('.ui-detail:not([hidden]) details.ui-detail-section').forEach((d) => { if (!/JSON$/.test(d.querySelector('summary').textContent.trim())) d.open = true; }); document.querySelectorAll('.ui-detail:not([hidden]) .ui-chips-more[aria-expanded="false"]').forEach((b) => b.click()); }); await sleep(400);
+      const ro = await rowOverlap(frame); const pc = await probeComponents(frame, { width: fw });
+      const paths = await frame.evaluate(() => { const sec = Array.from(document.querySelectorAll('.ui-detail:not([hidden]) details.ui-detail-section')).find((d) => d.querySelector('summary').textContent.trim().startsWith('Field ownership')); const chips = Array.from(sec.querySelectorAll('.ui-chip')); const long = chips.find((c) => /credentials-and-certificates/.test(c.textContent)); const cell = long && long.closest('td'); const lr = long && long.getBoundingClientRect(); const cr = cell && cell.getBoundingClientRect(); const rg = long && document.createRange(); if (rg) rg.selectNodeContents(long); const tr = rg && rg.getBoundingClientRect(); return { chips: chips.length, long: long ? long.textContent : null, h: lr ? Math.round(lr.height) : 0, inCell: !!(lr && cr && lr.right <= cr.right + 1), textIn: !!(tr && lr && tr.right <= lr.right + 1 && tr.bottom <= lr.bottom + 1), wbr: long ? long.querySelectorAll('wbr').length : 0 }; });
+      check(`${theme}: the pod detail at ${fw} with every section open: no text of adjacent cells overlaps (${ro.rows} rows and pairs), every chip keeps inside its pill and cell (${pc.n.chips} chips), the long field path chip (${paths.h}px, ${paths.wbr} break points) inside its cell`, ro.problems.length === 0 && pc.chips.length === 0 && !!paths.long && paths.inCell && paths.textIn && paths.wbr >= 6, JSON.stringify({ ro: ro.problems, chips: pc.chips.slice(0, 4), paths }).slice(0, 900));
+    }
+    await frame.evaluate((states) => { document.querySelectorAll('.ui-detail:not([hidden]) .ui-chips-more[aria-expanded="true"]').forEach((b) => b.click()); Array.from(document.querySelectorAll('.ui-detail:not([hidden]) details.ui-detail-section')).forEach((d, i) => { d.open = states[i]; }); }, sectionStates); await sleep(200);
+    await resetWidth(page);
     check(`${theme}: Field ownership (folded at first): kubelet (status), oc (human), kube-controller-manager (controller), newest first, the person's edit summarised`, !own.wasOpen && own.rows.map((r) => r.kind).join(',') === 'status,human,controller' && /^human oc$/.test(own.rows[1].manager) && own.rows[1].fields === 1 && /Last edited by a person.s tool: oc 12 min before the gather/.test(own.note), JSON.stringify(own).slice(0, 500));
     // no horizontal overflow at every width
     for (const fw of [1920, 1360, 1010, 420, 360]) {
@@ -398,6 +427,48 @@ try {
           links: Array.from(v.querySelectorAll('.ui-detail-actions button[data-tab]')).map((b) => [b.textContent.trim(), b.getAttribute('data-tab'), b.getAttribute('data-sub-tab') || '', b.getAttribute('data-query') || ''].join('|')) };
       });
       check(`${theme}: Open node logs links to the Log Viewer with the node's journals and its role's host service logs (sources=node:master-0,host:masters)`, n.links.includes('Open node logs|log_collection|log_viewer|sources=node:master-0,host:masters'), JSON.stringify(n.links));
+      // the label chips: 40 labels, the first 15 shown in their order (the roles, the hostname, where it runs, what it
+      // is, then alphabetical), "Show 25 more" (aria-expanded) shows all 40 and "Show less" folds again; the key muted
+      // and the value plain, a label without a value as the key alone; every chip's text inside its pill and no chip
+      // wider than its cell, at 1360 and at 420 where the long ones wrap
+      const chipState = () => nodesFrame.evaluate(() => {
+        const v = document.querySelector('.ui-detail:not([hidden])');
+        const dd = Array.from(v.querySelectorAll('.ui-kv > div')).find((d) => d.querySelector('dt').textContent === 'Labels');
+        const wrap = dd && dd.querySelector('.ui-detail-chips');
+        const all = wrap ? Array.from(wrap.querySelectorAll('.ui-chip')) : [];
+        const chips = all.filter((c) => !c.hidden);
+        const more = wrap && wrap.querySelector('.ui-chips-more');
+        const probe = (v2) => { const p = document.createElement('div'); p.style.color = v2; document.body.appendChild(p); const c = getComputedStyle(p).color; p.remove(); return c; };
+        const muted = probe('var(--os-text-secondary)'), text = probe('var(--os-text-primary)');
+        const bad = [];
+        const out = chips.map((c) => {
+          const r = c.getBoundingClientRect(), pr = wrap.getBoundingClientRect();
+          const key = c.querySelector('.ui-chip-key'), val = c.querySelector('.ui-chip-val');
+          const rg = document.createRange(); rg.selectNodeContents(c); const tr = rg.getBoundingClientRect();
+          if (r.right > pr.right + 1) bad.push(c.textContent + ' wider than the cell');
+          if (tr.right > r.right + 1 || tr.bottom > r.bottom + 1 || tr.left < r.left - 1) bad.push(c.textContent + ' text past the pill');
+          if (!key || getComputedStyle(key).color !== muted) bad.push(c.textContent + ' key not muted');
+          if (val && getComputedStyle(val).color !== text) bad.push(c.textContent + ' value not plain');
+          return { t: c.textContent, h: Math.round(r.height), w: Math.round(r.width), border: getComputedStyle(c).borderTopWidth };
+        });
+        return { total: all.length, n: chips.length, bad, chips: out, order: chips.slice(0, 6).map((c) => c.querySelector('.ui-chip-key').textContent), wrapW: wrap ? Math.round(wrap.getBoundingClientRect().width) : 0, wrapH: wrap ? Math.round(wrap.getBoundingClientRect().height) : 0, more: more ? { text: more.textContent, expanded: more.getAttribute('aria-expanded'), isButton: more.tagName === 'BUTTON' } : null, masterText: (all.find((c) => c.textContent.startsWith('node-role.kubernetes.io/master')) || {}).textContent };
+      });
+      const cs1 = await chipState();
+      check(`${theme}: the node's labels at 1360: ${cs1.total} labels, the first ${cs1.n} shown in their order (${cs1.order.slice(0, 4).join(', ')} …), "${cs1.more && cs1.more.text}" folded (aria-expanded false), the key muted and the value plain, "node-role.kubernetes.io/master" as the key alone, every text inside its pill, no chip wider than the cell (${cs1.wrapW}px)`,
+        cs1.total === 40 && cs1.n === 15 && cs1.bad.length === 0 && cs1.masterText === 'node-role.kubernetes.io/master' && cs1.more && cs1.more.text === 'Show 25 more' && cs1.more.expanded === 'false' && cs1.more.isButton && cs1.order[0] === 'node-role.kubernetes.io/control-plane' && cs1.order[1] === 'node-role.kubernetes.io/master' && cs1.order[2] === 'kubernetes.io/hostname' && cs1.order[3] === 'topology.kubernetes.io/region' && cs1.chips.every((c) => c.border === '1px'), JSON.stringify({ total: cs1.total, n: cs1.n, bad: cs1.bad, order: cs1.order, more: cs1.more, master: cs1.masterText }).slice(0, 900));
+      const foldedH = cs1.wrapH;
+      await nodesFrame.evaluate(() => { document.querySelector('.ui-detail:not([hidden]) .ui-chips-more').focus(); });
+      await page.keyboard.press('Enter'); await sleep(200);
+      const cs2 = await chipState();
+      check(`${theme}: Enter on "Show 25 more" shows all ${cs2.n} chips, the button reads "${cs2.more && cs2.more.text}" (aria-expanded true), every text still inside its pill; the folded cell was ${foldedH}px, open ${cs2.wrapH}px`, cs2.n === 40 && cs2.bad.length === 0 && cs2.more && cs2.more.text === 'Show less' && cs2.more.expanded === 'true' && cs2.wrapH > foldedH && foldedH < 260, JSON.stringify({ n: cs2.n, bad: cs2.bad.slice(0, 3), more: cs2.more, foldedH, openH: cs2.wrapH }));
+      await nodesFrame.evaluate(() => { document.querySelector('.ui-detail:not([hidden]) .ui-chips-more').click(); }); await sleep(200);
+      const cs3 = await chipState();
+      check(`${theme}: "Show less" folds the list to ${cs3.n} again`, cs3.n === 15 && cs3.more && cs3.more.text === 'Show 25 more' && cs3.more.expanded === 'false', JSON.stringify(cs3.more));
+      await frameWidth(page, 420);
+      const cs4 = await chipState();
+      const wrapped = cs4.chips.filter((c) => c.h > 30);
+      check(`${theme}: at 420 the long labels wrap inside their pill (${wrapped.length} chips taller than one line, e.g. "${wrapped[0] ? wrapped[0].t : '-'}" ${wrapped[0] ? wrapped[0].h : 0}px), every text inside its pill, no chip wider than the cell (${cs4.wrapW}px)`, cs4.bad.length === 0 && wrapped.length >= 1 && cs4.chips.every((c) => c.w <= cs4.wrapW + 1), JSON.stringify({ bad: cs4.bad, wrapped: wrapped.slice(0, 3), wrapW: cs4.wrapW }).slice(0, 900));
+      await resetWidth(page);
       check(`${theme}: the Node detail: Ready badge, the capacity meters (cpu 7.5 of 8 = 93.8%, pods 250 of 250), Conditions, Taints, the 4 pods on it linked to their details, Node JSON`, n.title === 'master-0' && n.badge === 'Ready' && n.meters.length >= 4 && n.meters[0].text === '93.8%' && Math.abs(n.meters[0].width - 93.8) < 0.2 && n.meters.some((m) => m.now === '250' && m.max === '250') && ['Summary', 'Capacity', 'Conditions 4', 'Taints 0', 'Pods on this node 4', 'Node JSON'].every((t) => n.sections.includes(t)) && n.podRows === 4 && n.podLinks === 4, JSON.stringify(n).slice(0, 600));
       for (const fw of [1920, 1010, 360]) { await frameWidth(page, fw); const o = await overflow(nodesFrame); check(`${theme}: the Node detail has no horizontal overflow at ${fw}`, !o.pageOver && o.bad.length === 0, JSON.stringify(o)); }
       await resetWidth(page);

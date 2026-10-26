@@ -476,6 +476,7 @@ export default function DiagnosticsPage() {
   const tabsRef = useRef([]);
   const loadTabRef = useRef(() => {});
   const pendingQueryRef = useRef(null);   // a cross-link's query for the tab being opened: { query, key } (see open-tab / apply-query)
+  const pendingScrollRef = useRef(null);  // a scroll-to the pane could not reach yet (the frame still short): applied on its next height report
   const contentKeyRef = useRef('');        // the tab (or sub-tab) the current content belongs to (baked into its document)
   // The phone layout: the parser tabs are a drawer under a page header
   const { isMobile } = useMobile();
@@ -591,6 +592,15 @@ export default function DiagnosticsPage() {
       const data = event.data;
       if (data && data.__diagnosticsIframe && data.type === 'height') {
         frame.style.height = `${data.height}px`;
+        const wanted = pendingScrollRef.current;
+        if (wanted) {
+          // the scroll the pane could not reach before this height: tried again now that the frame is taller
+          const scroller = contentScrollRef.current;
+          if (!scroller || Date.now() > wanted.until) { pendingScrollRef.current = null; } else {
+            scroller.scrollTop = wanted.target;
+            if (scroller.scrollTop >= wanted.target - 1) pendingScrollRef.current = null;
+          }
+        }
         postViewport();
         // a cross-link's query, handed to its target page on that page's first height report (the page is up by
         // then; a report from the page being left names another tab and is not it)
@@ -657,7 +667,12 @@ export default function DiagnosticsPage() {
         if (!scroller || !Number.isFinite(y)) return;
         const fr = frame.getBoundingClientRect();
         const sr = scroller.getBoundingClientRect();
-        scroller.scrollTop = Math.max(0, scroller.scrollTop + (fr.top - sr.top) + y);
+        const target = Math.max(0, scroller.scrollTop + (fr.top - sr.top) + y);
+        scroller.scrollTop = target;
+        // Back from a detail asks for the list's old position before the frame has grown back to the list's height:
+        // the pane clamps the scroll to what it has now, so the ask is kept and repeated once the frame reports
+        // its new height (a reachable ask clears any older one)
+        pendingScrollRef.current = scroller.scrollTop < target - 1 ? { target, until: Date.now() + 2000 } : null;
         return;
       }
       if (type === 'stream-abort') {

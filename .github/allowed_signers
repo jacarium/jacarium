@@ -1,0 +1,12 @@
+# The SSH keys that sign Jacarium's release commits and tags (git's gpg.ssh.allowedSignersFile format: one
+# principal, the key type, the public key, an optional comment per line). The principal is a neutral name, not an
+# e-mail address: git looks a signature up by its key (ssh-keygen -Y find-principals), so the name only has to
+# match what the signer configured. Verify a release from a clone of https://github.com/jacarium/jacarium:
+#
+#   git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag vX.Y.Z
+#   git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-commit vX.Y.Z^{commit}
+#
+# scripts/publish-release.sh signs with the key configured in the public clone (gpg.format ssh, user.signingkey)
+# and verifies against this file before anything is pushed. Only public keys live here; a new maintainer key is
+# added as another line, an old one removed when it is retired (signatures made with it stop verifying).
+jacarium-release ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJdH5Ck9YdECqs79AyKVSZSph0+yKseL3Fm5ws52eiPY jacarium release signing

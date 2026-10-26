@@ -266,12 +266,22 @@ def write_cluster_scoped(t, rnd):
 
     # Nodes
     for i, (name, role, cpu, mem_ki, ip, ready) in enumerate(NODES, start=40):
+        # the long labels a cloud node carries (the region / zone / instance-type keys, the hostname as an FQDN): the
+        # detail page's label chips must wrap them inside the pill
         labels = {"beta.kubernetes.io/arch": "amd64", "beta.kubernetes.io/os": "linux", "kubernetes.io/arch": "amd64",
-                  "kubernetes.io/hostname": name, "kubernetes.io/os": "linux", "node.openshift.io/os_id": "rhcos",
+                  "kubernetes.io/hostname": NODE_FQDN[name], "kubernetes.io/os": "linux", "node.openshift.io/os_id": "rhcos",
+                  "failure-domain.beta.kubernetes.io/region": "example-region-1", "failure-domain.beta.kubernetes.io/zone": "example-region-1a",
+                  "topology.kubernetes.io/region": "example-region-1", "topology.kubernetes.io/zone": "example-region-1a",
+                  "topology.ebs.csi.aws.com/zone": "example-region-1a", "node.kubernetes.io/instance-type": "example.4xlarge",
                   f"node-role.kubernetes.io/{role}": "", "node-role.kubernetes.io/master": ""} if role == "control-plane" else \
                  {"beta.kubernetes.io/arch": "amd64", "beta.kubernetes.io/os": "linux", "kubernetes.io/arch": "amd64",
-                  "kubernetes.io/hostname": name, "kubernetes.io/os": "linux", "node.openshift.io/os_id": "rhcos",
+                  "kubernetes.io/hostname": NODE_FQDN[name], "kubernetes.io/os": "linux", "node.openshift.io/os_id": "rhcos",
+                  "failure-domain.beta.kubernetes.io/region": "example-region-1", "failure-domain.beta.kubernetes.io/zone": "example-region-1b",
+                  "topology.kubernetes.io/region": "example-region-1", "topology.kubernetes.io/zone": "example-region-1b",
+                  "topology.ebs.csi.aws.com/zone": "example-region-1b", "node.kubernetes.io/instance-type": "example.8xlarge",
                   "node-role.kubernetes.io/worker": ""}
+        if name == "master-0":   # forty labels: the detail page folds the list past its first fifteen
+            labels.update({f"example.com/extra-{j:02d}": f"value-{j:02d}" for j in range(40 - len(labels))})
         when_ok = ago(days=20)
         when_bad = ago(hours=3, minutes=12)
         node = {
@@ -367,15 +377,34 @@ def container_status(name, image, ready, restarts, state, last_state=None, start
 
 
 def pod(ns, name, node, ip, containers, phase="Running", created=None, uid_seed=100, owner=None, conditions_ready=True, qos="Burstable",
-        labels=None, started=None, managed_fields=None):
-    if QUIET:   # every container running and ready, never restarted
+        labels=None, started=None, managed_fields=None, init_containers=None):
+    """init_containers: [{name, image, state: 'completed' (default) | 'running' | 'waiting', reason, sidecar, ready, restarts}] -
+    spec.initContainers (restartPolicy Always for a sidecar) and status.initContainerStatuses."""
+    if QUIET:   # every container running and ready, never restarted; an init container done
         containers = [{**{k: v for k, v in c.items() if k not in ("last_state", "state")}, "ready": True, "restarts": 0} for c in containers]
+        init_containers = [{**c, "state": "running" if c.get("sidecar") else "completed", "ready": bool(c.get("sidecar")), "restarts": 0} for c in init_containers or []]
         conditions_ready = True
         phase = "Running"
     created = created or ago(days=9)
     started = started or created
     spec_containers = []
     statuses = []
+    init_specs, init_statuses = [], []
+    for c in init_containers or []:
+        init_specs.append({"name": c["name"], "image": c["image"], "imagePullPolicy": "IfNotPresent", "resources": {},
+                           "terminationMessagePath": "/dev/termination-log", "terminationMessagePolicy": "File",
+                           **({"restartPolicy": "Always"} if c.get("sidecar") else {})})
+        kind = c.get("state", "completed")
+        if kind == "completed":
+            st = {"terminated": {"containerID": f"cri-o://{'ee' * 32}", "exitCode": 0, "finishedAt": started, "reason": "Completed", "startedAt": started}}
+            last = None
+        elif kind == "running":
+            st = {"running": {"startedAt": started}}
+            last = None
+        else:
+            st = {"waiting": {"message": c.get("message", f"back-off 5m0s restarting failed container={c['name']} pod={name}_{ns}"), "reason": c.get("reason", "CrashLoopBackOff")}}
+            last = {"terminated": {"containerID": f"cri-o://{'ee' * 32}", "exitCode": c.get("exit_code", 1), "finishedAt": ago(minutes=3), "reason": "Error", "startedAt": ago(minutes=4)}}
+        init_statuses.append(container_status(c["name"], c["image"], c.get("ready", kind == "running" and bool(c.get("sidecar"))), c.get("restarts", 0), st, last))
     for c in containers:
         spec_containers.append({"name": c["name"], "image": c["image"], "imagePullPolicy": "IfNotPresent",
                                 "ports": [{"containerPort": c.get("port", 8080), "name": "http", "protocol": "TCP"}],
@@ -392,19 +421,22 @@ def pod(ns, name, node, ip, containers, phase="Running", created=None, uid_seed=
                             annotations={"k8s.ovn.org/pod-networks": json.dumps({"default": {"ip_addresses": [ip + "/23"], "mac_address": "0a:58:0a:80:01:0f"}}),
                                          "openshift.io/scc": "restricted-v2"},
                             extra={**({"ownerReferences": [owner]} if owner else {}), **({"managedFields": managed_fields} if managed_fields else {})} or None),
-           "spec": {"containers": spec_containers, "dnsPolicy": "ClusterFirst", "enableServiceLinks": True, "nodeName": node,
+           "spec": {"containers": spec_containers, **({"initContainers": init_specs} if init_specs else {}), "dnsPolicy": "ClusterFirst", "enableServiceLinks": True, "nodeName": node,
                     "preemptionPolicy": "PreemptLowerPriority", "priority": 0, "restartPolicy": "Always", "schedulerName": "default-scheduler",
                     "securityContext": {"runAsNonRoot": True, "seccompProfile": {"type": "RuntimeDefault"}}, "serviceAccount": "default",
                     "serviceAccountName": "default", "terminationGracePeriodSeconds": 30,
                     "tolerations": [{"effect": "NoExecute", "key": "node.kubernetes.io/not-ready", "operator": "Exists", "tolerationSeconds": 300},
                                     {"effect": "NoExecute", "key": "node.kubernetes.io/unreachable", "operator": "Exists", "tolerationSeconds": 300}],
                     "volumes": [{"name": "kube-api-access-x1y2z", "projected": {"defaultMode": 420, "sources": [{"serviceAccountToken": {"expirationSeconds": 3607, "path": "token"}}]}}]},
-           "status": {"conditions": [cond("PodReadyToStartContainers", "True", when=started), cond("Initialized", "True", when=started),
+           "status": {"conditions": [cond("PodReadyToStartContainers", "True", when=started),
+                                     cond("Initialized", "False" if any(c.get("state") == "waiting" for c in init_containers or []) else "True",
+                                          "ContainersNotInitialized" if any(c.get("state") == "waiting" for c in init_containers or []) else "", "", started),
                                      cond("Ready", ready_state, "" if conditions_ready else "ContainersNotReady",
                                           "" if conditions_ready else f"containers with unready status: [{containers[0]['name']}]", started if conditions_ready else ago(hours=3)),
                                      cond("ContainersReady", ready_state, "" if conditions_ready else "ContainersNotReady", "", started if conditions_ready else ago(hours=3)),
                                      cond("PodScheduled", "True", when=created)],
-                      "containerStatuses": statuses, "hostIP": {n[0]: n[4] for n in NODES}.get(node, "10.0.0.21"), "phase": phase, "podIP": ip,
+                      "containerStatuses": statuses, **({"initContainerStatuses": init_statuses} if init_statuses else {}),
+                      "hostIP": {n[0]: n[4] for n in NODES}.get(node, "10.0.0.21"), "phase": phase, "podIP": ip,
                       "podIPs": [{"ip": ip}], "qosClass": qos, "startTime": started}}
     return obj
 
@@ -435,11 +467,26 @@ def write_workload_namespaces(t, rnd):
             owner=owner("ReplicaSet", "demo-web-7d9f8b6c5", 201), uid_seed=303, conditions_ready=False),
         pod(ns, "demo-cache-6c8d7f9b4-pqrst", "worker-0", "10.128.6.16", [{"name": "cache", "image": img["cache"], "port": 6379}],
             owner=owner("ReplicaSet", "demo-cache-6c8d7f9b4", 202), uid_seed=304, labels={"app": "demo-cache"}),
+        # READY as kubectl counts it: an init container that ran and finished is not in it (2/2, "init 1/1 done")
+        pod(ns, "demo-api-7c8d9e0f1-init0", "master-2", "10.128.4.40", [{"name": "api", "image": img["api"], "port": 8443}, {"name": "metrics", "image": img["api"], "port": 9100}],
+            uid_seed=306, labels={"app": "demo-api"}, init_containers=[{"name": "fix-permissions", "image": img["api"]}]),
+        # a native sidecar (an init container with restartPolicy Always, running and ready) counts as a container (2/2)
+        pod(ns, "demo-sidecar-5a6b7c8d9-side0", "worker-0", "10.128.6.41", [{"name": "app", "image": img["web"]}],
+            uid_seed=307, labels={"app": "demo-sidecar"}, init_containers=[{"name": "log-shipper", "image": img["cache"], "sidecar": True, "state": "running", "ready": True}]),
+        # an init container in CrashLoopBackOff: READY 0/1, STATUS Init:CrashLoopBackOff, a Finding
+        pod(ns, "demo-migrate-1a2b3c4d5-crash", "worker-0", "10.128.6.42", [{"name": "app", "image": img["web"], "ready": False, "state": {"waiting": {"reason": "PodInitializing"}}}],
+            phase="Pending", conditions_ready=False, uid_seed=308, labels={"app": "demo-migrate"}, created=ago(hours=2),
+            init_containers=[{"name": "db-migrate", "image": img["worker"], "state": "waiting", "reason": "CrashLoopBackOff", "restarts": 6}]),
+        # a container not ready: 1/2, Running
+        pod(ns, "demo-proxy-9f8e7d6c5-half0", "master-1", "10.128.2.43", [{"name": "proxy", "image": img["web"]}, {"name": "metrics", "image": img["api"], "port": 9100, "ready": False}],
+            conditions_ready=False, uid_seed=309, labels={"app": "demo-proxy"}),
     ]
     for p in pods:
         name = p["metadata"]["name"]
         t.yaml(f"namespaces/{ns}/pods/{name}/{name}.yaml", p)
         cname = p["spec"]["containers"][0]["name"]
+        if cname not in ("web", "cache"):
+            continue   # the readiness pods carry no logs (the log counts of the Log Collection tests stay)
         if cname == "web":
             t.write(f"namespaces/{ns}/pods/{name}/web/web/logs/current.log", container_log_lines(
                 rnd, COLLECTED - timedelta(hours=6), 120,
@@ -482,7 +529,7 @@ def write_workload_namespaces(t, rnd):
                     owner=owner("ReplicaSet", "payments-worker-7b8c9d0e1", 212), uid_seed=315, conditions_ready=False, created=ago(hours=4),
                     managed_fields=managed([
                         ("kube-controller-manager", "Update", "", ago(hours=4), {"f:metadata": {"f:generateName": {}, "f:labels": {".": {}, "f:app": {}, "f:pod-template-hash": {}}, "f:ownerReferences": {}},
-                                                                            "f:spec": {"f:containers": {"k:{\"name\":\"worker\"}": {".": {}, "f:env": {".": {}, "k:{\"name\":\"DATABASE_URL\"}": {".": {}, "f:name": {}, "f:valueFrom": {}}}, "f:image": {}, "f:imagePullPolicy": {}, "f:name": {}, "f:ports": {}, "f:resources": {}}}, "f:restartPolicy": {}, "f:serviceAccountName": {}}}),
+                                                                            "f:spec": {"f:containers": {"k:{\"name\":\"worker\"}": {".": {}, "f:env": {".": {}, "k:{\"name\":\"DATABASE_URL\"}": {".": {}, "f:name": {}, "f:valueFrom": {}}}, "f:image": {}, "f:imagePullPolicy": {}, "f:name": {}, "f:ports": {}, "f:resources": {}, "f:volumeMounts": {"k:{\"mountPath\":\"/var/run/secrets/example-org/payments/credentials-and-certificates\"}": {".": {}, "f:mountPath": {}, "f:name": {}, "f:readOnly": {}}}}}, "f:restartPolicy": {}, "f:serviceAccountName": {}}}),
                         ("oc", "Update", "", ago(minutes=12), {"f:metadata": {"f:labels": {"f:debug": {}}}}),   # planted: a person's edit shortly before the gather
                         ("kubelet", "Update", "status", ago(minutes=2), {"f:status": {"f:conditions": {}, "f:containerStatuses": {}, "f:phase": {}, "f:podIP": {}}}),
                     ]))

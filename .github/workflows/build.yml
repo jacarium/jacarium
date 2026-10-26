@@ -1,0 +1,645 @@
+# The reusable build of a Jacarium release - the part of the release that
+# SLSA Build L3 is about. release.yml calls it; nothing here depends on the
+# caller beyond the commit it runs on and the one input (publish).
+#
+# Why a reusable workflow: GitHub's artifact attestations give SLSA v1.0
+# Build L2 by themselves; run from a reusable workflow they reach Build L3,
+# because the provenance names this file as the builder and the calling
+# workflow cannot change what happens here (docs.github.com, "Using artifact
+# attestations and reusable workflows to achieve SLSA v1 Build Level 3").
+# Verifiers pin it: gh attestation verify ... --signer-workflow
+# jacarium/jacarium/.github/workflows/build.yml.
+#
+# The isolation the level asks for, job by job:
+#   installers, image   build the deliverables. contents: read only - no
+#                       id-token, no environment, no secret: a dependency's
+#                       install script (npm ci, pip install) runs here and
+#                       cannot reach any signing material. They also write
+#                       the SBOMs (Syft, a pinned and verified binary) and a
+#                       checksum list of everything they hand over.
+#   attest              the only job with id-token / attestations before
+#                       publishing. It runs no project code at all: no
+#                       checkout, no install - it downloads the artifacts,
+#                       checks them against the builders' checksums and
+#                       signs the build provenance and the SBOM attestations.
+#   publish             tags only, environment "quay" (a reviewer approves).
+#                       Loads the two image archives, signs in to quay.io
+#                       keylessly, pushes, then attests and cosign-signs the
+#                       pushed digests. Its only checkout is .github/ (the
+#                       pinned-tool fetcher), nothing of the application.
+#
+# Only official GitHub actions (github.com/actions/*), pinned to the full
+# commit of their release; third-party tools (Syft, cosign) come as pinned
+# binaries that .github/scripts/fetch-tool.sh verifies against
+# .github/tools.env and the projects' own signatures before use.
+# tests/github_workflows.test.py holds these rules.
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      publish:
+        description: Push the image to quay.io and attest / sign the pushed digests (release tags only; the quay environment's reviewer approves)
+        type: boolean
+        default: false
+    outputs:
+      version:
+        description: The version in package.json
+        value: ${{ jobs.installers.outputs.version }}
+      image-digest:
+        description: The manifest list digest pushed to quay.io (empty unless publish)
+        value: ${{ jobs.publish.outputs.digest }}
+
+# Nothing by default; every job says what it needs
+permissions: {}
+
+env:
+  IMAGE: quay.io/zerodayz/jacarium
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The desktop installers, one job per platform. The SBOM of a platform is
+  # made from electron-builder's unpacked application (the .app / the
+  # *-unpacked directory): Syft cannot look inside a .dmg or an .AppImage,
+  # and the .deb of the same platform holds the same files - so one SBOM
+  # per platform, named after the installers it describes.
+  # ---------------------------------------------------------------------------
+  installers:
+    name: Installers (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x64,   runner: ubuntu-24.04,     platform: linux, format: 'AppImage deb rpm' }
+          - { name: linux-arm64, runner: ubuntu-24.04-arm, platform: linux, format: 'AppImage deb rpm' }
+          - { name: macos-arm64, runner: macos-26,         platform: mac,   format: dmg }
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js (the version in .nvmrc)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Set up Python 3.14 (requirements.lock is resolved for it)
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+
+      - name: Linux packaging tools (rpmbuild, from Ubuntu's own archive)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends rpm
+
+      - name: The version, and the tag matches package.json
+        id: version
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME but package.json says v$version"
+            exit 1
+          fi
+
+      - name: Build
+        env:
+          # no Apple signing identity yet: build unsigned instead of searching for one
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: ./rebuild.sh --no-container --platform "${{ matrix.platform }}" --format "${{ matrix.format }}"
+
+      - name: SBOMs of the application (Syft, pinned and verified by .github/scripts/fetch-tool.sh)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PLATFORM: ${{ matrix.name }}
+        run: |
+          syft="$(.github/scripts/fetch-tool.sh syft)"
+          unpacked="$(ls -d dist-electron/mac*/Jacarium.app dist-electron/linux*-unpacked 2>/dev/null | head -1)"
+          [ -n "$unpacked" ] || { echo "::error::no unpacked application under dist-electron"; exit 1; }
+          mkdir -p out/sbom
+          "$syft" scan "dir:$unpacked" --source-name jacarium --source-version "$VERSION" \
+            -o "spdx-json=out/sbom/jacarium-${VERSION}-${PLATFORM}.spdx.json" \
+            -o "cyclonedx-json=out/sbom/jacarium-${VERSION}-${PLATFORM}.cdx.json"
+          ls -la out/sbom
+
+      # The checksums the attest job checks the downloaded files against: the
+      # builder's own record of what it produced
+      - name: Collect the installers and their checksums
+        env:
+          PLATFORM: ${{ matrix.name }}
+        run: |
+          mkdir -p out/release out/sums
+          for f in dist-electron/*.dmg dist-electron/*.AppImage dist-electron/*.deb dist-electron/*.rpm; do
+            [ -f "$f" ] && cp "$f" out/release/
+          done
+          ls out/release/* >/dev/null
+          ( cd out && { command -v sha256sum >/dev/null && sha256sum release/* sbom/* || shasum -a 256 release/* sbom/*; } ) > "out/sums/SHA256SUMS-${PLATFORM}.txt"
+          cat "out/sums/SHA256SUMS-${PLATFORM}.txt"
+
+      - name: Keep the installers
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: jacarium-${{ matrix.name }}
+          path: out/release/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Keep the SBOMs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom-${{ matrix.name }}
+          path: out/sbom/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Keep the checksums
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sums-${{ matrix.name }}
+          path: out/sums/*
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # The self-hosted container image (deploy/Containerfile): built natively on
+  # each architecture, saved as a docker-archive (the format keeps the
+  # HEALTHCHECK), its SBOM read from that archive. No secrets, no environment,
+  # no registry: `npm ci` and `pip install` run the dependencies' own scripts.
+  # ---------------------------------------------------------------------------
+  image:
+    name: Container image (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    env:
+      ARCH: ${{ matrix.arch }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The version, and the tag matches package.json
+        run: |
+          version="$(jq -r .version package.json)"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          if [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME but package.json says v$version"
+            exit 1
+          fi
+
+      - name: Podman (preinstalled on GitHub's Ubuntu images; Ubuntu's own archive otherwise)
+        run: |
+          if ! command -v podman >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends podman
+          fi
+          podman --version
+
+      # --format docker: the OCI image format has no HEALTHCHECK, so podman
+      # would drop the Containerfile's (deploy/deploy-podman.sh builds the
+      # same way). A native build: the runner's own architecture, no QEMU -
+      # checked against the image afterwards, since a base image pinned to a
+      # single-architecture digest would silently build the wrong one.
+      # --timestamp: the layers' and the image's time is the commit's, so a
+      # rebuild of the same commit matches (docs/security/reproducible-builds.md)
+      - name: Build
+        run: |
+          image="localhost/jacarium:${VERSION}-${ARCH}"
+          podman build --format docker --timestamp "$(git log -1 --format=%ct)" -f deploy/Containerfile -t "$image" .
+          got="$(podman image inspect --format '{{.Architecture}}' "$image")"
+          if [ "$got" != "$ARCH" ]; then
+            echo "::error::built a $got image on the $ARCH runner"
+            exit 1
+          fi
+          mkdir -p out/images
+          # docker-archive keeps the docker image format, HEALTHCHECK included
+          podman save --format docker-archive -o "out/images/jacarium-${ARCH}.tar" "$image"
+          ls -la out/images
+
+      - name: SBOMs of the image (Syft, pinned and verified by .github/scripts/fetch-tool.sh)
+        run: |
+          syft="$(.github/scripts/fetch-tool.sh syft)"
+          mkdir -p out/sbom
+          "$syft" scan "docker-archive:out/images/jacarium-${ARCH}.tar" --source-name jacarium --source-version "${VERSION}-${ARCH}" \
+            -o "spdx-json=out/sbom/jacarium-${VERSION}-image-${ARCH}.spdx.json" \
+            -o "cyclonedx-json=out/sbom/jacarium-${VERSION}-image-${ARCH}.cdx.json"
+          ls -la out/sbom
+
+      # The gate: a High / Critical finding with a fix fails the build unless the release's VEX
+      # (vex/jacarium-<version>.openvex.json, from the reviewed decisions) says it does not affect Jacarium.
+      # Findings without a fix in the distribution are reported, not blocking.
+      - name: Scan the image (grype, pinned and verified; the VEX applied)
+        run: |
+          grype="$(.github/scripts/fetch-tool.sh grype)"
+          vex="vex/jacarium-${VERSION}.openvex.json"
+          [ -f "$vex" ] && vexarg="--vex $vex" || { vexarg=""; echo "::warning::no $vex - the scan runs without a VEX"; }
+          mkdir -p out/scan
+          # shellcheck disable=SC2086
+          "$grype" "docker-archive:out/images/jacarium-${ARCH}.tar" $vexarg --ignore-states not-fixed,wont-fix -o json --file "out/scan/grype-${ARCH}.json" -q || true
+          # shellcheck disable=SC2086
+          "$grype" "docker-archive:out/images/jacarium-${ARCH}.tar" $vexarg --ignore-states not-fixed,wont-fix -o table -q > "out/scan/grype-${ARCH}.txt" 2>&1 || true
+          { echo "## Grype, image ${ARCH}"; echo; echo '```'; cat "out/scan/grype-${ARCH}.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          # shellcheck disable=SC2086
+          "$grype" "docker-archive:out/images/jacarium-${ARCH}.tar" $vexarg --ignore-states not-fixed,wont-fix --fail-on high -q > /dev/null \
+            || { echo "::error::High / Critical findings with a fix that the VEX does not cover - see the summary (out/scan/grype-${ARCH}.json is kept as an artifact)"; exit 1; }
+
+      - name: Checksums of what this job hands over
+        run: |
+          mkdir -p out/sums
+          ( cd out && sha256sum images/* sbom/* ) > "out/sums/SHA256SUMS-image-${ARCH}.txt"
+          cat "out/sums/SHA256SUMS-image-${ARCH}.txt"
+
+      - name: Keep the scan report
+        if: always() && hashFiles('out/scan/*') != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scan-image-${{ matrix.arch }}
+          path: out/scan/*
+          retention-days: 7
+
+      - name: Keep the image
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-${{ matrix.arch }}
+          path: out/images/*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Keep the SBOMs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom-image-${{ matrix.arch }}
+          path: out/sbom/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Keep the checksums
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sums-image-${{ matrix.arch }}
+          path: out/sums/*
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # The release's VEX (vex/jacarium-<version>.openvex.json, generated from the
+  # reviewed vex/decisions.yaml by `npm run vex` at release time and committed):
+  # checked against a fresh generation from the same decisions, so a stale
+  # document cannot ship, and handed over for the attestations.
+  # ---------------------------------------------------------------------------
+  vex:
+    name: VEX
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The committed VEX matches the decisions
+        run: |
+          version="$(jq -r .version package.json)"
+          f="vex/jacarium-${version}.openvex.json"
+          if [ ! -f "$f" ]; then
+            # a release tag must carry its VEX; a manual test run of the workflow generates one on the spot
+            case "$GITHUB_REF" in refs/tags/*) echo "::error::$f is missing - run 'npm run vex' and commit it with the release"; exit 1 ;; esac
+            echo "::warning::$f is not committed (not a release tag) - generated from vex/decisions.yaml for this run"
+            python3 scripts/vex.py --version "$version" --out "$f"
+          fi
+          python3 scripts/vex.py --check "$f"
+          python3 scripts/vex.py --version "$version" --out "$RUNNER_TEMP/fresh.json" --now "$(jq -r .timestamp "$f")"
+          # the same statements, timestamps aside (a decision's own timestamp is part of the statement)
+          jq -S 'del(.timestamp) | .statements |= map(del(.timestamp, .action_statement_timestamp))' "$f" > "$RUNNER_TEMP/a.json"
+          jq -S 'del(.timestamp) | .statements |= map(del(.timestamp, .action_statement_timestamp))' "$RUNNER_TEMP/fresh.json" > "$RUNNER_TEMP/b.json"
+          cmp -s "$RUNNER_TEMP/a.json" "$RUNNER_TEMP/b.json" || { diff "$RUNNER_TEMP/a.json" "$RUNNER_TEMP/b.json" | head -40; echo "::error::$f does not match vex/decisions.yaml - run 'npm run vex' and commit"; exit 1; }
+          mkdir -p out/vex && cp "$f" out/vex/
+          ( cd out && sha256sum vex/* ) > "out/SHA256SUMS-vex.txt"
+          mkdir -p out/sums && mv out/SHA256SUMS-vex.txt out/sums/
+
+      - name: Keep the VEX
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: vex-document
+          path: out/vex/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Keep its checksum
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sums-vex
+          path: out/sums/*
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Provenance and SBOM attestations, signed here and nowhere near the build:
+  # this job checks out nothing and installs nothing. It downloads what the
+  # builders uploaded, checks every file against the builders' checksum lists
+  # and signs. Verify any file with
+  #   gh attestation verify <file> --repo jacarium/jacarium \
+  #     --signer-workflow jacarium/jacarium/.github/workflows/build.yml --deny-self-hosted-runners
+  # and the SBOM attestation of an installer with --predicate-type https://spdx.dev/Document/v2.3.
+  # ---------------------------------------------------------------------------
+  attest:
+    name: Attest (provenance, SBOMs, VEX)
+    needs: [installers, image, vex]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write        # the Sigstore signing certificate
+      attestations: write    # store the attestations with GitHub
+    steps:
+      - name: Collect the installers, images, SBOMs and the VEX
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: '{jacarium,image,sbom,sbom-image,vex}-*'
+          path: subjects
+          merge-multiple: true
+
+      - name: Collect the builders' checksums
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: 'sums-*'
+          path: sums
+          merge-multiple: true
+
+      # The lists name files as release/<f>, sbom/<f>, images/<f>; the merged
+      # download is flat, so they are checked by basename
+      - name: Every downloaded file is what its builder produced
+        run: |
+          cd subjects
+          sed -E 's#  (release|sbom|images|vex)/#  #' ../sums/SHA256SUMS-*.txt > ../SHA256SUMS-all.txt
+          sha256sum -c --strict ../SHA256SUMS-all.txt
+          n_listed="$(wc -l < ../SHA256SUMS-all.txt | tr -d ' ')"; n_here="$(ls | wc -l | tr -d ' ')"
+          [ "$n_listed" = "$n_here" ] || { echo "::error::$n_here files downloaded, $n_listed listed by the builders"; exit 1; }
+          ls -la
+
+      - name: Build provenance of the installers, the image archives and the SBOMs
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: subjects/*
+
+      # One SBOM attestation per platform: the SPDX document bound to the
+      # installers it describes (the CycloneDX file is a provenance subject
+      # above; the SBOM predicate is attested once, in SPDX)
+      - name: SBOM attestation, linux-x64
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            subjects/*x86_64.AppImage
+            subjects/*amd64.deb
+            subjects/*x86_64.rpm
+          sbom-path: subjects/jacarium-*-linux-x64.spdx.json
+
+      - name: SBOM attestation, linux-arm64
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            subjects/*arm64.AppImage
+            subjects/*arm64.deb
+            subjects/*aarch64.rpm
+          sbom-path: subjects/jacarium-*-linux-arm64.spdx.json
+
+      - name: SBOM attestation, macos-arm64
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: subjects/*.dmg
+          sbom-path: subjects/jacarium-*-macos-arm64.spdx.json
+
+      - name: SBOM attestation, image archive amd64
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: subjects/jacarium-amd64.tar
+          sbom-path: subjects/jacarium-*-image-amd64.spdx.json
+
+      - name: SBOM attestation, image archive arm64
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: subjects/jacarium-arm64.tar
+          sbom-path: subjects/jacarium-*-image-arm64.spdx.json
+
+      # The VEX as an attestation on everything it speaks about (the installers and the image archives):
+      #   gh attestation verify <file> --repo jacarium/jacarium --predicate-type https://openvex.dev/ns/v0.2.0
+      - name: VEX attestation
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            subjects/*.AppImage
+            subjects/*.deb
+            subjects/*.rpm
+            subjects/*.dmg
+            subjects/jacarium-amd64.tar
+            subjects/jacarium-arm64.tar
+          predicate-type: https://openvex.dev/ns/v0.2.0
+          predicate-path: subjects/jacarium-*.openvex.json
+
+  # ---------------------------------------------------------------------------
+  # Publish to Quay: tags only (publish: true), and only after a reviewer
+  # approves the "quay" environment. This runner builds nothing - it loads
+  # the two archives, pushes them, then attests and signs the pushed digests.
+  # No stored secret: the robot account is federated with this workflow's
+  # OIDC identity (subject repo:jacarium/jacarium:environment:quay, the
+  # same with or without the reusable workflow), and Quay hands out a robot
+  # token that expires after an hour. Its only checkout is .github/, for the
+  # pinned-tool fetcher (cosign).
+  #
+  # Verify the pushed image:
+  #   gh attestation verify oci://quay.io/zerodayz/jacarium:<version> --repo jacarium/jacarium \
+  #     --signer-workflow jacarium/jacarium/.github/workflows/build.yml --deny-self-hosted-runners
+  #   cosign verify quay.io/zerodayz/jacarium:<version> \
+  #     --certificate-identity https://github.com/jacarium/jacarium/.github/workflows/build.yml@refs/tags/v<version> \
+  #     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+  # ---------------------------------------------------------------------------
+  publish:
+    name: Publish the image to Quay
+    needs: [attest]
+    if: inputs.publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: quay
+    permissions:
+      contents: read
+      id-token: write        # the OIDC token Quay exchanges for a robot token; the attestation and cosign signatures
+      attestations: write    # store the provenance and SBOM attestations
+    env:
+      QUAY_ROBOT: zerodayz+github_release     # the federated robot account (see the Quay setup notes)
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - name: Check out .github only (the pinned-tool fetcher; nothing of the application)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github
+          sparse-checkout-cone-mode: true
+
+      - name: Collect the images, their SBOMs and the VEX
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: '{image,sbom-image,vex}-*'
+          path: images
+          merge-multiple: true
+
+      - name: Podman (preinstalled on GitHub's Ubuntu images; Ubuntu's own archive otherwise)
+        run: |
+          if ! command -v podman >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends podman
+          fi
+          podman --version
+
+      - name: Load the images and check their version and architecture
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          for arch in amd64 arm64; do
+            podman load -i "images/jacarium-${arch}.tar"
+            image="localhost/jacarium:${version}-${arch}"
+            podman image exists "$image" || { echo "::error::images/jacarium-${arch}.tar did not contain $image"; exit 1; }
+            got="$(podman image inspect --format '{{.Architecture}}' "$image")"
+            [ "$got" = "$arch" ] || { echo "::error::$image is a $got image"; exit 1; }
+          done
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      # Keyless: GitHub mints an OIDC token for this job; Quay's federated
+      # robot token endpoint exchanges it (HTTP basic auth, robot name as the
+      # user, the OIDC token as the password) for a robot token valid for one
+      # hour. Both tokens travel on stdin / in a curl config, never on a
+      # command line, and the robot token is masked in the log. There is no
+      # stored-secret fallback: a failed exchange fails the job.
+      - name: Sign in to quay.io (keyless)
+        run: |
+          jwt="$(curl -sSf -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+                 "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=quay.io" | jq -r .value)"
+          [ -n "$jwt" ] && [ "$jwt" != null ] || { echo "::error::no OIDC token (is id-token: write set?)"; exit 1; }
+          # no -f: on an error Quay's response body says why (it holds no secret)
+          response="$(printf 'user = "%s:%s"\n' "$QUAY_ROBOT" "$jwt" \
+                      | curl -sS -w '\n%{http_code}' -K - https://quay.io/oauth2/federation/robot/token)" || true
+          status="${response##*$'\n'}"; body="${response%$'\n'*}"
+          token="$(printf '%s' "$body" | jq -r '.token // empty' 2>/dev/null || true)"
+          if [ "$status" != 200 ] || [ -z "$token" ]; then
+            # what GitHub presented (public, not a credential): Quay's federation must match iss, sub and aud
+            payload="$(printf '%s' "$jwt" | cut -d. -f2 | tr '_-' '/+')"
+            while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="${payload}="; done
+            echo "OIDC token: $(printf '%s' "$payload" | base64 -d 2>/dev/null | jq -c '{iss, sub, aud}' 2>/dev/null || echo '(could not decode)')"
+            printf '%s' "$body" | jq -c 'del(.token)' 2>/dev/null || printf '%s\n' "$body" | head -c 500
+            echo "::error::quay.io did not exchange the OIDC token (HTTP $status) - compare the robot federation (issuer, subject, audience) with the OIDC token above"
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          printf '%s' "$token" | podman login quay.io -u "$QUAY_ROBOT" --password-stdin
+          echo "signed in keylessly"
+
+      # --format v2s2 everywhere: the docker manifest format carries the
+      # HEALTHCHECK; a list pushed as OCI would convert the images and drop it.
+      - name: Push the images and the manifest list (:<version>-<arch>, :<version>, :latest)
+        id: push
+        run: |
+          for arch in amd64 arm64; do
+            podman push --format v2s2 --digestfile "digest-${arch}" "localhost/jacarium:${VERSION}-${arch}" "docker://${IMAGE}:${VERSION}-${arch}"
+            echo "${IMAGE}:${VERSION}-${arch} = $(cat "digest-${arch}")"
+            echo "digest_${arch}=$(cat "digest-${arch}")" >> "$GITHUB_OUTPUT"
+          done
+          podman manifest create "localhost/jacarium:${VERSION}"
+          for arch in amd64 arm64; do
+            podman manifest add "localhost/jacarium:${VERSION}" "containers-storage:localhost/jacarium:${VERSION}-${arch}"
+          done
+          podman manifest push --all --format v2s2 --digestfile list.digest "localhost/jacarium:${VERSION}" "docker://${IMAGE}:${VERSION}"
+          podman manifest push --all --format v2s2 --digestfile latest.digest "localhost/jacarium:${VERSION}" "docker://${IMAGE}:latest"
+          digest="$(cat list.digest)"
+          [ "$digest" = "$(cat latest.digest)" ] || { echo "::error::the :${VERSION} and :latest lists differ"; exit 1; }
+          echo "${IMAGE}:${VERSION} = ${digest}"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      # Stored with GitHub (gh attestation verify oci://...); not pushed to
+      # the registry: the referrers support of quay.io is unconfirmed
+      - name: Build provenance of the manifest list
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: false
+
+      - name: Build provenance of the amd64 and arm64 images
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest_amd64 }}
+          push-to-registry: false
+
+      - name: Build provenance, arm64
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest_arm64 }}
+          push-to-registry: false
+
+      - name: SBOM attestation of the amd64 image
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest_amd64 }}
+          sbom-path: images/jacarium-*-image-amd64.spdx.json
+
+      - name: SBOM attestation of the arm64 image
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest_arm64 }}
+          sbom-path: images/jacarium-*-image-arm64.spdx.json
+
+      - name: VEX attestation of the manifest list
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          predicate-type: https://openvex.dev/ns/v0.2.0
+          predicate-path: images/jacarium-*.openvex.json
+
+      # Keyless cosign signatures and SBOM attestations next to the image in
+      # the registry (cosign's tag-based storage, which quay.io serves): the
+      # certificate names this workflow file at the release tag.
+      - name: Sign the pushed digests with cosign (keyless; pinned and verified binary)
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          DIGEST_AMD64: ${{ steps.push.outputs.digest_amd64 }}
+          DIGEST_ARM64: ${{ steps.push.outputs.digest_arm64 }}
+        run: |
+          cosign="$(.github/scripts/fetch-tool.sh cosign)"
+          for d in "$DIGEST" "$DIGEST_AMD64" "$DIGEST_ARM64"; do
+            "$cosign" sign --yes "${IMAGE}@${d}"
+          done
+          "$cosign" attest --yes --type spdxjson --predicate images/jacarium-"${VERSION}"-image-amd64.spdx.json "${IMAGE}@${DIGEST_AMD64}"
+          "$cosign" attest --yes --type spdxjson --predicate images/jacarium-"${VERSION}"-image-arm64.spdx.json "${IMAGE}@${DIGEST_ARM64}"
+          for d in "$DIGEST" "$DIGEST_AMD64" "$DIGEST_ARM64"; do
+            "$cosign" attest --yes --type openvex --predicate images/jacarium-"${VERSION}".openvex.json "${IMAGE}@${d}"
+          done
+          "$cosign" verify "${IMAGE}@${DIGEST}" \
+            --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/build.yml@${GITHUB_REF}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null
+          echo "signed and verified ${IMAGE}@${DIGEST}"
+
+      - name: Sign out of quay.io
+        if: always()
+        run: podman logout quay.io || true
