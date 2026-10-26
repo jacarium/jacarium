@@ -494,9 +494,6 @@ jobs:
       attestations: write    # store the provenance and SBOM attestations
     env:
       QUAY_ROBOT: zerodayz+github_release     # the federated robot account (see the Quay setup notes)
-      # cosign's registry credentials live here, a directory of this job alone (removed at sign-out):
-      # cosign reads the Docker config, never what podman login wrote (see the sign-in step)
-      DOCKER_CONFIG: ${{ runner.temp }}/cosign-docker-config
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
@@ -567,6 +564,10 @@ jobs:
           # when no Docker config exists at all - the runner has one, so podman's login was invisible to it and
           # v3.4.2's `cosign sign` pushed anonymously (UNAUTHORIZED). The login lands in the job's own
           # DOCKER_CONFIG directory, which the keychain reads first with the variable set.
+          # cosign's credentials: a directory of this job alone, removed at sign-out. Set here, not in the
+          # job's env: the runner context is not available there (v3.4.3's workflow was refused for it).
+          export DOCKER_CONFIG="${RUNNER_TEMP}/cosign-docker-config"
+          echo "DOCKER_CONFIG=${DOCKER_CONFIG}" >> "$GITHUB_ENV"
           mkdir -p "$DOCKER_CONFIG"
           cosign="$(.github/scripts/fetch-tool.sh cosign)"
           printf '%s' "$token" | "$cosign" login quay.io -u "$QUAY_ROBOT" --password-stdin >/dev/null
@@ -668,4 +669,4 @@ jobs:
         if: always()
         run: |
           podman logout quay.io || true
-          rm -rf "$DOCKER_CONFIG"
+          [ -z "${DOCKER_CONFIG:-}" ] || rm -rf "$DOCKER_CONFIG"

@@ -4,6 +4,14 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.4.4
+
+_2026-10-27_
+
+### [SECURITY]
+
+Release pipeline fix: the release workflow is accepted by GitHub again (3.4.3's was refused before it ran), so cosign signs in to Quay with the release's short-lived keyless robot token and the images get their cosign signatures and SBOM and VEX attestations in the registry
+
 ## What's New in v3.4.3
 
 _2026-10-27_

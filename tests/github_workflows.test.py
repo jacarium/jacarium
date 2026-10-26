@@ -158,7 +158,20 @@ token_lines = [l.strip() for l in runs(publish).splitlines() if '$token' in l]
 ALLOWED_TOKEN_LINE = re.compile(r'^(printf \'%s\' "\$token" \| \S.* --password-stdin( >/dev/null)?|echo "::add-mask::\$token"|if \[ "\$status" != 200 \] \|\| \[ -z "\$token" \]; then|if \[ -n "\$token" \].*)$')
 check('build.yml/publish: the robot token travels on stdin only (printf | ... --password-stdin, to podman and cosign), is masked, and never reaches a command line, GITHUB_ENV or GITHUB_OUTPUT',
       len([l for l in token_lines if '--password-stdin' in l]) == 2 and all(ALLOWED_TOKEN_LINE.match(l) for l in token_lines) and not re.search(r'token[^\n]*>>\s*"\$GITHUB_(ENV|OUTPUT)"', runs(publish)), [l for l in token_lines if not ALLOWED_TOKEN_LINE.match(l)])
-check("build.yml/publish: DOCKER_CONFIG is a directory of this job (runner.temp) and the sign-out step removes it", str((publish.get('env') or {}).get('DOCKER_CONFIG', '')).startswith('${{ runner.temp }}/') and i_out is not None and 'rm -rf "$DOCKER_CONFIG"' in str(pub_steps[i_out].get('run') or '') and pub_steps[i_out].get('if') == 'always()', (publish.get('env') or {}).get('DOCKER_CONFIG'))
+signin_run = next((str(st.get('run') or '') for st in pub_steps if 'cosign" login' in str(st.get('run') or '')), '')
+check("build.yml/publish: DOCKER_CONFIG is a directory of this job ($RUNNER_TEMP), set in the sign-in step before cosign login, and the sign-out step removes it",
+      'export DOCKER_CONFIG="${RUNNER_TEMP}/cosign-docker-config"' in signin_run and '"DOCKER_CONFIG=${DOCKER_CONFIG}" >> "$GITHUB_ENV"' in signin_run
+      and signin_run.index('export DOCKER_CONFIG') < signin_run.index('cosign" login') and 'DOCKER_CONFIG' not in (publish.get('env') or {})
+      and i_out is not None and 'rm -rf "$DOCKER_CONFIG"' in str(pub_steps[i_out].get('run') or '') and pub_steps[i_out].get('if') == 'always()', signin_run[:200])
+# GitHub refuses the whole workflow when a workflow- or job-level env uses a context that exists only in steps
+# (v3.4.3: "Unrecognized named-value: 'runner'" on the publish job's env) - nothing runs at all.
+_bad_env = []
+for _name, (_text, _wf) in workflows.items():
+    for _where, _env in [('workflow', _wf.get('env') or {})] + [(f'job {j}', (d or {}).get('env') or {}) for j, d in (_wf.get('jobs') or {}).items()]:
+        for _k, _v in _env.items():
+            if re.search(r'\$\{\{[^}]*\b(runner|steps|job)\.', str(_v)):
+                _bad_env.append(f'{_name} {_where} {_k}={_v}')
+check('workflows: no workflow- or job-level env uses the runner / steps / job context (only steps may; GitHub refuses the file otherwise)', not _bad_env, _bad_env)
 check("build.yml/publish: the job's timeout is below the robot token's one-hour life, so the credential cannot expire before the signatures are pushed", isinstance(publish.get('timeout-minutes'), int) and publish['timeout-minutes'] < 60, publish.get('timeout-minutes'))
 scn = workflows['scan.yml'][1]
 scn_jobs = scn.get('jobs') or {}
