@@ -4,6 +4,16 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.4.5
+
+_2026-10-27_
+
+### [SECURITY]
+
+Release pipeline fix: every installer gets its SBOM attestation (the x64 AppImage was missed in 3.4.4), and a check before the attestations fails the build if an installer is ever left out
+
+Release runs are titled by their version in GitHub Actions
+
 ## What's New in v3.4.4
 
 _2026-10-27_

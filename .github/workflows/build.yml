@@ -412,29 +412,48 @@ jobs:
 
       # One SBOM attestation per platform: the SPDX document bound to the
       # installers it describes (the CycloneDX file is a provenance subject
-      # above; the SBOM predicate is attested once, in SPDX)
+      # above; the SBOM predicate is attested once, in SPDX). Exact file names:
+      # electron-builder names the x64 AppImage without an architecture
+      # (Jacarium-X.Y.Z.AppImage), which a *x86_64.AppImage glob silently missed
+      # in v3.4.4. The check below fails when an installer is not in exactly one list.
+      - name: Every installer is a subject of exactly one SBOM attestation
+        env:
+          VERSION: ${{ needs.installers.outputs.version }}
+        run: |
+          expected="$(printf '%s\n' \
+            "Jacarium-${VERSION}.AppImage" "jacarium_${VERSION}_amd64.deb" "jacarium-${VERSION}.x86_64.rpm" \
+            "Jacarium-${VERSION}-arm64.AppImage" "jacarium_${VERSION}_arm64.deb" "jacarium-${VERSION}.aarch64.rpm" \
+            "Jacarium-${VERSION}-arm64.dmg" | sort)"
+          found="$(cd subjects && ls -1 -- *.AppImage *.deb *.rpm *.dmg 2>/dev/null | sort)"
+          if [ "$expected" != "$found" ]; then
+            echo "::error::the installers built differ from the SBOM attestation subjects"
+            diff <(echo "$expected") <(echo "$found") || true
+            exit 1
+          fi
+          echo "$found"
+
       - name: SBOM attestation, linux-x64
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: |
-            subjects/*x86_64.AppImage
-            subjects/*amd64.deb
-            subjects/*x86_64.rpm
+            subjects/Jacarium-${{ needs.installers.outputs.version }}.AppImage
+            subjects/jacarium_${{ needs.installers.outputs.version }}_amd64.deb
+            subjects/jacarium-${{ needs.installers.outputs.version }}.x86_64.rpm
           sbom-path: subjects/jacarium-${{ needs.installers.outputs.version }}-linux-x64.spdx.json
 
       - name: SBOM attestation, linux-arm64
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: |
-            subjects/*arm64.AppImage
-            subjects/*arm64.deb
-            subjects/*aarch64.rpm
+            subjects/Jacarium-${{ needs.installers.outputs.version }}-arm64.AppImage
+            subjects/jacarium_${{ needs.installers.outputs.version }}_arm64.deb
+            subjects/jacarium-${{ needs.installers.outputs.version }}.aarch64.rpm
           sbom-path: subjects/jacarium-${{ needs.installers.outputs.version }}-linux-arm64.spdx.json
 
       - name: SBOM attestation, macos-arm64
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: subjects/*.dmg
+          subject-path: subjects/Jacarium-${{ needs.installers.outputs.version }}-arm64.dmg
           sbom-path: subjects/jacarium-${{ needs.installers.outputs.version }}-macos-arm64.spdx.json
 
       - name: SBOM attestation, image archive amd64

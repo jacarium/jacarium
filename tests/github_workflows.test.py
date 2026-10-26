@@ -290,5 +290,19 @@ with _tf.TemporaryDirectory() as _d:
           and _o['packages'][0]['externalRefs'][0]['referenceLocator'] == 'pkg:rpm/alpha@1' and _o['documentNamespace'] == 'https://example.test/sbom/1/packages'
           and os.path.getsize(_out) < os.path.getsize(_in) / 100, _r.stderr)
 
+# v3.4.4: the linux-x64 SBOM attestation globbed *x86_64.AppImage, but electron-builder names that AppImage
+# Jacarium-X.Y.Z.AppImage - it was never attested and release.yml's verification failed (HTTP 404).
+_att_steps = attest.get('steps') or []
+_sbom_inst = [st for st in _att_steps if str(st.get('name', '')).startswith('SBOM attestation, ') and 'image archive' not in str(st.get('name', ''))]
+_subjects = [p.strip() for st in _sbom_inst for p in str((st.get('with') or {}).get('subject-path', '')).splitlines() if p.strip()]
+check('build.yml/attest: the installer SBOM attestations name their 7 installers exactly (no wildcard)', len(_sbom_inst) == 3 and len(_subjects) == 7 and all('*' not in p and '${{ needs.installers.outputs.version }}' in p for p in _subjects), _subjects)
+_cov = next((i for i, st in enumerate(_att_steps) if str(st.get('name', '')).startswith('Every installer is a subject')), None)
+_cov_run = str(_att_steps[_cov].get('run') or '') if _cov is not None else ''
+_names = sorted(p.replace('subjects/', '').replace('${{ needs.installers.outputs.version }}', '${VERSION}') for p in _subjects)
+check('build.yml/attest: before the SBOM attestations, a step fails unless the installers built are exactly the attested names', _cov is not None and _cov < _att_steps.index(_sbom_inst[0]) and all(f'"{n}"' in _cov_run for n in _names) and 'exit 1' in _cov_run, _names)
+
+_rel = workflows['release.yml'][1]
+check('release.yml: named "Release", each run titled by its tag (run-name)', _rel.get('name') == 'Release' and _rel.get('run-name') == 'Release ${{ github.ref_name }}', _rel.get('run-name'))
+
 print(f"\n{'FAILED' if failed else 'All checks passed'} ({failed} failed)")
 sys.exit(1 if failed else 0)

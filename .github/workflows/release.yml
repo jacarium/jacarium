@@ -20,6 +20,8 @@
 #             file's provenance and SBOM attestation and the pushed image's
 #             provenance, then creates the draft release
 name: Release
+# each run titled by its tag in the Actions list ("Release v3.4.5")
+run-name: Release ${{ github.ref_name }}
 
 on:
   push:
