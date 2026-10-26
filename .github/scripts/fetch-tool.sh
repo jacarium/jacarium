@@ -42,7 +42,7 @@ sha256_of() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut
 check_sha() {  # <file> <expected> <what>
     local got; got="$(sha256_of "$1")"
     [ "$got" = "$2" ] || die "$3: sha256 $got, expected $2"
-    echo "fetch-tool: $3 sha256 ok"
+    echo "fetch-tool: $3 sha256 ok" >&2
 }
 # the line for <file> in a checksums file must name <expected>
 check_in_list() {  # <checksums file> <file name> <file>
@@ -70,7 +70,7 @@ case "$TOOL" in
             --certificate-identity keyless@projectsigstore.iam.gserviceaccount.com \
             --certificate-oidc-issuer https://accounts.google.com "$WORK/cosign" >/dev/null \
             || die "cosign's own release signature did not verify"
-        echo "fetch-tool: cosign release signature ok"
+        echo "fetch-tool: cosign release signature ok" >&2
         install_bin "$WORK/cosign"
         ;;
     syft|grype)
@@ -86,7 +86,7 @@ case "$TOOL" in
             --certificate-identity "https://github.com/anchore/$TOOL/.github/workflows/release.yaml@refs/heads/main" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com "$WORK/checksums.txt" >/dev/null \
             || die "$TOOL: the checksums file's signature did not verify"
-        echo "fetch-tool: $TOOL checksums signature ok"
+        echo "fetch-tool: $TOOL checksums signature ok" >&2
         check_in_list "$WORK/checksums.txt" "$archive" "$WORK/$archive"
         tar -xzf "$WORK/$archive" -C "$WORK" "$TOOL"
         install_bin "$WORK/$TOOL"
@@ -104,7 +104,7 @@ case "$TOOL" in
         "$verifier" verify-artifact "$WORK/$archive" --provenance-path "$WORK/multiple.intoto.jsonl" \
             --source-uri github.com/ossf/scorecard --source-tag "v$version" >/dev/null \
             || die "scorecard: the SLSA provenance did not verify"
-        echo "fetch-tool: scorecard SLSA provenance ok"
+        echo "fetch-tool: scorecard SLSA provenance ok" >&2
         tar -xzf "$WORK/$archive" -C "$WORK" "scorecard-$os-$arch"
         install_bin "$WORK/scorecard-$os-$arch"
         ;;
@@ -118,7 +118,7 @@ case "$TOOL" in
         "$verifier" verify-artifact "$WORK/$bin" --provenance-path "$WORK/multiple.intoto.jsonl" \
             --source-uri github.com/google/osv-scanner --source-tag "v$version" >/dev/null \
             || die "osv-scanner: the SLSA provenance did not verify"
-        echo "fetch-tool: osv-scanner SLSA provenance ok"
+        echo "fetch-tool: osv-scanner SLSA provenance ok" >&2
         install_bin "$WORK/$bin"
         ;;
     slsa-verifier)

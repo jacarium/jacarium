@@ -295,6 +295,12 @@ build_backend() {
             echo "Bootstrapped pip predates 26.1 - upgrading it without the release cooldown"
             "$python_bin" -m pip install -q --upgrade pip
         fi
+        # Versions locked past the cooldown on the maintainer's request (cooldown-exceptions.txt):
+        # installed first at exactly those versions, so the cooldown install below keeps them.
+        if grep -qvE '^[[:space:]]*(#|$)' cooldown-exceptions.txt 2>/dev/null; then
+            log_info "installing the approved cooldown exceptions: $(grep -vE '^[[:space:]]*(#|$)' cooldown-exceptions.txt | tr '\n' ' ')"
+            "$python_bin" -m pip install -q --disable-pip-version-check --no-deps -r cooldown-exceptions.txt -c requirements.lock
+        fi
         "$python_bin" -m pip install -q --disable-pip-version-check "$cooldown" -r requirements.txt -c requirements.lock
         "$python_bin" -m pip install -q --disable-pip-version-check "$cooldown" pyinstaller
 

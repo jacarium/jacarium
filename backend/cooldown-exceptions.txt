@@ -1,0 +1,12 @@
+# Approved exceptions to the 7-day supply-chain cooldown (pip --uploaded-prior-to=P7D).
+#
+# Each line is an exact pin that requirements.lock holds although the version was younger than
+# the cooldown when it was locked (backend/lock-requirements.sh --past-cooldown X==V). Only on the
+# maintainer's explicit request, after the checks in docs/security/urgent-updates.md.
+#
+# rebuild.sh installs these exact versions first (no dependencies, no cooldown), then installs
+# requirements.txt with the lock under the cooldown as usual; pip keeps the already-installed
+# exceptions. A line can be removed once its version is older than 7 days.
+fastembed==0.9.1
+brotli==1.2.1
+certifi==2026.10.19

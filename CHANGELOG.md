@@ -4,6 +4,22 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.3.9
+
+_2026-10-26_
+
+### [SECURITY]
+
+First release with the full supply-chain set (as planned for v3.3.8, whose release workflow failed before publishing): SLSA Build Level 3 provenance, SPDX and CycloneDX SBOMs, a cosign-signed container image, signed release commits and tags, a VEX statement, a Grype gate and continuous scanning, a reproducible container image
+
+Fixed the release pipeline: the installer builds honour the approved cooldown exceptions, and the verified tool downloads hand back only the tool's path
+
+Container image security updates: a newer Red Hat UBI 9 base (ca-certificates and OS fixes) and Pillow, brotli, certifi, filelock
+
+### [DIAGNOSTICS]
+
+Pod READY and STATUS as kubectl shows them, init containers shown apart; chips that never overflow and long lists that fold past 15; no overlapping text in tables
+
 ## What's New in v3.3.8
 
 _2026-10-26_
