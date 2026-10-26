@@ -36,6 +36,10 @@ dnf_runs = [m for m in re.findall(r'RUN dnf -y install(?:[^\n]*\\\n)*[^\n]*', cf
 runtime_dnf = [r for r in dnf_runs if 'openssh-clients' in r]
 check('Containerfile: the runtime dnf install removes the dnf logs and history, the rhsm log and the countme cookies (the rpm database is what remains)', runtime_dnf and all('/var/log/dnf*' in r and '/var/log/hawkey.log' in r and '/var/lib/dnf/history.sqlite*' in r and '/var/log/rhsm' in r and '/var/lib/dnf/repos/*/countme' in r for r in runtime_dnf), runtime_dnf)
 check('Containerfile: no dnf update at build time (the image stays what the pinned base plus the three packages are)', 'dnf -y update' not in cf and 'dnf -y upgrade' not in cf)
+check("Containerfile: the base image's Node.js / npm RPMs are removed in the runtime stage (the image runs the Node copied from the UI stage)", runtime_dnf and all('dnf -y remove nodejs npm nodejs-libs nodejs-full-i18n nodejs-docs' in r for r in runtime_dnf) and 'COPY --from=ui /usr/local/bin/node /usr/local/bin/node' in cf)
+caddy_stage = re.search(r'FROM docker\.io/library/golang:(\S+)@sha256:[0-9a-f]{64} AS caddy(.*?)\nFROM ', cf, re.S)
+check('Containerfile: Caddy is built from source on the official golang image pinned by digest, static, trimmed, VCS-free, with x/net raised, and checked with caddy version / build-info', caddy_stage is not None and 'CGO_ENABLED=0' in caddy_stage.group(2) and 'go get "github.com/caddyserver/caddy/v2@${CADDY_VERSION}"' in caddy_stage.group(2) and 'go get "golang.org/x/net@${XNET_VERSION}"' in caddy_stage.group(2) and '-trimpath -buildvcs=false' in caddy_stage.group(2) and 'caddy build-info' in caddy_stage.group(2) and 'COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy' in cf, caddy_stage and caddy_stage.group(1))
+check('Containerfile: no published Caddy image is used any more', 'docker.io/library/caddy:' not in cf)
 dp = read('deploy/deploy-podman.sh')
 check('deploy-podman.sh builds with --timestamp from the commit time', re.search(r'podman build --format docker --timestamp "\$epoch"', dp) is not None and 'log -1 --format=%ct' in dp)
 wf = read('.github/workflows/build.yml')

@@ -70,12 +70,31 @@ RUN curl -fsSL -o task.tar.gz "https://github.com/GothenburgBitFactory/taskwarri
 LABEL com.jacarium.image=deploy com.jacarium.stage=taskwarrior
 
 # ---------------------------------------------------------------------------
-# Caddy 2.11.7 (2026-10-06): a static binary, copied into the UBI image.
-# It is built with Go 1.26.8 and golang.org/x/net 0.59.0 (`caddy build-info`);
-# the Go advisories against those (GO-2026-6599/6600/6603/6610-6617) wait for
-# the next upstream Caddy release - no self-built Caddy here (see the VEX).
+# Caddy 2.11.7, built here: the published Caddy binary carries Go 1.26.8 and
+# golang.org/x/net 0.59.0, with eleven open Go advisories against the
+# HTTP/2 server (GO-2026-6603..6617, see vex/decisions.yaml), and no upstream
+# release built with a fixed toolchain exists yet. So the same Caddy 2.11.7
+# source and module set (what xcaddy would assemble: caddy/v2's cmd and
+# modules/standard) is compiled on the official golang image, Go 1.27.2
+# (2026-10-02; the image 2026-10-10), with golang.org/x/net raised to 0.60.0.
+# The modules come from the Go module proxy and are checked against the Go
+# checksum database (GOSUMDB, on by default). A static, trimmed, VCS-free
+# build: the binary is reproducible from these inputs. `caddy build-info`
+# in the image shows the toolchain and x/net versions.
 # ---------------------------------------------------------------------------
-FROM docker.io/library/caddy:2.11.7@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af AS caddy
+FROM docker.io/library/golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS caddy
+ARG CADDY_VERSION=v2.11.7
+ARG XNET_VERSION=v0.60.0
+WORKDIR /build
+ENV CGO_ENABLED=0 GOFLAGS=-mod=mod GOTOOLCHAIN=local
+RUN printf '%s\n' 'package main' '' 'import (' '	caddycmd "github.com/caddyserver/caddy/v2/cmd"' '' '	_ "github.com/caddyserver/caddy/v2/modules/standard"' ')' '' 'func main() {' '	caddycmd.Main()' '}' > main.go \
+ && go mod init caddy-build \
+ && go get "github.com/caddyserver/caddy/v2@${CADDY_VERSION}" \
+ && go get "golang.org/x/net@${XNET_VERSION}" \
+ && go mod tidy \
+ && go build -trimpath -buildvcs=false -ldflags '-s -w' -o /usr/bin/caddy . \
+ && /usr/bin/caddy version \
+ && /usr/bin/caddy build-info | grep -E "^(go|dep\s+golang.org/x/net)\s"
 
 # ---------------------------------------------------------------------------
 # Runtime - ubi9/python-314 1-1792864219 (2026-10-24, RHEL 9.8: ca-certificates
@@ -99,8 +118,12 @@ USER 0
 # subscription-manager log, dnf's countme cookies: the layer then differs
 # between two builds of the same commit only by the rpm database's install
 # times - docs/security/reproducible-builds.md)
+# The base image's own Node.js 22 and npm (and npm's bundled modules, which
+# the scanners flag) go: the image runs the Node 24 copied from the UI build
+# stage (/usr/local/bin/node, first on PATH) and nothing depends on the RPMs.
 RUN dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
  && dnf -y install openssh-clients sshpass openssl \
+ && dnf -y remove nodejs npm nodejs-libs nodejs-full-i18n nodejs-docs \
  && dnf clean all \
  && rm -rf /var/cache/dnf /var/log/dnf* /var/log/hawkey.log /var/lib/dnf/history.sqlite* /var/log/rhsm /var/lib/dnf/repos/*/countme
 

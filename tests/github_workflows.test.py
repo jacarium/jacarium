@@ -172,7 +172,7 @@ for name, (text, doc) in workflows.items():
         check(f'{name}/{jname}: nothing is piped into a shell', not re.search(r'\|\s*(sudo\s+)?(ba)?sh\b', r), re.findall(r'\|\s*(?:sudo\s+)?(?:ba)?sh\b', r))
 fetch = read('.github/scripts/fetch-tool.sh')
 tools_env = read('.github/tools.env')
-tools = dict(re.findall(r'^([A-Z_]+)=(\S+)$', tools_env, re.M))
+tools = dict(re.findall(r'^([A-Z0-9_]+)=(\S+)$', tools_env, re.M))
 versions = {k: v for k, v in tools.items() if k.endswith('_VERSION')}
 check('tools.env pins a version and sha256 pairs for syft, grype, cosign, scorecard, osv-scanner, slsa-verifier', {'SYFT_VERSION', 'GRYPE_VERSION', 'COSIGN_VERSION', 'SCORECARD_VERSION', 'OSV_SCANNER_VERSION', 'SLSA_VERIFIER_VERSION'} <= set(versions) and all(re.fullmatch(r'[0-9a-f]{64}', v) for k, v in tools.items() if 'SHA256' in k), sorted(tools))
 leaks = []
@@ -184,6 +184,27 @@ check('no workflow names a tool version itself (tools.env is the only place)', n
 check('fetch-tool.sh reads tools.env, checks the sha256 and the upstream signature / provenance before installing', 'tools.env' in fetch and 'check_sha' in fetch and 'verify-blob' in fetch and 'verify-artifact' in fetch and fetch.index('check_sha "$WORK/cosign"') < fetch.index('install_bin "$WORK/cosign"'))
 check('fetch-tool.sh: the anchore identity, sigstore identity and slsa sources are the projects own', 'anchore/$TOOL/.github/workflows/release.yaml@refs/heads/main' in fetch and 'keyless@projectsigstore.iam.gserviceaccount.com' in fetch and 'github.com/ossf/scorecard' in fetch and 'github.com/google/osv-scanner' in fetch)
 check('fetch-tool.sh never pipes a download into a shell and uses https only', '| sh' not in fetch and '| bash' not in fetch and "--proto '=https'" in fetch)
+# every tool a job fetches has a checksum for that job's OS and architecture (the macOS installers job fetches
+# syft, which fetch-tool.sh verifies with cosign, so cosign needs darwin hashes too)
+RUNNER_OS = {'ubuntu-24.04': ('LINUX', 'AMD64'), 'ubuntu-24.04-arm': ('LINUX', 'ARM64'), 'macos-26': ('DARWIN', 'ARM64'), 'macos-15': ('DARWIN', 'ARM64'), 'macos-14': ('DARWIN', 'ARM64')}
+NEEDS = {'syft': {'syft', 'cosign'}, 'grype': {'grype', 'cosign'}, 'cosign': {'cosign'}, 'scorecard': {'scorecard', 'slsa-verifier'}, 'osv-scanner': {'osv-scanner', 'slsa-verifier'}, 'slsa-verifier': {'slsa-verifier'}}
+missing = []
+for name, (text, doc) in workflows.items():
+    for jname, job in (doc.get('jobs') or {}).items():
+        fetched = set(re.findall(r'fetch-tool\.sh (syft|grype|cosign|scorecard|osv-scanner|slsa-verifier)', runs(job)))
+        if not fetched:
+            continue
+        runners = [job.get('runs-on')] if isinstance(job.get('runs-on'), str) and '${{' not in job.get('runs-on') else [i.get('runner') for i in ((job.get('strategy') or {}).get('matrix') or {}).get('include') or []]
+        for r in runners:
+            os_arch = RUNNER_OS.get(r)
+            if not os_arch:
+                missing.append((name, jname, r, 'unknown runner'))
+                continue
+            for tool in sorted(set().union(*(NEEDS[t] for t in fetched))):
+                key = f"{tool.upper().replace('-', '_')}_SHA256_{os_arch[0]}_{os_arch[1]}"
+                if key not in tools:
+                    missing.append((name, jname, r, key))
+check('every tool a job fetches (and what fetch-tool.sh needs to verify it) has a sha256 in tools.env for that job\'s OS / architecture', not missing, missing)
 users = [name for name, (text, _) in workflows.items() if 'fetch-tool.sh' in text]
 check('build.yml fetches syft and cosign through fetch-tool.sh only', 'build.yml' in users and 'fetch-tool.sh syft' in workflows['build.yml'][0] and 'fetch-tool.sh cosign' in workflows['build.yml'][0], users)
 

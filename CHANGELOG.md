@@ -4,6 +4,20 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.4.0
+
+_2026-10-27_
+
+### [SECURITY]
+
+First release published with the full supply-chain set: SLSA Build Level 3 provenance, SPDX and CycloneDX SBOMs, a cosign-signed container image, signed release commits and tags, a VEX statement, and a Grype gate that blocks images with fixable High or Critical findings (v3.3.8 and v3.3.9 were tagged but stopped by the new release checks before publishing)
+
+Caddy in the container image is built from source with Go 1.27.2 and golang.org/x/net 0.60.0, fixing the Go advisories the upstream image still carries
+
+The base image's unused Node.js and npm are removed from the container image
+
+Release pipeline fixes: the installer builds honour the approved cooldown exceptions, verified tool downloads on macOS, VEX statements that match the scanned images
+
 ## What's New in v3.3.9
 
 _2026-10-26_

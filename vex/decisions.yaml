@@ -4,62 +4,158 @@
 # and what Grype's --vex reads. Nothing is claimed not_affected without a reason verified in the code or the
 # deployment - the impact statement says where the vulnerable code is and why it never runs here.
 #
-# Fields: id (the primary identifier the scanners use), aliases (other ids for the same issue), status
-# (not_affected | affected | fixed | under_investigation), justification (OpenVEX's list, for not_affected),
-# impact (the verified reason, for not_affected), action (what is pending or what the user should do, for
-# affected), notes, products (image and / or desktop; default image), components (package URLs of the affected
-# component inside the product), versions (the releases the decision applies to; default all), decided_by,
-# decided_on. A fixed advisory stays here as "fixed" for the releases it was fixed in, so a rescan of an older
-# release's SBOM still reads the right status.
+# Fields: id (the primary identifier the scanners use), aliases (other ids for the same issue - Grype reports
+# Go advisories by their GO-id, Trivy by the CVE, so both are listed), status (not_affected | affected | fixed |
+# under_investigation), justification (OpenVEX's list, for not_affected), impact (the verified reason, for
+# not_affected), action (what is pending or what the user should do, for affected), notes (for fixed: the
+# version that carries the fix), products (image and / or desktop; default image), components (package URLs of
+# the affected component inside the product), versions (the releases the decision applies to: exact, '3.4.*',
+# '>=3.4.0', '<3.4.0'; default all), decided_by, decided_on. A fixed advisory stays here as "fixed" for the
+# releases it was fixed in, so a rescan of an older release's SBOM still reads the right status.
 decisions:
 
-  # ---- Caddy's Go toolchain and golang.org/x/net (deploy/Containerfile: caddy 2.11.7, go1.26.8, x/net 0.59.0).
-  # Caddy terminates TLS and serves HTTP/1.1 and HTTP/2 on 8443 (deploy/Caddyfile): the server-side denial-of-
-  # service issues are reachable by anyone who can reach that port. The self-hosting guide keeps the port on the
-  # LAN / a VPN, never on the internet, which limits who that is; it does not remove the issue. Caddy acts as no
-  # TLS client here (auto_https off, no ACME, the upstreams are plain http on localhost), which is why the x509
-  # chain-verification issue is not_affected. Fix pending: the next Caddy release built with Go >= 1.26.10 and
-  # x/net >= 0.60.0 (no self-built Caddy, by decision).
+  # ---- Caddy's Go toolchain and golang.org/x/net. Up to 3.3.9 the image carried the published Caddy 2.11.7
+  # binary (go1.26.8, x/net 0.59.0); Caddy terminates TLS and serves HTTP/1.1 and HTTP/2 on 8443
+  # (deploy/Caddyfile), so the server-side denial-of-service issues were reachable by anyone who can reach that
+  # port - affected, the self-hosting guide's "LAN / VPN only" limiting who that is. Since 3.4.0 Caddy 2.11.7 is
+  # built in deploy/Containerfile on the official golang image with Go 1.27.2 and x/net 0.60.0, which fix every
+  # one of them: fixed. Caddy acts as no TLS client here (auto_https off, no ACME, plain-http upstreams on
+  # localhost), which is why the one x509 chain-verification issue (fixed only in Go 1.27.3) is not_affected.
   - id: CVE-2026-78669
-    aliases: [GO-2026-6603]
+    aliases: [GO-2026-6611]
     status: affected
+    versions: ['<3.4.0']
     components: [pkg:golang/stdlib@1.26.8, pkg:golang/golang.org/x/net@v0.59.0]
     action: >-
-      Fix pending: the next upstream Caddy release built with Go 1.26.9+ and golang.org/x/net 0.60.0+ (the
-      image moves to it the week it is published). Until then keep port 8443 on your LAN or VPN, as the
-      self-hosting guide says: the issue is a denial of service of the HTTP/2 server by a client that can reach it.
-    notes: net/http and x/net/http2 denial of service; Caddy serves HTTP/2 on 8443.
+      Upgrade to Jacarium 3.4.0 or later, whose Caddy is built with Go 1.27.2 and golang.org/x/net 0.60.0. Until
+      then keep port 8443 on your LAN or VPN, as the self-hosting guide says: the issue is excessive CPU use of
+      the HTTP/2 server from repeated initial window changes by a client that can reach it.
     decided_by: maintainer
     decided_on: 2026-10-26
 
   - id: CVE-2026-78667
+    aliases: [GO-2026-6609]
     status: affected
+    versions: ['<3.4.0']
     components: [pkg:golang/stdlib@1.26.8]
     action: >-
-      Fix pending: the next upstream Caddy release built with Go 1.26.9+. Denial of service of the HTTP server
-      through crafted Range headers; keep port 8443 on your LAN or VPN until then.
+      Upgrade to Jacarium 3.4.0 or later (Caddy built with Go 1.27.2). Denial of service of the HTTP server
+      through unbounded Range headers; keep port 8443 on your LAN or VPN until then.
     decided_by: maintainer
     decided_on: 2026-10-26
 
   - id: CVE-2026-97031
+    aliases: [GO-2026-6607]
     status: affected
+    versions: ['<3.4.0']
     components: [pkg:golang/stdlib@1.26.8]
     action: >-
-      Fix pending: the next upstream Caddy release built with Go 1.26.9+. Denial of service of the TLS server
-      through multiple ECH outer extensions in a ClientHello; keep port 8443 on your LAN or VPN until then.
+      Upgrade to Jacarium 3.4.0 or later (Caddy built with Go 1.27.2). Denial of service of the TLS server through
+      malformed ECH outer extension references in a ClientHello; keep port 8443 on your LAN or VPN until then.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+
+  # the same eleven Go advisories, fixed from 3.4.0 on (Grype names them by GO-id, Trivy by CVE)
+  - id: GO-2026-6612
+    aliases: [CVE-2026-78663]
+    status: fixed
+    versions: ['>=3.4.0']
+    components: [pkg:golang/stdlib@1.27.2, pkg:golang/golang.org/x/net@v0.60.0]
+    notes: Double flow-control refund on HTTP/2 server streams; fixed in Go 1.26.9 / 1.27.2 and x/net 0.60.0 - Jacarium 3.4.0 builds Caddy with Go 1.27.2 and x/net 0.60.0.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+  - id: GO-2026-6604
+    aliases: [CVE-2026-56857]
+    status: fixed
+    versions: ['>=3.4.0']
+    components: [pkg:golang/stdlib@1.27.2]
+    notes: os.Root.Mkdir following junctions on Windows (not reachable on this Linux image anyway); fixed in Go 1.26.9 / 1.27.2 - Jacarium 3.4.0 builds Caddy with Go 1.27.2.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+  - id: GO-2026-6603
+    aliases: [CVE-2026-78659]
+    status: fixed
+    versions: ['>=3.4.0']
+    components: [pkg:golang/stdlib@1.27.2, pkg:golang/golang.org/x/net@v0.60.0]
+    notes: HTTP/2 server memory exhaustion through Trailer headers; fixed in Go 1.26.9 / 1.27.2 and x/net 0.60.0 - Jacarium 3.4.0 builds Caddy with both.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+  - id: GO-2026-6611
+    aliases: [CVE-2026-78669]
+    status: fixed
+    versions: ['>=3.4.0']
+    components: [pkg:golang/stdlib@1.27.2, pkg:golang/golang.org/x/net@v0.60.0]
+    notes: Excessive CPU use from repeated HTTP/2 initial window changes; fixed in Go 1.26.9 / 1.27.2 and x/net 0.60.0 - Jacarium 3.4.0 builds Caddy with both.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+  - id: GO-2026-6617
+    aliases: [CVE-2026-97032]
+    status: fixed
+    versions: ['>=3.4.0']
+    components: [pkg:golang/stdlib@1.27.2, pkg:golang/golang.org/x/net@v0.60.0]
+    notes: HTTP/2 server crash through an HPACK encoder race; fixed in Go 1.26.9 / 1.27.2 and x/net 0.60.0 - Jacarium 3.4.0 builds Caddy with both.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+  - id: GO-2026-6610
+    aliases: [CVE-2026-78660]
+    status: fixed
+    versions: ['>=3.4.0']
+    components: [pkg:golang/stdlib@1.27.2, pkg:golang/golang.org/x/net@v0.60.0]
+    notes: HTTP/2 transport accepting malformed framing headers; fixed in Go 1.26.9 / 1.27.2 and x/net 0.60.0 - Jacarium 3.4.0 builds Caddy with both.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+  - id: GO-2026-6607
+    aliases: [CVE-2026-97031]
+    status: fixed
+    versions: ['>=3.4.0']
+    components: [pkg:golang/stdlib@1.27.2]
+    notes: Malformed ECH outer extension references in crypto/tls; fixed in Go 1.26.9 / 1.27.2 - Jacarium 3.4.0 builds Caddy with Go 1.27.2.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+  - id: GO-2026-6608
+    aliases: [CVE-2026-94440]
+    status: fixed
+    versions: ['>=3.4.0']
+    components: [pkg:golang/stdlib@1.27.2]
+    notes: Memory limit bypass when parsing MIME headers; fixed in Go 1.26.9 / 1.27.2 - Jacarium 3.4.0 builds Caddy with Go 1.27.2.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+  - id: GO-2026-6609
+    aliases: [CVE-2026-78667]
+    status: fixed
+    versions: ['>=3.4.0']
+    components: [pkg:golang/stdlib@1.27.2]
+    notes: Unbounded Range header parsing in net/http; fixed in Go 1.26.9 / 1.27.2 - Jacarium 3.4.0 builds Caddy with Go 1.27.2.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+  - id: GO-2026-6605
+    aliases: [CVE-2026-56866]
+    status: fixed
+    versions: ['>=3.4.0']
+    components: [pkg:golang/stdlib@1.27.2]
+    notes: HTTP/1 client connection desynchronisation after a rejected CONNECT; fixed in Go 1.26.9 / 1.27.2 - Jacarium 3.4.0 builds Caddy with Go 1.27.2.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+  - id: GO-2026-6613
+    aliases: [CVE-2026-94439]
+    status: fixed
+    versions: ['>=3.4.0']
+    components: [pkg:golang/stdlib@1.27.2]
+    notes: HTTP/1 server connection desynchronisation after a 2xx CONNECT response; fixed in Go 1.26.9 / 1.27.2 - Jacarium 3.4.0 builds Caddy with Go 1.27.2.
     decided_by: maintainer
     decided_on: 2026-10-26
 
   - id: CVE-2026-111943
+    aliases: [GO-2026-6809]
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
-    components: [pkg:golang/stdlib@1.26.8]
+    components: [pkg:golang/stdlib@1.26.8, pkg:golang/stdlib@1.27.2]
     impact: >-
       crypto/x509's chain verification with untrusted intermediates runs when a Go program verifies a peer's
       certificate as a TLS client. Caddy in this image never does: deploy/Caddyfile sets auto_https off (no
       ACME), serves its own certificate from /data/certs, and proxies to plain-http upstreams on localhost
-      (reverse_proxy to the Flask backend and the central server); it verifies no certificate. The fix (Go
-      1.26.10) arrives with the next Caddy release anyway.
+      (reverse_proxy to the Flask backend and the central server); it verifies no certificate. Fixed upstream in
+      Go 1.26.10 / 1.27.3, which the Caddy build moves to once those are a week old.
     decided_by: maintainer
     decided_on: 2026-10-26
 
@@ -67,13 +163,13 @@ decisions:
   # system pip under /usr/lib/python3.14): pip vendors urllib3 2.7.0 and msgpack 1.1.2 for its own use. Only pip
   # imports them, and pip runs only while the image is built (deploy/Containerfile's pip install); the running
   # application imports its own urllib3, 2.8.0 from backend/requirements.lock, and no msgpack. The copies move
-  # when pip ships newer ones (the Containerfile upgrades pip at build time).
+  # when pip ships newer ones (the Containerfile pins pip and upgrades it at build time).
   - id: CVE-2026-97687
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
     components: [pkg:pypi/urllib3@2.7.0]
     impact: >-
-      This is pip's vendored urllib3 (pip/_vendor/urllib3, pip 26.2.2's vendor.txt), imported by pip alone; pip
+      This is pip's vendored urllib3 (pip/_vendor/urllib3, pip 26.2.1's vendor.txt), imported by pip alone; pip
       runs only during the image build. The application and its packages import the urllib3 that
       backend/requirements.lock installs (2.8.0, which has the fix), never pip's copy. The HTTPS-proxy TLS
       override needs an HTTPS proxy configured for a running urllib3, which the image has nowhere.
@@ -111,5 +207,58 @@ decisions:
       (the application's /opt/app-root/bin/python and the system python3.14 both answer ModuleNotFoundError,
       checked in the built image): the scanner's hit is package metadata of the base image's build tooling, not
       an installed package, and the application installs nothing at runtime.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+
+  # ---- brotlicffi, the CFFI binding of brotli, pinned in backend/requirements.lock only for PyPy.
+  - id: PYSEC-2026-4323
+    aliases: [GHSA-9v8h-qqgm-4m35]
+    status: not_affected
+    justification: component_not_present
+    products: [image, desktop]
+    components: [pkg:pypi/brotlicffi@1.2.0.2]
+    impact: >-
+      brotlicffi is locked with the marker platform_python_implementation == 'PyPy' (Flask-Compress's PyPy
+      dependency); Jacarium runs on CPython in the container and in the desktop app, where the marker is false and
+      pip never installs it - CPython uses brotli 1.2.1, which carries the fix. Checked: not importable in the
+      built image, absent from the desktop venv. OSV-Scanner lists it because it reads the lock line by line
+      without evaluating environment markers.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+
+  # ---- the base image's own Node.js 22 / npm (nodejs, npm, nodejs-libs, nodejs-full-i18n, nodejs-docs RPMs),
+  # whose bundled npm modules the scanners flagged (brace-expansion, picomatch under /usr/lib/node_modules/npm):
+  # removed from the image since 3.4.0 (deploy/Containerfile); the image runs the Node 24 copied from the UI
+  # build stage. For 3.3.9 and before they were present but unused - nothing in the image ran /usr/bin/node or
+  # npm (PATH puts /usr/local/bin first; the entrypoint starts the central server with that node).
+  - id: GHSA-6j4f-fj2g-mc7p
+    status: not_affected
+    justification: component_not_present
+    versions: ['>=3.4.0']
+    components: [pkg:npm/brace-expansion@2.1.4]
+    impact: >-
+      The base image's npm (nodejs / npm RPMs) and its bundled brace-expansion are removed from the image in
+      deploy/Containerfile; /usr/lib/node_modules no longer exists. The application's Node is the Node 24 binary
+      from the UI build stage, and its own dependencies come from package-lock.json, which the lock-file scan covers.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+  - id: GHSA-qhr7-859c-m2p7
+    status: not_affected
+    justification: component_not_present
+    versions: ['>=3.4.0']
+    components: [pkg:npm/brace-expansion@2.1.4]
+    impact: >-
+      The base image's npm and its bundled brace-expansion are removed from the image in deploy/Containerfile
+      (the nodejs / npm RPMs are uninstalled); the application runs the Node 24 binary from the UI build stage.
+    decided_by: maintainer
+    decided_on: 2026-10-26
+  - id: GHSA-c2c7-rcm5-vvqj
+    status: not_affected
+    justification: component_not_present
+    versions: ['>=3.4.0']
+    components: [pkg:npm/picomatch@4.0.3]
+    impact: >-
+      The base image's npm and its bundled picomatch are removed from the image in deploy/Containerfile (the
+      nodejs / npm RPMs are uninstalled); the application runs the Node 24 binary from the UI build stage.
     decided_by: maintainer
     decided_on: 2026-10-26

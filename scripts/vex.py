@@ -42,9 +42,14 @@ JUSTIFICATIONS = ('component_not_present', 'vulnerable_code_not_present', 'vulne
 
 
 def products_for(version):
+    """The product identifiers a statement speaks about. The image is named three times, without a repository
+    qualifier, so that Grype matches it wherever it meets it: the pushed manifest list (quay.io/...:<version>)
+    and the per-architecture archives the release gate scans before anything is pushed
+    (localhost/jacarium:<version>-<arch>). Grype builds pkg:oci/<name>?tag=<tag> identifiers from an image's
+    tags and compares only the qualifiers a statement names, so a purl without repository_url fits both."""
     return {
-        'image': {'@id': f'pkg:oci/jacarium?repository_url=quay.io/zerodayz/jacarium&tag={version}'},
-        'desktop': {'@id': f'pkg:generic/jacarium@{version}'},
+        'image': [{'@id': f'pkg:oci/jacarium?tag={version}'}, {'@id': f'pkg:oci/jacarium?tag={version}-amd64'}, {'@id': f'pkg:oci/jacarium?tag={version}-arm64'}],
+        'desktop': [{'@id': f'pkg:generic/jacarium@{version}'}],
     }
 
 
@@ -61,7 +66,7 @@ def build(decisions, version, now=None):
         st = {
             'vulnerability': {'name': d['id'], **({'aliases': list(d['aliases'])} if d.get('aliases') else {}), **({'description': d['description']} if d.get('description') else {})},
             'timestamp': _iso(d.get('decided_on'), now),
-            'products': [{**prods[p], **({'subcomponents': [{'@id': c} for c in d['components']]} if d.get('components') else {})} for p in d.get('products') or ['image']],
+            'products': [{**prod, **({'subcomponents': [{'@id': c} for c in d['components']]} if d.get('components') else {})} for p in d.get('products') or ['image'] for prod in prods[p]],
             'status': d['status'],
         }
         if d.get('justification'):
@@ -87,16 +92,18 @@ def build(decisions, version, now=None):
 
 
 def _version_matches(pattern, version):
-    """'3.4.*' or '>=3.4.0' (major.minor compared) or an exact version."""
+    """'3.4.*', '>=3.4.0', '<3.4.0' (numeric major.minor.patch) or an exact version."""
     if pattern == version:
         return True
     if pattern.endswith('.*'):
         return version.startswith(pattern[:-1])
-    m = re.fullmatch(r'>=(\d+)\.(\d+)\.(\d+)', pattern)
+    m = re.fullmatch(r'(>=|<)(\d+)\.(\d+)\.(\d+)', pattern)
     if m:
-        want = tuple(int(x) for x in m.groups())
+        want = tuple(int(x) for x in m.groups()[1:])
         got = tuple(int(x) for x in version.split('.')[:3]) if re.fullmatch(r'\d+\.\d+\.\d+', version) else None
-        return got is not None and got >= want
+        if got is None:
+            return False
+        return got >= want if m.group(1) == '>=' else got < want
     return False
 
 

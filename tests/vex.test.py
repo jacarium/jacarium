@@ -49,7 +49,7 @@ try:
     errors = vex.validate_schema(doc, schema) + vex.validate_semantics(doc)
     check('the document for a version is valid against the schema and the semantic rules', not errors, errors)
     check('the document names the two products as package URLs and the context / author / timestamp', doc['@context'] == 'https://openvex.dev/ns/v0.2.0' and doc['author'] and doc['timestamp'].endswith('Z')
-          and all(p['@id'].startswith('pkg:') for s in doc['statements'] for p in s['products']) and any('quay.io/zerodayz/jacarium' in p['@id'] and 'tag=3.9.9' in p['@id'] for s in doc['statements'] for p in s['products']))
+          and all(p['@id'].startswith('pkg:') for s in doc['statements'] for p in s['products']) and any(p['@id'] == 'pkg:oci/jacarium?tag=3.9.9' for s in doc['statements'] for p in s['products']))
     # the command line, end to end
     out = os.path.join(WORK, 'jacarium-3.9.9.openvex.json')
     r = subprocess.run([sys.executable, os.path.join(REPO, 'scripts', 'vex.py'), '--version', '3.9.9', '--out', out, '--now', '2026-10-26T12:00:00Z'], capture_output=True, text=True)
@@ -120,6 +120,8 @@ try:
               {'id': 'CVE-2099-0011', 'status': 'under_investigation', 'decided_by': 't', 'decided_on': '2026-10-26', 'versions': ['>=3.5.0']}]
     names = lambda v: [s['vulnerability']['name'] for s in vex.build(scoped, v)['statements']]  # noqa: E731
     check('a decision limited to 3.4.* applies to 3.4.2 and not to 3.5.0; >=3.5.0 the other way round', names('3.4.2') == ['CVE-2099-0010'] and names('3.5.0') == ['CVE-2099-0011'] and names('3.3.9') == [])
+    below = [{'id': 'CVE-2099-0012', 'status': 'under_investigation', 'decided_by': 't', 'decided_on': '2026-10-26', 'versions': ['<3.4.0']}]
+    check("'<3.4.0' applies to 3.3.9 and not to 3.4.0 or 3.10.0", [s['vulnerability']['name'] for s in vex.build(below, '3.3.9')['statements']] == ['CVE-2099-0012'] and vex.build(below, '3.4.0')['statements'] == [] and vex.build(below, '3.10.0')['statements'] == [])
 
     # 6. the seeded decisions
     by_status = {}
@@ -129,10 +131,17 @@ try:
     check('every affected decision says what fix is pending', all('pending' in (d.get('action') or '').lower() or 'upgrade' in (d.get('action') or '').lower() for d in by_status.get('affected', [])), [d['id'] for d in by_status.get('affected', [])])
     caddy = [d for d in decisions if any('golang' in c for c in d.get('components') or [])]
     server_side = [d for d in caddy if d['status'] == 'affected']
+    fixed = [d for d in caddy if d['status'] == 'fixed']
     client_side = [d for d in caddy if d['status'] == 'not_affected']
-    check("the Caddy Go toolchain and x/net advisories: the server-side denial-of-service ones affected with the upstream Caddy fix pending, the x509 client-side one not_affected with the Caddyfile as the reason",
-          len(caddy) >= 4 and len(server_side) >= 3 and all('Caddy' in (d.get('action') or '') and 'pending' in (d.get('action') or '').lower() for d in server_side)
-          and client_side and all(d['justification'] == 'vulnerable_code_not_in_execute_path' and 'Caddyfile' in (d.get('impact') or '') for d in client_side), [(d['id'], d['status']) for d in caddy])
+    check("the Caddy Go advisories: affected for the releases before 3.4.0 (upgrade as the action), fixed from 3.4.0 on (the Go / x/net versions named, the GO-ids with their CVE aliases), the x509 client-side one not_affected with the Caddyfile as the reason",
+          len(server_side) >= 3 and all(d.get('versions') == ['<3.4.0'] and 'Upgrade to Jacarium 3.4.0' in (d.get('action') or '') for d in server_side)
+          and len(fixed) >= 11 and all(d.get('versions') == ['>=3.4.0'] and '1.27.2' in (d.get('notes') or '') and d['id'].startswith('GO-') and any(a.startswith('CVE-') for a in d.get('aliases') or []) for d in fixed)
+          and client_side and all(d['justification'] == 'vulnerable_code_not_in_execute_path' and 'Caddyfile' in (d.get('impact') or '') for d in client_side), [(d['id'], d['status'], d.get('versions')) for d in caddy])
+    old, new = vex.build(decisions, '3.3.9'), vex.build(decisions, '3.4.0')
+    st = lambda doc: {s['vulnerability']['name']: s['status'] for s in doc['statements']}  # noqa: E731
+    check('for 3.3.9 the Caddy CVEs are affected and no GO-id is fixed; for 3.4.0 the GO-ids are fixed and the affected ones are gone', st(old).get('CVE-2026-78669') == 'affected' and 'GO-2026-6612' not in st(old) and st(new).get('GO-2026-6612') == 'fixed' and 'CVE-2026-78669' not in st(new), (st(old), st(new)))
+    check("the image products carry no repository qualifier and name the list tag and both per-architecture tags, so Grype matches the release gate's local archives and the pushed image", [p['@id'] for p in new['statements'][0]['products']] == ['pkg:oci/jacarium?tag=3.4.0', 'pkg:oci/jacarium?tag=3.4.0-amd64', 'pkg:oci/jacarium?tag=3.4.0-arm64'], [p['@id'] for p in new['statements'][0]['products']])
+    check("the base image's npm modules are not_affected (component_not_present) from 3.4.0 on", all(st(new).get(i) == 'not_affected' for i in ('GHSA-6j4f-fj2g-mc7p', 'GHSA-qhr7-859c-m2p7', 'GHSA-c2c7-rcm5-vvqj')) and 'GHSA-c2c7-rcm5-vvqj' not in st(old))
     check('every decision names who decided and when', all(d.get('decided_by') and d.get('decided_on') for d in decisions))
 finally:
     shutil.rmtree(WORK, ignore_errors=True)
