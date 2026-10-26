@@ -180,7 +180,10 @@ build_in_container() {
         fi
     fi
     if [ "$rebuild" = true ]; then
-        "$CONTAINER_RUNTIME" build -t "$IMAGE_NAME" --label "containerfile.hash=$hash" -f Containerfile .
+        # this machine's platform, named explicitly (scripts/lib.sh: a digest-pinned FROM otherwise resolves to
+        # whichever architecture's copy the local store holds), and the result checked
+        "$CONTAINER_RUNTIME" build --platform "$(host_image_platform)" -t "$IMAGE_NAME" --label "containerfile.hash=$hash" -f Containerfile .
+        check_image_arch "$CONTAINER_RUNTIME" "$IMAGE_NAME" "$(host_image_platform)" || exit 1
         log_success "builder image built"
         # a superseded builder image is left untagged; remove what this project
         # no longer needs, by its label only

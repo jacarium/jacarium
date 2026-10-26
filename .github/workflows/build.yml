@@ -218,11 +218,14 @@ jobs:
       # checked against the image afterwards, since a base image pinned to a
       # single-architecture digest would silently build the wrong one.
       # --timestamp: the layers' and the image's time is the commit's, so a
-      # rebuild of the same commit matches (docs/security/reproducible-builds.md)
+      # rebuild of the same commit matches (docs/security/reproducible-builds.md).
+      # --platform: the runner's own architecture, named explicitly all the
+      # same (a digest-pinned FROM otherwise resolves to whichever copy the
+      # local store holds); the architecture check below stays.
       - name: Build
         run: |
           image="localhost/jacarium:${VERSION}-${ARCH}"
-          podman build --format docker --timestamp "$(git log -1 --format=%ct)" -f deploy/Containerfile -t "$image" .
+          podman build --platform "linux/${ARCH}" --format docker --timestamp "$(git log -1 --format=%ct)" -f deploy/Containerfile -t "$image" .
           got="$(podman image inspect --format '{{.Architecture}}' "$image")"
           if [ "$got" != "$ARCH" ]; then
             echo "::error::built a $got image on the $ARCH runner"
@@ -411,7 +414,7 @@ jobs:
             subjects/*x86_64.AppImage
             subjects/*amd64.deb
             subjects/*x86_64.rpm
-          sbom-path: subjects/jacarium-*-linux-x64.spdx.json
+          sbom-path: subjects/jacarium-${{ needs.installers.outputs.version }}-linux-x64.spdx.json
 
       - name: SBOM attestation, linux-arm64
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
@@ -420,25 +423,25 @@ jobs:
             subjects/*arm64.AppImage
             subjects/*arm64.deb
             subjects/*aarch64.rpm
-          sbom-path: subjects/jacarium-*-linux-arm64.spdx.json
+          sbom-path: subjects/jacarium-${{ needs.installers.outputs.version }}-linux-arm64.spdx.json
 
       - name: SBOM attestation, macos-arm64
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: subjects/*.dmg
-          sbom-path: subjects/jacarium-*-macos-arm64.spdx.json
+          sbom-path: subjects/jacarium-${{ needs.installers.outputs.version }}-macos-arm64.spdx.json
 
       - name: SBOM attestation, image archive amd64
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: subjects/jacarium-amd64.tar
-          sbom-path: subjects/jacarium-*-image-amd64.spdx.json
+          sbom-path: subjects/jacarium-${{ needs.installers.outputs.version }}-image-amd64.spdx.json
 
       - name: SBOM attestation, image archive arm64
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: subjects/jacarium-arm64.tar
-          sbom-path: subjects/jacarium-*-image-arm64.spdx.json
+          sbom-path: subjects/jacarium-${{ needs.installers.outputs.version }}-image-arm64.spdx.json
 
       # The VEX as an attestation on everything it speaks about (the installers and the image archives):
       #   gh attestation verify <file> --repo jacarium/jacarium --predicate-type https://openvex.dev/ns/v0.2.0
@@ -453,7 +456,7 @@ jobs:
             subjects/jacarium-amd64.tar
             subjects/jacarium-arm64.tar
           predicate-type: https://openvex.dev/ns/v0.2.0
-          predicate-path: subjects/jacarium-*.openvex.json
+          predicate-path: subjects/jacarium-${{ needs.installers.outputs.version }}.openvex.json
 
   # ---------------------------------------------------------------------------
   # Publish to Quay: tags only (publish: true), and only after a reviewer
@@ -600,14 +603,14 @@ jobs:
         with:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.push.outputs.digest_amd64 }}
-          sbom-path: images/jacarium-*-image-amd64.spdx.json
+          sbom-path: images/jacarium-${{ env.VERSION }}-image-amd64.spdx.json
 
       - name: SBOM attestation of the arm64 image
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.push.outputs.digest_arm64 }}
-          sbom-path: images/jacarium-*-image-arm64.spdx.json
+          sbom-path: images/jacarium-${{ env.VERSION }}-image-arm64.spdx.json
 
       - name: VEX attestation of the manifest list
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
@@ -615,7 +618,7 @@ jobs:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.push.outputs.digest }}
           predicate-type: https://openvex.dev/ns/v0.2.0
-          predicate-path: images/jacarium-*.openvex.json
+          predicate-path: images/jacarium-${{ env.VERSION }}.openvex.json
 
       # Keyless cosign signatures and SBOM attestations next to the image in
       # the registry (cosign's tag-based storage, which quay.io serves): the

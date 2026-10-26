@@ -58,7 +58,9 @@ case "$1 $2" in
   "version "|"version --format") echo 5.3.1; exit 0 ;;
   "build "*|"build --format") exit 0 ;;
   "image inspect")
-    case "$FMT" in *Id*) echo sha256:aaa111aaa111 ;; *Layers*) echo "sha256:l1,sha256:l2," ;; *Size*) echo 1048576 ;; *) echo "" ;; esac
+    # the built image's architecture: the target's (arm64 in every scenario here), what a real --platform build
+    # yields on either machine; PODMAN_BUILT_ARCH overrides it to exercise the script's architecture check
+    case "$FMT" in *Id*) echo sha256:aaa111aaa111 ;; *Layers*) echo "sha256:l1,sha256:l2," ;; *Size*) echo 1048576 ;; *Architecture*) echo "\${PODMAN_BUILT_ARCH:-arm64}" ;; *) echo "" ;; esac
     exit 0 ;;
   "save "*|"save --format") printf 'tar'; exit 0 ;;
   *) exit 0 ;;
@@ -130,7 +132,12 @@ let r = run();
 check('1. a stopped machine is started (the one the default connection points at, "-root" stripped) and the script says so', r.podman.filter((c) => c === 'machine start podman-machine-default').length === 1 && /machine 'podman-machine-default' is not running: starting it/.test(r.out) && /started \(\d+s\); it stays running/.test(r.out), r.out.split('\n').filter((l) => /machine|podman/i.test(l)).join(' / '));
 check('1. ...then the image is built here, not on the target, and the deploy completes', builtHere(r) && !builtOnTarget(r) && r.status === 0, `exit ${r.status}; builds here: ${builtHere(r)}, on target: ${builtOnTarget(r)}`);
 check('1. the machine is not stopped afterwards', !r.podman.some((c) => /^machine stop/.test(c)));
-check('1. same architecture (the machine builds arm64, the target needs arm64): no emulation warning, no --platform', !/emulated/.test(r.out) && !r.podman.some((c) => /--platform/.test(c)), r.podman.filter((c) => /^build/.test(c)).join(' / '));
+check("1. same architecture (the machine builds arm64, the target needs arm64): no emulation warning, but the target's platform is still named on the build and the built image's architecture checked", !/emulated/.test(r.out) && r.podman.some((c) => /^build --platform linux\/arm64 /.test(c)) && /built a arm64 image for/.test(r.out), r.podman.filter((c) => /^build/.test(c)).join(' / ') + ' | ' + r.out.split('\n').filter((l) => /image for|is a/.test(l)).join(' / '));
+// the architecture check itself: an image that came out as the other architecture stops the deploy before anything is sent
+{
+  const bad = run({ up: true, env: { PODMAN_BUILT_ARCH: 'amd64' } });
+  check("1. a built image of the wrong architecture is refused before anything is sent (exec format error at the target otherwise)", bad.status !== 0 && /is amd64, the target .* needs arm64/.test(bad.out) && !bad.podman.some((c) => /^save/.test(c)) && !/applying on/.test(bad.out), `exit ${bad.status}; ${bad.out.split('\n').filter((l) => /amd64|arm64/.test(l)).join(' / ').slice(0, 300)}`);
+}
 
 // ---- 2. the cross-architecture warning is one readable line -----------------------
 r = run({ env: { PODMAN_HOST_ARCH: 'amd64' } });

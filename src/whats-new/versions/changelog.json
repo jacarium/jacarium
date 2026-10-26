@@ -1,5 +1,19 @@
 [
   {
+    "version": "3.4.1",
+    "date": "2026-10-27",
+    "features": [
+      {
+        "category": "SECURITY",
+        "description": [
+          "Release pipeline fix: the SBOM and VEX attestations name their exact files, so the release's provenance, SBOM and VEX attestations, the cosign-signed image and the draft release complete (v3.4.0 was tagged but stopped at that step)",
+          "Every image build names its target platform and checks the built image's architecture before it is deployed",
+          "Version numbers: the patch now runs 0-99 (3.4.9 -> 3.4.10), as releases are more frequent"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.4.0",
     "date": "2026-10-27",
     "features": [

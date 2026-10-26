@@ -40,9 +40,14 @@ jobs:
         run: |
           epoch="$(git log -1 --format=%ct)"
           echo "SOURCE_DATE_EPOCH=$epoch" >> "$GITHUB_ENV"
+          # the runner's own platform, named explicitly (a digest-pinned FROM otherwise resolves to whichever
+          # copy the local store holds), and checked on the result
+          case "$(uname -m)" in x86_64) platform=linux/amd64 ;; aarch64) platform=linux/arm64 ;; *) echo "::error::unsupported runner architecture $(uname -m)"; exit 1 ;; esac
           for n in 1 2; do
-            podman build --no-cache --format docker --timestamp "$epoch" -f deploy/Containerfile -t "localhost/jacarium:repro-$n" . > "build-$n.log" 2>&1 \
+            podman build --platform "$platform" --no-cache --format docker --timestamp "$epoch" -f deploy/Containerfile -t "localhost/jacarium:repro-$n" . > "build-$n.log" 2>&1 \
               || { tail -40 "build-$n.log"; echo "::error::build $n failed"; exit 1; }
+            got="$(podman image inspect --format '{{.Architecture}}' "localhost/jacarium:repro-$n")"
+            [ "$got" = "${platform#linux/}" ] || { echo "::error::build $n is a $got image, not ${platform#linux/}"; exit 1; }
             podman image inspect "localhost/jacarium:repro-$n" > "inspect-$n.json"
             echo "build $n: $(podman image inspect --format '{{.Id}}' "localhost/jacarium:repro-$n")"
           done

@@ -41,7 +41,7 @@ caddy_stage = re.search(r'FROM docker\.io/library/golang:(\S+)@sha256:[0-9a-f]{6
 check('Containerfile: Caddy is built from source on the official golang image pinned by digest, static, trimmed, VCS-free, with x/net raised, and checked with caddy version / build-info', caddy_stage is not None and 'CGO_ENABLED=0' in caddy_stage.group(2) and 'go get "github.com/caddyserver/caddy/v2@${CADDY_VERSION}"' in caddy_stage.group(2) and 'go get "golang.org/x/net@${XNET_VERSION}"' in caddy_stage.group(2) and '-trimpath -buildvcs=false' in caddy_stage.group(2) and 'caddy build-info' in caddy_stage.group(2) and 'COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy' in cf, caddy_stage and caddy_stage.group(1))
 check('Containerfile: no published Caddy image is used any more', 'docker.io/library/caddy:' not in cf)
 dp = read('deploy/deploy-podman.sh')
-check('deploy-podman.sh builds with --timestamp from the commit time', re.search(r'podman build --format docker --timestamp "\$epoch"', dp) is not None and 'log -1 --format=%ct' in dp)
+check('deploy-podman.sh builds with --timestamp from the commit time', re.search(r'podman build --platform "\$platform" --format docker --timestamp "\$epoch"', dp) is not None and 'log -1 --format=%ct' in dp)
 wf = read('.github/workflows/build.yml')
 check("build.yml's image job builds with --timestamp from the commit time", '--timestamp "$(git log -1 --format=%ct)"' in wf)
 rp = read('.github/workflows/reproducible.yml')

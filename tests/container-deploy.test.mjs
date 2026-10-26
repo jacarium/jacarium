@@ -127,9 +127,17 @@ function request(method, urlPath, { body, headers = {}, json = true, anonymous =
 console.log(`Building ${IMAGE} with ${engine} (this can take a while)...`);
 // --format docker as deploy-podman.sh builds it: the OCI format has no
 // HEALTHCHECK, so the container's health would be "n/a".
-const build = run(['build', '--format', 'docker', '-f', path.join(REPO, 'deploy', 'Containerfile'), '-t', IMAGE, REPO], { stdio: ['ignore', 'pipe', 'pipe'] });
+// --platform: this machine's, named explicitly, like every build in the repository (deploy/*.sh, rebuild.sh,
+// the workflows): without it a digest-pinned FROM resolves to whichever architecture's copy the local store
+// holds, and the image is checked afterwards to be that architecture.
+const PLATFORM = { x64: 'linux/amd64', arm64: 'linux/arm64' }[process.arch];
+if (!PLATFORM) { console.log(`SKIP: no image platform for ${process.arch}`); process.exit(0); }
+const build = run(['build', '--platform', PLATFORM, '--format', 'docker', '-f', path.join(REPO, 'deploy', 'Containerfile'), '-t', IMAGE, REPO], { stdio: ['ignore', 'pipe', 'pipe'] });
 check('the image builds', build.status === 0, (build.stderr || '').split('\n').filter(Boolean).slice(-6).join(' / '));
 if (build.status !== 0) { console.log(`\n${failed} check(s) failed`); process.exit(1); }
+const builtArch = (run(['image', 'inspect', '--format', '{{.Architecture}}', IMAGE]).stdout || '').trim();
+check(`the built image is this machine's architecture (${PLATFORM})`, builtArch === PLATFORM.replace('linux/', ''), builtArch);
+if (builtArch !== PLATFORM.replace('linux/', '')) { console.log(`\n${failed} check(s) failed`); process.exit(1); }
 
 // The build superseded the previous test image and the untagged ui /
 // taskwarrior stage images; deploy/prune-images.sh removes only images

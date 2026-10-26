@@ -91,9 +91,13 @@ build_image() {
     # --format docker: the OCI image format has no HEALTHCHECK, so podman
     # would drop the Containerfile's and `status` would show "n/a".
     # --timestamp: the layers' and the image's time is the commit's, not the build's, so two builds of one
-    # commit match (docs/security/reproducible-builds.md); outside a git checkout the build's time is used
+    # commit match (docs/security/reproducible-builds.md); outside a git checkout the build's time is used.
+    # --platform: this machine's, named explicitly, and the result checked - a digest-pinned FROM otherwise
+    # resolves to whichever architecture's copy the local store holds (scripts/lib.sh check_image_arch)
     epoch="$(git -C "$REPO_ROOT" log -1 --format=%ct 2>/dev/null || date +%s)"
-    podman build --format docker --timestamp "$epoch" -f "$SCRIPT_DIR/Containerfile" -t "$IMAGE_NAME" "$REPO_ROOT"
+    platform="$(host_image_platform)"
+    podman build --platform "$platform" --format docker --timestamp "$epoch" -f "$SCRIPT_DIR/Containerfile" -t "$IMAGE_NAME" "$REPO_ROOT"
+    check_image_arch podman "$IMAGE_NAME" "$platform" || exit 1
     log_success "Image built"
     # The build superseded the previous image (the tag moved on) and possibly
     # the untagged results of the ui / taskwarrior stages; remove what this

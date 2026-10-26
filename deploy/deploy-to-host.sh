@@ -475,7 +475,7 @@ local_build_host() {
     if podman_machine_uses_vm && name="$(podman_machine_name 2>/dev/null)"; then via="$(podman machine inspect --format '{{.VMType}}' "$name" 2>/dev/null | head -1)"; fi
     printf 'this machine (%s/%s, Podman %s%s)' "$os" "$arch" "${ver:-?}" "${via:+ via $via}"
 }
-PLATFORM_ARGS=()
+CROSS_BUILD=no
 if [ "$BUILD_ON_TARGET" = no ]; then
     if ! command -v podman >/dev/null 2>&1; then
         if command -v docker >/dev/null 2>&1; then
@@ -493,9 +493,13 @@ if [ "$BUILD_ON_TARGET" = no ]; then
     else
         [ -n "$PODMAN_MACHINE_STARTED" ] || log_info "podman is reachable here$(podman_machine_uses_vm && echo " (the machine was already running)")"
         LOCAL_ARCH="$(podman info --format '{{.Host.Arch}}' 2>/dev/null | head -1)"
+        # the target's platform is always named (build_image: --platform "$T_PLATFORM"): without it a
+        # digest-pinned FROM resolves to whichever architecture's copy of the base image the local store holds
+        # (an earlier emulated build leaves the other one), and the deploy ships an image the target cannot
+        # run; the built image is checked below before anything is sent
         if [ "$LOCAL_ARCH" != "$T_IMGARCH" ]; then
             log_warning "$(local_build_host) builds ${LOCAL_ARCH:-?} images; the target needs $T_IMGARCH: building with --platform $T_PLATFORM (emulated, slower)"
-            PLATFORM_ARGS=(--platform "$T_PLATFORM")
+            CROSS_BUILD=yes
         fi
     fi
 fi
@@ -516,7 +520,7 @@ inputs_hash() {
     (cd "$REPO_ROOT" && git ls-files -z | grep -z -v -E '^(tests|docs)/|^jacarium-central/.*\.sh$' | sort -z | xargs -0 shasum -a 256 2>/dev/null | shasum -a 256 | cut -c1-16)
 }
 build_image() {
-    podman build --format docker "${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"}" "${EXTRA_BUILD_ARGS[@]+"${EXTRA_BUILD_ARGS[@]}"}" --label "com.jacarium.inputs=$(inputs_hash)" -f "$SCRIPT_DIR/Containerfile" -t "localhost/jacarium:$TAG" "$REPO_ROOT" >/dev/null \
+    podman build --platform "$T_PLATFORM" --format docker "${EXTRA_BUILD_ARGS[@]+"${EXTRA_BUILD_ARGS[@]}"}" --label "com.jacarium.inputs=$(inputs_hash)" -f "$SCRIPT_DIR/Containerfile" -t "localhost/jacarium:$TAG" "$REPO_ROOT" >/dev/null \
         && bash "$SCRIPT_DIR/prune-images.sh" --component deploy >/dev/null
 }
 # A running container built from exactly these inputs (and healthy) needs
@@ -536,13 +540,23 @@ fi
 if [ "$BUILD_ON_TARGET" = no ] && [ "$NO_BUILD" = no ] && ! unchanged; then
     log_info "building the image locally ($T_PLATFORM)..."
     if ! build_image; then
-        if [ ${#PLATFORM_ARGS[@]} -gt 0 ]; then
+        if [ "$CROSS_BUILD" = yes ]; then
             log_warning "the cross-architecture build failed here - building on the target instead"
             BUILD_ON_TARGET=yes
         else
             log_error "building the image failed"; exit 1
         fi
     fi
+fi
+# The built image must be the target's architecture before anything is sent: a mismatch here is the
+# "exec format error" the target's health check would otherwise catch after the fact.
+if [ "$BUILD_ON_TARGET" = no ] && [ "$NO_BUILD" = no ] && ! unchanged; then
+    BUILT_ARCH="$(podman image inspect --format '{{.Architecture}}' "localhost/jacarium:$TAG" 2>/dev/null | head -1)"
+    if [ "$BUILT_ARCH" != "$T_IMGARCH" ]; then
+        log_error "the image built here is ${BUILT_ARCH:-?}, the target $TARGET needs $T_IMGARCH: the build did not honour --platform $T_PLATFORM (an image of the other architecture in the local store?) - nothing is sent"
+        exit 1
+    fi
+    log_info "built a $BUILT_ARCH image for $TARGET"
 fi
 
 # ---------------------------------------------------------------------------

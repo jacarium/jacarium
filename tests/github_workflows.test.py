@@ -229,5 +229,10 @@ check('the packaging copy of copr.yml is gone (one source: .github/workflows/cop
 codeowners = read('.github/CODEOWNERS')
 check('CODEOWNERS covers .github, the release scripts, deploy and the lock files', all(p in codeowners for p in ('/.github/', '/scripts/publish-release.sh', '/deploy/', '/backend/requirements.lock', '/package-lock.json')))
 
+# actions/attest reads sbom-path / predicate-path as ONE file (no glob expansion; v3.4.0's release failed with
+# "SBOM file not found" on subjects/jacarium-*-linux-x64.spdx.json) - subject-path may glob, these may not.
+single_paths = re.findall(r'^\s*(?:sbom-path|predicate-path):\s*(\S+)', read('.github/workflows/build.yml'), re.M)
+check('build.yml: every sbom-path / predicate-path names one file (no wildcard), versioned by an expression', bool(single_paths) and all('*' not in p and '?' not in p and '${{' in p for p in single_paths), single_paths)
+
 print(f"\n{'FAILED' if failed else 'All checks passed'} ({failed} failed)")
 sys.exit(1 if failed else 0)

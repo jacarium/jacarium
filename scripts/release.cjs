@@ -4,10 +4,10 @@
  * remote - the repository has none.
  *
  *   npm run release                 prepare the next version: step by one,
- *                                   each digit 0-9 rolling over
- *                                   (2.6.0 -> 2.6.1 ... 2.6.9 -> 2.7.0 ... 2.9.9 -> 3.0.0)
+ *                                   the patch 0-99, the minor 0-9, rolling over
+ *                                   (2.6.0 -> 2.6.1 ... 2.6.99 -> 2.7.0 ... 2.9.99 -> 3.0.0)
  *   npm run release -- 2.7.0        prepare that exact version (must be greater
- *                                   than the current one, parts 0-9)
+ *                                   than the current one; patch 0-99, minor 0-9)
  *   npm run release -- --dry-run    show what would change, write nothing
  *   npm run release:tag             commit the prepared release and create
  *                                   the local annotated tag vX.Y.Z
@@ -72,22 +72,26 @@ function writeJson(file, data) {
 }
 
 /**
- * The next version. Without an explicit target: step by one, every digit
- * 0-9 and rolling over into the next one (2.6.9 -> 2.7.0, 2.9.9 -> 3.0.0).
- * An explicit X.Y.Z must be greater than the current version and keep every
- * part in 0-9.
+ * The next version. Without an explicit target: step the patch by one; the
+ * patch runs 0-99 and the minor 0-9, each rolling over into the next part
+ * (2.6.99 -> 2.7.0, 2.9.99 -> 3.0.0). An explicit X.Y.Z must be greater than
+ * the current version, with the patch in 0-99 and the minor in 0-9.
  */
+const PATCH_MAX = 99;   // releases are frequent: x.y.0 ... x.y.99, then x.(y+1).0
+const MINOR_MAX = 9;
+
 function nextVersion(current, target) {
   if (target) {
     if (!/^\d+\.\d+\.\d+$/.test(target)) throw new Error(`Invalid version "${target}" - use X.Y.Z`);
-    if (target.split('.').some((p) => Number(p) > 9)) throw new Error(`Version ${target}: every part must be 0-9 (versions step 2.6.9 -> 2.7.0 -> ... -> 2.9.9 -> 3.0.0)`);
+    const [, tMinor, tPatch] = target.split('.').map(Number);
+    if (tPatch > PATCH_MAX || tMinor > MINOR_MAX) throw new Error(`Version ${target}: the patch must be 0-${PATCH_MAX} and the minor 0-${MINOR_MAX} (versions step 2.6.${PATCH_MAX} -> 2.7.0 -> ... -> 2.${MINOR_MAX}.${PATCH_MAX} -> 3.0.0)`);
     if (compareVersions(target, current) <= 0) throw new Error(`New version ${target} is not greater than the current ${current}`);
     return target;
   }
   let [major, minor, patch] = current.split('.').map(Number);
   patch += 1;
-  if (patch > 9) { patch = 0; minor += 1; }
-  if (minor > 9) { minor = 0; major += 1; }
+  if (patch > PATCH_MAX) { patch = 0; minor += 1; }
+  if (minor > MINOR_MAX) { minor = 0; major += 1; }
   return `${major}.${minor}.${patch}`;
 }
 

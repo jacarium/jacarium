@@ -4,6 +4,18 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.4.1
+
+_2026-10-27_
+
+### [SECURITY]
+
+Release pipeline fix: the SBOM and VEX attestations name their exact files, so the release's provenance, SBOM and VEX attestations, the cosign-signed image and the draft release complete (v3.4.0 was tagged but stopped at that step)
+
+Every image build names its target platform and checks the built image's architecture before it is deployed
+
+Version numbers: the patch now runs 0-99 (3.4.9 -> 3.4.10), as releases are more frequent
+
 ## What's New in v3.4.0
 
 _2026-10-27_

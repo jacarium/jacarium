@@ -4,10 +4,10 @@
  *
  * On a THROWAWAY git repository built here (synthetic package.json, lock,
  * README, CHANGELOG.md, versions/ and commits; never this repo) it must:
- *   - pick the next version by stepping one with every digit 0-9 and rolling
- *     over (2.6.0 -> 2.6.1, x.y.9 -> x.(y+1).0, x.9.9 -> (x+1).0.0), take an
- *     explicit version instead, and refuse one that is not greater than the
- *     current version or has a part above 9;
+ *   - pick the next version by stepping the patch (0-99) and rolling over
+ *     (2.6.0 -> 2.6.1, 2.6.9 -> 2.6.10, x.y.99 -> x.(y+1).0, x.9.99 ->
+ *     (x+1).0.0; the minor 0-9), take an explicit version instead, and refuse
+ *     one that is not greater than the current version or out of range;
  *   - find the previous release at tag v<current> when it exists, else at
  *     the commit that set the current version in package.json;
  *   - with --dry-run print the summary and entry and write nothing;
@@ -54,12 +54,15 @@ console.log('\n--- 1. nextVersion ---');
 {
   const threw = (c, t) => { try { nextVersion(c, t); return null; } catch (e) { return e.message; } };
   check('default steps the patch digit: 2.6.0 -> 2.6.1', nextVersion('2.6.0', null) === '2.6.1');
-  check('x.y.9 rolls into the minor: 2.6.9 -> 2.7.0', nextVersion('2.6.9', null) === '2.7.0');
-  check('x.9.9 rolls into the major: 2.9.9 -> 3.0.0', nextVersion('2.9.9', null) === '3.0.0');
+  check('the patch goes past 9: 2.6.9 -> 2.6.10', nextVersion('2.6.9', null) === '2.6.10');
+  check('x.y.99 rolls into the minor: 2.6.99 -> 2.7.0', nextVersion('2.6.99', null) === '2.7.0');
+  check('x.9.99 rolls into the major: 2.9.99 -> 3.0.0', nextVersion('2.9.99', null) === '3.0.0');
+  check('an explicit two-digit patch is allowed: 2.5.5 + 2.5.42 -> 2.5.42', nextVersion('2.5.5', '2.5.42') === '2.5.42');
   check('an explicit greater version wins: 2.5.5 + 2.6.0 -> 2.6.0', nextVersion('2.5.5', '2.6.0') === '2.6.0');
   check('an explicit version equal to the current one is rejected', /not greater/.test(threw('2.5.5', '2.5.5') || ''));
   check('an explicit lower version is rejected', /not greater/.test(threw('2.5.5', '2.4.9') || ''));
-  check('an explicit version with a part above 9 is rejected', /every part must be 0-9/.test(threw('2.5.5', '2.5.10') || ''));
+  check('an explicit patch above 99 is rejected', /the patch must be 0-99/.test(threw('2.5.5', '2.5.100') || ''));
+  check('an explicit minor above 9 is rejected', /the minor 0-9/.test(threw('2.5.5', '2.10.0') || ''));
   check('a malformed version is rejected', /Invalid version/.test(threw('2.5.5', '2.6') || ''));
 }
 
@@ -83,15 +86,15 @@ function writePackage(version) {
   fs.writeFileSync(path.join(WORK, 'package.json'), JSON.stringify({ name: 'synthetic-app', version, scripts: { release: 'node scripts/release.cjs' } }, null, 2) + '\n');
   fs.writeFileSync(path.join(WORK, 'package-lock.json'), JSON.stringify({ name: 'synthetic-app', version, lockfileVersion: 3, packages: { '': { name: 'synthetic-app', version }, 'node_modules/left-pad': { version: '1.3.0' } } }, null, 2) + '\n');
 }
-writePackage('2.5.9');
-fs.writeFileSync(path.join(VERSIONS, 'v2.5.9.js'), "export const version = '2.5.9';\nexport const features = [{ id: 1, title: 'Old', content: [{ type: 'text', value: 'Old line' }] }];\n");
-fs.writeFileSync(path.join(VERSIONS, 'index.js'), "import * as v2_5_9 from './v2.5.9.js';\n\nexport const versions = [\n  v2_5_9,\n];\n\nexport const latestVersion = versions[0].version;\n");
-fs.writeFileSync(path.join(VERSIONS, 'changelog.json'), JSON.stringify([{ version: '2.5.9', features: [{ title: 'Old', description: ['Old line'] }] }], null, 2) + '\n');
-fs.writeFileSync(path.join(WORK, 'CHANGELOG.md'), "# Changelog\n\nIntro stays.\n\n## What's New in v2.5.9\n\n### Old\n\nOld line\n");
+writePackage('2.5.99');
+fs.writeFileSync(path.join(VERSIONS, 'v2.5.99.js'), "export const version = '2.5.99';\nexport const features = [{ id: 1, title: 'Old', content: [{ type: 'text', value: 'Old line' }] }];\n");
+fs.writeFileSync(path.join(VERSIONS, 'index.js'), "import * as v2_5_99 from './v2.5.99.js';\n\nexport const versions = [\n  v2_5_99,\n];\n\nexport const latestVersion = versions[0].version;\n");
+fs.writeFileSync(path.join(VERSIONS, 'changelog.json'), JSON.stringify([{ version: '2.5.99', features: [{ title: 'Old', description: ['Old line'] }] }], null, 2) + '\n');
+fs.writeFileSync(path.join(WORK, 'CHANGELOG.md'), "# Changelog\n\nIntro stays.\n\n## What's New in v2.5.99\n\n### Old\n\nOld line\n");
 fs.writeFileSync(path.join(WORK, 'README.md'), "# Jacarium\n\nThe pitch stays as it is.\n");
 // the COPR spec: its fallback version and %changelog follow the release
 fs.mkdirSync(path.join(WORK, 'packaging', 'copr'), { recursive: true });
-fs.writeFileSync(path.join(WORK, 'packaging', 'copr', 'jacarium.spec'), "%{!?jacarium_version: %global jacarium_version 2.5.9}\nName: jacarium\nVersion: %{jacarium_version}\n\n%changelog\n* Mon Feb 02 2026 Robin Cernin - 2.5.9-1\n- Old\n");
+fs.writeFileSync(path.join(WORK, 'packaging', 'copr', 'jacarium.spec'), "%{!?jacarium_version: %global jacarium_version 2.5.99}\nName: jacarium\nVersion: %{jacarium_version}\n\n%changelog\n* Mon Feb 02 2026 Robin Cernin - 2.5.99-1\n- Old\n");
 let n = 0;
 function commit(subject, date) {
   fs.writeFileSync(path.join(WORK, `f${++n}.txt`), `${subject}\n`);
@@ -99,7 +102,7 @@ function commit(subject, date) {
   execFileSync('git', ['commit', '-q', '-m', subject], { cwd: WORK, env: { ...process.env, GIT_AUTHOR_DATE: `${date}T12:00:00Z`, GIT_COMMITTER_DATE: `${date}T12:00:00Z` } });
   return git('rev-parse', 'HEAD');
 }
-commit('Baseline snapshot of the synthetic app at 2.5.9', '2026-02-01');
+commit('Baseline snapshot of the synthetic app at 2.5.99', '2026-02-01');
 commit('Add the alpha widget', '2026-02-02');
 commit('Fix the beta dialog', '2026-02-03');
 
@@ -108,13 +111,13 @@ console.log('\n--- 2. dry run without a tag ---');
 {
   const r = run(['--dry-run']);
   check('dry run succeeds', r.ok, r.stderr.slice(0, 300));
-  check('the default next version is 2.6.0 (2.5.9 rolls the patch into the minor)', /Release 2\.5\.9 -> 2\.6\.0 \(dry run/.test(r.stderr), r.stderr.split('\n')[0]);
-  check('the previous release is the commit that set 2.5.9 in package.json (the baseline commit), so only the 2 later commits are listed', /\(commit that set 2\.5\.9 in package\.json\): 2 commits, 2 kept in \d+ categor/.test(r.stderr), r.stderr.split('\n')[1]);
+  check('the default next version is 2.6.0 (2.5.99 rolls the patch into the minor)', /Release 2\.5\.99 -> 2\.6\.0 \(dry run/.test(r.stderr), r.stderr.split('\n')[0]);
+  check('the previous release is the commit that set 2.5.99 in package.json (the baseline commit), so only the 2 later commits are listed', /\(commit that set 2\.5\.99 in package\.json\): 2 commits, 2 kept in \d+ categor/.test(r.stderr), r.stderr.split('\n')[1]);
   check('the baseline commit itself is outside the range (not listed, like 1d2a75b in this repo)', !/Baseline snapshot/.test(r.stdout) && !/Baseline snapshot/.test(r.stderr));
-  check('the entry is printed, nothing written, package.json untouched', /export const version = '2\.6\.0'/.test(r.stdout) && !fs.existsSync(path.join(VERSIONS, 'v2.6.0.js')) && readJson('package.json').version === '2.5.9');
+  check('the entry is printed, nothing written, package.json untouched', /export const version = '2\.6\.0'/.test(r.stdout) && !fs.existsSync(path.join(VERSIONS, 'v2.6.0.js')) && readJson('package.json').version === '2.5.99');
   fs.writeFileSync(path.join(WORK, 'dirty.txt'), 'x');
   const dirty = run(['--yes']);
-  check('a dirty working tree is refused (nothing written)', !dirty.ok && /uncommitted changes/.test(dirty.stderr) && readJson('package.json').version === '2.5.9', dirty.stderr.split('\n')[0]);
+  check('a dirty working tree is refused (nothing written)', !dirty.ok && /uncommitted changes/.test(dirty.stderr) && readJson('package.json').version === '2.5.99', dirty.stderr.split('\n')[0]);
   fs.rmSync(path.join(WORK, 'dirty.txt'));
 }
 
@@ -124,12 +127,12 @@ console.log('\n--- 3. prepare 2.7.0 explicitly, then tag ---');
   const r = run(['2.7.0', '--yes']); // --yes also answers the "tag now?" prompt
   check('prepare + tag succeeds', r.ok, r.stderr.slice(0, 400));
   check('package.json and both lock root entries are bumped, other lock entries untouched', readJson('package.json').version === '2.7.0' && readJson('package-lock.json').version === '2.7.0' && readJson('package-lock.json').packages[''].version === '2.7.0' && readJson('package-lock.json').packages['node_modules/left-pad'].version === '1.3.0');
-  check('versions/v2.7.0.js, index.js and changelog.json are updated', fs.existsSync(path.join(VERSIONS, 'v2.7.0.js')) && /v2_7_0,\n  v2_5_9/.test(fs.readFileSync(path.join(VERSIONS, 'index.js'), 'utf8')) && readJson('src/whats-new/versions/changelog.json')[0].version === '2.7.0');
+  check('versions/v2.7.0.js, index.js and changelog.json are updated', fs.existsSync(path.join(VERSIONS, 'v2.7.0.js')) && /v2_7_0,\n  v2_5_99/.test(fs.readFileSync(path.join(VERSIONS, 'index.js'), 'utf8')) && readJson('src/whats-new/versions/changelog.json')[0].version === '2.7.0');
   const changelogMd = fs.readFileSync(path.join(WORK, 'CHANGELOG.md'), 'utf8');
-  check('CHANGELOG.md gets the 2.7.0 section first (its date, the changes under [CATEGORY] headings), keeps its header and 2.5.9', /^# Changelog\n\nIntro stays\.\n\n## What's New in v2\.7\.0\n\n_2026-02-03_\n\n### \[[A-Z]+\]\n\n/.test(changelogMd) && /### \[UI\]\n\n(Fix the beta dialog|Add the alpha widget)\n/.test(changelogMd) && /Fix the beta dialog\n/.test(changelogMd) && /Add the alpha widget\n/.test(changelogMd) && /## What's New in v2\.5\.9/.test(changelogMd), changelogMd.slice(0, 200));
+  check('CHANGELOG.md gets the 2.7.0 section first (its date, the changes under [CATEGORY] headings), keeps its header and 2.5.99', /^# Changelog\n\nIntro stays\.\n\n## What's New in v2\.7\.0\n\n_2026-02-03_\n\n### \[[A-Z]+\]\n\n/.test(changelogMd) && /### \[UI\]\n\n(Fix the beta dialog|Add the alpha widget)\n/.test(changelogMd) && /Fix the beta dialog\n/.test(changelogMd) && /Add the alpha widget\n/.test(changelogMd) && /## What's New in v2\.5\.99/.test(changelogMd), changelogMd.slice(0, 200));
   check('README.md is not touched by a release', fs.readFileSync(path.join(WORK, 'README.md'), 'utf8') === "# Jacarium\n\nThe pitch stays as it is.\n");
   const spec = fs.readFileSync(path.join(WORK, 'packaging', 'copr', 'jacarium.spec'), 'utf8');
-  check('packaging/copr/jacarium.spec: the fallback version is 2.7.0 and %changelog starts with a 2.7.0-1 entry (rpm date format), the old entry kept', /^%\{!\?jacarium_version: %global jacarium_version 2\.7\.0\}$/m.test(spec) && /^%changelog\n\* (Sun|Mon|Tue|Wed|Thu|Fri|Sat) [A-Z][a-z]{2} \d{2} \d{4} Robin Cernin - 2\.7\.0-1\n- Jacarium 2\.7\.0 [^\n]*\n\n\* Mon Feb 02 2026 Robin Cernin - 2\.5\.9-1\n- Old\n$/m.test(spec), spec.split('%changelog')[1].slice(0, 80));
+  check('packaging/copr/jacarium.spec: the fallback version is 2.7.0 and %changelog starts with a 2.7.0-1 entry (rpm date format), the old entry kept', /^%\{!\?jacarium_version: %global jacarium_version 2\.7\.0\}$/m.test(spec) && /^%changelog\n\* (Sun|Mon|Tue|Wed|Thu|Fri|Sat) [A-Z][a-z]{2} \d{2} \d{4} Robin Cernin - 2\.7\.0-1\n- Jacarium 2\.7\.0 [^\n]*\n\n\* Mon Feb 02 2026 Robin Cernin - 2\.5\.99-1\n- Old\n$/m.test(spec), spec.split('%changelog')[1].slice(0, 80));
   const entry270 = fs.readFileSync(path.join(VERSIONS, 'v2.7.0.js'), 'utf8');
   check('the generated entry carries the release date and category groups', /export const date = '2026-02-03';/.test(entry270) && /category: '[A-Z]+'/.test(entry270) && !/title: '2026/.test(entry270) && readJson('src/whats-new/versions/changelog.json')[0].date === '2026-02-03' && readJson('src/whats-new/versions/changelog.json')[0].features.every((f) => typeof f.category === 'string'));
   check('the throwaway repo got the commit "Release v2.7.0" and the annotated tag v2.7.0', git('log', '-1', '--format=%s') === 'Release v2.7.0' && git('tag', '-l', 'v2.7.0') === 'v2.7.0' && git('cat-file', '-t', 'v2.7.0') === 'tag' && git('status', '--porcelain') === '');

@@ -43,11 +43,19 @@ the summary lists every layer. To run the check by hand:
 
 ```bash
 epoch="$(git log -1 --format=%ct)"
-for n in 1 2; do podman build --no-cache --format docker --timestamp "$epoch" -f deploy/Containerfile -t "localhost/jacarium:repro-$n" .; done
+platform="linux/$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')"   # always named: see below
+for n in 1 2; do podman build --platform "$platform" --no-cache --format docker --timestamp "$epoch" -f deploy/Containerfile -t "localhost/jacarium:repro-$n" .; done
 diff <(podman image inspect --format '{{json .RootFS.Layers}}' localhost/jacarium:repro-1 | tr , '\n') \
      <(podman image inspect --format '{{json .RootFS.Layers}}' localhost/jacarium:repro-2 | tr , '\n')
 # which files differ inside a layer: save both images and compare that layer's tar member by member
 ```
+
+Every build names its platform (`--platform linux/arm64` or `linux/amd64`) and checks the result's
+architecture: a digest-pinned `FROM` resolves to whichever architecture's copy of the base image the local
+store holds, and after an emulated build that is the other one - 3.4.0's first deploy to the home server
+shipped an amd64 image that way (exec format error, rolled back by the health check). `scripts/lib.sh`
+(`host_image_platform`, `check_image_arch`), the deploy scripts, the workflows and the container test all do
+it; `tests/build_platform.test.py` keeps it so.
 
 Dependencies are exact (`package-lock.json` with `npm ci`, `backend/requirements.lock`, pip pinned, base images
 by digest, Taskwarrior by checksum), so the inputs of a build are fixed by the commit; the UI build (Vite), the

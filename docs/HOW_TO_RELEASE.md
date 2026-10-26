@@ -4,7 +4,7 @@ Releases are local and offline (this repository has no remote): nothing is
 pushed, tagged remotely or published.
 
 ```bash
-npm run release              # next version (2.6.0 -> 2.6.1 ... 2.6.9 -> 2.7.0 ... 2.9.9 -> 3.0.0); or: npm run release -- 2.7.0
+npm run release              # next version: patch 0-99, minor 0-9 (2.6.9 -> 2.6.10 ... 2.6.99 -> 2.7.0 ... 2.9.99 -> 3.0.0); or: npm run release -- 2.7.0
 # review src/whats-new/versions/vX.Y.Z.js
 npm run release:tag          # commit "Release vX.Y.Z" + local annotated tag vX.Y.Z
 ```
