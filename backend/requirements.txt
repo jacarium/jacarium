@@ -19,7 +19,7 @@ PyYaml==6.0.3
 beautifulsoup4==4.12.3
 markdownify==0.14.1
 flask-socketio==5.6.1
-paramiko==5.0.0
+paramiko==5.1.0
 python-socketio==5.16.2
 google-api-python-client==2.199.0
 google-auth-oauthlib==1.4.0
