@@ -136,6 +136,22 @@ def main():
     r = sign_script(clone, '9.9.1')
     check('an existing unsigned tag v9.9.1 is refused with the delete hint', r.returncode != 0 and 'not signed' in r.stderr and 'tag -d' in r.stderr, (r.returncode, r.stderr[-300:]))
 
+    # 4b. the snapshot mode: a signed, verified commit from a message file, no tag; refused when nothing changed
+    git(clone, 'tag', '-d', 'v9.9.1')
+    with open(os.path.join(clone, 'package.json'), 'w', encoding='utf-8') as fh:
+        fh.write('{"name": "jacarium", "version": "9.9.1", "snapshot": 1}\n')
+    msg = os.path.join(WORK, 'snapshot.txt')
+    with open(msg, 'w', encoding='utf-8') as fh:
+        fh.write('Development snapshot: main @ abc1234 (after v9.9.1)\n\nChanges since the last export:\n\n- A change\n')
+    r = sign_script('--snapshot', msg, clone, '', signers)
+    check('--snapshot: a signed commit with the message file as its message, verified, no tag', r.returncode == 0 and 'committed and verified' in r.stdout and git(clone, 'log', '-1', '--format=%s').stdout.strip() == 'Development snapshot: main @ abc1234 (after v9.9.1)' and '- A change' in git(clone, 'log', '-1', '--format=%b').stdout and git(clone, 'tag').stdout.strip() == '', (r.returncode, r.stdout, r.stderr[-300:]))
+    vc = run(['git', '-c', f'gpg.ssh.allowedSignersFile={signers}', 'verify-commit', 'HEAD'], cwd=clone)
+    check('the snapshot commit verifies against the allowed_signers file', vc.returncode == 0)
+    r = sign_script('--snapshot', msg, clone, '', signers)
+    check('--snapshot with nothing to commit is refused (no empty snapshot)', r.returncode != 0 and 'nothing to commit' in r.stderr, (r.returncode, r.stderr[-200:]))
+    r = sign_script('--snapshot', os.path.join(WORK, 'missing.txt'), clone)
+    check('--snapshot without its message file is refused', r.returncode == 2, (r.returncode, r.stderr[-200:]))
+
     # 5. the callers
     pub_sh = open(os.path.join(REPO, 'scripts', 'publish-release.sh'), encoding='utf-8').read()
     i_check = pub_sh.find('release-sign.sh" --check')

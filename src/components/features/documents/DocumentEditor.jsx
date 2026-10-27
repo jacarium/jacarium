@@ -321,9 +321,12 @@ export default function DocumentEditor({
 
   // Filter the "/" popup's entries by the query (the list the page hands in
   // starts with the built-in commands, src/utils/slashCommands.js)
-  const filteredTemplates = slashMenu.query
-    ? templates.filter(t => matchesSlashQuery(t, slashMenu.query))
-    : templates;
+  // memoised: the scroll-into-view effect below depends on it, and a list rebuilt on every render would run that
+  // effect on every render while the popup is open
+  const filteredTemplates = useMemo(
+    () => (slashMenu.query ? templates.filter(t => matchesSlashQuery(t, slashMenu.query)) : templates),
+    [templates, slashMenu.query],
+  );
 
   // Reset scroll position and restore preview mode when switching documents
   useEffect(() => {
@@ -1017,7 +1020,9 @@ export default function DocumentEditor({
         behavior: 'smooth',
       });
     }
-  }, [slashMenu.selectedIndex, slashMenu.visible]);
+    // also when the list changes (the query typed): the selection resets to the first entry, which may sit above
+    // a popup the user had scrolled - bring it back into view
+  }, [slashMenu.selectedIndex, slashMenu.visible, filteredTemplates]);
 
   // Handle Quick AI popup dragging
   useEffect(() => {

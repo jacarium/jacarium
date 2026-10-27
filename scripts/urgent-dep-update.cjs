@@ -361,9 +361,7 @@ function auditNote({ repoDir, specs, reason, assessments, results, now = new Dat
 function commitMessage(specs, reason, assessments) {
   const title = `Security: ${specs.map((s) => s.raw).join(', ')} (${reason})`;
   const body = specs.map((s) => { const f = assessments[s.raw].facts; return `${s.name} ${f.installedVersion || 'none'} -> ${s.version}: ${f.ageDays !== null && f.ageDays !== undefined ? `${f.ageDays} days old, ` : ''}publisher ${f.publisher || '?'}, ${f.signatures || 0} signature(s), provenance ${f.provenance ? f.provenance.repository : 'none'}, ${f.diff ? f.diff.changed.length + ' file(s) changed' : ''}.`; }).join('\n');
-  // the attribution line every commit of this repository ends with (assembled, so the privacy scan of the scripts stays clean)
-  const attribution = 'Co-Authored-By: Claude Fable 5.1 <' + ['noreply', 'anthropic.com'].join('@') + '>';
-  return `${title}\n\nInstalled past .npmrc's min-release-age=7 on the user's request (scripts/urgent-dep-update.cjs); the\nchecks are in docs/security/urgent-updates.md.\n${body}\n\n${attribution}`;
+  return `${title}\n\nInstalled past .npmrc's min-release-age=7 on the user's request (scripts/urgent-dep-update.cjs); the\nchecks are in docs/security/urgent-updates.md.\n${body}`;
 }
 
 // ---------------------------------------------------------------------------

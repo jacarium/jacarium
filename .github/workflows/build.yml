@@ -49,6 +49,12 @@ on:
       image-digest:
         description: The manifest list digest pushed to quay.io (empty unless publish)
         value: ${{ jobs.publish.outputs.digest }}
+      image-digest-amd64:
+        description: The amd64 image's digest pushed to quay.io - the SBOM and VEX attestations hang on the per-architecture digests (empty unless publish)
+        value: ${{ jobs.publish.outputs.digest_amd64 }}
+      image-digest-arm64:
+        description: The arm64 image's digest pushed to quay.io (empty unless publish)
+        value: ${{ jobs.publish.outputs.digest_arm64 }}
 
 # Nothing by default; every job says what it needs
 permissions: {}
@@ -123,7 +129,10 @@ jobs:
           PLATFORM: ${{ matrix.name }}
         run: |
           syft="$(.github/scripts/fetch-tool.sh syft)"
-          unpacked="$(ls -d dist-electron/mac*/Jacarium.app dist-electron/linux*-unpacked 2>/dev/null | head -1)"
+          unpacked=""
+          for d in dist-electron/mac*/Jacarium.app dist-electron/linux*-unpacked; do
+            if [ -d "$d" ]; then unpacked="$d"; break; fi
+          done
           [ -n "$unpacked" ] || { echo "::error::no unpacked application under dist-electron"; exit 1; }
           mkdir -p out/sbom
           "$syft" scan "dir:$unpacked" --source-name jacarium --source-version "$VERSION" \
@@ -146,7 +155,11 @@ jobs:
             [ -f "$f" ] && cp "$f" out/release/
           done
           ls out/release/* >/dev/null
-          ( cd out && { command -v sha256sum >/dev/null && sha256sum release/* sbom/* || shasum -a 256 release/* sbom/*; } ) > "out/sums/SHA256SUMS-${PLATFORM}.txt"
+          if command -v sha256sum >/dev/null; then
+            ( cd out && sha256sum release/* sbom/* ) > "out/sums/SHA256SUMS-${PLATFORM}.txt"
+          else
+            ( cd out && shasum -a 256 release/* sbom/* ) > "out/sums/SHA256SUMS-${PLATFORM}.txt"
+          fi
           cat "out/sums/SHA256SUMS-${PLATFORM}.txt"
 
       - name: Keep the installers
@@ -258,7 +271,7 @@ jobs:
         run: |
           grype="$(.github/scripts/fetch-tool.sh grype)"
           vex="vex/jacarium-${VERSION}.openvex.json"
-          [ -f "$vex" ] && vexarg="--vex $vex" || { vexarg=""; echo "::warning::no $vex - the scan runs without a VEX"; }
+          if [ -f "$vex" ]; then vexarg="--vex $vex"; else vexarg=""; echo "::warning::no $vex - the scan runs without a VEX"; fi
           mkdir -p out/scan
           # shellcheck disable=SC2086
           "$grype" "docker-archive:out/images/jacarium-${ARCH}.tar" $vexarg --ignore-states not-fixed,wont-fix -o json --file "out/scan/grype-${ARCH}.json" -q || true
@@ -401,7 +414,7 @@ jobs:
           cd subjects
           sed -E 's#  (release|sbom|images|vex)/#  #' ../sums/SHA256SUMS-*.txt > ../SHA256SUMS-all.txt
           sha256sum -c --strict ../SHA256SUMS-all.txt
-          n_listed="$(wc -l < ../SHA256SUMS-all.txt | tr -d ' ')"; n_here="$(ls | wc -l | tr -d ' ')"
+          n_listed="$(wc -l < ../SHA256SUMS-all.txt | tr -d ' ')"; n_here="$(find . -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d ' ')"
           [ "$n_listed" = "$n_here" ] || { echo "::error::$n_here files downloaded, $n_listed listed by the builders"; exit 1; }
           ls -la
 
@@ -424,7 +437,8 @@ jobs:
             "Jacarium-${VERSION}.AppImage" "jacarium_${VERSION}_amd64.deb" "jacarium-${VERSION}.x86_64.rpm" \
             "Jacarium-${VERSION}-arm64.AppImage" "jacarium_${VERSION}_arm64.deb" "jacarium-${VERSION}.aarch64.rpm" \
             "Jacarium-${VERSION}-arm64.dmg" | sort)"
-          found="$(cd subjects && ls -1 -- *.AppImage *.deb *.rpm *.dmg 2>/dev/null | sort)"
+          # (nullglob: a pattern no installer matches contributes nothing, so the diff below shows what is missing)
+          found="$(cd subjects && shopt -s nullglob && printf '%s\n' *.AppImage *.deb *.rpm *.dmg | sort)"
           if [ "$expected" != "$found" ]; then
             echo "::error::the installers built differ from the SBOM attestation subjects"
             diff <(echo "$expected") <(echo "$found") || true
@@ -515,6 +529,8 @@ jobs:
       QUAY_ROBOT: zerodayz+github_release     # the federated robot account (see the Quay setup notes)
     outputs:
       digest: ${{ steps.push.outputs.digest }}
+      digest_amd64: ${{ steps.push.outputs.digest_amd64 }}
+      digest_arm64: ${{ steps.push.outputs.digest_arm64 }}
     steps:
       - name: Check out .github only (the pinned-tool fetcher; nothing of the application)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -560,7 +576,7 @@ jobs:
         run: |
           jwt="$(curl -sSf -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
                  "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=quay.io" | jq -r .value)"
-          [ -n "$jwt" ] && [ "$jwt" != null ] || { echo "::error::no OIDC token (is id-token: write set?)"; exit 1; }
+          if [ -z "$jwt" ] || [ "$jwt" = null ]; then echo "::error::no OIDC token (is id-token: write set?)"; exit 1; fi
           # no -f: on an error Quay's response body says why (it holds no secret)
           response="$(printf 'user = "%s:%s"\n' "$QUAY_ROBOT" "$jwt" \
                       | curl -sS -w '\n%{http_code}' -K - https://quay.io/oauth2/federation/robot/token)" || true

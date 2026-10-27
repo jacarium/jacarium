@@ -5,7 +5,7 @@
 # cosign and slsa-verifier rest on their recorded sha256 alone (the trust roots; cosign also checks its own bundle
 # once it is on disk). Nothing is piped into a shell and nothing runs before its checks pass.
 #
-#   .github/scripts/fetch-tool.sh <syft|grype|cosign|scorecard|osv-scanner|slsa-verifier> [<dir>]
+#   .github/scripts/fetch-tool.sh <syft|grype|cosign|scorecard|osv-scanner|slsa-verifier|actionlint> [<dir>]
 #
 # Installs <dir>/<tool> (default $RUNNER_TEMP/jacarium-tools, or /tmp/jacarium-tools), prints the path, and adds
 # <dir> to GITHUB_PATH when running in GitHub Actions. Linux amd64/arm64 and macOS; curl and sha256sum / shasum.
@@ -120,6 +120,18 @@ case "$TOOL" in
             || die "osv-scanner: the SLSA provenance did not verify"
         echo "fetch-tool: osv-scanner SLSA provenance ok" >&2
         install_bin "$WORK/$bin"
+        ;;
+    actionlint)
+        # rhysd/actionlint publishes a checksums file and nothing signed: the recorded sha256, then the archive
+        # against that file (the GitHub workflow linter, run over .github/workflows by the tests and scan.yml)
+        base="$GH/rhysd/actionlint/releases/download/v$version"
+        archive="actionlint_${version}_${os}_${arch}.tar.gz"
+        fetch "$base/$archive" "$archive"
+        check_sha "$WORK/$archive" "$expected" "$archive"
+        fetch "$base/actionlint_${version}_checksums.txt" checksums.txt
+        check_in_list "$WORK/checksums.txt" "$archive" "$WORK/$archive"
+        tar -xzf "$WORK/$archive" -C "$WORK" actionlint
+        install_bin "$WORK/actionlint"
         ;;
     slsa-verifier)
         # the second trust root: its recorded sha256 (from the project's SHA256SUM.md at the release)

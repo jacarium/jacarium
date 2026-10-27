@@ -194,6 +194,12 @@ for file in "$SCRIPT_DIR"/*.test.py; do
     run_test "$file" run_python
 done
 
+# maintainer-local tests, when present (not part of the published source)
+for file in "$SCRIPT_DIR"/../.publish-hooks/tests/*.test.py; do
+    [ -e "$file" ] || continue
+    run_test "$file" run_python
+done
+
 echo ""
 echo "═══════════════════════════════════════════════════"
 echo "  Summary"

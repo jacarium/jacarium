@@ -86,6 +86,8 @@ jobs:
         env:
           SIGNER: ${{ github.repository }}/.github/workflows/build.yml
           DIGEST: ${{ needs.build.outputs.image-digest }}
+          DIGEST_AMD64: ${{ needs.build.outputs.image-digest-amd64 }}
+          DIGEST_ARM64: ${{ needs.build.outputs.image-digest-arm64 }}
           VERSION: ${{ needs.build.outputs.version }}
         run: |
           set -e
@@ -103,10 +105,19 @@ jobs:
             echo "SBOM and VEX attestations ok: $f"
           done
           [ -n "$DIGEST" ] || { echo "::error::build.yml published no image digest"; exit 1; }
+          [ -n "$DIGEST_AMD64" ] && [ -n "$DIGEST_ARM64" ] || { echo "::error::build.yml published no per-architecture image digests"; exit 1; }
+          # the manifest list carries the provenance and the VEX; the SBOM attestations hang on the two
+          # per-architecture images (an SBOM describes one architecture's contents), so each is verified there
           gh attestation verify "oci://${IMAGE}@${DIGEST}" --repo "$GITHUB_REPOSITORY" --signer-workflow "$SIGNER" --deny-self-hosted-runners > /dev/null
-          echo "image provenance ok: ${IMAGE}@${DIGEST} (:${VERSION})"
           gh attestation verify "oci://${IMAGE}@${DIGEST}" --repo "$GITHUB_REPOSITORY" --signer-workflow "$SIGNER" --deny-self-hosted-runners \
-            --predicate-type https://spdx.dev/Document/v2.3 > /dev/null || echo "::warning::no SBOM attestation on the manifest list itself (the per-architecture images carry them)"
+            --predicate-type https://openvex.dev/ns/v0.2.0 > /dev/null
+          echo "image provenance and VEX ok: ${IMAGE}@${DIGEST} (:${VERSION})"
+          for d in "$DIGEST_AMD64" "$DIGEST_ARM64"; do
+            gh attestation verify "oci://${IMAGE}@${d}" --repo "$GITHUB_REPOSITORY" --signer-workflow "$SIGNER" --deny-self-hosted-runners > /dev/null
+            gh attestation verify "oci://${IMAGE}@${d}" --repo "$GITHUB_REPOSITORY" --signer-workflow "$SIGNER" --deny-self-hosted-runners \
+              --predicate-type https://spdx.dev/Document/v2.3 > /dev/null
+            echo "image provenance and SBOM attestation ok: ${IMAGE}@${d}"
+          done
 
       - name: Release notes from CHANGELOG.md
         env:

@@ -218,6 +218,9 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
         console.error('[QuizGameMode] Failed to join game:', error);
       }
     })();
+    // selfName is read once, when the accepted challenge is joined; it is a plain function remade on every
+    // render and changes with the display name, and a name change must not join the game again
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selfName: read at join time only (see above)
   }, [pendingChallenge, currentMachineId, onChallengeHandled]);
 
   // Timer countdown - smooth synchronized timer

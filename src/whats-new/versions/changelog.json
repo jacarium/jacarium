@@ -1,5 +1,32 @@
 [
   {
+    "version": "3.4.6",
+    "date": "2026-10-27",
+    "features": [
+      {
+        "category": "DOCUMENTS",
+        "description": [
+          "The / command menu jumps back to the first entry as you type"
+        ]
+      },
+      {
+        "category": "SECURITY",
+        "description": [
+          "Release verification: the container images' per-architecture SBOM attestations are verified before a release is created (missing ones now stop the release)",
+          "The GitHub Actions workflows are checked with actionlint (pinned and checksum-verified) in the tests and in CI, so a workflow GitHub would refuse can no longer reach a release",
+          "Interim development snapshots: main is published to the public repository between releases as signed commits, for review (no tag, no installers); their messages pass the privacy scan",
+          "CONTRIBUTING.md: how to report bugs and propose changes, the coding standards and the test policy"
+        ]
+      },
+      {
+        "category": "TESTS",
+        "description": [
+          "Lint is clean and stays clean: npm run lint fails on any warning"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.4.5",
     "date": "2026-10-27",
     "features": [

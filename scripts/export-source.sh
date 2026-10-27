@@ -135,6 +135,10 @@ if $PRIVACY_SCAN; then
         *) die "the privacy scan could not run (exit $scan) - see above" ;;
     esac
 fi
+# the maintainer's local publish hook over the same commit, when there is one
+if [ -x "$REPO/.publish-hooks/check-tree" ]; then
+    "$REPO/.publish-hooks/check-tree" "$REPO" "$COMMIT" || die "a local publish hook refused $LABEL (see above)"
+fi
 
 # --- stage <ref> without dot-files ------------------------------------------
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/jacarium-export.XXXXXX")"
@@ -168,7 +172,9 @@ list_files() {
             if [ -f "$f" ] || [ -L "$f" ]; then echo "$f"; fi
         done
         for d in "${EXPORTED_DOTDIRS[@]}"; do
-            [ -d "$d" ] && find "$d" -mindepth 1 \( -type f -o -type l \) -print
+            # (an if, not `[ -d ] &&`: in a destination without the directory yet - a fresh clone - the failing
+            # test would be the subshell's last command and end the pipeline under set -e)
+            if [ -d "$d" ]; then find "$d" -mindepth 1 \( -type f -o -type l \) -print; fi
         done
     ) | LC_ALL=C sort
 }

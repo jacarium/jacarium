@@ -4,6 +4,9 @@
 #
 #   scripts/release-sign.sh <public clone> <version> [<allowed_signers>]
 #   scripts/release-sign.sh --check <public clone>          only the signing configuration
+#   scripts/release-sign.sh --snapshot <message file> <public clone> [<version>] [<allowed_signers>]
+#                                                           a signed, verified commit with that message, no tag
+#                                                           (the development snapshots, scripts/publish-snapshot.sh)
 #
 # What it does, in the clone:
 #   1. refuses unless the clone is set up for SSH signing: gpg.format = ssh and user.signingkey (the user
@@ -18,11 +21,15 @@
 set -euo pipefail
 
 CHECK_ONLY=false
+SNAPSHOT_MSG=""
 if [ "${1:-}" = "--check" ]; then CHECK_ONLY=true; shift; fi
+# --snapshot <message file>: a signed, verified commit with that message and no tag (scripts/publish-snapshot.sh:
+# the interim development snapshots between releases); refuses when there is nothing to commit
+if [ "${1:-}" = "--snapshot" ]; then SNAPSHOT_MSG="${2:?--snapshot needs the message file}"; shift 2; [ -f "$SNAPSHOT_MSG" ] || { echo "release-sign: no message file $SNAPSHOT_MSG" >&2; exit 2; }; fi
 DIR="${1:?the public clone}"
 VERSION="${2:-}"
 SIGNERS="${3:-$DIR/.github/allowed_signers}"
-$CHECK_ONLY || [ -n "$VERSION" ] || { echo "release-sign: a version is needed" >&2; exit 2; }
+$CHECK_ONLY || [ -n "$SNAPSHOT_MSG" ] || [ -n "$VERSION" ] || { echo "release-sign: a version is needed" >&2; exit 2; }
 TAG="v$VERSION"
 
 die() { echo "release-sign: $*" >&2; exit 1; }
@@ -52,6 +59,15 @@ grep -Eq '^[^#[:space:]]+[[:space:]]+ssh-' "$SIGNERS" || die "$SIGNERS holds no 
 
 verify_commit() { g -c "gpg.ssh.allowedSignersFile=$SIGNERS" verify-commit "$1" >/dev/null 2>&1; }
 verify_tag() { g -c "gpg.ssh.allowedSignersFile=$SIGNERS" verify-tag "$1" >/dev/null 2>&1; }
+
+if [ -n "$SNAPSHOT_MSG" ]; then
+    [ -n "$(g status --porcelain)" ] || die "nothing to commit: the clone already holds this tree (no snapshot without a change)"
+    g add -A
+    g commit -q -S -F "$SNAPSHOT_MSG" || die "the signed snapshot commit failed (is the key loaded / unlocked?)"
+    verify_commit HEAD || die "the snapshot commit's signature does not verify against $SIGNERS - is the signing key's public half in it, under a principal?"
+    echo "release-sign: committed and verified $(g rev-parse --short HEAD) ($(g log -1 --format=%s))"
+    exit 0
+fi
 
 if [ -n "$(g status --porcelain)" ]; then
     g add -A

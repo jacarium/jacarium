@@ -4,6 +4,28 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.4.6
+
+_2026-10-27_
+
+### [DOCUMENTS]
+
+The / command menu jumps back to the first entry as you type
+
+### [SECURITY]
+
+Release verification: the container images' per-architecture SBOM attestations are verified before a release is created (missing ones now stop the release)
+
+The GitHub Actions workflows are checked with actionlint (pinned and checksum-verified) in the tests and in CI, so a workflow GitHub would refuse can no longer reach a release
+
+Interim development snapshots: main is published to the public repository between releases as signed commits, for review (no tag, no installers); their messages pass the privacy scan
+
+CONTRIBUTING.md: how to report bugs and propose changes, the coding standards and the test policy
+
+### [TESTS]
+
+Lint is clean and stays clean: npm run lint fails on any warning
+
 ## What's New in v3.4.5
 
 _2026-10-27_

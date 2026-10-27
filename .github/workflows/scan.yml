@@ -30,6 +30,26 @@ on:
 permissions: {}
 
 jobs:
+  # The workflows themselves: actionlint (pinned and verified) finds what GitHub's parser would refuse on the
+  # next run - v3.4.3's "Unrecognized named-value: 'runner'" - plus wrong inputs, contexts and globs, and runs
+  # shellcheck over the run steps (preinstalled on the runner). tests/github_workflows.test.py runs the same.
+  workflows:
+    name: Workflow files (actionlint)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Lint the workflows (actionlint, pinned and verified)
+        run: |
+          actionlint="$(.github/scripts/fetch-tool.sh actionlint)"
+          "$actionlint" -no-color .github/workflows/*.yml
+
   lockfiles:
     name: Lock files (OSV-Scanner)
     runs-on: ubuntu-24.04
@@ -112,7 +132,7 @@ jobs:
         run: |
           grype="$(.github/scripts/fetch-tool.sh grype)"
           vex="vex/jacarium-${VERSION}.openvex.json"
-          [ -f "$vex" ] && vexarg="--vex $vex" || { vexarg=""; echo "::warning::no $vex in the repository - scanning without a VEX"; }
+          if [ -f "$vex" ]; then vexarg="--vex $vex"; else vexarg=""; echo "::warning::no $vex in the repository - scanning without a VEX"; fi
           mkdir -p out
           found=0
           for s in sboms/*.spdx.json; do
@@ -131,7 +151,9 @@ jobs:
           { echo "## Grype on the SBOMs of $TAG"; echo; for f in out/*.json; do n="$(basename "$f" .json)"; echo "### $n"; jq -r '.matches[] | select(.vulnerability.severity == "High" or .vulnerability.severity == "Critical") | "- \(.vulnerability.id) \(.artifact.name) \(.artifact.version) -> \(.vulnerability.fix.versions | join(", ")) (\(.vulnerability.severity))"' "$f"; echo; done; } >> "$GITHUB_STEP_SUMMARY"
           echo "FOUND=$found" >> "$GITHUB_ENV"
           # one SARIF for Code scanning: the image SBOMs' (the installers' findings are listed in the summary and the issue)
-          first="$(ls out/*image-amd64.sarif 2>/dev/null | head -1)"; [ -n "$first" ] && cp "$first" rescan.sarif || true
+          for f in out/*image-amd64.sarif; do
+            if [ -f "$f" ]; then cp "$f" rescan.sarif; break; fi
+          done
 
       - name: Upload the SARIF to Code scanning
         if: env.SKIP != '1' && hashFiles('rescan.sarif') != ''

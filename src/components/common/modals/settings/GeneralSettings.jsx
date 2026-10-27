@@ -161,7 +161,8 @@ function AccountSection({ account, remoteServer = null }) {
       .then((exists) => { if (!cancelled) setLegacyExists(exists); })
       .catch(() => { if (!cancelled) setLegacyExists(false); });
     return () => { cancelled = true; };
-  }, []);
+    // the answer is per account (the "deleted" marker is keyed by the user id): re-check when the account changes
+  }, [account?.id]);
 
   // the account's display name: the label teammates see for this account's
   // identity on the central server (the same from every device)

@@ -1,7 +1,7 @@
 {
   "name": "jacarium",
   "private": true,
-  "version": "3.4.5",
+  "version": "3.4.6",
   "description": "Everything you know and use for technical work, in one place.",
   "homepage": "https://jacarium.com",
   "desktopName": "com.jacarium.app.desktop",
@@ -33,7 +33,7 @@
   "scripts": {
     "dev": "vite",
     "build": "bash scripts/build-ui.sh",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "vendor": "node scripts/vendor-assets.mjs",
     "postinstall": "node scripts/vendor-assets.mjs",
     "preview": "vite preview",

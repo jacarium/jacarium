@@ -253,6 +253,8 @@ Found a bug or have an idea? [Open an issue](https://github.com/jacarium/jacariu
 - [Developer guides](docs/README.md): adding a page, a tool or a game mode,
   and how to release
 - [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md): reporting bugs, pull requests, coding
+  standards and the test policy
 
 ## Licence
 

@@ -57,7 +57,7 @@
 #   DEPLOY_TARGET=user@192.168.1.20              ssh target for --deploy (deploy-to-host.sh)
 #   GITHUB_REPO=jacarium/jacarium                the public repository
 #
-# Commits are made with your own git identity, without trailers. Nothing is
+# Commits are made with your own git identity. Nothing is
 # ever force-pushed.
 set -euo pipefail
 

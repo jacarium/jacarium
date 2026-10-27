@@ -185,7 +185,7 @@ function world(newTarball, { newDoc = {}, prevAttest = true, newAttest = true, p
   check('the test-only packages are reinstalled with --no-save at the locked playwright-core, and the lockfile they dirtied is restored', installs.some((c) => c.includes('--no-save') && c.includes('jsdom') && c.includes('fake-indexeddb') && c.includes('playwright-core@1.63.0')) && !fs.readFileSync(lockPath, 'utf8').endsWith('\n\n') && r.results.some((x) => /restored/.test(x)), JSON.stringify({ installs, results: r.results }));
   const note = fs.readFileSync(path.join(w.repo, 'docs', 'security', 'urgent-updates.md'), 'utf8');
   check('the audit note is appended with the date, specs, reason, age and the check results', /## 2026-10-24 - pkg@1\.0\.1/.test(note) && /Reason: GHSA-test-0001/.test(note) && /3 days old/.test(note) && /npm audit: 0 vulnerabilities/.test(note) && /npm audit signatures: ok/.test(note), note);
-  check('the suggested commit message names the specs, the reason and the attribution', w.lines.some((l) => /^Security: pkg@1\.0\.1 \(GHSA-test-0001\)/.test(l)) && w.lines.some((l) => /Co-Authored-By: Claude Fable 5\.1/.test(l)));
+  check('the suggested commit message names the specs and the reason', w.lines.some((l) => /^Security: pkg@1\.0\.1 \(GHSA-test-0001\)/.test(l)));
 }
 {
   // a direct devDependency goes to --save-dev with the caret, nothing in overrides; a lockfile change outside the spec is an error

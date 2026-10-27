@@ -13,6 +13,11 @@ Each release adds its notes to the What's New window and to the top of
 `CHANGELOG.md`; the root `README.md` is the project's pitch and is not
 touched by a release.
 
+**A release that fixes a publicly known vulnerability names it in the notes
+by its identifier** (CVE, GHSA, PYSEC or GO id - e.g. "Pillow 12.3.0: fixes
+CVE-YYYY-NNNNN"), and `vex/decisions.yaml` records it as `fixed` from that
+version (OpenSSF Best Practices: release_notes_vulns; see CONTRIBUTING.md).
+
 Details, the entry format and the tests: `src/whats-new/README.md`.
 
 ## Release to GitHub in one command
@@ -73,6 +78,29 @@ tag (a failed push, a deploy error), fix the cause and run it again with
 is left. Without `--resume` it never republishes an existing version - it
 stops and tells you which of the two you meant. Commit nothing directly on GitHub - the next export overwrites it, and
 the script refuses to run while GitHub has commits the clone doesn't.
+
+## Interim snapshots
+
+The public repository must not hold only releases (OpenSSF Best Practices
+`repo_interim`: interim versions for review between releases). Between
+releases, publish the current `main` as a development snapshot:
+
+```bash
+scripts/publish-snapshot.sh --dry-run   # the plan and the commit message, nothing changed
+scripts/publish-snapshot.sh             # export main @ HEAD, one signed commit, ask, push
+```
+
+It uses the same export (`scripts/export-source.sh`, privacy scan included)
+and the same SSH signing (`scripts/release-sign.sh --snapshot`, verified
+against `.github/allowed_signers`) as a release, makes ONE commit
+`Development snapshot: main @ <short sha> (after vX.Y.Z)` whose body lists
+the commit subjects since the last export (no merges, no bump / release
+commits - the What's New generator's filter), and pushes the public `main`
+after a confirmation (`--yes` skips the questions). No tag, no version
+bump, no deploy, no release notes, no GitHub release; it refuses a dirty
+tree, a branch other than `main`, and a snapshot that would change nothing.
+A push to the public `main` runs the CodeQL, Scan and Scorecard workflows
+only - `release.yml` runs on tags, the image publishing and COPR with it.
 
 ## Fedora / RHEL: the COPR repository
 

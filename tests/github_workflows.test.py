@@ -24,6 +24,7 @@ The GitHub workflows (.github/workflows/*.yml, exported to the public repository
 
 Run: backend/venv/bin/python tests/github_workflows.test.py   (PyYAML from the backend venv)
 """
+import glob
 import os
 import re
 import sys
@@ -189,6 +190,13 @@ check('release.yml/release: contents: write only, tags only', perms_of(rel) == {
 vi = [i for i, s in enumerate(steps(rel)) if 'gh attestation verify' in str(s.get('run') or '')]
 ci = [i for i, s in enumerate(steps(rel)) if 'gh release create' in str(s.get('run') or '')]
 check('release.yml/release: verifies the attestations (files, SBOM predicate, the image) before gh release create', vi and ci and vi[0] < ci[0] and '--signer-workflow' in rruns and '--deny-self-hosted-runners' in rruns and 'https://spdx.dev/Document/v2.3' in rruns and 'oci://' in rruns, (vi, ci))
+# v3.4.5 logged "HTTP 404" and a warning: the SPDX predicate was checked on the manifest-list digest, which by
+# design carries none - the SBOM attestations hang on the per-architecture images. Those are now verified, hard.
+check('release.yml/release: the per-architecture image digests come out of build.yml and both are verified for provenance and the SPDX attestation, failing when missing; the list is verified for provenance and the VEX; no soft check is left',
+      'for d in "$DIGEST_AMD64" "$DIGEST_ARM64"; do' in rruns and 'echo "::error::build.yml published no per-architecture image digests"' in rruns and 'no SBOM attestation on the manifest list' not in rruns and '::warning::' not in rruns
+      and 'DIGEST_AMD64: ${{ needs.build.outputs.image-digest-amd64 }}' in workflows['release.yml'][0] and 'DIGEST_ARM64: ${{ needs.build.outputs.image-digest-arm64 }}' in workflows['release.yml'][0]
+      and 'image-digest-amd64:' in workflows['build.yml'][0] and '${{ jobs.publish.outputs.digest_amd64 }}' in workflows['build.yml'][0] and 'digest_arm64: ${{ steps.push.outputs.digest_arm64 }}' in workflows['build.yml'][0]
+      and rruns.count('--predicate-type https://openvex.dev/ns/v0.2.0') >= 2, [l for l in rruns.splitlines() if 'oci://' in l])
 check('release.yml/release: no id-token (it signs nothing)', 'id-token' not in perms_of(rel))
 
 # ---------------------------------------------------------------- 4. tools: fetched and verified through one script
@@ -215,11 +223,11 @@ check('fetch-tool.sh never pipes a download into a shell and uses https only', '
 # every tool a job fetches has a checksum for that job's OS and architecture (the macOS installers job fetches
 # syft, which fetch-tool.sh verifies with cosign, so cosign needs darwin hashes too)
 RUNNER_OS = {'ubuntu-24.04': ('LINUX', 'AMD64'), 'ubuntu-24.04-arm': ('LINUX', 'ARM64'), 'macos-26': ('DARWIN', 'ARM64'), 'macos-15': ('DARWIN', 'ARM64'), 'macos-14': ('DARWIN', 'ARM64')}
-NEEDS = {'syft': {'syft', 'cosign'}, 'grype': {'grype', 'cosign'}, 'cosign': {'cosign'}, 'scorecard': {'scorecard', 'slsa-verifier'}, 'osv-scanner': {'osv-scanner', 'slsa-verifier'}, 'slsa-verifier': {'slsa-verifier'}}
+NEEDS = {'syft': {'syft', 'cosign'}, 'grype': {'grype', 'cosign'}, 'cosign': {'cosign'}, 'scorecard': {'scorecard', 'slsa-verifier'}, 'osv-scanner': {'osv-scanner', 'slsa-verifier'}, 'slsa-verifier': {'slsa-verifier'}, 'actionlint': {'actionlint'}}
 missing = []
 for name, (text, doc) in workflows.items():
     for jname, job in (doc.get('jobs') or {}).items():
-        fetched = set(re.findall(r'fetch-tool\.sh (syft|grype|cosign|scorecard|osv-scanner|slsa-verifier)', runs(job)))
+        fetched = set(re.findall(r'fetch-tool\.sh (syft|grype|cosign|scorecard|osv-scanner|slsa-verifier|actionlint)', runs(job)))
         if not fetched:
             continue
         runners = [job.get('runs-on')] if isinstance(job.get('runs-on'), str) and '${{' not in job.get('runs-on') else [i.get('runner') for i in ((job.get('strategy') or {}).get('matrix') or {}).get('include') or []]
@@ -303,6 +311,21 @@ check('build.yml/attest: before the SBOM attestations, a step fails unless the i
 
 _rel = workflows['release.yml'][1]
 check('release.yml: named "Release", each run titled by its tag (run-name)', _rel.get('name') == 'Release' and _rel.get('run-name') == 'Release ${{ github.ref_name }}', _rel.get('run-name'))
+
+# ---------------------------------------------------------------- 6. actionlint over the workflows
+# What GitHub's own parser would refuse (v3.4.3: "Unrecognized named-value: 'runner'" in a job's env), typos in
+# contexts, wrong input names, bad globs: actionlint (pinned and verified by fetch-tool.sh) over every workflow,
+# with shellcheck on the run steps when it is installed. Needs the network for the first fetch: skipped, said
+# loudly, when the tool cannot be fetched.
+import subprocess as _sp2, tempfile as _tf2
+with _tf2.TemporaryDirectory() as _d2:
+    _fetch = _sp2.run(['bash', os.path.join(REPO, '.github', 'scripts', 'fetch-tool.sh'), 'actionlint', _d2], capture_output=True, text=True)
+    if _fetch.returncode != 0:
+        print(f"SKIP: actionlint could not be fetched (offline?): {(_fetch.stderr or '').strip().splitlines()[-1:] or _fetch.returncode}")
+    else:
+        _bin = _fetch.stdout.strip().splitlines()[-1]
+        _lint = _sp2.run([_bin, '-no-color'] + sorted(glob.glob(os.path.join(WF_DIR, '*.yml'))), capture_output=True, text=True, cwd=REPO)
+        check(f'actionlint finds nothing in the workflows (exit {_lint.returncode})', _lint.returncode == 0, (_lint.stdout + _lint.stderr).strip()[:1500])
 
 print(f"\n{'FAILED' if failed else 'All checks passed'} ({failed} failed)")
 sys.exit(1 if failed else 0)

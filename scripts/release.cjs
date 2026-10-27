@@ -15,8 +15,8 @@
  *   npm run release -- --dry-run    show what would change, write nothing
  *   npm run release:tag             commit the prepared release and create
  *                                   the local annotated tag vX.Y.Z
- *   ... --trailer "Key: value"      append a trailer line (e.g. a
- *                                   Co-Authored-By) to the release commit
+ *   ... --trailer "Key: value"      append a trailer line (e.g.
+ *                                   Reviewed-by) to the release commit
  *
  * "prepare" does, in this order:
  *   1. finds the previous release: tag v<current version> when it exists,
