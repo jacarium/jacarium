@@ -14,9 +14,8 @@ Everything you know and use for technical work, in one place.
 [![Release build](https://github.com/jacarium/jacarium/actions/workflows/release.yml/badge.svg)](https://github.com/jacarium/jacarium/actions/workflows/release.yml)
 [![Latest release](https://img.shields.io/github/v/release/jacarium/jacarium)](https://github.com/jacarium/jacarium/releases/latest)
 [![COPR build](https://copr.fedorainfracloud.org/coprs/robincernin/jacarium/package/jacarium/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/robincernin/jacarium/)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15975/badge)](https://www.bestpractices.dev/projects/15975)
 [![SLSA Build Level 3](https://slsa.dev/images/gh-badge-level3.svg)](#security--supply-chain)
-<!-- OpenSSF Best Practices, once the project is registered at https://www.bestpractices.dev (the id comes from the registration):
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/<id>/badge)](https://www.bestpractices.dev/projects/<id>) -->
 
 <br clear="all">
 
