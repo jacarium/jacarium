@@ -85,16 +85,20 @@ LABEL com.jacarium.image=deploy com.jacarium.stage=taskwarrior
 FROM docker.io/library/golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS caddy
 ARG CADDY_VERSION=v2.11.7
 ARG XNET_VERSION=v0.60.0
+# go-chi/chi v5.4.0 (2026-10-12): GHSA-j6qf-3m9c-vwj3, reported against the v5.3.2 Caddy 2.11.7 pulls in
+ARG CHI_VERSION=v5.4.0
 WORKDIR /build
 ENV CGO_ENABLED=0 GOFLAGS=-mod=mod GOTOOLCHAIN=local
 RUN printf '%s\n' 'package main' '' 'import (' '	caddycmd "github.com/caddyserver/caddy/v2/cmd"' '' '	_ "github.com/caddyserver/caddy/v2/modules/standard"' ')' '' 'func main() {' '	caddycmd.Main()' '}' > main.go \
  && go mod init caddy-build \
  && go get "github.com/caddyserver/caddy/v2@${CADDY_VERSION}" \
  && go get "golang.org/x/net@${XNET_VERSION}" \
+ && go get "github.com/go-chi/chi/v5@${CHI_VERSION}" \
  && go mod tidy \
  && go build -trimpath -buildvcs=false -ldflags '-s -w' -o /usr/bin/caddy . \
  && /usr/bin/caddy version \
- && /usr/bin/caddy build-info | grep -E "^(go|dep\s+golang.org/x/net)\s"
+ && /usr/bin/caddy build-info | grep -E "^(go|dep\s+golang.org/x/net|dep\s+github.com/go-chi/chi/v5)\s" \
+ && /usr/bin/caddy build-info | grep -qE "^dep\s+github.com/go-chi/chi/v5\s+${CHI_VERSION}\s"
 
 # ---------------------------------------------------------------------------
 # Runtime - ubi9/python-314 1-1792864219 (2026-10-24, RHEL 9.8: ca-certificates

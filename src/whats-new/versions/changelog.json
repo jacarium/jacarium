@@ -1,5 +1,24 @@
 [
   {
+    "version": "3.5.1",
+    "date": "2026-10-28",
+    "features": [
+      {
+        "category": "SECURITY",
+        "description": [
+          "The container image's web server (Caddy) is built with go-chi 5.4.0 (GHSA-j6qf-3m9c-vwj3)",
+          "The release's VEX records that the base image's system Python 3.9 is never executed (the app runs Python 3.14), and that the xz fix is applied once Red Hat's update has been public for seven days"
+        ]
+      },
+      {
+        "category": "DESKTOP",
+        "description": [
+          "Electron 42.11.17"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.5.0",
     "date": "2026-10-27",
     "features": [

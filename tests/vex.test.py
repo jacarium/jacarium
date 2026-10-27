@@ -129,7 +129,8 @@ try:
         by_status.setdefault(d['status'], []).append(d)
     check('every not_affected decision has a justification from the list and an impact statement that names where the code is and why it never runs', all(d.get('justification') in vex.JUSTIFICATIONS and len(d.get('impact') or '') > 60 for d in by_status.get('not_affected', [])), [d['id'] for d in by_status.get('not_affected', []) if not d.get('impact')])
     check('every affected decision says what fix is pending', all('pending' in (d.get('action') or '').lower() or 'upgrade' in (d.get('action') or '').lower() for d in by_status.get('affected', [])), [d['id'] for d in by_status.get('affected', [])])
-    caddy = [d for d in decisions if any('golang' in c for c in d.get('components') or [])]
+    # the Go toolchain and x/net entries (chi, another Go module Caddy pulls in, has its own checks below)
+    caddy = [d for d in decisions if any('golang' in c for c in d.get('components') or []) and not any('go-chi' in c for c in d.get('components') or [])]
     server_side = [d for d in caddy if d['status'] == 'affected']
     fixed = [d for d in caddy if d['status'] == 'fixed']
     client_side = [d for d in caddy if d['status'] == 'not_affected']
@@ -143,6 +144,24 @@ try:
     check("the image products carry no repository qualifier and name the list tag and both per-architecture tags, so Grype matches the release gate's local archives and the pushed image", [p['@id'] for p in new['statements'][0]['products']] == ['pkg:oci/jacarium?tag=3.4.0', 'pkg:oci/jacarium?tag=3.4.0-amd64', 'pkg:oci/jacarium?tag=3.4.0-arm64'], [p['@id'] for p in new['statements'][0]['products']])
     check("the base image's npm modules are not_affected (component_not_present) from 3.4.0 on", all(st(new).get(i) == 'not_affected' for i in ('GHSA-6j4f-fj2g-mc7p', 'GHSA-qhr7-859c-m2p7', 'GHSA-c2c7-rcm5-vvqj')) and 'GHSA-c2c7-rcm5-vvqj' not in st(old))
     check('every decision names who decided and when', all(d.get('decided_by') and d.get('decided_on') for d in decisions))
+    # 3.5.1: the base image's system Python 3.9 (never executed - the image runs Python 3.14), xz (reachable
+    # through the sos report parser: affected, fix pending) and chi in Caddy (affected before 3.5.1, fixed from it)
+    py = {d['id']: d for d in decisions if any('/python3' in c for c in d.get('components') or [])}
+    check("the system python3 3.9 CVEs (2026-19445, 2026-19553, 2026-12345) are not_affected from 3.5.0 (vulnerable_code_not_in_execute_path), the impact naming Python 3.14 as what runs and the fixed RPM as pending",
+          all(py.get(i) and py[i]['status'] == 'not_affected' and py[i]['justification'] == 'vulnerable_code_not_in_execute_path' and py[i].get('versions') == ['>=3.5.0']
+              and 'Python 3.14' in py[i]['impact'] and '3.9.25-7.el9_8.6' in py[i]['impact'] for i in ('CVE-2026-19445', 'CVE-2026-19553', 'CVE-2026-12345')), sorted(py))
+    xz = [d for d in decisions if d['id'] == 'CVE-2026-34743']
+    check('xz CVE-2026-34743 is affected with the fix pending and the sos report parser named as the path', len(xz) == 1 and xz[0]['status'] == 'affected' and 'pending' in xz[0]['action'].lower() and 'sos report' in xz[0]['action'] and len(xz[0]['components']) == 3)
+    chi = [d for d in decisions if d['id'] == 'GHSA-j6qf-3m9c-vwj3']
+    check('chi GHSA-j6qf-3m9c-vwj3 (CVE-2026-114437): affected before 3.5.1 with the upgrade as the action, fixed from 3.5.1 naming v5.4.0',
+          sorted((d['status'], tuple(d.get('versions') or [])) for d in chi) == [('affected', ('<3.5.1',)), ('fixed', ('>=3.5.1',))]
+          and all('CVE-2026-114437' in (d.get('aliases') or []) for d in chi) and any('v5.4.0' in (d.get('notes') or '') for d in chi) and any('Upgrade to Jacarium 3.5.1' in (d.get('action') or '') for d in chi), chi)
+    v350, v351 = st(vex.build(decisions, '3.5.0')), st(vex.build(decisions, '3.5.1'))
+    check('for 3.5.0 chi is affected and the python3 CVEs not_affected; for 3.5.1 chi is fixed, xz still affected',
+          v350.get('GHSA-j6qf-3m9c-vwj3') == 'affected' and v350.get('CVE-2026-19445') == 'not_affected' and v351.get('GHSA-j6qf-3m9c-vwj3') == 'fixed' and v351.get('CVE-2026-34743') == 'affected' and v351.get('CVE-2026-19553') == 'not_affected')
+    with open(os.path.join(REPO, 'deploy', 'Containerfile'), encoding='utf-8') as fh:
+        containerfile = fh.read()
+    check('deploy/Containerfile builds Caddy with chi v5.4.0 and checks it in caddy build-info', 'ARG CHI_VERSION=v5.4.0' in containerfile and 'go get "github.com/go-chi/chi/v5@${CHI_VERSION}"' in containerfile and 'dep\\s+github.com/go-chi/chi/v5\\s+${CHI_VERSION}' in containerfile)
 finally:
     shutil.rmtree(WORK, ignore_errors=True)
 

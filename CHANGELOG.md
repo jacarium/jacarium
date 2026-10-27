@@ -4,6 +4,20 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.5.1
+
+_2026-10-28_
+
+### [SECURITY]
+
+The container image's web server (Caddy) is built with go-chi 5.4.0 (GHSA-j6qf-3m9c-vwj3)
+
+The release's VEX records that the base image's system Python 3.9 is never executed (the app runs Python 3.14), and that the xz fix is applied once Red Hat's update has been public for seven days
+
+### [DESKTOP]
+
+Electron 42.11.17
+
 ## What's New in v3.5.0
 
 _2026-10-28_
