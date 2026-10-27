@@ -92,7 +92,8 @@ function walk(dir) {
 // 3. body-parser: the parsers as they were (the update is the fix; no stopgap crept in)
 // ---------------------------------------------------------------------------
 check('electron/server.cjs keeps its JSON parser as it was (the 50 MB limit, no Content-Encoding stopgap)', /app\.use\(express\.json\(\{ limit: '50mb' \}\)\);/.test(read('electron/server.cjs')) && !/Content-Encoding/.test(read('electron/server.cjs')));
-check('jacarium-central/server.js keeps its JSON parser as it was', /app\.use\(bodyParser\.json\(\{ limit: '50mb' \}\)\);/.test(read('jacarium-central/server.js')) && !/Content-Encoding/.test(read('jacarium-central/server.js')));
+// (express.json since Express 5: it is body-parser's JSON parser, the separate package is no dependency any more)
+check('jacarium-central/server.js keeps its JSON parser as it was', /app\.use\((?:bodyParser|express)\.json\(\{ limit: '50mb' \}\)\);/.test(read('jacarium-central/server.js')) && !/Content-Encoding/.test(read('jacarium-central/server.js')));
 
 console.log(failed ? `\n${failed} check(s) failed` : '\nAll checks passed');
 process.exit(failed ? 1 : 0);

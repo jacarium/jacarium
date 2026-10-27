@@ -34,6 +34,12 @@ if (!APP_AUTH_TOKEN) {
 
 app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 app.use(express.json({ limit: '50mb' }));
+// Express 5 leaves req.body undefined when nothing was parsed (4 set {}); the
+// routes destructure it, so keep the old shape
+app.use((req, res, next) => {
+  if (req.body === undefined) req.body = {};
+  next();
+});
 
 function tokenMatches(supplied) {
   if (!APP_AUTH_TOKEN || typeof supplied !== 'string' || !supplied) return false;
@@ -795,6 +801,21 @@ app.get('/api/cloud/pending', (req, res) => {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'jacarium-backend' });
+});
+
+// Errors reach here: a body the JSON parser refuses (400, or 413 over the
+// limit), and - new with Express 5 - a throw or a rejected promise in a
+// handler. Always JSON, with the error's own status; never Express's default
+// HTML page, which carries the stack trace. (Four parameters: that is how
+// Express tells an error handler from middleware.)
+app.use((err, req, res, next) => {
+  const status = Number.isInteger(err && err.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
+  if (status >= 500) console.error('[Server] Unhandled error:', (err && err.stack) || err);
+  const message = status >= 500 ? 'Internal server error'
+    : err.type === 'entity.parse.failed' ? 'Malformed JSON body'
+      : err.type === 'entity.too.large' ? 'Request body too large'
+        : (err.expose && err.message) || 'Bad request';
+  res.status(status).json({ error: message });
 });
 
 // Start server

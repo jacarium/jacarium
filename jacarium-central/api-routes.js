@@ -56,7 +56,11 @@ function gamePage(label, file) {
       return res.redirect(`../${encodeURIComponent(gameId)}`);
     }
     console.log(`[${label}] Serving ${label.toLowerCase()} page for game: ${gameId}`);
-    res.sendFile(path.join(__dirname, 'public', file));
+    // root + relative name: Express 5's sendFile applies its dotfiles rule
+    // ("ignore" - 404) to every segment of the path it is given, so an
+    // absolute path through a dot-directory (a checkout under .claude/, a
+    // home under .local/) would 404; with root the rule sees "quiz.html" only
+    res.sendFile(file, { root: path.join(__dirname, 'public') });
   };
 }
 router.get('/quiz/:gameId', gamePage('Quiz', 'quiz.html'));

@@ -4,6 +4,24 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.5.0
+
+_2026-10-28_
+
+### [SECURITY]
+
+URL fetching and the workflow REST nodes connect only to the address that was checked, so a hostname that switches to an internal address after the check (DNS rebinding) can no longer be reached
+
+Express 5 for the desktop app's local server and the central server, with body-parser 2.4.0 (fixes the compressed-body denial of service GHSA-27r3-jxmh-p828); malformed JSON now gets a JSON error instead of an HTML page
+
+### [WORKFLOWS]
+
+New Workflow opens its tab again right away
+
+### [TESTS]
+
+Dependencies updated: React 19.3, Vite 8.3, ESLint 10.13, mermaid 12.2, Yjs 13.6.33, socket.io 4.8.4, Flask-Compress 1.25 (zstd), paramiko 5.1 and others; marked 18, markdownify 1.2 and quicktype 26 (the JSON to types tool now generates modern defaults per language, and its code is 55% smaller)
+
 ## What's New in v3.4.8
 
 _2026-10-27_

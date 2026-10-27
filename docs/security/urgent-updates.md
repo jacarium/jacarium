@@ -94,3 +94,55 @@ Checks after the build: tests/container-deploy.test.mjs builds and drives the im
 shows ca-certificates 2026.2.92_v9.0.319-90.3.el9_8, a TLS smoke test with the image's Python reaches pypi.org
 and quay.io through the system bundle (/etc/pki/tls/cert.pem, ssl's default context) and through requests /
 certifi, and refuses a self-signed certificate; deploy-podman-machine passes.
+
+## 2026-10-27 - body-parser@2.4.0 (the root and jacarium-central)
+
+Reason: GHSA-27r3-jxmh-p828 (denial of service through trailing bytes after a compressed request body; high),
+the same advisory the 1.x line needed 1.20.9 for. Express 5 brought body-parser 2.3.0 into both trees; the fix
+for the 2.x line, 2.4.0, was published 2026-10-22 and was 5 days old. The user approved this one-off exception
+for exactly `body-parser@2.4.0`; nothing else went past the cooldown.
+
+Run: `npm run deps:urgent -- body-parser@2.4.0 --reason GHSA-27r3-jxmh-p828` in the root, and the script's
+`main()` with `repoDir` pointed at jacarium-central (it has no option for a second tree). Both runs stopped on
+the same four red flags, read and then passed with `--force`:
+
+- The publisher changed: 2.3.0 was pushed by the maintainer's own account (`ulisesgascon`); 2.4.0 was published
+  by GitHub Actions through npm Trusted Publishing (OIDC), with the same maintainer recorded as the approver.
+  2.4.0 therefore carries what 2.3.0 did not have: a SLSA v1 provenance attestation naming the source
+  `https://github.com/expressjs/body-parser` at `refs/tags/v2.4.0`, the workflow
+  `.github/workflows/npm-publish.yml`, the builder `https://github.com/actions/runner/github-hosted`, the
+  commit b4744d739e1e2e5257f2ddac31eed191aa5152a4 and the tarball's sha512 - decoded by hand from the
+  registry's attestation bundle and matching the script's reading. The registry signature (key
+  SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U) is the same key as 2.3.0's; `npm audit signatures` is
+  clean in both trees. A move from a personal publish to the project's own publishing workflow with provenance
+  is a stronger position than before, not a weaker one.
+- Three dependency ranges moved: content-type ^2.0.0 -> ^2.1.0, iconv-lite ^0.7.2 -> ^0.7.3, qs ^6.15.2 ->
+  ^6.16.1. No new package: both locks already held content-type 2.1.0 (74 days old), iconv-lite 0.7.3 (115
+  days) and qs 6.16.1 (12 days), and the lock diff of each tree is the one body-parser entry. The
+  devDependencies changed too (eslint 9, neostandard), which the tarball does not carry.
+
+The tarball diff, read by hand (6 files changed, none added or removed; no install script - `scripts` holds
+lint and test only; no new child_process / fs / net / eval / env use): the fix is in lib/read.js. The
+decompression stream (gzip / deflate / br, and zstd where Node has it) used to stay piped to the request after
+the body had been read, so bytes arriving after the compressed member reached a stream nobody listened to any
+more; 2.4.0 unpipes and destroys that stream once the body is in, attaches a no-op error listener to it and
+calls `req.resume()` so the request is drained and can finish. The same file also checks the charset before the
+decompression stream is created (an unsupported charset could otherwise leave a decoder piped with no error
+listener), adds zstd, and takes `getCharset` over from lib/utils.js; lib/types/json.js tightens the strict
+first-character check (an all-whitespace body no longer matches); lib/types/urlencoded.js is a shorthand
+rewrite; README.md documents the behaviour. Nothing touches what the two servers rely on (express.json with a
+50 MB limit; the servers keep that line unchanged, tests/audit-mitigations.test.mjs sees to it).
+
+Local check: an Express app on each unpacked tarball, driven with a compressed JSON body followed by trailing
+bytes (gzip, deflate and brotli; the bytes in the same packet and in a later one; a second request on the same
+kept-alive connection afterwards). On this machine's Node (24) neither version stalls, crashes or leaves the
+connection unusable, so the issue could not be reproduced here; the fix is the stream handling above, which the
+diff shows is in place.
+
+After the install: .npmrc still min-release-age=7 in both trees; lockfile: 1 entry changed in each, body-parser's
+own, integrity = registry; npm audit: 0 vulnerabilities in both; npm audit signatures: ok; the test-only packages
+reinstalled with --no-save, lockfiles untouched. The pin is an `overrides` entry `body-parser: ^2.4.0` in each
+package.json; it can be removed at the next lock refresh after 2026-10-29, when 2.4.0 resolves on its own.
+tests/npm-audit-clean.test.mjs is green again; tests/express5-servers.test.mjs accepts the override only when it
+pins 2.4.0 or later.
+

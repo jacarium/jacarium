@@ -26,10 +26,12 @@ addresses identically.
       size cap (max_bytes) so an oversized response is aborted before it is
       parsed or handed to the AI context.
 
-Residual risk: `requests` cannot pin the TCP connection to the address that
-was validated, so a DNS name that flips to an internal address between the
-check and the connect (DNS rebinding with a very low TTL) is not fully
-prevented here; the Electron-side guard does pin. Keep timeouts short.
+DNS rebinding: safe_request pins each connection to an address that
+validate_url already resolved and judged safe (a custom requests adapter
+connects to that IP, while TLS SNI and certificate verification still use
+the hostname), so a name whose record flips to an internal address between
+the check and the connect cannot be reached - the connect never consults
+DNS a second time. The Electron-side guard pins the same way.
 """
 import ipaddress
 import os
@@ -191,6 +193,57 @@ class SafeResponse:
                 f'{self.status_code} Error for url: {self.url}', response=self)
 
 
+_pinned_adapter_class = None
+
+
+def _pin_connection(session, parsed, addresses):
+    """Mount an adapter that connects to one already-validated address.
+
+    A hostname (not an IP literal) is resolved by validate_url; between that
+    and the connect `requests` would resolve again, so a rebinding name could
+    flip to an internal address. Pin the TCP target to the first validated
+    address; TLS SNI and the certificate check stay on the hostname. An IP
+    literal cannot rebind, so it is left alone.
+    """
+    global _pinned_adapter_class
+    hostname = parsed.hostname
+    if not hostname or classify_address(hostname) != 'invalid':
+        return  # an IP literal: nothing to rebind
+    if not addresses:
+        return
+    import requests
+
+    if _pinned_adapter_class is None:
+        class _PinnedHTTPAdapter(requests.adapters.HTTPAdapter):
+            def __init__(self, host, pinned_ip, *args, **kwargs):
+                self._pin_host = host.lower()
+                self._pin_ip = pinned_ip
+                super().__init__(*args, **kwargs)
+
+            def send(self, request, *args, **kwargs):
+                # The pool connects to the IP, so urllib3 would otherwise send
+                # the IP as the Host header; keep the virtual host on the name.
+                host = urlparse(request.url).netloc
+                if host and 'Host' not in request.headers:
+                    request.headers['Host'] = host
+                return super().send(request, *args, **kwargs)
+
+            def build_connection_pool_key_attributes(self, request, verify, cert=None):
+                host_params, pool_kwargs = super().build_connection_pool_key_attributes(request, verify, cert)
+                if (host_params.get('host') or '').lower() == self._pin_host:
+                    host_params = dict(host_params, host=self._pin_ip)
+                    if host_params.get('scheme') == 'https':
+                        # keep SNI and hostname verification on the real name
+                        pool_kwargs = dict(pool_kwargs, server_hostname=self._pin_host,
+                                           assert_hostname=self._pin_host)
+                return host_params, pool_kwargs
+
+        _pinned_adapter_class = _PinnedHTTPAdapter
+
+    adapter = _pinned_adapter_class(hostname, addresses[0])
+    session.mount(f'{parsed.scheme}://{hostname.lower()}', adapter)
+
+
 def safe_request(method, url, headers=None, data=None, timeout=30, allow_private=False,
                  max_bytes=DEFAULT_MAX_BYTES, max_redirects=MAX_REDIRECTS,
                  allow_loopback=False):
@@ -206,11 +259,14 @@ def safe_request(method, url, headers=None, data=None, timeout=30, allow_private
     try:
         for hop in range(max_redirects + 1):
             try:
-                validate_url(current, allow_private=allow_private, allow_loopback=allow_loopback)
+                parsed, addresses = validate_url(current, allow_private=allow_private, allow_loopback=allow_loopback)
             except UnsafeUrlError as e:
                 if hop == 0:
                     raise
                 raise UnsafeUrlError(f'Redirect target rejected: {e}')
+
+            # pin the connection to the address just validated (DNS rebinding)
+            _pin_connection(session, parsed, addresses)
 
             response = session.request(
                 current_method, current, headers=headers, data=body, timeout=timeout,

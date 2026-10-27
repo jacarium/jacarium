@@ -19,7 +19,6 @@
 
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 const https = require('https');
 const http = require('http');
 const fs = require('fs');
@@ -117,7 +116,14 @@ if (!corsPolicy.configured) {
     + 'Set CORS_ORIGIN to allow browser clients from other origins.');
 }
 app.use(cors({ origin: corsPolicy.origin }));
-app.use(bodyParser.json({ limit: '50mb' }));
+// express.json is body-parser's JSON parser (the separate package is gone with Express 5)
+app.use(express.json({ limit: '50mb' }));
+// Express 5 leaves req.body undefined when nothing was parsed (4 set {}); the
+// routes destructure it, so keep the old shape
+app.use((req, res, next) => {
+  if (req.body === undefined) req.body = {};
+  next();
+});
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -135,6 +141,21 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // REST API routes and static game-page routes (mounted at '/', paths unchanged)
 app.use(apiRouter);
+
+// Errors reach here: a body the JSON parser refuses (400, or 413 over the
+// limit), and - new with Express 5 - a throw or a rejected promise in a
+// handler. Always JSON, with the error's own status; never Express's default
+// HTML page, which carries the stack trace.
+// eslint-disable-next-line no-unused-vars -- Express selects the error handler by its four parameters
+app.use((err, req, res, next) => {
+  const status = Number.isInteger(err && err.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
+  if (status >= 500) console.error('[Server] Unhandled error:', (err && err.stack) || err);
+  const message = status >= 500 ? 'Internal server error'
+    : err.type === 'entity.parse.failed' ? 'Malformed JSON body'
+      : err.type === 'entity.too.large' ? 'Request body too large'
+        : (err.expose && err.message) || 'Bad request';
+  res.status(status).json({ error: message });
+});
 
 // ============================================================================
 // Start Server

@@ -31,14 +31,16 @@ function stubQuicktypeLanguageRegistry() {
     enforce: 'pre',
     resolveId(source, importer) {
       if (!importer || !importer.includes('quicktype-core')) return
-      // "./language/All" from dist/Run.js, "../language/All" from
-      // dist/input/Inputs.js: the registry itself.
+      // "./language/All.js" from dist/Run.js, "../language/All.js" from
+      // dist/input/Inputs.js (26 spells the extension; 23 did not): the
+      // registry itself.
       if (/\/language\/All(\.js)?$/.test(source)) return stubId
-      // "./language" from dist/index.js ONLY: the barrel of all language
-      // modules. Must not match the per-language "./language" requires
-      // (e.g. dist/language/Python/index.js -> ./language is that
-      // language's own language.js, which the tool genuinely needs).
-      if (/^\.\/language(\.js)?$/.test(source) && /quicktype-core[\\/]dist[\\/]index\.js$/.test(importer)) {
+      // "./language/index.js" (26; "./language" in 23) from dist/index.js
+      // ONLY: the barrel of all language modules. Must not match the
+      // per-language "./language.js" requires (e.g.
+      // dist/language/Python/index.js -> ./language.js is that language's
+      // own module, which the tool genuinely needs).
+      if (/^\.\/language(\/index)?(\.js)?$/.test(source) && /quicktype-core[\\/]dist[\\/](esm[\\/])?index\.js$/.test(importer)) {
         return stubId
       }
     },

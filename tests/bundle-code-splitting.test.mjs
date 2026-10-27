@@ -196,16 +196,46 @@ try {
     const dynamicRe = new RegExp(`import\\(["']\\./${escaped}["']\\)`);
     const staticImporters = [];
     const dynamicImporters = [];
+    const sources = {};
     for (const f of jsFiles) {
+      sources[f] = readFileSync(path.join(assetsDir, f), 'utf8');
       if (f === mermaidChunk) continue;
-      const src = readFileSync(path.join(assetsDir, f), 'utf8');
-      if (staticRe.test(src)) staticImporters.push(f);
-      if (dynamicRe.test(src)) dynamicImporters.push(f);
+      if (staticRe.test(sources[f])) staticImporters.push(f);
+      if (dynamicRe.test(sources[f])) dynamicImporters.push(f);
     }
+    // The property is reachability, not the bare importer list: since mermaid
+    // 12.2 mermaid's OWN diagram chunks (architectureDiagram-*, classDiagram-*,
+    // sequenceDiagram-*, ...) import mermaid.core statically, and those are
+    // reached only through mermaid.core's dynamic import()s - a document
+    // without a diagram still never loads any of it. What must hold: from
+    // the eager entry chunk, following static imports only (`from "./x.js"`
+    // and side-effect `import "./x.js"`), mermaid.core is unreachable - and
+    // so is every chunk that imports it statically.
+    const staticDeps = (f) => {
+      const out = new Set();
+      const re = /(?:from\s*|import\s*)["']\.\/([\w.-]+\.js)["']/g;
+      for (const m of (sources[f] || '').matchAll(re)) if (m[1] !== f && sources[m[1]] !== undefined) out.add(m[1]);
+      return out;
+    };
+    const entryChunk = jsFiles.find((f) => /^index-[\w-]+\.js$/.test(f));
+    const eager = new Set();
+    const queue = entryChunk ? [entryChunk] : [];
+    while (queue.length) {
+      const f = queue.pop();
+      if (eager.has(f)) continue;
+      eager.add(f);
+      for (const d of staticDeps(f)) queue.push(d);
+    }
+    const eagerMermaid = [mermaidChunk, ...staticImporters].filter((f) => eager.has(f));
     check(
-      staticImporters.length === 0,
-      'no chunk statically imports the mermaid chunk',
-      `statically imported by: ${staticImporters.join(', ')}`
+      entryChunk !== undefined && eagerMermaid.length === 0,
+      `the mermaid chunk and its ${staticImporters.length} static importer(s) (mermaid's own diagram chunks) are unreachable from the entry by static imports (${eager.size} eager chunks)`,
+      `statically reachable from the entry: ${eagerMermaid.join(', ') || '(no entry chunk found)'}`
+    );
+    check(
+      staticImporters.every((f) => /^(architecture|block|class|c4|cynefin|er|flowchart|gantt|git|info|ishikawa|journey|kanban|mindmap|packet|pie|quadrant|radar|requirement|sankey|sequence|state|timeline|treemap|usecase|venn|wardley|xychart|diagram|chunk|mermaid)[\w-]*\.js$/i.test(f)),
+      'every static importer of the mermaid chunk is one of mermaid\'s own diagram / helper chunks, never an app chunk',
+      `app chunks importing mermaid statically: ${staticImporters.filter((f) => !/^(architecture|block|class|c4|cynefin|er|flowchart|gantt|git|info|ishikawa|journey|kanban|mindmap|packet|pie|quadrant|radar|requirement|sankey|sequence|state|timeline|treemap|usecase|venn|wardley|xychart|diagram|chunk|mermaid)[\w-]*\.js$/i.test(f)).join(', ')}`
     );
     check(
       dynamicImporters.length >= 1,
@@ -213,7 +243,6 @@ try {
       'nothing dynamically imports the mermaid chunk - is the diagram renderer still wired?'
     );
     const docsPage = jsFiles.find((f) => /^DocumentsPage-[\w-]+\.js$/.test(f));
-    const entryChunk = jsFiles.find((f) => /^index-[\w-]+\.js$/.test(f));
     for (const f of [entryChunk, docsPage].filter(Boolean)) {
       const src = readFileSync(path.join(assetsDir, f), 'utf8');
       // "securityLevel" is mermaid's config key; our renderer only passes it

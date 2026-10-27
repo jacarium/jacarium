@@ -265,19 +265,20 @@ export default function useWorkflowSession({ onBeforeSwitch } = {}) {
       return allWorkflows;
     }
 
-    // Close tabs for workflows that no longer exist (deleted, or a teammate stopped sharing them)
+    // Close tabs for workflows that no longer exist (deleted, or a teammate stopped sharing them) and
+    // sync the tab data with the workflows (inCloud status, title). Through the updater form, never from
+    // openTabsRef: the ref is written by an effect after a render, so right after openInTab() queued a tab
+    // (handleNewWorkflow, the duplicate action) it may still hold the previous list - and this used to
+    // replace the tabs with that stale list, closing the tab that was just opened. Whether that happened
+    // depended on how fast getWorkflows() came back: with Dexie 4.4 the read is fast enough that it did,
+    // every time. The updater sees the queued state, so the race is gone whatever the timing.
     const workflowIds = new Set(allWorkflows.map(w => w.id));
-    // Use ref to get latest tabs (avoid stale state)
-    const currentTabs = openTabsRef.current || [];
-    const validTabs = currentTabs.filter(tab => workflowIds.has(tab.id));
-
-    // Sync tab data with workflows (update inCloud status, etc.)
-    const updatedTabs = validTabs.map(tab => {
-      const workflow = allWorkflows.find(w => w.id === tab.id);
-      return workflow ? { ...tab, ...tabFor(workflow) } : tab;
-    });
-
-    setOpenTabs(updatedTabs);
+    setOpenTabs(tabs => tabs
+      .filter(tab => workflowIds.has(tab.id))
+      .map(tab => {
+        const workflow = allWorkflows.find(w => w.id === tab.id);
+        return workflow ? { ...tab, ...tabFor(workflow) } : tab;
+      }));
     return allWorkflows;
   }
 

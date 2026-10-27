@@ -312,6 +312,46 @@ try:
     # /api/fetch-url stays strict regardless of the workflow policy
     resp = client.post('/api/fetch-url', json={'url': 'http://10.0.0.5/'})
     check('/api/fetch-url still rejects RFC1918 with the workflow default ON', resp.status_code == 400, f'{resp.status_code}')
+
+    # -----------------------------------------------------------------------
+    # Part D - DNS-rebinding pin: the connection goes to the address that was
+    # validated, never to a re-resolution of the name.
+    # -----------------------------------------------------------------------
+    print('\n--- Part D: connection pinning (DNS rebinding) ---')
+    real_getaddrinfo = su.socket.getaddrinfo
+    resolver_calls = {'count': 0, 'names': []}
+
+    def fake_getaddrinfo(host, port, *args, **kwargs):
+        # Only the validator resolves 'rebind.test'; it maps to the local test
+        # server. The real connect never resolves this name (it connects to the
+        # pinned IP), so a second lookup here would mean the pin failed.
+        if host == 'rebind.test':
+            resolver_calls['count'] += 1
+            resolver_calls['names'].append(host)
+            return [(su.socket.AF_INET, su.socket.SOCK_STREAM, su.socket.IPPROTO_TCP, '', ('127.0.0.1', port))]
+        return real_getaddrinfo(host, port, *args, **kwargs)
+
+    su.socket.getaddrinfo = fake_getaddrinfo
+    try:
+        seen['hosts'].clear()
+        # 'rebind.test' resolves (in the validator only) to the loopback test
+        # server; the pin must connect there, carrying the hostname as Host/SNI.
+        r = su.safe_request('GET', f'http://rebind.test:{port}/ok', allow_loopback=True)
+        check('pin: a hostname only the validator can resolve still reaches the validated address',
+              r.ok and r.json()['hello'] == 'world', f'{r.status_code}')
+        check('pin: the Host header carries the hostname, not the pinned IP',
+              seen['hosts'] and seen['hosts'][-1] == f'rebind.test:{port}', seen['hosts'][-1] if seen['hosts'] else None)
+        check('pin: the name was resolved exactly once (the connect did not look it up again)',
+              resolver_calls['count'] == 1, resolver_calls['count'])
+        # A name the validator resolves to a blocked address is still refused,
+        # and no connection (hence no pin) is attempted.
+        def _blocked(host, port, *a, **k):
+            return [(su.socket.AF_INET, su.socket.SOCK_STREAM, su.socket.IPPROTO_TCP, '', ('169.254.169.254', port))]
+        su.socket.getaddrinfo = _blocked
+        expect_raises(lambda: su.safe_request('GET', 'http://metadata.test/latest/', allow_loopback=True),
+                      su.UnsafeUrlError, 'not allowed', 'pin: a name resolving to link-local is refused before any connect')
+    finally:
+        su.socket.getaddrinfo = real_getaddrinfo
 finally:
     server.shutdown()
 

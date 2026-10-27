@@ -113,8 +113,10 @@ for (const { value, importPath, className } of loaderEntries) {
 }
 
 // 4. end-to-end generation through the component's exact code path
-const { quicktype } = require('quicktype-core/dist/Run');
-const { InputData, jsonInputForTargetLanguage } = require('quicktype-core/dist/input/Inputs');
+// the exact files: quicktype-core 26's exports map resolves deep paths literally (no directory index, no
+// added extension), which is also why the component spells them this way
+const { quicktype } = require('quicktype-core/dist/Run.js');
+const { InputData, jsonInputForTargetLanguage } = require('quicktype-core/dist/input/Inputs.js');
 
 async function generate(targetLanguage) {
   const jsonInput = jsonInputForTargetLanguage(targetLanguage);
@@ -128,16 +130,67 @@ async function generate(targetLanguage) {
   return result.lines.join('\n');
 }
 
-// Languages whose file path / class name mapping is least obvious, plus the
-// default. Each expectation is the generated top-level type declaration.
+// Every language the tool offers: the generated top-level type declaration,
+// and - where quicktype-core 26 changed a language's defaults (its release
+// notes: "modernize option defaults") - the marker of the new default, so the
+// output the tool shows is pinned: C# System.Text.Json instead of
+// Newtonsoft, Kotlin Jackson instead of Klaxon, C++17 std::optional instead
+// of Boost, Java List<T> instead of arrays, Python @dataclass with PEP 585
+// generics, Scala 3 circe derivation, Swift explicit CodingKeys, Dart final
+// fields, Elm 0.19 with List, Haskell lists instead of Vector, Rust
+// Debug/Clone derives and pub fields. TypeScript, Flow, Ruby, JavaScript, Go,
+// Objective-C, JSON Schema, Pike and PropTypes are byte-identical to 23.
 const SAMPLES = [
   ['typescript', /export interface MyInterface/],
-  ['python', /class MyInterface:/],
+  ['flow', /export type MyInterface = \{/],
+  ['ruby', /class MyInterface < Dry::Struct/],
+  ['javascript', /function toMyInterface\(json\)/],
+  ['rust', /pub struct MyInterface/, /#\[derive\(Debug, Clone, Serialize, Deserialize\)\]/, /^\s+pub name: String,/m],
+  ['kotlin', /data class MyInterface \(/, /jackson-module-kotlin/],
+  ['dart', /class MyInterface \{/, /^\s+final String name;/m],
+  ['python', /^class MyInterface:/m, /^@dataclass$/m, /-> list\[T\]:/],
+  ['csharp', /public partial class MyInterface/, /using System\.Text\.Json;/, /\[JsonPropertyName\("name"\)\]/],
   ['go', /type MyInterface struct/],
-  ['rust', /pub struct MyInterface/],
+  ['cpp', /class MyInterface \{/, /#include <optional>/],
+  ['java', /public class MyInterface/, /private List<String> tags;/],
+  ['scala3', /case class MyInterface \(/, /derives Encoder\.AsObject, Decoder/],
+  ['swift', /struct MyInterface: Codable/, /enum CodingKeys: String, CodingKey/],
   ['objective-c', /@interface QTMyInterface/], // Objective-C renderer prefixes class names with QT
+  ['elm', /type alias MyInterface/, /tags : List String/],
+  ['json-schema', /"MyInterface"/, /"definitions"/],
+  ['pike', /class MyInterface \{/],
   ['prop-types', /MyInterface/], // was broken pre-fix: 'prop-types' is not a quicktype name string
+  ['haskell', /data MyInterface/, /tagsMyInterface :: \[Text\]/],
+  ['php', /class MyInterface \{/],
 ];
+
+// quicktype-core 26 ships an exports map that resolves deep paths literally,
+// so the component names the exact files (dist/Run.js, dist/input/Inputs.js,
+// dist/language/<Name>/index.js) and vite.config.js stubs the registry by
+// its new names ("./language/All.js", "./language/index.js" from dist/index.js).
+check(
+  loaderEntries.every((e) => /^quicktype-core\/dist\/language\/[\w-]+\/index\.js$/.test(e.importPath)),
+  'every loader deep-imports dist/language/<Name>/index.js (the exports-map shape)',
+  loaderEntries.filter((e) => !/\/index\.js$/.test(e.importPath)).map((e) => e.importPath).join(', ')
+);
+check(
+  src.includes("from 'quicktype-core/dist/Run.js'") && src.includes("from 'quicktype-core/dist/input/Inputs.js'"),
+  'Run.js and input/Inputs.js are imported by their exact files'
+);
+const viteConfig = readFileSync(path.join(REPO_ROOT, 'vite.config.js'), 'utf8');
+const allRe = viteConfig.match(/if \((\/.*?\/)\.test\(source\)\) return stubId/);
+const barrelRe = viteConfig.match(/if \((\/.*?\/)\.test\(source\) && (\/.*?\/)\.test\(importer\)\)/);
+const re = (m) => new RegExp(m.slice(1, -1));
+check(
+  allRe && re(allRe[1]).test('./language/All.js') && re(allRe[1]).test('../language/All.js') && !re(allRe[1]).test('./language.js'),
+  "vite stub: the registry regex matches './language/All.js' and '../language/All.js' (26) but not a language's own './language.js'"
+);
+check(
+  barrelRe && re(barrelRe[1]).test('./language/index.js') && re(barrelRe[1]).test('./language') && !re(barrelRe[1]).test('./language.js/x')
+    && re(barrelRe[2]).test('/x/node_modules/quicktype-core/dist/index.js') && re(barrelRe[2]).test('/x/node_modules/quicktype-core/dist/esm/index.js')
+    && !re(barrelRe[2]).test('/x/node_modules/quicktype-core/dist/language/Python/index.js'),
+  "vite stub: the barrel regex matches './language/index.js' from dist/index.js (CJS and ESM) and nothing from a language module"
+);
 
 for (const [value, expected] of SAMPLES) {
   const entry = loaderEntries.find((e) => e.value === value);

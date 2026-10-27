@@ -3,8 +3,8 @@ import { Code, Copy, Check } from 'lucide-react';
 // Deep-import only what we use instead of the 'quicktype-core' barrel: the
 // barrel statically re-exports schema/postman input machinery and every
 // target-language renderer, none of which this tool needs up front.
-import { quicktype } from 'quicktype-core/dist/Run';
-import { InputData, jsonInputForTargetLanguage } from 'quicktype-core/dist/input/Inputs';
+import { quicktype } from 'quicktype-core/dist/Run.js';
+import { InputData, jsonInputForTargetLanguage } from 'quicktype-core/dist/input/Inputs.js';
 
 // quicktype's convenience API resolves a language NAME string through its
 // language/All registry, which eagerly bundles all 27 target-language
@@ -13,27 +13,27 @@ import { InputData, jsonInputForTargetLanguage } from 'quicktype-core/dist/input
 // INSTANCE, so each language becomes its own lazily-loaded chunk. The
 // registry itself is stubbed out of the bundle in vite.config.js.
 const targetLanguageLoaders = {
-  typescript: () => import('quicktype-core/dist/language/TypeScriptFlow').then((m) => new m.TypeScriptTargetLanguage()),
-  flow: () => import('quicktype-core/dist/language/TypeScriptFlow').then((m) => new m.FlowTargetLanguage()),
-  ruby: () => import('quicktype-core/dist/language/Ruby').then((m) => new m.RubyTargetLanguage()),
-  javascript: () => import('quicktype-core/dist/language/JavaScript').then((m) => new m.JavaScriptTargetLanguage()),
-  rust: () => import('quicktype-core/dist/language/Rust').then((m) => new m.RustTargetLanguage()),
-  kotlin: () => import('quicktype-core/dist/language/Kotlin').then((m) => new m.KotlinTargetLanguage()),
-  dart: () => import('quicktype-core/dist/language/Dart').then((m) => new m.DartTargetLanguage()),
-  python: () => import('quicktype-core/dist/language/Python').then((m) => new m.PythonTargetLanguage()),
-  csharp: () => import('quicktype-core/dist/language/CSharp').then((m) => new m.CSharpTargetLanguage()),
-  go: () => import('quicktype-core/dist/language/Golang').then((m) => new m.GoTargetLanguage()),
-  cpp: () => import('quicktype-core/dist/language/CPlusPlus').then((m) => new m.CPlusPlusTargetLanguage()),
-  java: () => import('quicktype-core/dist/language/Java').then((m) => new m.JavaTargetLanguage()),
-  scala3: () => import('quicktype-core/dist/language/Scala3').then((m) => new m.Scala3TargetLanguage()),
-  swift: () => import('quicktype-core/dist/language/Swift').then((m) => new m.SwiftTargetLanguage()),
-  'objective-c': () => import('quicktype-core/dist/language/Objective-C').then((m) => new m.ObjectiveCTargetLanguage()),
-  elm: () => import('quicktype-core/dist/language/Elm').then((m) => new m.ElmTargetLanguage()),
-  'json-schema': () => import('quicktype-core/dist/language/JSONSchema').then((m) => new m.JSONSchemaTargetLanguage()),
-  pike: () => import('quicktype-core/dist/language/Pike').then((m) => new m.PikeTargetLanguage()),
-  'prop-types': () => import('quicktype-core/dist/language/JavaScriptPropTypes').then((m) => new m.JavaScriptPropTypesTargetLanguage()),
-  haskell: () => import('quicktype-core/dist/language/Haskell').then((m) => new m.HaskellTargetLanguage()),
-  php: () => import('quicktype-core/dist/language/Php').then((m) => new m.PhpTargetLanguage()),
+  typescript: () => import('quicktype-core/dist/language/TypeScriptFlow/index.js').then((m) => new m.TypeScriptTargetLanguage()),
+  flow: () => import('quicktype-core/dist/language/TypeScriptFlow/index.js').then((m) => new m.FlowTargetLanguage()),
+  ruby: () => import('quicktype-core/dist/language/Ruby/index.js').then((m) => new m.RubyTargetLanguage()),
+  javascript: () => import('quicktype-core/dist/language/JavaScript/index.js').then((m) => new m.JavaScriptTargetLanguage()),
+  rust: () => import('quicktype-core/dist/language/Rust/index.js').then((m) => new m.RustTargetLanguage()),
+  kotlin: () => import('quicktype-core/dist/language/Kotlin/index.js').then((m) => new m.KotlinTargetLanguage()),
+  dart: () => import('quicktype-core/dist/language/Dart/index.js').then((m) => new m.DartTargetLanguage()),
+  python: () => import('quicktype-core/dist/language/Python/index.js').then((m) => new m.PythonTargetLanguage()),
+  csharp: () => import('quicktype-core/dist/language/CSharp/index.js').then((m) => new m.CSharpTargetLanguage()),
+  go: () => import('quicktype-core/dist/language/Golang/index.js').then((m) => new m.GoTargetLanguage()),
+  cpp: () => import('quicktype-core/dist/language/CPlusPlus/index.js').then((m) => new m.CPlusPlusTargetLanguage()),
+  java: () => import('quicktype-core/dist/language/Java/index.js').then((m) => new m.JavaTargetLanguage()),
+  scala3: () => import('quicktype-core/dist/language/Scala3/index.js').then((m) => new m.Scala3TargetLanguage()),
+  swift: () => import('quicktype-core/dist/language/Swift/index.js').then((m) => new m.SwiftTargetLanguage()),
+  'objective-c': () => import('quicktype-core/dist/language/Objective-C/index.js').then((m) => new m.ObjectiveCTargetLanguage()),
+  elm: () => import('quicktype-core/dist/language/Elm/index.js').then((m) => new m.ElmTargetLanguage()),
+  'json-schema': () => import('quicktype-core/dist/language/JSONSchema/index.js').then((m) => new m.JSONSchemaTargetLanguage()),
+  pike: () => import('quicktype-core/dist/language/Pike/index.js').then((m) => new m.PikeTargetLanguage()),
+  'prop-types': () => import('quicktype-core/dist/language/JavaScriptPropTypes/index.js').then((m) => new m.JavaScriptPropTypesTargetLanguage()),
+  haskell: () => import('quicktype-core/dist/language/Haskell/index.js').then((m) => new m.HaskellTargetLanguage()),
+  php: () => import('quicktype-core/dist/language/Php/index.js').then((m) => new m.PhpTargetLanguage()),
 };
 
 export default function JsonToInterfaceTool() {
