@@ -1,5 +1,24 @@
 [
   {
+    "version": "3.4.7",
+    "date": "2026-10-27",
+    "features": [
+      {
+        "category": "SECURITY",
+        "description": [
+          "Jacarium earned the OpenSSF Best Practices passing badge (project 15975), now shown in the README",
+          "The release workflow's shell steps pass actionlint's shellcheck checks"
+        ]
+      },
+      {
+        "category": "DEPLOY",
+        "description": [
+          "Development snapshots say clearly when the export was not confirmed"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.4.6",
     "date": "2026-10-27",
     "features": [

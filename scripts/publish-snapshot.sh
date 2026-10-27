@@ -156,7 +156,7 @@ if $DRY_RUN; then log_info "dry run - nothing changed"; exit 0; fi
 
 # --- 2. export ---------------------------------------------------------------------
 step "2. export main @ $HEAD_SHORT to $PUBLIC_DIR"
-confirm "Export and commit the snapshot?" || { log_info "nothing changed"; exit 0; }
+confirm "Export and commit the snapshot?" || { log_info "not confirmed - nothing exported or committed (no answer counts as no; --yes answers for you)"; exit 0; }
 "$REPO/scripts/export-source.sh" "$PUBLIC_DIR" --ref "$HEAD_SHA" --yes
 if [ -z "$(git -C "$PUBLIC_DIR" status --porcelain)" ]; then
     die "nothing changed since the last export: the public clone already holds exactly this tree (no empty snapshot)"

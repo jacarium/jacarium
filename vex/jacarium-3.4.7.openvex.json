@@ -1,0 +1,810 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://github.com/jacarium/jacarium/vex/jacarium-3.4.7.openvex.json",
+  "author": "Jacarium maintainers (https://github.com/jacarium/jacarium)",
+  "role": "Document creator",
+  "timestamp": "2026-10-27T03:14:52Z",
+  "version": 1,
+  "tooling": "scripts/vex.py (jacarium)",
+  "statements": [
+    {
+      "vulnerability": {
+        "name": "GO-2026-6612",
+        "aliases": [
+          "CVE-2026-78663"
+        ]
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "Double flow-control refund on HTTP/2 server streams; fixed in Go 1.26.9 / 1.27.2 and x/net 0.60.0 - Jacarium 3.4.0 builds Caddy with Go 1.27.2 and x/net 0.60.0. Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "GO-2026-6604",
+        "aliases": [
+          "CVE-2026-56857"
+        ]
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "os.Root.Mkdir following junctions on Windows (not reachable on this Linux image anyway); fixed in Go 1.26.9 / 1.27.2 - Jacarium 3.4.0 builds Caddy with Go 1.27.2. Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "GO-2026-6603",
+        "aliases": [
+          "CVE-2026-78659"
+        ]
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "HTTP/2 server memory exhaustion through Trailer headers; fixed in Go 1.26.9 / 1.27.2 and x/net 0.60.0 - Jacarium 3.4.0 builds Caddy with both. Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "GO-2026-6611",
+        "aliases": [
+          "CVE-2026-78669"
+        ]
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "Excessive CPU use from repeated HTTP/2 initial window changes; fixed in Go 1.26.9 / 1.27.2 and x/net 0.60.0 - Jacarium 3.4.0 builds Caddy with both. Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "GO-2026-6617",
+        "aliases": [
+          "CVE-2026-97032"
+        ]
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "HTTP/2 server crash through an HPACK encoder race; fixed in Go 1.26.9 / 1.27.2 and x/net 0.60.0 - Jacarium 3.4.0 builds Caddy with both. Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "GO-2026-6610",
+        "aliases": [
+          "CVE-2026-78660"
+        ]
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            },
+            {
+              "@id": "pkg:golang/golang.org/x/net@v0.60.0"
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "HTTP/2 transport accepting malformed framing headers; fixed in Go 1.26.9 / 1.27.2 and x/net 0.60.0 - Jacarium 3.4.0 builds Caddy with both. Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "GO-2026-6607",
+        "aliases": [
+          "CVE-2026-97031"
+        ]
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "Malformed ECH outer extension references in crypto/tls; fixed in Go 1.26.9 / 1.27.2 - Jacarium 3.4.0 builds Caddy with Go 1.27.2. Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "GO-2026-6608",
+        "aliases": [
+          "CVE-2026-94440"
+        ]
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "Memory limit bypass when parsing MIME headers; fixed in Go 1.26.9 / 1.27.2 - Jacarium 3.4.0 builds Caddy with Go 1.27.2. Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "GO-2026-6609",
+        "aliases": [
+          "CVE-2026-78667"
+        ]
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "Unbounded Range header parsing in net/http; fixed in Go 1.26.9 / 1.27.2 - Jacarium 3.4.0 builds Caddy with Go 1.27.2. Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "GO-2026-6605",
+        "aliases": [
+          "CVE-2026-56866"
+        ]
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "HTTP/1 client connection desynchronisation after a rejected CONNECT; fixed in Go 1.26.9 / 1.27.2 - Jacarium 3.4.0 builds Caddy with Go 1.27.2. Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "GO-2026-6613",
+        "aliases": [
+          "CVE-2026-94439"
+        ]
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "HTTP/1 server connection desynchronisation after a 2xx CONNECT response; fixed in Go 1.26.9 / 1.27.2 - Jacarium 3.4.0 builds Caddy with Go 1.27.2. Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-111943",
+        "aliases": [
+          "GO-2026-6809"
+        ]
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.26.8"
+            },
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.26.8"
+            },
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:golang/stdlib@1.26.8"
+            },
+            {
+              "@id": "pkg:golang/stdlib@1.27.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "crypto/x509's chain verification with untrusted intermediates runs when a Go program verifies a peer's certificate as a TLS client. Caddy in this image never does: deploy/Caddyfile sets auto_https off (no ACME), serves its own certificate from /data/certs, and proxies to plain-http upstreams on localhost (reverse_proxy to the Flask backend and the central server); it verifies no certificate. Fixed upstream in Go 1.26.10 / 1.27.3, which the Caddy build moves to once those are a week old.",
+      "status_notes": "Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-97687"
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/urllib3@2.7.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/urllib3@2.7.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/urllib3@2.7.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "This is pip's vendored urllib3 (pip/_vendor/urllib3, pip 26.2.1's vendor.txt), imported by pip alone; pip runs only during the image build. The application and its packages import the urllib3 that backend/requirements.lock installs (2.8.0, which has the fix), never pip's copy. The HTTPS-proxy TLS override needs an HTTPS proxy configured for a running urllib3, which the image has nowhere.",
+      "status_notes": "Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-97689"
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/urllib3@2.7.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/urllib3@2.7.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/urllib3@2.7.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "pip's vendored urllib3 (pip/_vendor), imported by pip alone, which runs only while the image is built; the application's urllib3 is 2.8.0 from backend/requirements.lock, where the chunked-encoding fix is in.",
+      "status_notes": "Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "GHSA-6v7p-g79w-8964"
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/msgpack@1.1.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/msgpack@1.1.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/msgpack@1.1.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "pip's vendored msgpack (pip/_vendor/msgpack), which pip uses for its HTTP cache during an install; pip runs only while the image is built. Nothing in backend/requirements.lock depends on msgpack and the application never imports it, so no Unpacker is ever reused on untrusted data at runtime.",
+      "status_notes": "Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2025-47273"
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/setuptools@70.3.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/setuptools@70.3.0"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/setuptools@70.3.0"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "setuptools' PackageIndex.download is the easy_install-era downloader, run only by setup.py-driven installs that fetch distributions by URL. No setuptools module is importable by either interpreter in the image (the application's /opt/app-root/bin/python and the system python3.14 both answer ModuleNotFoundError, checked in the built image): the scanner's hit is package metadata of the base image's build tooling, not an installed package, and the application installs nothing at runtime.",
+      "status_notes": "Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "PYSEC-2026-4323",
+        "aliases": [
+          "GHSA-9v8h-qqgm-4m35"
+        ]
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/brotlicffi@1.2.0.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/brotlicffi@1.2.0.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/brotlicffi@1.2.0.2"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:generic/jacarium@3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/brotlicffi@1.2.0.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "component_not_present",
+      "impact_statement": "brotlicffi is locked with the marker platform_python_implementation == 'PyPy' (Flask-Compress's PyPy dependency); Jacarium runs on CPython in the container and in the desktop app, where the marker is false and pip never installs it - CPython uses brotli 1.2.1, which carries the fix. Checked: not importable in the built image, absent from the desktop venv. OSV-Scanner lists it because it reads the lock line by line without evaluating environment markers.",
+      "status_notes": "Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "GHSA-6j4f-fj2g-mc7p"
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:npm/brace-expansion@2.1.4"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:npm/brace-expansion@2.1.4"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:npm/brace-expansion@2.1.4"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "component_not_present",
+      "impact_statement": "The base image's npm (nodejs / npm RPMs) and its bundled brace-expansion are removed from the image in deploy/Containerfile; /usr/lib/node_modules no longer exists. The application's Node is the Node 24 binary from the UI build stage, and its own dependencies come from package-lock.json, which the lock-file scan covers.",
+      "status_notes": "Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "GHSA-qhr7-859c-m2p7"
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:npm/brace-expansion@2.1.4"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:npm/brace-expansion@2.1.4"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:npm/brace-expansion@2.1.4"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "component_not_present",
+      "impact_statement": "The base image's npm and its bundled brace-expansion are removed from the image in deploy/Containerfile (the nodejs / npm RPMs are uninstalled); the application runs the Node 24 binary from the UI build stage.",
+      "status_notes": "Decided by maintainer."
+    },
+    {
+      "vulnerability": {
+        "name": "GHSA-c2c7-rcm5-vvqj"
+      },
+      "timestamp": "2026-10-26T00:00:00Z",
+      "products": [
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7",
+          "subcomponents": [
+            {
+              "@id": "pkg:npm/picomatch@4.0.3"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-amd64",
+          "subcomponents": [
+            {
+              "@id": "pkg:npm/picomatch@4.0.3"
+            }
+          ]
+        },
+        {
+          "@id": "pkg:oci/jacarium?tag=3.4.7-arm64",
+          "subcomponents": [
+            {
+              "@id": "pkg:npm/picomatch@4.0.3"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "component_not_present",
+      "impact_statement": "The base image's npm and its bundled picomatch are removed from the image in deploy/Containerfile (the nodejs / npm RPMs are uninstalled); the application runs the Node 24 binary from the UI build stage.",
+      "status_notes": "Decided by maintainer."
+    }
+  ]
+}

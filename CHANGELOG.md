@@ -4,6 +4,20 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.4.7
+
+_2026-10-27_
+
+### [SECURITY]
+
+Jacarium earned the OpenSSF Best Practices passing badge (project 15975), now shown in the README
+
+The release workflow's shell steps pass actionlint's shellcheck checks
+
+### [DEPLOY]
+
+Development snapshots say clearly when the export was not confirmed
+
 ## What's New in v3.4.6
 
 _2026-10-27_
