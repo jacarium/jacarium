@@ -58,7 +58,7 @@ b = pkg.get('build') or {}
 check('package.json: electron-builder keeps its default rpm artifact name (<name>-<version>.<arch>.rpm) and name is jacarium', 'artifactName' not in (b.get('rpm') or {}) and 'artifactName' not in (b.get('linux') or {}) and 'artifactName' not in b and pkg.get('name') == 'jacarium', (b.get('rpm'), pkg.get('name')))
 rel = release['jobs']['release']
 rel_runs = [s for s in rel['steps'] if s.get('run')]
-sums = next((s for s in rel_runs if 'SHA256SUMS.txt' in s['run'] and 'sha256sum' in s['run']), None)
+sums = next((s for s in rel_runs if 'sha256sum -- * > SHA256SUMS.txt' in s['run']), None)
 check('release.yml: SHA256SUMS.txt is written with `sha256sum -- *` inside release/ (bare names, as the spec greps them)', sums is not None and sums.get('working-directory') == 'release' and 'sha256sum -- * > SHA256SUMS.txt' in sums['run'], sums)
 create = next((s for s in rel_runs if 'gh release create' in s['run']), None)
 check('release.yml: the draft release uploads release/* (the RPMs, SHA256SUMS.txt and the SBOMs together)', create is not None and 'release/*' in create['run'], create)

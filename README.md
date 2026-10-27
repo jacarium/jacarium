@@ -109,6 +109,13 @@ gh attestation verify <file> --repo jacarium/jacarium \
 cosign verify-attestation --type openvex quay.io/zerodayz/jacarium:X.Y.Z \
   --certificate-identity https://github.com/jacarium/jacarium/.github/workflows/build.yml@refs/tags/vX.Y.Z \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
+# offline: every file's attestations are attached beside it as <file>.intoto.jsonl (one Sigstore bundle per
+# line: the provenance, and for an installer the SBOM and VEX attestations too); --bundle reads them from
+# disk instead of GitHub's store, --predicate-type picks the SBOM or VEX one as above. On a machine without
+# any network, fetch the Sigstore trust root first (gh attestation trusted-root > trusted_root.jsonl, on a
+# connected one) and add --custom-trusted-root trusted_root.jsonl
+gh attestation verify <file> --bundle <file>.intoto.jsonl --repo jacarium/jacarium \
+  --signer-workflow jacarium/jacarium/.github/workflows/build.yml --deny-self-hosted-runners
 # the source: the signed release tag and commit, in a clone of the repository
 git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag vX.Y.Z
 git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-commit vX.Y.Z^{commit}

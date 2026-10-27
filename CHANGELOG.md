@@ -4,6 +4,16 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.4.8
+
+_2026-10-27_
+
+### [SECURITY]
+
+Every release now carries the Sigstore attestation bundle of each file, as FILE.intoto.jsonl next to it: provenance, and for the installers the SBOM and VEX attestations, verified before they are attached. Anyone can verify a download offline: gh attestation verify FILE --bundle FILE.intoto.jsonl --repo jacarium/jacarium
+
+The bundles are listed in SHA256SUMS.txt, and releases 3.4.5 to 3.4.7 got theirs attached too
+
 ## What's New in v3.4.7
 
 _2026-10-27_

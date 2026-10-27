@@ -198,6 +198,23 @@ check('release.yml/release: the per-architecture image digests come out of build
       and 'image-digest-amd64:' in workflows['build.yml'][0] and '${{ jobs.publish.outputs.digest_amd64 }}' in workflows['build.yml'][0] and 'digest_arm64: ${{ steps.push.outputs.digest_arm64 }}' in workflows['build.yml'][0]
       and rruns.count('--predicate-type https://openvex.dev/ns/v0.2.0') >= 2, [l for l in rruns.splitlines() if 'oci://' in l])
 check('release.yml/release: no id-token (it signs nothing)', 'id-token' not in perms_of(rel))
+# 3.4.8: the Scorecard's Signed-Releases check reads the release's asset names only (*.intoto.jsonl = provenance),
+# so every attested file's Sigstore bundles are attached beside it as <file>.intoto.jsonl, each verified from
+# disk first - after the verification against the store, before the checksums (which then list them) and the
+# release; the same token reads the store, so the job's permissions stay contents: write
+_rsteps = steps(rel)
+bi = [i for i, s in enumerate(_rsteps) if 'gh attestation download' in str(s.get('run') or '') and '.intoto.jsonl' in str(s.get('run') or '')]
+ki = [i for i, s in enumerate(_rsteps) if 'sha256sum -- * > SHA256SUMS.txt' in str(s.get('run') or '')]
+_brun = str(_rsteps[bi[0]].get('run')) if bi else ''
+check('release.yml/release: after the verification and before the checksums and gh release create, every attested file gets its bundles as <file>.intoto.jsonl (gh attestation download), 20 files expected, each verified from disk with --bundle, the signer workflow, --deny-self-hosted-runners, the SPDX and VEX predicates on the installers',
+      bi and ki and vi[0] < bi[0] < ki[0] < ci[0] and 'bundle="release/${name}.intoto.jsonl"' in _brun and 'mv "bundles/sha256:${digest}.jsonl" "$bundle"' in _brun
+      and _brun.count('gh attestation verify "$f" --bundle "$bundle" --repo "$GITHUB_REPOSITORY" --signer-workflow "$SIGNER" --deny-self-hosted-runners') == 3
+      and '--predicate-type https://spdx.dev/Document/v2.3' in _brun and '--predicate-type https://openvex.dev/ns/v0.2.0' in _brun and '*.AppImage|*.deb|*.rpm|*.dmg)' in _brun
+      and (_rsteps[bi[0]].get('env') or {}).get('EXPECTED') == 20 and '[ "$n" = "$EXPECTED" ] || { echo "::error::' in _brun and 'release/SHA256SUMS.txt|*.intoto.jsonl) continue' in _brun, (vi, bi, ki, ci))
+check('release.yml/release: the bundles need no new permission (contents: write stays the only one); the release notes, README.md, SECURITY.md and HOW_TO_RELEASE.md say how to verify offline with the bundle and name the backfill script',
+      perms_of(rel) == {'contents': 'write'} and 'gh attestation verify <file> --bundle <file>.intoto.jsonl --repo ${GITHUB_REPOSITORY}' in rruns
+      and '--bundle <file>.intoto.jsonl' in read('README.md') and 'intoto.jsonl' in read('SECURITY.md') and 'backfill-release-bundles.sh' in read('SECURITY.md') and 'intoto.jsonl' in read('docs/HOW_TO_RELEASE.md') and 'backfill-release-bundles.sh' in read('docs/HOW_TO_RELEASE.md')
+      and os.access(os.path.join(REPO, 'scripts', 'backfill-release-bundles.sh'), os.X_OK))
 
 # ---------------------------------------------------------------- 4. tools: fetched and verified through one script
 DOWNLOAD = re.compile(r'\b(curl|wget)\b[^\n]*(github\.com/[^\n]*/releases/download|https?://[^\s]+\.(tar\.gz|zip|sh)\b)')

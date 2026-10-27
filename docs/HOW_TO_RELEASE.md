@@ -64,8 +64,15 @@ build provenance (SLSA Build L3), the SBOM and VEX attestations are signed
 in a job that runs no project code, the image is pushed to quay.io after the
 `quay` approval, attested and cosign-signed, and the release job verifies
 every attestation with `gh attestation verify` before it creates the draft
-release (the installers, `SHA256SUMS.txt`, the SBOMs and the VEX; the notes
-end with the verify commands). The image build also runs Grype: a High or
+release (the installers, the SBOMs, the VEX, every file's attestation bundle
+`<file>.intoto.jsonl` - downloaded from the store and verified from disk, the
+material for offline verification and what the OpenSSF Scorecard's
+Signed-Releases check reads - and `SHA256SUMS.txt` over all of them; the
+notes end with the verify commands). Releases published before 3.4.8 lack
+the bundles: `scripts/backfill-release-bundles.sh v3.4.5 v3.4.6 v3.4.7` (a
+dry run; `--yes` uploads) attaches them with the same verification, with your
+own `gh` login - the Scorecard looks at the last releases, and those three
+are the ones that exist. The image build also runs Grype: a High or
 Critical finding with a fix that the VEX does not cover fails the release -
 decide it in `vex/decisions.yaml` first (or fix it). README.md's "Verify
 this release" block and SECURITY.md describe the result; the GitHub settings

@@ -18,7 +18,9 @@
 #   build     build.yml: installers, image, attest, publish (tags only)
 #   release   tags only: downloads the installers and SBOMs, verifies every
 #             file's provenance and SBOM attestation and the pushed image's
-#             provenance, then creates the draft release
+#             provenance, attaches every file's attestation bundle
+#             (<file>.intoto.jsonl, verified from disk) for offline
+#             verification and the Scorecard, then creates the draft release
 name: Release
 # each run titled by its tag in the Actions list ("Release v3.4.5")
 run-name: Release ${{ github.ref_name }}
@@ -72,12 +74,6 @@ jobs:
           path: release
           merge-multiple: true
 
-      - name: Checksums
-        working-directory: release
-        run: |
-          sha256sum -- * > SHA256SUMS.txt
-          cat SHA256SUMS.txt
-
       # Every file to be published, and the image that was pushed, verified
       # the way a user would verify them - against the attestations build.yml
       # just stored. --signer-workflow pins the reusable workflow (the L3
@@ -121,6 +117,55 @@ jobs:
             echo "image provenance and SBOM attestation ok: ${IMAGE}@${d}"
           done
 
+      # The attestations live in GitHub's store, which the OpenSSF Scorecard's
+      # Signed-Releases check never reads: it looks at the release's asset names
+      # only (*.intoto.jsonl = provenance, *.sigstore.json / *.sig / *.asc = a
+      # signature). So every attested file gets its Sigstore bundles attached
+      # beside it as <file>.intoto.jsonl: exactly what `gh attestation download`
+      # writes, one bundle per line - the provenance, and for an installer the
+      # SBOM and VEX attestations too. That is also the material for offline
+      # verification (`gh attestation verify <file> --bundle <file>.intoto.jsonl`).
+      # Each bundle is verified from disk, the way a user would, before it is
+      # attached; the download reads the store through the same API and token
+      # as the verification above, so the job needs no further permission.
+      # 20 attested files: 7 installers, 6 installer SBOMs (SPDX and CycloneDX
+      # for three platforms), 6 image SBOMs (SPDX, CycloneDX and the package-level
+      # SPDX for two architectures), the VEX.
+      - name: Attestation bundles for offline verification
+        env:
+          SIGNER: ${{ github.repository }}/.github/workflows/build.yml
+          EXPECTED: 20
+        run: |
+          set -e
+          mkdir -p bundles
+          n=0
+          for f in release/*; do
+            case "$f" in release/SHA256SUMS.txt|*.intoto.jsonl) continue ;; esac
+            name="$(basename "$f")"
+            bundle="release/${name}.intoto.jsonl"
+            # written as sha256:<digest>.jsonl in the current directory
+            ( cd bundles && gh attestation download "../$f" --repo "$GITHUB_REPOSITORY" > /dev/null )
+            digest="$(sha256sum "$f" | cut -d ' ' -f 1)"
+            mv "bundles/sha256:${digest}.jsonl" "$bundle"
+            gh attestation verify "$f" --bundle "$bundle" --repo "$GITHUB_REPOSITORY" --signer-workflow "$SIGNER" --deny-self-hosted-runners > /dev/null
+            case "$name" in
+              *.AppImage|*.deb|*.rpm|*.dmg)
+                gh attestation verify "$f" --bundle "$bundle" --repo "$GITHUB_REPOSITORY" --signer-workflow "$SIGNER" --deny-self-hosted-runners \
+                  --predicate-type https://spdx.dev/Document/v2.3 > /dev/null
+                gh attestation verify "$f" --bundle "$bundle" --repo "$GITHUB_REPOSITORY" --signer-workflow "$SIGNER" --deny-self-hosted-runners \
+                  --predicate-type https://openvex.dev/ns/v0.2.0 > /dev/null ;;
+            esac
+            echo "bundle ok: $bundle ($(grep -c '' "$bundle") attestation(s), verified from disk)"
+            n=$((n + 1))
+          done
+          [ "$n" = "$EXPECTED" ] || { echo "::error::$n bundles made, $EXPECTED attested release files expected"; exit 1; }
+
+      - name: Checksums
+        working-directory: release
+        run: |
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Release notes from CHANGELOG.md
         env:
           DIGEST: ${{ needs.build.outputs.image-digest }}
@@ -140,6 +185,8 @@ jobs:
             echo "gh attestation verify <installer> --repo ${GITHUB_REPOSITORY} --signer-workflow ${GITHUB_REPOSITORY}/.github/workflows/build.yml --predicate-type https://spdx.dev/Document/v2.3"
             echo "gh attestation verify oci://quay.io/zerodayz/jacarium:${version} --repo ${GITHUB_REPOSITORY} --signer-workflow ${GITHUB_REPOSITORY}/.github/workflows/build.yml --deny-self-hosted-runners"
             echo "cosign verify quay.io/zerodayz/jacarium:${version} --certificate-identity https://github.com/${GITHUB_REPOSITORY}/.github/workflows/build.yml@refs/tags/v${version} --certificate-oidc-issuer https://token.actions.githubusercontent.com"
+            echo "# offline, from the attached bundle (<file>.intoto.jsonl: the file's attestations, one per line)"
+            echo "gh attestation verify <file> --bundle <file>.intoto.jsonl --repo ${GITHUB_REPOSITORY} --signer-workflow ${GITHUB_REPOSITORY}/.github/workflows/build.yml --deny-self-hosted-runners"
             echo '```'
             echo
             echo "Image digest: \`${DIGEST}\`. The SBOMs (SPDX and CycloneDX JSON) are attached: one per installer platform, made from the unpacked application (an .AppImage, .deb and .rpm of one platform share it), and one per image architecture - the image's full SPDX lists every file and is too large to attest (16 MiB limit), so the attested SBOM of each image is its package-level copy, \`...image-<arch>.packages.spdx.json\` (every package, licence, PURL and package relationship; no file entries), attached as well; \`jacarium-${version}.openvex.json\` is the VEX statement for this release (the scanner findings that do not affect Jacarium, with the reasons, and the ones with a fix pending), attested with \`--predicate-type https://openvex.dev/ns/v0.2.0\` and attached to the image as a cosign attestation (\`cosign verify-attestation --type openvex\`). SECURITY.md describes the supply chain."

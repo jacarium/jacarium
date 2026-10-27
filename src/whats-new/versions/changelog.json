@@ -1,5 +1,18 @@
 [
   {
+    "version": "3.4.8",
+    "date": "2026-10-27",
+    "features": [
+      {
+        "category": "SECURITY",
+        "description": [
+          "Every release now carries the Sigstore attestation bundle of each file, as FILE.intoto.jsonl next to it: provenance, and for the installers the SBOM and VEX attestations, verified before they are attached. Anyone can verify a download offline: gh attestation verify FILE --bundle FILE.intoto.jsonl --repo jacarium/jacarium",
+          "The bundles are listed in SHA256SUMS.txt, and releases 3.4.5 to 3.4.7 got theirs attached too"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.4.7",
     "date": "2026-10-27",
     "features": [
