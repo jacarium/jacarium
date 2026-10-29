@@ -2,7 +2,7 @@
 # twice from scratch (--no-cache) with the layer timestamps fixed to the
 # commit's time (--timestamp, what build.yml and deploy/deploy-podman.sh use
 # too), and the two images compared layer by layer. The job fails when any
-# layer differs except the one known not to reproduce yet: the `dnf -y
+# layer differs except the one known not to reproduce yet: the `microdnf
 # install` step, whose rpm database records the install time of the packages
 # it adds (docs/security/reproducible-builds.md says what was measured, what
 # was fixed and what remains). Weekly and on request; nothing is published.
@@ -52,12 +52,12 @@ jobs:
             echo "build $n: $(podman image inspect --format '{{.Id}}' "localhost/jacarium:repro-$n")"
           done
 
-      # The runtime stage's first own layer is the `dnf -y install` step (deploy/Containerfile), the one layer
+      # The runtime stage's first own layer is the `microdnf install` step (deploy/Containerfile), the one layer
       # allowed to differ: its index is the number of layers the pinned base image brings (inspected here - the
       # build pulled it), so the allowance does not depend on reading the image history.
       - name: Compare the layers
         run: |
-          base="$(grep -E '^FROM registry.access.redhat.com/ubi9/python-314' deploy/Containerfile | tail -1 | awk '{print $2}')"
+          base="$(grep -E '^FROM registry.access.redhat.com/ubi9-minimal' deploy/Containerfile | tail -1 | awk '{print $2}')"
           podman image inspect "$base" > base.json
           python3 - <<'EOF'
           import json
@@ -69,8 +69,8 @@ jobs:
           for i, (x, y) in enumerate(zip(la, lb)):
               created_by = (hist[i].get('created_by') if i < len(hist) else '') or ''
               same = x == y
-              allowed = i == base_n   # the dnf layer: the rpm database's install times
-              label = 'base image' if i < base_n else ('dnf -y install (rpm database install times)' if i == base_n else created_by[:90].replace('|', '/'))
+              allowed = i == base_n   # the microdnf layer: the rpm database's install times
+              label = 'base image' if i < base_n else ('microdnf install (rpm database install times)' if i == base_n else created_by[:90].replace('|', '/'))
               rows.append(f"| {i} | {'same' if same else 'DIFFERS' + (' (allowed)' if allowed else '')} | `{label}` |")
               if not same and not allowed:
                   bad.append(i)
@@ -82,7 +82,7 @@ jobs:
           if len(la) != len(lb):
               raise SystemExit(f'::error::{len(la)} layers vs {len(lb)}')
           if bad:
-              raise SystemExit(f'::error::layers {bad} differ between two builds of the same commit (only the dnf layer may)')
+              raise SystemExit(f'::error::layers {bad} differ between two builds of the same commit (only the microdnf layer may)')
           print('reproducible up to the known rpm-database layer' if same_count < len(la) else 'fully reproducible: identical image ids')
           EOF
           cat summary.md >> "$GITHUB_STEP_SUMMARY"

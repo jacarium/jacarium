@@ -263,75 +263,86 @@ decisions:
     decided_by: maintainer
     decided_on: 2026-10-26
 
-  # ---- the base image's system Python 3.9 (the python3 / python3-libs RPMs: RHEL 9's own interpreter, dnf's
-  # runtime). Nothing in the image executes it: the application, pip and the entrypoint run the base's Python
-  # 3.14 (/opt/app-root/bin/python -> /usr/bin/python3.14; `python3` on PATH resolves to it), gunicorn runs
-  # under it, no package in the image requires python(abi) 3.9, and dnf is not run at runtime (the build's dnf
-  # layer is the only use). Verified in the pinned base: rpm -q --whatrequires "python(abi) = 3.9" names no
-  # package; which python3 -> /opt/app-root/bin/python3 -> 3.14.8. The three flaws of 3.9.25-7.el9_8.3 live
-  # in its ssl module (a use-after-free when a server's sni_callback switches contexts; wrap_bio() skipping
-  # hostname verification without server_hostname) and its tempfile module (a TemporaryDirectory cleanup
-  # race) - code no process in the image loads. The fixed build 3.9.25-7.el9_8.6 (RHSA-2026:89742, published
-  # 2026-10-26; RPM built 2026-10-21) is applied in the Containerfile's dnf layer once it has been public for
-  # seven days (from 2026-11-02); these statements cover the releases built on the 7.el9_8.3 RPM.
+  # ---- the system Python 3.9 of the ubi9/python-314 base of 3.5.0 and 3.5.1 (the python3 / python3-libs RPMs:
+  # RHEL 9's own interpreter, dnf's runtime). Nothing in those images executes it: the application, pip and the
+  # entrypoint run the base's Python 3.14 (/opt/app-root/bin/python -> /usr/bin/python3.14; `python3` on PATH
+  # resolves to it), gunicorn runs under it, no package in the image requires python(abi) 3.9, and dnf is not
+  # run at runtime (the build's dnf layer is the only use). Verified in the pinned base: rpm -q --whatrequires
+  # "python(abi) = 3.9" names no package; which python3 -> /opt/app-root/bin/python3 -> 3.14.8. The three flaws
+  # of 3.9.25-7.el9_8.3 live in its ssl module (a use-after-free when a server's sni_callback switches
+  # contexts; wrap_bio() skipping hostname verification without server_hostname) and its tempfile module (a
+  # TemporaryDirectory cleanup race) - code no process in the image loads. From 3.5.2 the image is built on
+  # ubi9-minimal with Red Hat's python3.14 and carries no Python 3.9 at all (deploy/Containerfile checks that
+  # python3 / python3-libs are absent), so these statements cover exactly the two releases built on the
+  # 7.el9_8.3 RPM and nothing is claimed for later ones.
   - id: CVE-2026-19445
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
-    versions: ['>=3.5.0']
+    versions: ['3.5.0', '3.5.1']
     components: [pkg:rpm/redhat/python3@3.9.25-7.el9_8.3, pkg:rpm/redhat/python3-libs@3.9.25-7.el9_8.3]
     impact: >-
       The system Python 3.9 (python3, python3-libs) is never executed in the image: the application, pip and
       the entrypoint run the base's Python 3.14 (/opt/app-root/bin/python -> /usr/bin/python3.14, which is also
       what `python3` on PATH resolves to), no package in the image requires python(abi) 3.9, and dnf - whose
       runtime it is - does not run at runtime. The flaw is in 3.9's ssl module (a server-side SSLContext freed
-      while its sni_callback switches contexts), which no process loads. The fixed RPM (3.9.25-7.el9_8.6,
-      RHSA-2026:89742) is applied once seven days public.
+      while its sni_callback switches contexts), which no process loads. From 3.5.2 the image is built on
+      ubi9-minimal and carries no Python 3.9 (3.9.25-7.el9_8.6 is Red Hat's fixed RPM; it is not in the image).
     decided_by: maintainer
     decided_on: 2026-10-28
   - id: CVE-2026-19553
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
-    versions: ['>=3.5.0']
+    versions: ['3.5.0', '3.5.1']
     components: [pkg:rpm/redhat/python3@3.9.25-7.el9_8.3, pkg:rpm/redhat/python3-libs@3.9.25-7.el9_8.3]
     impact: >-
       The system Python 3.9 (python3, python3-libs) is never executed in the image - the application, pip and
       the entrypoint run the base's Python 3.14, no package requires python(abi) 3.9, dnf does not run at
       runtime. The flaw is in 3.9's ssl module (SSLContext.wrap_bio() skipping hostname verification when
-      server_hostname is omitted), which no process loads. The fixed RPM (3.9.25-7.el9_8.6, RHSA-2026:89742)
-      is applied once seven days public.
+      server_hostname is omitted), which no process loads. From 3.5.2 the image is built on ubi9-minimal
+      and carries no Python 3.9 (3.9.25-7.el9_8.6 is Red Hat's fixed RPM; it is not in the image).
     decided_by: maintainer
     decided_on: 2026-10-28
   - id: CVE-2026-12345
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
-    versions: ['>=3.5.0']
+    versions: ['3.5.0', '3.5.1']
     components: [pkg:rpm/redhat/python3@3.9.25-7.el9_8.3, pkg:rpm/redhat/python3-libs@3.9.25-7.el9_8.3]
     impact: >-
       The system Python 3.9 (python3, python3-libs) is never executed in the image - the application, pip and
       the entrypoint run the base's Python 3.14, no package requires python(abi) 3.9, dnf does not run at
       runtime. The flaw is in 3.9's tempfile module (a TemporaryDirectory cleanup race a local writer can turn
       into deletions outside the directory), which no process loads; the application's own temporary files
-      are made by Python 3.14's tempfile. The fixed RPM (3.9.25-7.el9_8.6, RHSA-2026:89742) is applied once
-      seven days public.
+      are made by Python 3.14's tempfile. From 3.5.2 the image is built on ubi9-minimal and carries no
+      Python 3.9 (3.9.25-7.el9_8.6 is Red Hat's fixed RPM; it is not in the image).
     decided_by: maintainer
     decided_on: 2026-10-28
 
-  # ---- the base image's xz (xz, xz-libs, xz-devel 5.2.5-8.el9_0). liblzma IS in the execute path: Python
-  # 3.14's lzma module links it, and the sos report parser opens the .xz logs of an uploaded report with it
-  # (backend/parsers/sosreport/_common.py) - an uploaded archive is untrusted input - so this is affected until
-  # the fixed RPM (5.2.5-8.el9_8.1, RHSA-2026:89749, published 2026-10-26) has been public for seven days and
-  # goes into the Containerfile's dnf layer (from 2026-11-02). Moderate: a buffer overflow / denial of service
-  # when an empty index decoded with lzma_index_decoder() is extended with lzma_index_append().
+  # ---- xz (in 3.5.0 / 3.5.1 the xz, xz-libs and xz-devel RPMs 5.2.5-8.el9_0 of ubi9/python-314; from 3.5.2
+  # ubi9-minimal's xz-libs alone). liblzma IS in the execute path: Python 3.14's lzma module links it, and the
+  # sos report parser opens the .xz logs of an uploaded report with it (backend/parsers/sosreport/_common.py) -
+  # an uploaded archive is untrusted input - so this is affected up to 3.5.1, and fixed from 3.5.2, whose
+  # Containerfile raises xz-libs to 5.2.5-8.el9_8.1 (RHSA-2026:89749, published 2026-10-26, the RPM built
+  # 2026-10-02) in its microdnf layer, under the user's exception to the seven-day rule
+  # (docs/security/urgent-updates.md). Moderate: a buffer overflow / denial of service when an empty index
+  # decoded with lzma_index_decoder() is extended with lzma_index_append().
   - id: CVE-2026-34743
     status: affected
+    versions: ['<3.5.2']
     components: [pkg:rpm/redhat/xz@5.2.5-8.el9_0, pkg:rpm/redhat/xz-libs@5.2.5-8.el9_0, pkg:rpm/redhat/xz-devel@5.2.5-8.el9_0]
     action: >-
-      Fix pending: xz 5.2.5-8.el9_8.1 (RHSA-2026:89749, 2026-10-26) is applied in deploy/Containerfile's dnf
-      layer once it has been public for seven days. liblzma is reached when the sos report parser opens an
-      uploaded report's .xz logs through Python's lzma module; until the fix, upload sos reports from sources
-      you trust only. The flaw is a denial of service (a buffer overflow in index handling), not code execution.
+      Upgrade to Jacarium 3.5.2 or later, whose image carries xz-libs 5.2.5-8.el9_8.1 (RHSA-2026:89749).
+      liblzma is reached when the sos report parser opens an uploaded report's .xz logs through Python's lzma
+      module; until then, upload sos reports from sources you trust only. The flaw is a denial of service (a
+      buffer overflow in index handling), not code execution.
     decided_by: maintainer
     decided_on: 2026-10-28
+  - id: CVE-2026-34743
+    status: fixed
+    versions: ['>=3.5.2']
+    components: [pkg:rpm/redhat/xz-libs@5.2.5-8.el9_8.1]
+    notes: Fixed in xz-libs 5.2.5-8.el9_8.1 (RHSA-2026:89749); Jacarium 3.5.2's image installs it (deploy/Containerfile, the microdnf layer).
+    decided_by: maintainer
+    decided_on: 2026-10-29
 
   # ---- github.com/go-chi/chi/v5, a module Caddy 2.11.7 pulls in (v5.3.2). The flaw (CVE-2026-114437,
   # moderate) is in chi's ClientIPFromXFF middleware: the client address taken from X-Forwarded-For without
@@ -358,3 +369,76 @@ decisions:
     notes: Fixed in github.com/go-chi/chi/v5 v5.4.0; Jacarium 3.5.1 builds Caddy with it (deploy/Containerfile, CHI_VERSION).
     decided_by: maintainer
     decided_on: 2026-10-28
+
+  # ---- golang.org/x/net 0.60.0's html package, two advisories published with 0.62.0 (2026-10-27): a quadratic
+  # slowdown when the parser coalesces adjacent text nodes (GO-2026-6860, CVE-2026-78661), and the renderer
+  # missing an ancestor's namespace transition when it emits raw text (GO-2026-6866, CVE-2026-97045), so a
+  # crafted document could be re-parsed differently from how it was rendered. Whether any Caddy module in the
+  # image parses or renders HTML with x/net/html was not verified (the templates module is the candidate; the
+  # Caddyfile does not enable it), so the module is upgraded rather than argued away: since 3.5.2 the Caddy
+  # build takes x/net 0.62.0 (XNET_VERSION, checked against the Go checksum database and in `caddy build-info`),
+  # two days old when pinned, under the user's exception (docs/security/urgent-updates.md).
+  - id: GO-2026-6860
+    aliases: [CVE-2026-78661]
+    status: affected
+    versions: ['<3.5.2']
+    components: [pkg:golang/golang.org/x/net@v0.60.0]
+    action: >-
+      Upgrade to Jacarium 3.5.2 or later, whose Caddy is built with golang.org/x/net 0.62.0. The flaw is a
+      slowdown in x/net/html's parser; Jacarium's Caddyfile enables no module that parses HTML, but that was not
+      proven.
+    decided_by: maintainer
+    decided_on: 2026-10-29
+  - id: GO-2026-6860
+    aliases: [CVE-2026-78661]
+    status: fixed
+    versions: ['>=3.5.2']
+    components: [pkg:golang/golang.org/x/net@v0.62.0]
+    notes: Fixed in golang.org/x/net 0.62.0; Jacarium 3.5.2 builds Caddy with it (deploy/Containerfile, XNET_VERSION).
+    decided_by: maintainer
+    decided_on: 2026-10-29
+  - id: GO-2026-6866
+    aliases: [CVE-2026-97045]
+    status: affected
+    versions: ['<3.5.2']
+    components: [pkg:golang/golang.org/x/net@v0.60.0]
+    action: >-
+      Upgrade to Jacarium 3.5.2 or later, whose Caddy is built with golang.org/x/net 0.62.0. The flaw is in
+      x/net/html's renderer (raw text under a missed namespace transition); Jacarium's Caddyfile enables no
+      module that renders HTML, but that was not proven.
+    decided_by: maintainer
+    decided_on: 2026-10-29
+  - id: GO-2026-6866
+    aliases: [CVE-2026-97045]
+    status: fixed
+    versions: ['>=3.5.2']
+    components: [pkg:golang/golang.org/x/net@v0.62.0]
+    notes: Fixed in golang.org/x/net 0.62.0; Jacarium 3.5.2 builds Caddy with it (deploy/Containerfile, XNET_VERSION).
+    decided_by: maintainer
+    decided_on: 2026-10-29
+
+  # ---- github.com/go-jose/go-jose/v4, a module Caddy 2.11.7 pulls in (v4.1.5). The flaw (CVE-2026-116587,
+  # high) is a denial of service: an RSA JSON Web Key with an unbounded modulus or primes makes
+  # PrivateKey.Validate() run in cubic time (CWE-407) for whoever parses an attacker-supplied JWK. Whether
+  # Caddy reaches that code was not verified, so the module is upgraded rather than argued away: since 3.5.2
+  # the Caddy build in deploy/Containerfile takes go-jose v4.1.6 (GOJOSE_VERSION, 2026-10-14, checked against
+  # the Go checksum database at build time and in `caddy build-info`), which bounds the sizes.
+  - id: GHSA-mgcc-cww5-fp2q
+    aliases: [CVE-2026-116587]
+    status: affected
+    versions: ['<3.5.2']
+    components: [pkg:golang/github.com/go-jose/go-jose/v4@v4.1.5]
+    action: >-
+      Upgrade to Jacarium 3.5.2 or later, whose Caddy is built with github.com/go-jose/go-jose/v4 v4.1.6. The
+      flaw is a denial of service through an oversized RSA JSON Web Key; Jacarium's Caddyfile configures no
+      JWT or JWK handling, so no known request reaches it, but that was not proven.
+    decided_by: maintainer
+    decided_on: 2026-10-29
+  - id: GHSA-mgcc-cww5-fp2q
+    aliases: [CVE-2026-116587]
+    status: fixed
+    versions: ['>=3.5.2']
+    components: [pkg:golang/github.com/go-jose/go-jose/v4@v4.1.6]
+    notes: Fixed in github.com/go-jose/go-jose/v4 v4.1.6; Jacarium 3.5.2 builds Caddy with it (deploy/Containerfile, GOJOSE_VERSION).
+    decided_by: maintainer
+    decided_on: 2026-10-29

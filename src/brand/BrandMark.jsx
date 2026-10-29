@@ -19,25 +19,41 @@
  * in-app mark follows the theme: the app icon (OS, favicon) stays violet.
  *
  * The wordmark next to it is plain text in the brand font: <BrandWordmark />.
+ *
+ * Seasonal decorations (src/brand/seasonal/: the pumpkin, the Santa hat, the
+ * New Year fireworks, the 4 May light sword, each with its dates):
+ * `seasonal` lets the mark follow the date (the top-left logo and
+ * Settings > About do); `decoration` names
+ * one outright ('pumpkin', ..., or 'none') for a static render or a test.
+ * The mark keeps exactly its size, position and markup - a decoration is an
+ * extra group drawn after it, allowed to overflow the box - and without one
+ * the output is byte for byte the plain mark.
  */
 import { brandTagline } from './brand';
+import { decorationById } from './seasonal';
+import useSeasonalDecoration from './useSeasonalDecoration';
 
 const ACCENT = '#7B5CE0';
 const BLOSSOM = { dark: '#EDE6FF', light: '#FFFFFF' };
 const PETALS = [0, 72, 144, 216, 288];
 
-export default function BrandMark({ size = 32, tone = 'auto', className = '', title = 'Jacarium' }) {
+export default function BrandMark({ size = 32, tone = 'auto', className = '', title = 'Jacarium', seasonal = false, decoration }) {
   const toneBlossom = tone === 'auto' ? 'var(--brand-blossom, #FFFFFF)' : BLOSSOM[tone] || BLOSSOM.light;
   const arch = `var(--mark-arch, ${ACCENT})`;
   const blossom = `var(--mark-blossom, ${toneBlossom})`;
   const center = `var(--mark-center, var(--mark-arch, ${ACCENT}))`;
+  const dated = useSeasonalDecoration(seasonal && decoration === undefined);
+  const active = decoration !== undefined ? decorationById(decoration) : (seasonal ? dated : null);
+  // overflow only when something overflows: the plain mark's markup stays as it always was
+  const overflow = active ? { overflow: 'visible' } : {};
   return (
-    <svg width={size} height={size} viewBox="0 0 120 120" role="img" aria-label={title} className={className} focusable="false" data-brand="mark">
+    <svg width={size} height={size} viewBox="0 0 120 120" role="img" aria-label={title} className={className} focusable="false" data-brand="mark" {...overflow}>
       <path d="M22 110 V54 A38 38 0 0 1 98 54 V110 Z" fill={arch} />
       <g fill={blossom}>
         {PETALS.map((deg) => <ellipse key={deg} cx="60" cy="49" rx="8.5" ry="13" transform={`rotate(${deg} 60 64)`} />)}
       </g>
       <circle cx="60" cy="64" r="5" fill={center} />
+      {active ? active.render() : null}
     </svg>
   );
 }

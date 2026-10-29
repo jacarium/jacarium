@@ -196,7 +196,7 @@ podman run -d --name jacarium --restart unless-stopped \
   jacarium:latest
 ```
 
-The image is built from pinned base images (UBI 9 Python 3.14, Node 24,
+The image is built from pinned base images (UBI 9 minimal with Red Hat's Python 3.14, Node 24,
 Caddy 2.11, all by digest), installs the Python dependencies from
 `backend/requirements.txt` at the versions pinned in
 `backend/requirements.lock` (the same versions the desktop venv and the
@@ -205,7 +205,7 @@ the central server's production dependencies from its own lock file
 (`jacarium-central/package-lock.json`, installed in the Node build stage;
 the Node binary itself comes from that stage), OpenSSH (for the workflow
 SSH node) and Taskwarrior 2.6.2 (built from the checksummed source tarball:
-EPEL 9 does not carry it), and runs as an unprivileged user. About 2.2 GB
+EPEL 9 does not carry it), and runs as an unprivileged user. About 1.2 GB
 on arm64 (the central server adds some 150 MB: Node and its modules).
 
 **Three processes, one container.** `deploy/entrypoint.sh` (PID 1) starts

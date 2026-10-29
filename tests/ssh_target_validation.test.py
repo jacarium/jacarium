@@ -41,6 +41,7 @@ interpreter (see tests/run-all.sh).
 Exit code 0 = all checks passed, 1 = failure (details on stdout).
 """
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -129,13 +130,15 @@ class _Result:
 
 def fake_run(cmd, *args, **kwargs):
     ssh_calls.append(list(cmd))
-    if cmd[:2] == ['which', 'sshpass']:
-        return _Result()
     return _Result()
 
 
 real_run = subprocess.run
 subprocess.run = fake_run  # the route does `import subprocess` locally, so this is what it sees
+# the route looks sshpass up with shutil.which (no `which` binary: the container image has none); this machine
+# may lack sshpass, so the lookup is answered here and the password path reaches the fake ssh
+real_which = shutil.which
+shutil.which = lambda name, *a, **k: '/usr/bin/sshpass' if name == 'sshpass' else real_which(name, *a, **k)
 try:
     app = Flask(__name__)
     app.register_blueprint(se.ssh_exec)
@@ -189,6 +192,7 @@ try:
     check('unknown auth method -> 400 (unchanged)', r.status_code == 400 and 'Unknown auth method' in r.get_json()['error'])
 finally:
     subprocess.run = real_run
+    shutil.which = real_which
     try:
         os.rmdir(os.path.dirname(canary))
     except OSError:

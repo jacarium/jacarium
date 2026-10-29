@@ -51,12 +51,13 @@ LABEL com.jacarium.image=deploy com.jacarium.stage=ui
 
 # ---------------------------------------------------------------------------
 # Taskwarrior 2.6.2 from source: EPEL 9 does not carry it, and the backend
-# is verified against 2.6 (the version Debian / Ubuntu ship).
+# is verified against 2.6 (the version Debian / Ubuntu ship). Built on the
+# same ubi9-minimal the runtime stage uses, with the toolchain from the UBI
+# repos (tar for the tarball: minimal does not carry it).
 # ---------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9/python-314:1-1792864219@sha256:840cb26cf8d90055a9d7811953773d7a4204ce9fb82ef34a0775a1bb26a3a892 AS taskwarrior
-USER 0
-RUN dnf -y install gcc-c++ cmake make libuuid-devel \
- && dnf clean all
+FROM registry.access.redhat.com/ubi9-minimal:9.8-1792742033@sha256:2d4c4551af6831dcd26bbf86108c4385de5183ec8fe6b5868f6f9640fe47f4ed AS taskwarrior
+RUN microdnf -y --setopt=install_weak_deps=0 --nodocs install tar gzip gcc-c++ cmake make libuuid-devel \
+ && microdnf clean all
 WORKDIR /build
 ARG TASKWARRIOR_VERSION=2.6.2
 ARG TASKWARRIOR_SHA256=b1d3a7f000cd0fd60640670064e0e001613c9e1cb2242b9b3a9066c78862cfec
@@ -76,7 +77,10 @@ LABEL com.jacarium.image=deploy com.jacarium.stage=taskwarrior
 # release built with a fixed toolchain exists yet. So the same Caddy 2.11.7
 # source and module set (what xcaddy would assemble: caddy/v2's cmd and
 # modules/standard) is compiled on the official golang image, Go 1.27.2
-# (2026-10-02; the image 2026-10-10), with golang.org/x/net raised to 0.60.0.
+# (2026-10-02; the image 2026-10-10), with golang.org/x/net raised to 0.62.0
+# (2026-10-27: its html package's GO-2026-6860 and GO-2026-6866 fixes; two
+# days old when pinned, under the user's exception -
+# docs/security/urgent-updates.md).
 # The modules come from the Go module proxy and are checked against the Go
 # checksum database (GOSUMDB, on by default). A static, trimmed, VCS-free
 # build: the binary is reproducible from these inputs. `caddy build-info`
@@ -84,9 +88,12 @@ LABEL com.jacarium.image=deploy com.jacarium.stage=taskwarrior
 # ---------------------------------------------------------------------------
 FROM docker.io/library/golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS caddy
 ARG CADDY_VERSION=v2.11.7
-ARG XNET_VERSION=v0.60.0
+ARG XNET_VERSION=v0.62.0
 # go-chi/chi v5.4.0 (2026-10-12): GHSA-j6qf-3m9c-vwj3, reported against the v5.3.2 Caddy 2.11.7 pulls in
 ARG CHI_VERSION=v5.4.0
+# go-jose/v4 v4.1.6 (2026-10-14; sum.golang.org record 69076000): GHSA-mgcc-cww5-fp2q (CVE-2026-116587,
+# a denial of service through unbounded RSA JWK sizes), reported against the v4.1.5 Caddy 2.11.7 pulls in
+ARG GOJOSE_VERSION=v4.1.6
 WORKDIR /build
 ENV CGO_ENABLED=0 GOFLAGS=-mod=mod GOTOOLCHAIN=local
 RUN printf '%s\n' 'package main' '' 'import (' '	caddycmd "github.com/caddyserver/caddy/v2/cmd"' '' '	_ "github.com/caddyserver/caddy/v2/modules/standard"' ')' '' 'func main() {' '	caddycmd.Main()' '}' > main.go \
@@ -94,42 +101,71 @@ RUN printf '%s\n' 'package main' '' 'import (' '	caddycmd "github.com/caddyserve
  && go get "github.com/caddyserver/caddy/v2@${CADDY_VERSION}" \
  && go get "golang.org/x/net@${XNET_VERSION}" \
  && go get "github.com/go-chi/chi/v5@${CHI_VERSION}" \
+ && go get "github.com/go-jose/go-jose/v4@${GOJOSE_VERSION}" \
  && go mod tidy \
  && go build -trimpath -buildvcs=false -ldflags '-s -w' -o /usr/bin/caddy . \
  && /usr/bin/caddy version \
- && /usr/bin/caddy build-info | grep -E "^(go|dep\s+golang.org/x/net|dep\s+github.com/go-chi/chi/v5)\s" \
- && /usr/bin/caddy build-info | grep -qE "^dep\s+github.com/go-chi/chi/v5\s+${CHI_VERSION}\s"
+ && /usr/bin/caddy build-info | grep -E "^(go|dep\s+golang.org/x/net|dep\s+github.com/go-chi/chi/v5|dep\s+github.com/go-jose/go-jose/v4)\s" \
+ && /usr/bin/caddy build-info | grep -qE "^dep\s+golang.org/x/net\s+${XNET_VERSION}\s" \
+ && /usr/bin/caddy build-info | grep -qE "^dep\s+github.com/go-chi/chi/v5\s+${CHI_VERSION}\s" \
+ && /usr/bin/caddy build-info | grep -qE "^dep\s+github.com/go-jose/go-jose/v4\s+${GOJOSE_VERSION}\s"
 
 # ---------------------------------------------------------------------------
-# Runtime - ubi9/python-314 1-1792864219 (2026-10-24, RHEL 9.8: ca-certificates
-# 2026.2.92 for CVE-2026-114406, the el9_8 fixes for apr-util, gzip, perl,
-# libattr, expat, httpd): Python 3.14, the same minor version as the desktop
-# venv, so backend/requirements.lock is one set of wheels for both. OS fixes
-# land with a base-image bump (no dnf update in the build: the image stays
-# reproducible from the pinned digest). This build was two days old when
-# pinned - the one-off exception for the critical ca-certificates fix, with
-# Red Hat's image signature verified (docs/security/urgent-updates.md).
+# Runtime - ubi9-minimal 9.8-1792742033 (2026-10-23, RHEL 9.8, with the
+# ca-certificates 2026.2.92 fix for CVE-2026-114406): 112 MB and 109 RPMs,
+# without the system Python 3.9, dnf, python3-urllib3, brotli and the s2i
+# tooling that ubi9/python-314 carried and nothing in the image ran - the
+# packages the scanners kept reporting. Red Hat's Python 3.14 (python3.14:
+# the same minor version as the desktop venv, so backend/requirements.lock
+# is one set of wheels for both) and the few runtime packages come from the
+# UBI repositories through microdnf, which checks Red Hat's RPM signatures;
+# sshpass is in ubi-9-appstream-rpms, so no EPEL. OS fixes land with a
+# base-image bump (no blanket update in the build: the image stays
+# reproducible from the pinned digest); the one package raised past the base
+# is xz-libs (5.2.5-8.el9_8.1 for CVE-2026-34743, which the sos report
+# parser reaches through Python's lzma module - the user's exception,
+# docs/security/urgent-updates.md). The base build is seven days old from
+# 2026-10-30, the earliest day a release carries it.
 # ---------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9/python-314:1-1792864219@sha256:840cb26cf8d90055a9d7811953773d7a4204ce9fb82ef34a0775a1bb26a3a892
+FROM registry.access.redhat.com/ubi9-minimal:9.8-1792742033@sha256:2d4c4551af6831dcd26bbf86108c4385de5183ec8fe6b5868f6f9640fe47f4ed
 LABEL org.opencontainers.image.title="Jacarium" \
       org.opencontainers.image.description="Jacarium UI + backend behind Caddy (HTTPS)" \
       org.opencontainers.image.url="https://jacarium.com"
 
-USER 0
-# openssh-clients: the workflow SSH node runs the ssh binary; sshpass (EPEL)
-# for password logins; openssl generates the self-signed certificate.
-# (what carries the build's time is removed - the dnf logs and history, the
-# subscription-manager log, dnf's countme cookies: the layer then differs
-# between two builds of the same commit only by the rpm database's install
-# times - docs/security/reproducible-builds.md)
-# The base image's own Node.js 22 and npm (and npm's bundled modules, which
-# the scanners flag) go: the image runs the Node 24 copied from the UI build
-# stage (/usr/local/bin/node, first on PATH) and nothing depends on the RPMs.
-RUN dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
- && dnf -y install openssh-clients sshpass openssl \
- && dnf -y remove nodejs npm nodejs-libs nodejs-full-i18n nodejs-docs \
- && dnf clean all \
- && rm -rf /var/cache/dnf /var/log/dnf* /var/log/hawkey.log /var/lib/dnf/history.sqlite* /var/log/rhsm /var/lib/dnf/repos/*/countme
+# python3.14 and the pip wheel that bootstraps the venv's pip (no system
+# pip, so no second vendored urllib3 in the image); openssh-clients: the
+# workflow SSH node runs the ssh binary; sshpass for password logins;
+# openssl generates the self-signed certificate. What carries the build's
+# time is removed - microdnf's cache and metadata, the dnf history and the
+# hawkey log, ldconfig's aux-cache (the scriptlets' ldconfig run records
+# inode numbers and times in it; the loader does not need it): the layer
+# then differs between two builds of the same commit only by the rpm
+# database's install times (docs/security/reproducible-builds.md). The last line makes sure none of
+# the packages this base was chosen to be rid of came back as a dependency.
+RUN microdnf -y --setopt=install_weak_deps=0 --nodocs install python3.14 python3.14-pip-wheel openssh-clients sshpass openssl \
+ && microdnf -y --setopt=install_weak_deps=0 --nodocs upgrade xz-libs \
+ && rpm -q xz-libs-5.2.5-8.el9_8.1 \
+ && test "$(rpm -q python3 python3-libs python3-urllib3 python3-pip libbrotli brotli brotli-devel dnf nodejs npm 2>&1 | grep -vc 'is not installed')" = 0 \
+ && microdnf clean all \
+ && rm -rf /var/cache/yum /var/cache/dnf /var/log/dnf* /var/log/hawkey.log /var/lib/dnf/history.sqlite* /var/log/rhsm /var/lib/dnf/repos/*/countme /var/cache/ldconfig/aux-cache
+
+# The unprivileged user the image runs as (uid 1001, gid 0 - what
+# ubi9/python-314 called "default"; ssh needs a passwd entry for the uid it
+# runs under), its home on the volume; the application's venv at
+# /opt/app-root as before, first on PATH (python, pip and gunicorn resolve
+# to it) and made without pip, which the pip layer below installs from the
+# wheel at its pinned version; python3 for anyone who execs into the
+# container. The locale: minimal ships C.UTF-8 only, which Python 3.14 and
+# everything here are content with.
+RUN printf 'default:x:1001:0:Default Application User:/data:/sbin/nologin\n' >> /etc/passwd \
+ && ln -s /usr/bin/python3.14 /usr/bin/python3 \
+ && python3.14 -m venv --without-pip /opt/app-root
+ENV PATH=/opt/app-root/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    VIRTUAL_ENV=/opt/app-root \
+    PYTHONUNBUFFERED=1 \
+    PYTHONIOENCODING=UTF-8 \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
 
 COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy
 COPY --from=taskwarrior /opt/taskwarrior/bin/task /usr/local/bin/task
@@ -143,13 +179,15 @@ WORKDIR /app
 # the PyInstaller build use (backend/lock-requirements.sh regenerates it).
 COPY backend/requirements.txt backend/requirements.lock /app/backend/
 # pip pinned (26.2.1, 2026-08-04; the seven-day rule like every other
-# version here) rather than "whatever is newest at build time". --no-compile,
-# then hash-based bytecode: a .pyc compiled at install time embeds the
-# source's modification time, so two builds of the same commit differed;
-# unchecked-hash .pyc files carry a hash of the source instead and are never
-# re-validated, which an immutable image does not need
-# (docs/security/reproducible-builds.md)
-RUN pip install --no-cache-dir --no-compile --upgrade 'pip==26.2.1' \
+# version here) rather than "whatever is newest at build time": the pip of
+# Red Hat's wheel (run straight from the .whl, nothing of it installed) puts
+# exactly that version into the venv. --no-compile, then hash-based
+# bytecode: a .pyc compiled at install time embeds the source's modification
+# time, so two builds of the same commit differed; unchecked-hash .pyc files
+# carry a hash of the source instead and are never re-validated, which an
+# immutable image does not need (docs/security/reproducible-builds.md)
+RUN w="$(ls /usr/share/python3.14-wheels/pip-*.whl)" \
+ && python "$w/pip" install --no-cache-dir --no-compile 'pip==26.2.1' \
  && pip install --no-cache-dir --no-compile -r /app/backend/requirements.txt -c /app/backend/requirements.lock \
  && python -m compileall -q -f --invalidation-mode unchecked-hash /opt/app-root/lib/python3.14/site-packages /opt/app-root/lib64/python3.14/site-packages
 

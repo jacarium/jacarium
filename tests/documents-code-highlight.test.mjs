@@ -101,7 +101,7 @@ await build({
   outfile: BUNDLE,
   format: 'cjs',
   platform: 'node',
-  loader: { '.js': 'jsx', '.jsx': 'jsx', '.css': 'empty' },
+  loader: { '.woff2': 'dataurl', '.js': 'jsx', '.jsx': 'jsx', '.css': 'empty' },
   define: { 'process.env.NODE_ENV': '"production"' },
   resolveExtensions: ['.jsx', '.js', '.mjs', '.json'],
   nodePaths: [path.join(REPO, 'node_modules')],
@@ -362,8 +362,9 @@ try {
     check('section 7: the dark-mode "strip colours inside code" override excludes hljs spans',
       /\.dark \.markdown-preview pre code \*:not\(\[class\*="hljs-"\]\)/.test(css) && /\.dark \.markdown-preview pre code span:not\(\[class\*="hljs-"\]\)/.test(css)
         && !/\.dark \.markdown-preview pre code \*\s*[,{]/.test(css) && !/\.dark \.markdown-preview pre code span\s*[,{]/.test(css));
-    check('section 7: the existing code block styling (background, font, padding) is unchanged',
-      /\.markdown-preview pre\s*\{[^}]*padding:\s*16px/.test(css) && /\.markdown-preview pre\s*\{[^}]*background-color:\s*#f6f8fa/.test(css) && /\.markdown-preview pre\s*\{[^}]*ui-monospace/.test(css));
+    // the font is the bundled Red Hat Mono (--font-mono) since the PDF export embeds the app's own fonts on every OS
+    check('section 7: the code block styling (background, padding, the bundled mono font) is unchanged',
+      /\.markdown-preview pre\s*\{[^}]*padding:\s*16px/.test(css) && /\.markdown-preview pre\s*\{[^}]*background-color:\s*#f6f8fa/.test(css) && /\.markdown-preview pre\s*\{[^}]*font-family:\s*var\(--font-mono\)/.test(css) && /--font-mono:\s*"Red Hat Mono"/.test(css));
   }
 
   // =====================================================================

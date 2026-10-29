@@ -95,7 +95,7 @@ initiative, and never for "everything".
 `backend/requirements.lock` is the full resolved set (every package, one
 exact version, for Python 3.14 on Linux, macOS and Windows). The desktop
 venv and the container run the same Python minor version, 3.14: the
-container image is `ubi9/python-314`, and locally `rebuild.sh` picks
+container image installs Red Hat's `python3.14` on `ubi9-minimal`, and locally `rebuild.sh` picks
 Homebrew's `python@3.14` (`brew install python@3.14`; on Linux, the
 distribution's `python3.14` package). Everything that installs the backend -
 `start-backend.sh`, `backend/build_backend.sh`, `rebuild.sh` and

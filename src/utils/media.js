@@ -1,4 +1,5 @@
 import { db } from '../db/database';
+import { sanitizeMediaName, uniqueMediaName } from './mediaNames';
 
 /**
  * Media Management Utilities
@@ -22,14 +23,22 @@ function getObjectUrl(record) {
 }
 
 /**
- * Upload a media file
+ * Upload a media file: stored under the name the rules of mediaNames.js
+ * make of `name` (the file's own name when none is given) - whitespace and
+ * link-breaking characters to `_`, the extension of the image's actual
+ * type, `-2` / `-3` when the library already has the name - so every way
+ * in (the picker, a drop, a paste, an import) ends up with the same kind
+ * of name. Refuses a file that is not an image or a name that cannot be
+ * made acceptable (the error's message is for the user).
  * @param {File} file - The file to upload
+ * @param {{ name?: string }} [options] - the name to store it under
  * @returns {Promise<Object>} The created media record
  */
-export async function uploadMedia(file) {
-  // Replace whitespace with underscores so the filename is safe to use
-  // inside markdown link destinations (e.g. ![name](attachment:name))
-  const filename = file.name.replace(/\s+/g, '_');
+export async function uploadMedia(file, { name } = {}) {
+  const clean = sanitizeMediaName(name ?? file.name, file.type);
+  if (clean.error) throw new Error(clean.error);
+  const taken = await db.media.orderBy('filename').uniqueKeys();
+  const filename = uniqueMediaName(clean.name, taken);
   const mediaRecord = {
     filename,
     blob: file, // Store as Blob directly (File extends Blob)

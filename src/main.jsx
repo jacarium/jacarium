@@ -12,6 +12,12 @@ import '@fontsource/sora/600.css'
 import '@fontsource/red-hat-text/400.css'
 import '@fontsource/red-hat-text/500.css'
 import '@fontsource/red-hat-text/600.css'
+// 700 and the italics: bold and emphasis in the reading font are the designed
+// faces, in the app and in the PDF export (src/utils/bundledFonts.js inlines
+// the same set), rather than the nearest lighter weight and a slanted Regular
+import '@fontsource/red-hat-text/700.css'
+import '@fontsource/red-hat-text/400-italic.css'
+import '@fontsource/red-hat-text/700-italic.css'
 import '@fontsource/red-hat-mono/400.css'
 import '@fontsource/red-hat-mono/500.css'
 import './index.css'

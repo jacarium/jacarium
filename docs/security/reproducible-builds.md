@@ -6,15 +6,17 @@ to be (below).
 
 ## The container image
 
-Measured on 2026-10-26 (podman 5.3, arm64, `deploy/Containerfile` on the SLSA L3 branch), the same tracked tree
-built twice from scratch (`--no-cache`), the two images compared layer by layer, the differing layers' tarballs
-compared file by file (`podman save`, then every member's size, mode, owner, mtime and content hash):
+Measured on 2026-10-26 (podman 5.3, arm64, `deploy/Containerfile` on the SLSA L3 branch, then on the
+`ubi9/python-314` base), the same tracked tree built twice from scratch (`--no-cache`), the two images compared
+layer by layer, the differing layers' tarballs compared file by file (`podman save`, then every member's size,
+mode, owner, mtime and content hash):
 
 | build | identical layers | what differed, by file |
 |---|---|---|
 | as it was | 4 of 19 (the base image's) | every layer: the build's wall-clock time in every file's mtime |
 | with `--timestamp 0` | 17 of 19 | the `dnf -y install` layer: `var/lib/rpm/rpmdb.sqlite` (install times), `var/lib/dnf/repos/*/countme` (dnf's countme cookie), `var/log/rhsm/rhsm.log`, the dnf logs and history; the `pip install` layer: 406 `.pyc` files - pip's own, compiled at `pip install --upgrade pip` with the source mtime in their header |
 | with `--timestamp` and the fixes below | 18 of 19 | the `dnf -y install` layer only, and in it only `var/lib/rpm/rpmdb.sqlite`: the rpm database records the second each package was installed (`rpm -q --qf '%{INSTALLTIME}'`), which no option fixes |
+| on `ubi9-minimal` (3.5.2, measured 2026-10-29) | 16 of 17 | the `microdnf install` layer only, and in it only `var/lib/rpm/rpmdb.sqlite` (the first comparison also showed `var/cache/ldconfig/aux-cache`, since removed in the same step) |
 
 The fixes, in `deploy/Containerfile`:
 
@@ -22,8 +24,11 @@ The fixes, in `deploy/Containerfile`:
   `--no-compile` like the application packages; afterwards `python -m compileall -f --invalidation-mode
   unchecked-hash` over both site-packages directories (`lib` and `lib64`) writes bytecode that carries a hash of
   its source and no time, and is never re-validated - an immutable image does not need that;
-- after `dnf -y install`: `/var/log/dnf*`, `/var/log/hawkey.log`, `/var/lib/dnf/history.sqlite*`, `/var/log/rhsm`
-  and `/var/lib/dnf/repos/*/countme` are removed;
+- after the `microdnf install` (the `dnf -y install` of the earlier base): `/var/cache/yum` (microdnf's
+  repository metadata and solv files), `/var/log/dnf*`, `/var/log/hawkey.log`, `/var/lib/dnf/history.sqlite*`,
+  `/var/log/rhsm`, `/var/lib/dnf/repos/*/countme` and `/var/cache/ldconfig/aux-cache` (the scriptlets' ldconfig
+  run writes inode numbers and times into it; the loader does not read it) are removed - the two-build
+  comparison on `ubi9-minimal` found that last file as the only other difference next to the rpm database;
 - every build passes `--timestamp` with the commit's time (`git log -1 --format=%ct`): the release workflow
   (`.github/workflows/build.yml`), `deploy/deploy-podman.sh` and the check below. The image's `created` time
   and every file's mtime are then the commit's, not the build's. (`deploy/deploy-to-host.sh` builds on the
@@ -31,14 +36,16 @@ The fixes, in `deploy/Containerfile`:
   image.)
 
 What stays: the rpm database of the runtime stage differs by the install times of the packages the Containerfile
-adds (`epel-release`, `openssh-clients`, `sshpass`, `openssl`); the layer's digest therefore differs, and so does
+adds (since 3.5.2, on `ubi9-minimal`: `python3.14`, `python3.14-libs`, `python3.14-pip-wheel`, `openssh-clients`,
+`sshpass`, `openssl` and their dependencies, and the raised `xz-libs`; before, on `ubi9/python-314`:
+`epel-release`, `openssh-clients`, `sshpass`, `openssl`); the layer's digest therefore differs, and so does
 the image id. Removing the rpm database is not an option (scanners and `rpm -q` read it); setting the time is not
 one either (rpm has no `SOURCE_DATE_EPOCH` for install times). Moving those packages out of the image would make
 it reproducible; that is a product decision, not taken.
 
 `.github/workflows/reproducible.yml` builds the current commit twice every Saturday (and on request) and compares
-the layers: the one layer allowed to differ is the first layer after the base image's (the dnf step; the base's
-layer count is read from the pinned base image, not from the history), any other difference fails the job, and
+the layers: the one layer allowed to differ is the first layer after the base image's (the microdnf step; the
+base's layer count is read from the pinned base image, not from the history), any other difference fails the job, and
 the summary lists every layer. To run the check by hand:
 
 ```bash

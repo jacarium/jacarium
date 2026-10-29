@@ -71,7 +71,7 @@ has the copy-paste commands.
 | **Dependency policy** | No package version younger than 7 days is installed (`.npmrc` `min-release-age`, `backend/lock-requirements.sh`, pip `--uploaded-prior-to`); base images are pinned by digest and at least a week old. A security fix younger than that is installed only on an explicit decision, after a publisher / provenance / diff review that is logged in [`docs/security/urgent-updates.md`](docs/security/urgent-updates.md). |
 | **Least privilege** | Every workflow job declares its own permissions; no secret is stored for the registry (the Quay robot is federated with the workflow's OIDC identity). |
 
-| **Reproducible image build** | Two builds of the same commit produce the same layers except one: the rpm database's install times in the `dnf -y install` layer (measured file by file, `docs/security/reproducible-builds.md`). A weekly workflow rebuilds the current commit twice and fails on any other difference. The desktop installers are not reproducible and are not claimed to be; their provenance is what makes them verifiable. |
+| **Reproducible image build** | Two builds of the same commit produce the same layers except one: the rpm database's install times in the `microdnf install` layer (measured file by file, `docs/security/reproducible-builds.md`). A weekly workflow rebuilds the current commit twice and fails on any other difference. The desktop installers are not reproducible and are not claimed to be; their provenance is what makes them verifiable. |
 
 Everything above is in place; nothing is claimed early. What is not done:
 fuzzing (no fuzz targets in this codebase yet) and reproducible desktop

@@ -4,6 +4,28 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.6.0
+
+_2026-10-29_
+
+### [DOCUMENTS]
+
+Media Library: paste an image straight from the clipboard (Cmd+V / Ctrl+V) in the Upload tab, for example a screenshot, and name every upload before it is stored - pasted, picked or dropped; names are checked, and a name already in the library is stored as name-2
+
+PDF export embeds the app's own fonts (Red Hat Text and Red Hat Mono) on every system, so a PDF made on macOS no longer looks bold next to one made on Linux; code in the preview uses Red Hat Mono everywhere, and italic and bold italic text use real italic faces
+
+### [UI]
+
+Seasonal logo decorations that appear by date: a pumpkin for Halloween (20 Oct - 2 Nov), a Santa hat (1 - 27 Dec), New Year fireworks (28 Dec - 3 Jan) and a glowing sword on 4 May
+
+### [SECURITY]
+
+The container image is now built on Red Hat's ubi9-minimal with Red Hat's Python 3.14: about 1.2 GB instead of 2.1 GB, no system Python 3.9, package manager or Node.js inside, no third-party package repository, and no known vulnerabilities at release
+
+The image's web server (Caddy) is built with golang.org/x/net 0.62.0 and go-jose 4.1.6; xz-libs updated to Red Hat's fix for CVE-2026-34743
+
+Password logins in the workflow SSH node keep working on the new image
+
 ## What's New in v3.5.1
 
 _2026-10-28_

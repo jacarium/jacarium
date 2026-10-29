@@ -126,7 +126,7 @@ const { build } = await import(req.resolve('esbuild'));
 const BUNDLE = path.join(WORKDIR, 'bundle.cjs');
 await build({
   entryPoints: [ENTRY], bundle: true, outfile: BUNDLE, format: 'cjs', platform: 'node', jsx: 'automatic',
-  loader: { '.js': 'jsx', '.jsx': 'jsx', '.mjs': 'jsx', '.css': 'empty', '.svg': 'dataurl', '.png': 'dataurl' },
+  loader: { '.woff2': 'dataurl', '.js': 'jsx', '.jsx': 'jsx', '.mjs': 'jsx', '.css': 'empty', '.svg': 'dataurl', '.png': 'dataurl' },
   define: { 'process.env.NODE_ENV': '"development"' },
   resolveExtensions: ['.jsx', '.js', '.mjs', '.json'],
   nodePaths: [path.join(REPO, 'node_modules')],

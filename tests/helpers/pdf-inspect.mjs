@@ -70,3 +70,39 @@ export const pageText = (info, n) => info.pageTexts[n - 1] || '';
 
 /** 1-based page on which `needle` first appears, or 0 */
 export const pageOf = (info, needle) => info.pageTexts.findIndex((t) => t.includes(needle)) + 1;
+
+/**
+ * The fonts a PDF carries, from its font dictionaries (pdf-lib, like
+ * `pdffonts`): [{ name, embedded, type }] - `name` without the subset
+ * prefix (RedHatText-SemiBold, Helvetica), `embedded` true when a
+ * descriptor carries a FontFile (a viewer substitutes the others), sorted
+ * and unique. A Type0 font's descriptor sits under its descendant font.
+ * @param {Buffer|Uint8Array} bytes
+ */
+export async function pdfFonts(bytes) {
+  const { PDFDocument, PDFName, PDFDict, PDFArray, PDFRef } = await import('pdf-lib');
+  const pdf = await PDFDocument.load(new Uint8Array(bytes), { ignoreEncryption: true, updateMetadata: false });
+  const ctx = pdf.context;
+  const deref = (obj) => (obj instanceof PDFRef ? ctx.lookup(obj) : obj);
+  const fonts = new Map();
+  for (const [, obj] of ctx.enumerateIndirectObjects()) {
+    if (!(obj instanceof PDFDict)) continue;
+    const type = obj.get(PDFName.of('Type'));
+    if (!type || type.toString() !== '/Font') continue;
+    const subtype = (obj.get(PDFName.of('Subtype')) || '').toString().replace(/^\//, '');
+    if (subtype === 'CIDFontType0' || subtype === 'CIDFontType2') continue;   // described through its Type0 parent
+    const base = (obj.get(PDFName.of('BaseFont')) || '').toString().replace(/^\//, '');
+    if (!base) continue;
+    let descriptor = deref(obj.get(PDFName.of('FontDescriptor')));
+    if (!descriptor && subtype === 'Type0') {
+      const desc = deref(obj.get(PDFName.of('DescendantFonts')));
+      const child = desc instanceof PDFArray ? deref(desc.get(0)) : null;
+      descriptor = child instanceof PDFDict ? deref(child.get(PDFName.of('FontDescriptor'))) : null;
+    }
+    const embedded = !!(descriptor instanceof PDFDict && (descriptor.get(PDFName.of('FontFile')) || descriptor.get(PDFName.of('FontFile2')) || descriptor.get(PDFName.of('FontFile3'))));
+    const name = base.replace(/^[A-Z]{6}\+/, '');
+    const prev = fonts.get(name);
+    fonts.set(name, { name, embedded: prev ? prev.embedded || embedded : embedded, type: subtype });
+  }
+  return Array.from(fonts.values()).sort((a, b) => a.name.localeCompare(b.name));
+}

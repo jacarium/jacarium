@@ -377,11 +377,25 @@ function installPdfExport(electron, { log = () => {} } = {}) {
       const load = async (file) => {
         checkCancelled();
         await win.loadFile(file);
-        // Fonts (data: @font-face) and images (data: URLs) must be in before printing
-        await win.webContents.executeJavaScript(`Promise.all([
-          document.fonts ? document.fonts.ready : Promise.resolve(),
-          ...Array.from(document.images).map((img) => img.decode().catch(() => {})),
-        ]).then(() => true)`, true);
+        // Fonts and images must be in before printing. A hidden window has
+        // not necessarily laid the page out when loadFile resolves, so no
+        // @font-face has been asked for yet and document.fonts.ready would
+        // resolve at once; the first layout would then happen inside
+        // printToPDF, and text whose font was still loading would print in
+        // the OS fallback. So: lay the page out, ask every declared face to
+        // load (they are data: URLs - src/utils/bundledFonts.js - so this
+        // is a decode, not a fetch), then wait for fonts.ready and the
+        // images, and note what loaded for the log.
+        const fonts = await win.webContents.executeJavaScript(`(async () => {
+          void document.body.offsetHeight;
+          const faces = document.fonts ? Array.from(document.fonts) : [];
+          await Promise.all(faces.map((f) => f.load().catch(() => null)));
+          if (document.fonts) await document.fonts.ready;
+          await Promise.all(Array.from(document.images).map((img) => img.decode().catch(() => {})));
+          const count = (status) => faces.filter((f) => f.status === status).length;
+          return { declared: faces.length, loaded: count('loaded'), error: count('error') };
+        })()`, true);
+        log(`[pdf-export] ${path.basename(file)}: ${fonts.loaded} of ${fonts.declared} font face(s) loaded${fonts.error ? `, ${fonts.error} failed` : ''}`);
         checkCancelled();
       };
 

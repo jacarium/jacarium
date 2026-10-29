@@ -15,6 +15,7 @@
  * job.
  */
 import { downloadBlob } from './exportHelpers';
+import { BUNDLED_FONT_CSS, isBundledFamily, describeBundledFonts } from './bundledFonts';
 
 export function isNativePdfExportAvailable() {
   return typeof window !== 'undefined' && typeof window.electronAPI?.exportPdf === 'function';
@@ -111,24 +112,46 @@ const waitForImages = (container) => Promise.all(
 const fontDataUrlCache = new Map();
 
 /**
+ * The URL a @font-face url() source really points at: as the stylesheet
+ * wrote it, resolved against THE STYLESHEET - not against the document, which
+ * is what fetch(url) does with a relative string. The difference is the
+ * whole bug this guards: the built stylesheet lives in dist/assets/ and says
+ * url(./red-hat-text-...woff2), the document is dist/index.html, so the
+ * packaged app's fetch looked one directory too high, found nothing, and
+ * the export silently printed in the OS fallback font (Helvetica on macOS).
+ * In dev the sources are absolute and nothing changes.
+ */
+export function resolveFontSourceUrl(url, sheetHref, baseURI) {
+  if (/^(data|blob):/i.test(url)) return url;
+  try {
+    return new URL(url, sheetHref || baseURI || undefined).href;
+  } catch {
+    return url;
+  }
+}
+
+/**
  * Turn one @font-face rule into the same rule with every url() source
  * fetched (same origin: the Vite dev server or the packaged file://
- * bundle) and inlined as a data: URL, so the export window - which may
- * only read its own temp directory - can use the app's fonts. Returns ''
- * when no source could be fetched (the rule is then left out and the
- * fallback font applies).
+ * bundle; the url resolved against the rule's stylesheet) and inlined as a
+ * data: URL, so the export window - which may only read its own temp
+ * directory - can use the font. Returns '' when no source could be fetched
+ * (the rule is then left out and the fallback font applies). The app's own
+ * bundled families never come through here (collectExportStyles uses their
+ * build-time data: URLs); this serves any other @font-face the page has.
  */
-async function inlineFontFace(rule) {
+export async function inlineFontFace(rule, baseURI = typeof document !== 'undefined' ? document.baseURI : undefined) {
   const src = rule.style.getPropertyValue('src');
   const urls = [...src.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map((m) => m[2]);
   if (!urls.length) return '';
   let inlined = src;
   for (const url of urls) {
     if (/^data:/i.test(url)) continue;
-    let dataUrl = fontDataUrlCache.get(url);
+    const resolved = resolveFontSourceUrl(url, rule.parentStyleSheet && rule.parentStyleSheet.href, baseURI);
+    let dataUrl = fontDataUrlCache.get(resolved);
     if (!dataUrl) {
       try {
-        const res = await fetch(url);
+        const res = await fetch(resolved);
         if (!res.ok) return '';
         const blob = await res.blob();
         dataUrl = await new Promise((resolve, reject) => {
@@ -137,7 +160,7 @@ async function inlineFontFace(rule) {
           reader.onerror = () => reject(reader.error);
           reader.readAsDataURL(blob);
         });
-        fontDataUrlCache.set(url, dataUrl);
+        fontDataUrlCache.set(resolved, dataUrl);
       } catch {
         return '';
       }
@@ -151,21 +174,42 @@ async function inlineFontFace(rule) {
 /**
  * The app's stylesheet for the export document: every already-parsed rule
  * serialized back to text (so nothing needs fetching - same approach as
- * the Diagnostics frames), with @font-face sources inlined as data: URLs.
+ * the Diagnostics frames), the app's bundled fonts (Red Hat Text, Red Hat
+ * Mono, Sora) as the build-time data: URLs of src/utils/bundledFonts.js -
+ * so the export embeds exactly those faces on every OS, whatever the app's
+ * origin - and any other @font-face the page has with its sources fetched
+ * and inlined. Returns { css, fonts } with what was embedded, for the
+ * export log; collectExportStyles() returns the css alone.
  */
-export async function collectExportStyles(doc = document) {
+export async function collectExportStylesWithFonts(doc = document) {
   const rules = [];
-  const fontFaces = [];
+  const otherFaces = [];
+  let bundledFaces = 0;
   for (const sheet of Array.from(doc.styleSheets)) {
     let list;
     try { list = Array.from(sheet.cssRules); } catch { continue; } // cross-origin sheet
     for (const rule of list) {
-      if (rule.type === 5 || /^\s*@font-face\b/i.test(rule.cssText || '')) fontFaces.push(rule);
-      else rules.push(rule.cssText);
+      if (rule.type === 5 || /^\s*@font-face\b/i.test(rule.cssText || '')) {
+        if (isBundledFamily(rule.style && rule.style.getPropertyValue('font-family'))) bundledFaces += 1;
+        else otherFaces.push(rule);
+      } else {
+        rules.push(rule.cssText);
+      }
     }
   }
-  const inlined = await Promise.all(fontFaces.map((rule) => inlineFontFace(rule).catch(() => '')));
-  return `${rules.join('\n')}\n${inlined.filter(Boolean).join('\n')}`;
+  const inlined = await Promise.all(otherFaces.map((rule) => inlineFontFace(rule, doc.baseURI).catch(() => '')));
+  const others = inlined.filter(Boolean);
+  const fonts = {
+    bundled: describeBundledFonts(),
+    bundledFacesReplaced: bundledFaces,
+    otherInlined: others.length,
+    otherDropped: otherFaces.length - others.length,
+  };
+  return { css: `${rules.join('\n')}\n${BUNDLED_FONT_CSS}\n${others.join('\n')}`, fonts };
+}
+
+export async function collectExportStyles(doc = document) {
+  return (await collectExportStylesWithFonts(doc)).css;
 }
 
 /**
@@ -229,7 +273,10 @@ export async function exportDocumentToPDFNative(doc, { report, filename, signal 
 
     report({ step: 2, steps: STEPS, label: 'Rendering diagrams', indeterminate: true });
     // Light theme, whatever the app is in: the PDF is dark-on-white
-    await renderMermaidDiagrams(container, { theme: 'default', signal: signal || undefined });
+    // the diagrams' labels in the reading font, which the export embeds, so a
+    // diagram reads the same on every OS (Mermaid's default stack is Trebuchet
+    // MS, which macOS has and Linux has not)
+    await renderMermaidDiagrams(container, { theme: 'default', fontFamily: '"Red Hat Text", "trebuchet ms", verdana, arial, sans-serif', signal: signal || undefined });
     await waitForImages(container);
     if (signal?.aborted) throw abortError();
 
@@ -249,10 +296,12 @@ export async function exportDocumentToPDFNative(doc, { report, filename, signal 
     const hasToc = !!container.querySelector('.pdf-toc li a[href^="#"]');
 
     const jobId = (window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    const styles = await collectExportStylesWithFonts(document);
+    report({ step: 3, steps: STEPS, label: 'Laying out pages', indeterminate: true, log: `Fonts embedded from the app's bundle: ${styles.fonts.bundled}${styles.fonts.otherInlined ? `; ${styles.fonts.otherInlined} other face(s) inlined` : ''}${styles.fonts.otherDropped ? `; ${styles.fonts.otherDropped} other face(s) could not be read and fall back` : ''}` });
     const payload = {
       jobId,
       title: doc.title || 'Untitled',
-      css: await collectExportStyles(document),
+      css: styles.css,
       bodyHtml: container.outerHTML,
       headerHtml,
       footerHtml,

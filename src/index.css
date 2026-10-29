@@ -1316,7 +1316,9 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   font-size: 85%;
   background-color: rgba(175, 184, 193, 0.2);
   border-radius: var(--radius-xs, 6px);
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  /* the bundled code font (--font-mono), not the OS's: the PDF export embeds it, so code
+     reads the same on macOS (where it was Menlo) and Linux (where it was DejaVu Sans Mono) */
+  font-family: var(--font-mono);
 }
 
 .dark .markdown-preview code {
@@ -1333,7 +1335,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   border-radius: var(--radius-xs, 6px);
   margin-top: 0;
   margin-bottom: 16px;
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-family: var(--font-mono);
   white-space: pre-wrap;
   word-wrap: break-word;
 }
@@ -1507,7 +1509,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 }
 
 .markdown-preview .mermaid-diagram-error-message {
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   white-space: pre-wrap;
   word-break: break-word;
@@ -1685,7 +1687,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   border-bottom-color: rgba(175, 184, 193, 0.2);
   border-radius: var(--radius-xs, 6px);
   box-shadow: inset 0 -1px 0 rgba(175, 184, 193, 0.2);
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-family: var(--font-mono);
 }
 
 .markdown-preview mark {
@@ -2631,6 +2633,33 @@ textarea.resize-none.h-full { border-radius: 0; }
 [data-theme="gradient-green-blue"] { --mark-arch: #D1FAE5; --mark-blossom: #065F46; }   /* Vulkan */
 [data-theme="gradient-orange-red"] { --mark-arch: #FFEDD5; --mark-blossom: #9A3412; }   /* Sunset */
 [data-theme="gradient-pink-purple"] { --mark-arch: #FCE7F3; --mark-blossom: #9D174D; }   /* Aurora */
+
+/* The seasonal decorations of the mark (src/brand/seasonal/) on the gradient themes, whose rail is the gradient's
+   top colour and whose arch is tinted white. The pumpkin and the Santa hat are the same on every theme (the user's
+   choice, knowing that the orange and the red sit under 3:1 on some gradients' rails - tests/brand-seasonal.test.mjs
+   prints the values), and so is the 4 May sword, whose cyan-white glow reads on every rail. The New Year's violet
+   paints through --decor-spark, which each gradient theme sets to a pale lilac at 3:1 or better on its top colour
+   (the test computes it for every theme, the way tests/brand.test.mjs does for the mark). --decor-blade-edge is
+   the sword's one-unit edge: a mid blue on Light, where the pale blade would sink into the light About hero, the
+   theme's deep tone (its blossom colour) on the gradient themes, where the blade crosses the arch, none on the
+   dark themes. The mark's own colours are not touched by these. */
+:root { --decor-blade-edge: #4F7BE8; }
+.dark { --decor-blade-edge: none; }
+[data-theme="gradient-red-purple"] {   /* Magma: rail #991b1b, arch #FFE4E6 */
+  --decor-blade-edge: #9F1239; --decor-spark: #E0D7FF;
+}
+[data-theme="gradient-blue-purple"] {   /* Nebula: rail #1e40af, arch #E0E7FF */
+  --decor-blade-edge: #3730A3; --decor-spark: #E0D7FF;
+}
+[data-theme="gradient-green-blue"] {   /* Vulkan: rail #047857, arch #D1FAE5 */
+  --decor-blade-edge: #065F46; --decor-spark: #E0D7FF;
+}
+[data-theme="gradient-orange-red"] {   /* Sunset: rail #c2410c, arch #FFEDD5 */
+  --decor-blade-edge: #9A3412; --decor-spark: #E0D7FF;
+}
+[data-theme="gradient-pink-purple"] {   /* Aurora: rail #be185d, arch #FCE7F3 */
+  --decor-blade-edge: #9D174D; --decor-spark: #E0D7FF;
+}
 
 /* The gradient themes' links: a light tint of each theme's own accent. They sit on the neutral dark surfaces, whose
    block (.dark[data-dark-variant="neutral"]) also sets --link, so these rules need the same specificity and a later place. */

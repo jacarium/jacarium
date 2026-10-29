@@ -696,7 +696,7 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
           data-testid="sidebar-brand-mark"
           className={`flex items-center justify-center w-12 h-11 mb-1 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white/40 ${isGradientTheme ? 'hover:bg-white/10' : 'hover:bg-os-rail-hover'}`}
         >
-          <BrandMark size={36} tone="dark" />
+          <BrandMark size={36} tone="dark" seasonal />
         </button>
         <div className={`w-8 h-px mb-2 shrink-0 ${isGradientTheme ? 'bg-white/20' : 'bg-os-rail-separator'}`} aria-hidden="true" />
         {/* Main Navigation */}

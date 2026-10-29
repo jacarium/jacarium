@@ -211,6 +211,7 @@ def execute_ssh():
     try:
         import subprocess
         import shlex
+        import shutil
 
         data = request.json
         host = data.get('host', '')
@@ -283,10 +284,9 @@ def execute_ssh():
             if not password:
                 return jsonify({"error": "password is required for password authentication"}), 400
 
-            # Check if sshpass is available
-            try:
-                subprocess.run(['which', 'sshpass'], check=True, capture_output=True)
-            except subprocess.CalledProcessError:
+            # Check if sshpass is available: looked up on PATH in-process (the container image, ubi9-minimal,
+            # ships no `which` binary, and a missing one must not read as "sshpass is missing")
+            if not shutil.which('sshpass'):
                 return jsonify({
                     "error": "sshpass is not installed. Install it with: sudo apt-get install sshpass (Debian/Ubuntu) or sudo yum install sshpass (RHEL/CentOS)"
                 }), 500

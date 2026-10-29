@@ -17,38 +17,16 @@
 //
 // Fix: drop the parent's @font-face rules and emit our own whose src is a
 // data: URL - the same @fontsource woff2 files, inlined at build time by Vite
-// `?inline` imports. A data: URL is neither a network nor a file-system
+// `?inline` imports (src/utils/bundledFonts.js, which the PDF export uses
+// for the same reason). A data: URL is neither a network nor a file-system
 // request, so it works identically in dev, packaged builds and with Offline
 // Mode on (same approach as the inlined chart.js). Only the latin subsets
-// are inlined (~165 KB base64 in the lazy DiagnosticsPage chunk); glyphs
-// outside them fall back per character to the next family in the stack.
-// tests/diagnostics-frame-fonts.test.mjs guards this.
-import soraRegular from '@fontsource/sora/files/sora-latin-400-normal.woff2?inline';
-import soraMedium from '@fontsource/sora/files/sora-latin-500-normal.woff2?inline';
-import soraSemibold from '@fontsource/sora/files/sora-latin-600-normal.woff2?inline';
-import textRegular from '@fontsource/red-hat-text/files/red-hat-text-latin-400-normal.woff2?inline';
-import textMedium from '@fontsource/red-hat-text/files/red-hat-text-latin-500-normal.woff2?inline';
-import textSemibold from '@fontsource/red-hat-text/files/red-hat-text-latin-600-normal.woff2?inline';
-import monoRegular from '@fontsource/red-hat-mono/files/red-hat-mono-latin-400-normal.woff2?inline';
-import monoMedium from '@fontsource/red-hat-mono/files/red-hat-mono-latin-500-normal.woff2?inline';
+// are inlined; glyphs outside them fall back per character to the next
+// family in the stack. tests/diagnostics-frame-fonts.test.mjs guards this.
+import { BUNDLED_FONT_CSS } from '../../../utils/bundledFonts';
 
-// Same families and weights src/main.jsx loads for the app itself.
-const DIAGNOSTICS_FRAME_FONTS = [
-  { family: 'Sora', weight: 400, data: soraRegular },
-  { family: 'Sora', weight: 500, data: soraMedium },
-  { family: 'Sora', weight: 600, data: soraSemibold },
-  { family: 'Red Hat Text', weight: 400, data: textRegular },
-  { family: 'Red Hat Text', weight: 500, data: textMedium },
-  { family: 'Red Hat Text', weight: 600, data: textSemibold },
-  { family: 'Red Hat Mono', weight: 400, data: monoRegular },
-  { family: 'Red Hat Mono', weight: 500, data: monoMedium },
-];
-
-/** @font-face rules for the frame, every src an inline data: URL. */
-export const DIAGNOSTICS_FRAME_FONT_CSS = DIAGNOSTICS_FRAME_FONTS
-  .map(({ family, weight, data }) =>
-    `@font-face { font-family: '${family}'; font-style: normal; font-weight: ${weight}; font-display: swap; src: url(${data}) format('woff2'); }`)
-  .join('\n');
+/** @font-face rules for the frame, every src an inline data: URL (the app's bundled set, src/utils/bundledFonts.js). */
+export const DIAGNOSTICS_FRAME_FONT_CSS = BUNDLED_FONT_CSS;
 
 /** True for a top-level @font-face rule (CSSRule.FONT_FACE_RULE === 5). */
 export function isFontFaceRule(rule) {

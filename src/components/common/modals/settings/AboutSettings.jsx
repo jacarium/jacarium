@@ -70,7 +70,7 @@ export default function AboutSettings({ onShowWhatsNew }) {
   return (
     <div className="space-y-6" data-testid="about-settings">
       <div className="brand-hero brand-hero-strip flex items-center gap-4 p-5">
-        <BrandMark size={56} />
+        <BrandMark size={56} seasonal />
         <div className="min-w-0">
           <BrandWordmark size={30} className="brand-hero-title" />
           <p className="brand-tagline brand-hero-sub mt-1 text-sm" data-testid="about-tagline">{brandTagline()}</p>

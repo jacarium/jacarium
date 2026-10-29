@@ -119,28 +119,30 @@ console.log('\n--- inlined font faces ---');
 const fontCss = mod.DIAGNOSTICS_FRAME_FONT_CSS;
 const faces = fontCss.match(/@font-face\s*\{[^}]*\}/g) || [];
 const expected = [
-  ['Sora', 400], ['Sora', 500], ['Sora', 600],
-  ['Red Hat Text', 400], ['Red Hat Text', 500], ['Red Hat Text', 600],
-  ['Red Hat Mono', 400], ['Red Hat Mono', 500]
+  ['Sora', 400, 'normal'], ['Sora', 500, 'normal'], ['Sora', 600, 'normal'],
+  ['Red Hat Text', 400, 'normal'], ['Red Hat Text', 500, 'normal'], ['Red Hat Text', 600, 'normal'], ['Red Hat Text', 700, 'normal'],
+  ['Red Hat Text', 400, 'italic'], ['Red Hat Text', 700, 'italic'],
+  ['Red Hat Mono', 400, 'normal'], ['Red Hat Mono', 500, 'normal']
 ];
-check(`one @font-face per family/weight main.jsx loads (${expected.length})`, faces.length === expected.length, `${faces.length}`);
-for (const [family, weight] of expected) {
-  const face = faces.find((f) => f.includes(`font-family: '${family}'`) && f.includes(`font-weight: ${weight}`));
-  check(`${family} ${weight}: present`, Boolean(face));
+check(`one @font-face per family/weight/style main.jsx loads (${expected.length})`, faces.length === expected.length, `${faces.length}`);
+for (const [family, weight, style] of expected) {
+  const face = faces.find((f) => f.includes(`font-family: '${family}'`) && f.includes(`font-weight: ${weight}`) && f.includes(`font-style: ${style}`));
+  check(`${family} ${weight} ${style}: present`, Boolean(face));
   if (!face) continue;
   const src = face.match(/src:\s*url\(([^)]+)\)\s*format\('woff2'\)/);
-  check(`${family} ${weight}: src is a data:font/woff2 URL`, Boolean(src) && src[1].startsWith('data:font/woff2;base64,'));
+  check(`${family} ${weight} ${style}: src is a data:font/woff2 URL`, Boolean(src) && src[1].startsWith('data:font/woff2;base64,'));
   if (src) {
     const bytes = Buffer.from(src[1].slice('data:font/woff2;base64,'.length), 'base64');
-    check(`${family} ${weight}: payload is a woff2 file (wOF2 magic, >1 KB)`, bytes.subarray(0, 4).toString('latin1') === 'wOF2' && bytes.length > 1024, `${bytes.length} bytes`);
+    check(`${family} ${weight} ${style}: payload is a woff2 file (wOF2 magic, >1 KB)`, bytes.subarray(0, 4).toString('latin1') === 'wOF2' && bytes.length > 1024, `${bytes.length} bytes`);
   }
 }
 // Matches src/main.jsx so the frame never lags behind the app's font set.
 const mainJsx = fs.readFileSync(path.join(REPO, 'src', 'main.jsx'), 'utf8');
 const mainFaces = Array.from(mainJsx.matchAll(/@fontsource\/([a-z-]+)\/(\d{3})\.css/g)).map((m) => `${m[1]}/${m[2]}`).sort();
-const moduleSrc = fs.readFileSync(MODULE, 'utf8');
+const moduleSrc = fs.readFileSync(path.join(REPO, 'src', 'utils', 'bundledFonts.js'), 'utf8');   // the shared set the frame and the PDF export use
 const moduleFaces = Array.from(moduleSrc.matchAll(/@fontsource\/([a-z-]+)\/files\/[a-z-]+-latin-(\d{3})-normal\.woff2\?inline/g)).map((m) => `${m[1]}/${m[2]}`).sort();
-check('module inlines exactly the family/weight set main.jsx imports', JSON.stringify(mainFaces) === JSON.stringify(moduleFaces), `${mainFaces} vs ${moduleFaces}`);
+check('src/utils/bundledFonts.js inlines exactly the family/weight set main.jsx imports', JSON.stringify(mainFaces) === JSON.stringify(moduleFaces), `${mainFaces} vs ${moduleFaces}`);
+check('the frame module takes its font faces from that shared set', /import \{ BUNDLED_FONT_CSS \} from '\.\.\/\.\.\/\.\.\/utils\/bundledFonts'/.test(fs.readFileSync(MODULE, 'utf8')) && /DIAGNOSTICS_FRAME_FONT_CSS = BUNDLED_FONT_CSS/.test(fs.readFileSync(MODULE, 'utf8')));
 
 console.log('\n--- buildDiagnosticsFrameStyles ---');
 const styles = mod.buildDiagnosticsFrameStyles(doc);

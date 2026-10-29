@@ -146,3 +146,55 @@ package.json; it can be removed at the next lock refresh after 2026-10-29, when 
 tests/npm-audit-clean.test.mjs is green again; tests/express5-servers.test.mjs accepts the override only when it
 pins 2.4.0 or later.
 
+## 2026-10-29 - the ubi9-minimal image (3.5.2): the base image, xz-libs, golang.org/x/net
+
+The container image moved from ubi9/python-314 to ubi9-minimal with Red Hat's python3.14 (deploy/Containerfile),
+which settles the findings the scanners kept reporting against packages nothing in the image ran: the system
+Python 3.9 (CVE-2026-19445 / 19553 / 12345), python3-urllib3 (CVE-2026-97687 / 97689), libbrotli
+(CVE-2026-111497) and dnf are simply not in the image any more (the Containerfile checks that they stay absent),
+and the Caddy build takes go-jose v4.1.6 for GHSA-mgcc-cww5-fp2q (published 2026-10-14, fifteen days old: no
+exception needed). The user granted a one-off exception to the seven-day rule for the three items below, so the
+image can ship on 2026-10-29; `.npmrc` and the pip cooldown are untouched, nothing else went past the rule.
+
+1. **The base image, ubi9-minimal 9.8-1792742033** (manifest list
+   sha256:2d4c4551af6831dcd26bbf86108c4385de5183ec8fe6b5868f6f9640fe47f4ed, built 2026-10-23: six days old).
+   The newest build with the ca-certificates 2026.2.92 fix for CVE-2026-114406 that was also at least a week
+   old did not exist (the 2026-10-13 build carries the old bundle; the 2026-10-26 build was three days old).
+   Provenance: pulled from registry.access.redhat.com by that digest; Red Hat's simple-signing signatures
+   (access.redhat.com/webassets/docker/content/sigstore) of the amd64 manifest
+   sha256:0e40cd75c9a128b6b9db185c8220193dc46e86dbf97815555df255c622683570 and the arm64 manifest
+   sha256:085bcde1479c7f6f3d1229575dec6ad4bf45d4c2ce4bd227f4f43a901fa3897c verified with gpg against Red Hat's
+   release key 2 (fingerprint 567E347AD0044ADE55BA8A5F199E2F91FD431D51, the key file from the base image's own
+   /etc/pki/rpm-gpg): GOODSIG / VALIDSIG, both made on 2026-10-23, the signed payloads naming exactly those
+   digests and registry.access.redhat.com/ubi9/ubi-minimal. The image's labels: name ubi9/ubi-minimal, version
+   9.8, release 1792742033; 109 RPMs, ca-certificates 2026.2.92_v9.0.319-90.3.el9_8.
+2. **xz-libs 5.2.5-8.el9_8.1** (RHSA-2026:89749, published 2026-10-26: three days old; the RPM built 2026-10-02),
+   for CVE-2026-34743 (a buffer overflow / denial of service in liblzma's index handling, moderate) in the
+   5.2.5-8.el9_0 every UBI 9 base carries. liblzma is in the image's execute path - the sos report parser opens
+   an uploaded report's `.xz` files through Python's lzma module, and an uploaded archive is untrusted input
+   (vex/decisions.yaml had it as affected since 3.5.0). Applied as `microdnf ... upgrade xz-libs` in the
+   Containerfile's microdnf layer, named explicitly (no blanket update; tests/container_reproducible.test.py
+   refuses any other `upgrade`), followed by `rpm -q xz-libs-5.2.5-8.el9_8.1` so a build without the fixed
+   version fails. Provenance: served by ubi-9-baseos-rpms (Red Hat's own repository, no subscription) and
+   checked by microdnf (gpgcheck=1, the key in the image); in the built image `rpm -qi xz-libs` shows
+   Signature RSA/SHA256, 2026-10-21, Key ID 199e2f91fd431d51 (release key 2), Vendor Red Hat, Inc., Source RPM
+   xz-5.2.5-8.el9_8.1.src.rpm. The VEX marks CVE-2026-34743 fixed from 3.5.2. The line can go when a later
+   ubi9-minimal build carries 5.2.5-8.el9_8.1 or newer itself.
+3. **golang.org/x/net v0.62.0** in the Caddy build (XNET_VERSION; published 2026-10-27: two days old), for the
+   two advisories Grype reported against 0.60.0 after the move (both rated Unknown, so the gate would not have
+   stopped): GO-2026-6860 / CVE-2026-78661, a quadratic slowdown when x/net/html's parser coalesces adjacent
+   text nodes, and GO-2026-6866 / CVE-2026-97045, the renderer missing an ancestor's namespace transition when
+   it emits raw text, so a crafted document could be re-parsed differently from how it was rendered. Whether
+   any Caddy module in the image reaches x/net/html was not verified (the Caddyfile enables no templates), so
+   the module is upgraded rather than argued away. Provenance: the Go checksum database record 70195880 -
+   `golang.org/x/net v0.62.0 h1:18ELalfM5+XNRwzM2nYqXsZQ9ByS1uhj2O/U7+5jqRY=` and `/go.mod
+   h1:WgDCOTH8iwtB66T4/GfI94AHo/hhdb7Hah9NDseQfiI=` - which the build checks (GOSUMDB is on, GOFLAGS=-mod=mod
+   with `go get` from the module proxy); the proxy's origin for the version is go.googlesource.com/net at
+   commit 3de643db506517b3e652a13cc0b56034cea6b8e6, tag refs/tags/v0.62.0 (the golang/net mirror carries the
+   same tag). `caddy build-info` in the image shows `dep golang.org/x/net v0.62.0`, which the Containerfile
+   asserts. The VEX marks both advisories affected before 3.5.2 and fixed from it.
+
+Checked for anything else with an available fix, under the same grant: the Grype gate on the built image
+(`--ignore-states not-fixed,wont-fix`, the 3.5.2 VEX) lists nothing but the two x/net lines above, and a dry-run
+`microdnf upgrade` in the built image finds no newer RPM in the UBI repositories for the installed set - so
+nothing else went past the rule.

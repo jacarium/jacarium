@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { X, Upload, Search, Image as ImageIcon, Download, MoreHorizontal, Check, Tag, FileText, CheckSquare, Square } from 'lucide-react';
-import { SubTabs } from '../../ui/primitives';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { X, Upload, Search, Image as ImageIcon, Download, MoreHorizontal, Check, Tag, FileText, CheckSquare, Square, ClipboardPaste } from 'lucide-react';
+import { SubTabs, Field, TextInput, Button, ButtonRow } from '../../ui/primitives';
 import {
   uploadMedia, getAllMedia, deleteMedia, updateMediaTags, getMediaUsage
 } from '../../../utils/media';
+import { sanitizeMediaName, uniqueMediaName, screenshotName, clipboardImageFiles } from '../../../utils/mediaNames';
 import { useNotifications } from '../../../contexts/NotificationContext';
 import ConfirmationModal from '../ConfirmationModal';
 import { MenuItemIcon } from '../../common/menus/MenuItemIcon';
@@ -29,6 +30,13 @@ function fileExtension(filename) {
  * Browse supports search (filename + tags), type/usage/tag filters, sorting,
  * multi-select bulk delete, per-image tags, and usage (orphan) detection
  * computed by scanning documents for attachment: references.
+ * Upload takes images from the file picker, a drop, or a paste (Ctrl/Cmd+V
+ * with an image on the clipboard - the browser's paste event, which the
+ * desktop app's renderer raises the same way), lists them as pending rows
+ * with a preview and an editable name (a pasted image is named
+ * screenshot-YYYY-MM-DD-HHMMSS.<ext>), and stores them on Upload / Enter
+ * under those names - sanitised and made unique by src/utils/mediaNames.js,
+ * which the store applies again regardless. Text pastes are not touched.
  * Shows insert affordances when an onSelectImage callback is provided.
  */
 export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
@@ -50,14 +58,23 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
   const [mediaToDelete, setMediaToDelete] = useState(null); // { id, filename }
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [tagEditor, setTagEditor] = useState(null); // { item, value }
+  const [pending, setPending] = useState([]); // images waiting for a name: { key, file, name, preview, source: 'picker' | 'drop' | 'paste' }
   const fileInputRef = useRef(null);
+  const firstNameRef = useRef(null);
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
   const { addNotification } = useNotifications();
+
+  const clearPending = useCallback(() => {
+    for (const row of pendingRef.current) URL.revokeObjectURL(row.preview);
+    setPending([]);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       loadMedia();
       loadUsage();
-      // Reset to browse tab when opening
+      // Reset to browse tab when opening (and drop anything left pending)
       // Intentional external-system sync in an effect; the setState here is
       // the subscription/measurement result, not derived render state.
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -65,8 +82,9 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
       setRecentlyUploaded([]);
       setSelectedIds(new Set());
       setSearchQuery('');
+      clearPending();
     }
-  }, [isOpen]);
+  }, [isOpen, clearPending]);
 
   // Close context menu when clicking outside
   useEffect(() => {
@@ -166,31 +184,87 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [media, usage, searchQuery, typeFilter, usageFilter, tagFilter, sortBy]);
 
-  async function handleFileUpload(files) {
+  // The images given to the Upload tab become pending rows (a preview, an
+  // editable name) rather than uploads; `source` says where they came from.
+  const queueFiles = useCallback((files, source) => {
+    const now = new Date();
+    const rows = [];
+    for (const file of Array.from(files || [])) {
+      if (!file || typeof file.type !== 'string' || !file.type.startsWith('image/')) {
+        addNotification({
+          type: 'error',
+          title: 'Invalid File',
+          message: `${file?.name || 'The file'} is not an image file`
+        });
+        continue;
+      }
+      const requested = source === 'paste' ? screenshotName(now, file.type) : file.name;
+      const clean = sanitizeMediaName(requested, file.type);
+      rows.push({ key: `${now.getTime()}-${rows.length}-${Math.random().toString(36).slice(2, 8)}`, file, name: clean.name || requested, preview: URL.createObjectURL(file), source });
+    }
+    if (rows.length === 0) return;
+    setRecentlyUploaded([]);
+    setPending((prev) => [...prev, ...rows]);
+    setActiveTab('upload');
+  }, [addNotification]);
+
+  // Focus the first name field when rows arrive (Enter uploads, Escape cancels)
+  useEffect(() => {
+    if (pending.length > 0) firstNameRef.current?.focus();
+  }, [pending.length]);
+
+  // Ctrl/Cmd+V with an image on the clipboard, anywhere in the modal: the
+  // image(s) become pending rows. A text paste is left to whoever has
+  // focus; so is an image pasted into any field other than a pending row's
+  // name field (where the image is taken and the field keeps its text).
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const onPaste = (e) => {
+      const files = clipboardImageFiles(e.clipboardData);
+      if (files.length === 0) return;
+      const t = e.target;
+      const editable = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      if (editable && !(t.dataset && t.dataset.mediaName !== undefined)) return;
+      e.preventDefault();
+      queueFiles(files, 'paste');
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [isOpen, queueFiles]);
+
+  // What each pending row will be stored as: the sanitised name, made unique
+  // against the library and the rows before it; or the sanitiser's message.
+  const pendingNames = useMemo(() => {
+    const taken = new Set(media.map((item) => item.filename));
+    return pending.map((row) => {
+      const clean = sanitizeMediaName(row.name, row.file.type);
+      if (clean.error) return { error: clean.error };
+      const storedAs = uniqueMediaName(clean.name, taken);
+      taken.add(storedAs);
+      return { storedAs };
+    });
+  }, [pending, media]);
+  const pendingInvalid = pendingNames.some((n) => n.error);
+
+  async function uploadPending() {
+    if (pending.length === 0 || pendingInvalid || uploading) return;
+    const rows = pending;
     setUploading(true);
     setRecentlyUploaded([]); // Only reflect the latest batch
     const uploaded = [];
     try {
-      for (const file of files) {
-        if (!file.type.startsWith('image/')) {
-          addNotification({
-            type: 'error',
-            title: 'Invalid File',
-            message: `${file.name} is not an image file`
-          });
-          continue;
-        }
-
+      for (const row of rows) {
         try {
-          uploaded.push(await uploadMedia(file));
+          uploaded.push(await uploadMedia(row.file, { name: row.name }));
         } catch (error) {
           addNotification({
             type: 'error',
             title: 'Upload Failed',
-            message: `${file.name}: ${error.message}`
+            message: `${row.name}: ${error.message}`
           });
         }
       }
+      clearPending();
 
       if (uploaded.length > 0) {
         addNotification({
@@ -352,13 +426,17 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
   function handleDrop(e) {
     e.preventDefault();
     setDragOver(false);
-    const files = Array.from(e.dataTransfer.files);
-    handleFileUpload(files);
+    queueFiles(Array.from(e.dataTransfer.files), 'drop');
   }
 
   function handleFileSelect(e) {
-    const files = Array.from(e.target.files);
-    handleFileUpload(files);
+    queueFiles(Array.from(e.target.files), 'picker');
+    e.target.value = '';   // the same file can be picked again
+  }
+
+  function handlePendingKey(e) {
+    if (e.key === 'Enter') { e.preventDefault(); uploadPending(); }
+    if (e.key === 'Escape') { e.preventDefault(); clearPending(); }
   }
 
   function handleContextMenu(e, item) {
@@ -447,6 +525,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
+                data-testid="media-upload-drop"
                 className={`rounded-lg p-12 text-center transition-colors w-full max-w-2xl ${
  dragOver
  ?'bg-blue-50 dark:bg-blue-900/20'
@@ -458,7 +537,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
                   Upload Images
                 </p>
                 <p className="text-sm text-os-text-secondary mb-4">
-                  Drag and drop images here, or
+                  Drag and drop images here, paste one with {navigator.platform?.startsWith('Mac') ? 'Cmd' : 'Ctrl'}+V, or
                 </p>
                 <button
                   onClick={() => fileInputRef.current?.click()}
@@ -473,12 +552,62 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
                   accept="image/*"
                   multiple
                   onChange={handleFileSelect}
+                  data-testid="media-upload-input"
                   className="hidden"
                 />
                 <p className="text-xs text-os-text-muted mt-4">
                   Supports: JPG, PNG, GIF, WebP
                 </p>
               </div>
+
+              {/* Pending images: a preview and a name each, then Upload / Cancel */}
+              {pending.length > 0 && (
+                <div className="w-full max-w-2xl" data-testid="media-pending">
+                  <p className="text-sm font-medium text-os-text-primary mb-2">
+                    {pending.length === 1 ? 'Name this image' : `Name these ${pending.length} images`}
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {pending.map((row, i) => {
+                      const outcome = pendingNames[i] || {};
+                      const hint = outcome.storedAs && outcome.storedAs !== row.name ? `Stored as ${outcome.storedAs}` : undefined;
+                      return (
+                        <div key={row.key} className="flex items-center gap-3 border border-os-border rounded-lg p-2 bg-os-modal" data-testid="media-pending-row">
+                          <div className="w-14 h-14 shrink-0 rounded-sm overflow-hidden bg-os-card-secondary dark:bg-os-sidebar">
+                            <img src={row.preview} alt="" className="w-full h-full object-cover" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <Field label={row.source === 'paste' ? 'Pasted from the clipboard' : row.file.name} htmlFor={`media-name-${row.key}`} error={outcome.error} hint={hint}>
+                              <TextInput
+                                id={`media-name-${row.key}`}
+                                ref={i === 0 ? firstNameRef : undefined}
+                                size="sm"
+                                value={row.name}
+                                onChange={(e) => setPending((prev) => prev.map((r) => (r.key === row.key ? { ...r, name: e.target.value } : r)))}
+                                onKeyDown={handlePendingKey}
+                                data-testid="media-pending-name"
+                                data-media-name=""
+                                aria-label="Image name"
+                                autoComplete="off"
+                                spellCheck={false}
+                              />
+                            </Field>
+                            <p className="text-[11px] text-os-text-muted mt-1 flex items-center gap-1">
+                              {row.source === 'paste' && <ClipboardPaste size={11} className="shrink-0" />}
+                              {formatSize(row.file.size)} · {row.file.type}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <ButtonRow className="mt-3">
+                    <Button onClick={clearPending} disabled={uploading} data-testid="media-upload-cancel">Cancel</Button>
+                    <Button variant="primary" onClick={uploadPending} disabled={uploading || pendingInvalid} data-testid="media-upload-confirm">
+                      {uploading ? 'Uploading...' : pending.length === 1 ? 'Upload' : `Upload ${pending.length}`}
+                    </Button>
+                  </ButtonRow>
+                </div>
+              )}
 
               {/* Just-uploaded preview */}
               {recentlyUploaded.length > 0 && (

@@ -19,6 +19,7 @@ Run: backend/venv/bin/python tests/vex.test.py   (PyYAML)
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -129,8 +130,9 @@ try:
         by_status.setdefault(d['status'], []).append(d)
     check('every not_affected decision has a justification from the list and an impact statement that names where the code is and why it never runs', all(d.get('justification') in vex.JUSTIFICATIONS and len(d.get('impact') or '') > 60 for d in by_status.get('not_affected', [])), [d['id'] for d in by_status.get('not_affected', []) if not d.get('impact')])
     check('every affected decision says what fix is pending', all('pending' in (d.get('action') or '').lower() or 'upgrade' in (d.get('action') or '').lower() for d in by_status.get('affected', [])), [d['id'] for d in by_status.get('affected', [])])
-    # the Go toolchain and x/net entries (chi, another Go module Caddy pulls in, has its own checks below)
-    caddy = [d for d in decisions if any('golang' in c for c in d.get('components') or []) and not any('go-chi' in c for c in d.get('components') or [])]
+    # the Go toolchain and x/net entries (chi and go-jose, other Go modules Caddy pulls in, have their own checks below)
+    XNET_HTML = ('GO-2026-6860', 'GO-2026-6866')   # the 3.5.2 x/net html pair has its own checks below
+    caddy = [d for d in decisions if any('golang' in c for c in d.get('components') or []) and not any('go-chi' in c or 'go-jose' in c for c in d.get('components') or []) and d['id'] not in XNET_HTML]
     server_side = [d for d in caddy if d['status'] == 'affected']
     fixed = [d for d in caddy if d['status'] == 'fixed']
     client_side = [d for d in caddy if d['status'] == 'not_affected']
@@ -144,24 +146,45 @@ try:
     check("the image products carry no repository qualifier and name the list tag and both per-architecture tags, so Grype matches the release gate's local archives and the pushed image", [p['@id'] for p in new['statements'][0]['products']] == ['pkg:oci/jacarium?tag=3.4.0', 'pkg:oci/jacarium?tag=3.4.0-amd64', 'pkg:oci/jacarium?tag=3.4.0-arm64'], [p['@id'] for p in new['statements'][0]['products']])
     check("the base image's npm modules are not_affected (component_not_present) from 3.4.0 on", all(st(new).get(i) == 'not_affected' for i in ('GHSA-6j4f-fj2g-mc7p', 'GHSA-qhr7-859c-m2p7', 'GHSA-c2c7-rcm5-vvqj')) and 'GHSA-c2c7-rcm5-vvqj' not in st(old))
     check('every decision names who decided and when', all(d.get('decided_by') and d.get('decided_on') for d in decisions))
-    # 3.5.1: the base image's system Python 3.9 (never executed - the image runs Python 3.14), xz (reachable
-    # through the sos report parser: affected, fix pending) and chi in Caddy (affected before 3.5.1, fixed from it)
+    # 3.5.1: the python-314 base's system Python 3.9 (never executed - the image runs Python 3.14), xz (reachable
+    # through the sos report parser: affected) and chi in Caddy (affected before 3.5.1, fixed from it).
+    # 3.5.2: the image moves to ubi9-minimal - no Python 3.9 at all (the statements stop at 3.5.1, nothing is
+    # claimed for an absent package), xz-libs raised to the fixed RPM, go-jose raised in the Caddy build.
     py = {d['id']: d for d in decisions if any('/python3' in c for c in d.get('components') or [])}
-    check("the system python3 3.9 CVEs (2026-19445, 2026-19553, 2026-12345) are not_affected from 3.5.0 (vulnerable_code_not_in_execute_path), the impact naming Python 3.14 as what runs and the fixed RPM as pending",
-          all(py.get(i) and py[i]['status'] == 'not_affected' and py[i]['justification'] == 'vulnerable_code_not_in_execute_path' and py[i].get('versions') == ['>=3.5.0']
-              and 'Python 3.14' in py[i]['impact'] and '3.9.25-7.el9_8.6' in py[i]['impact'] for i in ('CVE-2026-19445', 'CVE-2026-19553', 'CVE-2026-12345')), sorted(py))
+    check("the system python3 3.9 CVEs (2026-19445, 2026-19553, 2026-12345) are not_affected for exactly 3.5.0 and 3.5.1 (vulnerable_code_not_in_execute_path), the impact naming Python 3.14 as what runs and ubi9-minimal from 3.5.2",
+          all(py.get(i) and py[i]['status'] == 'not_affected' and py[i]['justification'] == 'vulnerable_code_not_in_execute_path' and py[i].get('versions') == ['3.5.0', '3.5.1']
+              and 'Python 3.14' in py[i]['impact'] and 'ubi9-minimal' in py[i]['impact'] for i in ('CVE-2026-19445', 'CVE-2026-19553', 'CVE-2026-12345')), sorted(py))
     xz = [d for d in decisions if d['id'] == 'CVE-2026-34743']
-    check('xz CVE-2026-34743 is affected with the fix pending and the sos report parser named as the path', len(xz) == 1 and xz[0]['status'] == 'affected' and 'pending' in xz[0]['action'].lower() and 'sos report' in xz[0]['action'] and len(xz[0]['components']) == 3)
+    check('xz CVE-2026-34743: affected before 3.5.2 (the sos report parser named as the path, the upgrade as the action), fixed from 3.5.2 naming xz-libs 5.2.5-8.el9_8.1',
+          sorted((d['status'], tuple(d.get('versions') or [])) for d in xz) == [('affected', ('<3.5.2',)), ('fixed', ('>=3.5.2',))]
+          and any('sos report' in (d.get('action') or '') and 'Upgrade to Jacarium 3.5.2' in (d.get('action') or '') and len(d['components']) == 3 for d in xz)
+          and any('5.2.5-8.el9_8.1' in (d.get('notes') or '') and d['components'] == ['pkg:rpm/redhat/xz-libs@5.2.5-8.el9_8.1'] for d in xz), xz)
+    jose = [d for d in decisions if d['id'] == 'GHSA-mgcc-cww5-fp2q']
+    check('go-jose GHSA-mgcc-cww5-fp2q (CVE-2026-116587): affected before 3.5.2 with the upgrade as the action, fixed from 3.5.2 naming v4.1.6',
+          sorted((d['status'], tuple(d.get('versions') or [])) for d in jose) == [('affected', ('<3.5.2',)), ('fixed', ('>=3.5.2',))]
+          and all('CVE-2026-116587' in (d.get('aliases') or []) for d in jose) and any('v4.1.6' in (d.get('notes') or '') for d in jose) and any('Upgrade to Jacarium 3.5.2' in (d.get('action') or '') for d in jose), jose)
     chi = [d for d in decisions if d['id'] == 'GHSA-j6qf-3m9c-vwj3']
     check('chi GHSA-j6qf-3m9c-vwj3 (CVE-2026-114437): affected before 3.5.1 with the upgrade as the action, fixed from 3.5.1 naming v5.4.0',
           sorted((d['status'], tuple(d.get('versions') or [])) for d in chi) == [('affected', ('<3.5.1',)), ('fixed', ('>=3.5.1',))]
           and all('CVE-2026-114437' in (d.get('aliases') or []) for d in chi) and any('v5.4.0' in (d.get('notes') or '') for d in chi) and any('Upgrade to Jacarium 3.5.1' in (d.get('action') or '') for d in chi), chi)
-    v350, v351 = st(vex.build(decisions, '3.5.0')), st(vex.build(decisions, '3.5.1'))
+    v350, v351, v352 = st(vex.build(decisions, '3.5.0')), st(vex.build(decisions, '3.5.1')), st(vex.build(decisions, '3.5.2'))
     check('for 3.5.0 chi is affected and the python3 CVEs not_affected; for 3.5.1 chi is fixed, xz still affected',
           v350.get('GHSA-j6qf-3m9c-vwj3') == 'affected' and v350.get('CVE-2026-19445') == 'not_affected' and v351.get('GHSA-j6qf-3m9c-vwj3') == 'fixed' and v351.get('CVE-2026-34743') == 'affected' and v351.get('CVE-2026-19553') == 'not_affected')
+    check('for 3.5.2 (ubi9-minimal) xz and go-jose are fixed, chi stays fixed, and no python3 3.9 statement is made (the package is not in the image)',
+          v352.get('CVE-2026-34743') == 'fixed' and v352.get('GHSA-mgcc-cww5-fp2q') == 'fixed' and v352.get('GHSA-j6qf-3m9c-vwj3') == 'fixed'
+          and not any(i in v352 for i in ('CVE-2026-19445', 'CVE-2026-19553', 'CVE-2026-12345')) and v351.get('GHSA-mgcc-cww5-fp2q') == 'affected', {k: v352.get(k) for k in ('CVE-2026-34743', 'GHSA-mgcc-cww5-fp2q', 'CVE-2026-19445')})
     with open(os.path.join(REPO, 'deploy', 'Containerfile'), encoding='utf-8') as fh:
         containerfile = fh.read()
     check('deploy/Containerfile builds Caddy with chi v5.4.0 and checks it in caddy build-info', 'ARG CHI_VERSION=v5.4.0' in containerfile and 'go get "github.com/go-chi/chi/v5@${CHI_VERSION}"' in containerfile and 'dep\\s+github.com/go-chi/chi/v5\\s+${CHI_VERSION}' in containerfile)
+    xnet = [d for d in decisions if d['id'] in XNET_HTML]
+    check('x/net html GO-2026-6860 / GO-2026-6866 (CVE-2026-78661 / 97045): affected before 3.5.2 with the upgrade as the action, fixed from 3.5.2 naming 0.62.0',
+          sorted((d['id'], d['status'], tuple(d.get('versions') or [])) for d in xnet) == [('GO-2026-6860', 'affected', ('<3.5.2',)), ('GO-2026-6860', 'fixed', ('>=3.5.2',)), ('GO-2026-6866', 'affected', ('<3.5.2',)), ('GO-2026-6866', 'fixed', ('>=3.5.2',))]
+          and all(any(a.startswith('CVE-') for a in d.get('aliases') or []) for d in xnet) and all('0.62.0' in (d.get('notes') or d.get('action') or '') for d in xnet), xnet)
+    check('deploy/Containerfile builds Caddy with x/net 0.62.0 and checks it in caddy build-info', 'ARG XNET_VERSION=v0.62.0' in containerfile and 'dep\\s+golang.org/x/net\\s+${XNET_VERSION}' in containerfile)
+    check('deploy/Containerfile builds Caddy with go-jose v4.1.6 and checks it in caddy build-info', 'ARG GOJOSE_VERSION=v4.1.6' in containerfile and 'go get "github.com/go-jose/go-jose/v4@${GOJOSE_VERSION}"' in containerfile and 'dep\\s+github.com/go-jose/go-jose/v4\\s+${GOJOSE_VERSION}' in containerfile)
+    check('deploy/Containerfile runs on ubi9-minimal pinned by digest, installs xz-libs 5.2.5-8.el9_8.1 and checks that python3 3.9, python3-urllib3, brotli and dnf are absent',
+          re.search(r'^FROM registry\.access\.redhat\.com/ubi9-minimal:9\.8-\d+@sha256:[0-9a-f]{64}\n', containerfile, re.M) is not None and 'ubi9/python-314:' not in containerfile
+          and 'upgrade xz-libs' in containerfile and 'rpm -q xz-libs-5.2.5-8.el9_8.1' in containerfile and 'rpm -q python3 python3-libs python3-urllib3 python3-pip libbrotli brotli brotli-devel dnf nodejs npm' in containerfile)
 finally:
     shutil.rmtree(WORK, ignore_errors=True)
 

@@ -25,7 +25,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { launchElectronApp, createNewDocument, setEditorText, exportDocumentPdf } from './helpers/electron-app.mjs';
-import { inspectPdf, pageOf } from './helpers/pdf-inspect.mjs';
+import { pdfFonts, inspectPdf, pageOf } from './helpers/pdf-inspect.mjs';
 import { FULL_FEATURE_DOC, SIMPLE_DOC } from './helpers/pdf-export-fixtures.mjs';
 
 let failed = 0;
@@ -86,6 +86,21 @@ try {
     check('the table and lists are there', /example-a\.service/.test(info.pageTexts[overviewPage - 1]) && /Nested item two/.test(info.pageTexts[overviewPage - 1]));
     check('the form control label is exported', /Acknowledged/.test(info.pageTexts[overviewPage - 1]));
     check('file size stays reasonable (< 1.5 MB with fonts embedded)', nativeFull.length < 1.5 * 1024 * 1024, `${nativeFull.length} bytes`);
+    // The fonts: the export embeds the app's bundled faces (src/utils/bundledFonts.js) on every OS - the reading
+    // font's Regular, its SemiBold for **bold** (the preview styles strong at 600) and the designed Italic for
+    // *emphasis* (a slanted Regular before), the code font for code - and no OS font for the document's text
+    // (Menlo / SF Mono on macOS, DejaVu Sans Mono on Linux were what printed before; in the packaged app the
+    // whole text fell to Helvetica / Liberation Sans). The diagram labels are in the reading font too (Mermaid's
+    // default is Trebuchet MS). Helvetica may remain, not embedded: pdf-lib's standard font for the "i / n" page
+    // numbers the main process stamps, the same on every OS.
+    const fonts = await pdfFonts(nativeFull);
+    const names = fonts.map((f) => f.name);
+    const has = (n) => fonts.some((f) => f.name === n && f.embedded);
+    check('the PDF embeds Red Hat Text Regular, SemiBold and Italic (text, **bold**, *emphasis*)', has('RedHatText-Regular') && has('RedHatText-SemiBold') && has('RedHatText-Italic'), names.join(', '));
+    check('the PDF embeds Red Hat Mono for code', has('RedHatMono-Regular'), names.join(', '));
+    check('no OS monospace or Trebuchet MS is used (code and diagram labels are in the bundled fonts)', !names.some((n) => /^(Menlo|SFMono|SF-Mono|DejaVuSansMono|LiberationMono|TrebuchetMS|Courier)/.test(n)), names.join(', '));
+    check('every font the document text uses is embedded (a viewer substitutes nothing)', fonts.filter((f) => !f.embedded).every((f) => /^Helvetica$/.test(f.name)), fonts.filter((f) => !f.embedded).map((f) => f.name).join(', ') || '(all embedded)');
+    console.log(`fonts: ${fonts.map((f) => `${f.name}${f.embedded ? '' : ' (not embedded)'}`).join(', ')}`);
   }
 
   // ---------------- section 1b: page size and orientation ----------------

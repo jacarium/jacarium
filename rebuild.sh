@@ -238,7 +238,8 @@ load_nvm() {
 }
 
 # The Python the backend venv is made with. Pinned to 3.14: requirements.lock
-# is resolved for 3.14, the version the container (ubi9/python-314) runs too.
+# is resolved for 3.14, the version the container (Red Hat's python3.14 on
+# ubi9-minimal) runs too.
 # Homebrew's unversioned python3 tracks whatever `brew upgrade` last made
 # current, so the versioned formula is resolved explicitly (brew install
 # python@3.14).

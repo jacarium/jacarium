@@ -37,6 +37,7 @@
  */
 
 import { db } from '../db/database';
+import { sanitizeMediaName, imageExtensions } from './mediaNames';
 import { formatBytes } from './exportHelpers';
 
 // Same pattern as media.js getMediaUsage: stops at ')', quote, whitespace
@@ -250,14 +251,24 @@ export async function importDocumentMedia(documentData, session = newImportSessi
       continue;
     }
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    const local = await localImageBytes(session, filename);
-    if (local && equalBytes(local, bytes)) {
-      result.reused.push(filename);
+    // The stored name follows the library's rules (src/utils/mediaNames.js), like an upload: an import file is
+    // untrusted input, and a name it carries may hold what no upload can produce. A changed name is a rename
+    // for the document's references, like a collision.
+    const type = imageExtensions(entry.mimeType) ? entry.mimeType : blob.type;
+    const clean = sanitizeMediaName(filename, type);
+    if (clean.error) {
+      result.skipped.push({ filename, reason: `image name refused: ${clean.error}` });
       continue;
     }
-    let storeAs = filename;
+    let storeAs = clean.name;
+    const local = await localImageBytes(session, storeAs);
+    if (local && equalBytes(local, bytes)) {
+      result.reused.push(filename);
+      if (storeAs !== filename) result.content = rewriteAttachmentReferences(result.content, filename, storeAs);
+      continue;
+    }
     if (local) {
-      const target = await collisionTarget(session, filename, bytes);
+      const target = await collisionTarget(session, storeAs, bytes);
       storeAs = target.name;
       if (target.existing) {
         // The same image already lives under the renamed name: point the
@@ -276,7 +287,7 @@ export async function importDocumentMedia(documentData, session = newImportSessi
       uploadedAt: typeof entry.uploadedAt === 'string' ? entry.uploadedAt : new Date().toISOString(),
     });
     session.mediaIndex.set(storeAs, bytes);
-    if (local) {
+    if (local || storeAs !== filename) {
       result.renamed.push([filename, storeAs]);
       result.content = rewriteAttachmentReferences(result.content, filename, storeAs);
     } else {
