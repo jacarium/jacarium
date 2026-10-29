@@ -1,5 +1,30 @@
 [
   {
+    "version": "3.6.2",
+    "date": "2026-10-29",
+    "features": [
+      {
+        "category": "SYNC",
+        "description": [
+          "Sync retries a read that got no answer or a temporary server error (twice, after 0.3 and 0.9 seconds), so one dropped connection no longer leaves a device behind until the next cycle"
+        ]
+      },
+      {
+        "category": "UI",
+        "description": [
+          "The top-left logo button highlights as the same square as the navigation buttons, with the seasonal decoration inside it"
+        ]
+      },
+      {
+        "category": "SECURITY",
+        "description": [
+          "The weekly vulnerability rescan uses the VEX attached to the release, refuses to scan without one, and closes its tracking issue when a later rescan is clean",
+          "body-parser 2.4.0 now comes from Express 5 itself (the temporary pin is gone); eslint-plugin-react-refresh 0.5.7"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.6.1",
     "date": "2026-10-29",
     "features": [

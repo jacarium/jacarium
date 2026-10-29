@@ -35,6 +35,11 @@
  *   - When: at start, when the window regains focus or the browser comes
  *     back online, every 30 s while visible, and pullNow() before a
  *     document opens; dirty rows are pushed 1.5 s after the last change.
+ *   - A read the server never answered (the connection refused or reset)
+ *     or answered 502 / 503 / 504 is asked again, twice, with a short
+ *     backoff, so one transient failure does not leave the device behind
+ *     until the next cycle; a write is not retried within the cycle (the
+ *     server may have applied it) - the next cycle pushes what is pending.
  */
 import { db } from '../db/database';
 import { SYNC_TABLES, SYNC_TABLE_NAMES, toMillis, importedIsNewer, missingFieldFills } from '../utils/mergeCore';
@@ -481,7 +486,36 @@ export async function getSnapshotJson(id) {
 // ---------------------------------------------------------------------------
 // pull / push
 // ---------------------------------------------------------------------------
+// A request that never got an answer (the transport threw: the connection
+// was refused or reset - a home server under load whose accept queue was
+// full, a Wi-Fi hop, a proxy restarting) or that the server could not take
+// (502 / 503 / 504) is tried again, a bounded number of times with a short
+// backoff, before the cycle gives up: without it a single such failure left
+// the device behind until the next cycle (30 s), and a paged pull stopped at
+// the failed page. Only reads are retried: a push is a POST the server may
+// already have applied when the answer was lost, and replaying it would be
+// answered "conflict" (the server sees a baseRev behind its own revision)
+// and make this device keep a conflict copy of its own change - the next
+// cycle pushes what is still pending instead. A 4xx is never retried.
+const RETRY_DELAYS_MS = [300, 900];
+const retryable = (error) => !error.status || error.status === 502 || error.status === 503 || error.status === 504;
+
 async function call(path, options = {}) {
+  const attempts = (options.method || 'GET').toUpperCase() === 'GET' ? RETRY_DELAYS_MS.length + 1 : 1;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await callOnce(path, options);
+    } catch (error) {
+      if (attempt >= attempts || !retryable(error)) throw error;
+      const delay = RETRY_DELAYS_MS[attempt - 1];
+      const why = error.status ? `HTTP ${error.status}` : `${error.message}${error.cause?.code ? `, ${error.cause.code}` : ''}`;
+      console.warn(`[Sync] ${options.method || 'GET'} ${path.split('?')[0]} failed (${why}); retrying in ${delay} ms (${attempt} of ${attempts - 1})`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
+async function callOnce(path, options = {}) {
   const response = await transport.fetch(path, options);
   let data = null;
   try { data = await response.json(); } catch { data = null; }

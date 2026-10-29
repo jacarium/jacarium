@@ -293,6 +293,19 @@ bw = read('.github/workflows/build.yml')
 image_sboms = re.findall(r'(?:sbom-path:|--predicate)\s+([^\n]*?image-(?:amd64|arm64)\S*)', bw)
 check('build.yml: every image SBOM attestation (actions/attest and cosign) uses the package-level .packages.spdx.json, made after Syft', len(image_sboms) == 6 and all(x.endswith('.packages.spdx.json') for x in image_sboms) and bw.index('cyclonedx-json=out/sbom/jacarium-${VERSION}-image-${ARCH}.cdx.json') < bw.index('python3 .github/scripts/sbom-packages.py'), image_sboms)
 check('scan.yml: the weekly rescan skips the package-level copies (the same packages as the full SPDX - no double counting)', 'case "$s" in *.packages.spdx.json) continue ;; esac' in workflows['scan.yml'][0])
+scan_rescan = runs(scn_jobs['rescan'])
+check('scan.yml: the rescan takes the VEX from the release itself (the attested asset) with the repository copy as the fallback, prints the ref and commit it ran from, and a release without a VEX is an error (::error, exit 1) - never a scan without one',
+      "--pattern '*.openvex.json' --dir vexdoc" in scan_rescan and 'vex="vexdoc/jacarium-${version}.openvex.json"' in scan_rescan and 'elif [ -f "vex/jacarium-${version}.openvex.json" ]' in scan_rescan
+      and '::error::no VEX for $tag' in scan_rescan and scan_rescan.index('::error::no VEX for $tag') < scan_rescan.index('exit 1', scan_rescan.index('::error::no VEX for $tag')) and '${GITHUB_REF} at ${GITHUB_SHA}' in scan_rescan
+      and 'scanning without a VEX' not in scan_rescan and 'vexarg="--vex $VEX"' in scan_rescan and 'vexarg=""' not in scan_rescan and '[ -f "$VEX" ] || { echo "::error::' in scan_rescan)
+rescan_steps = scn_jobs['rescan'].get('steps') or []
+track = next((st for st in rescan_steps if st.get('name') == 'Track the findings in one issue'), None)
+close = next((st for st in rescan_steps if st.get('name') == 'Close the tracking issue when the rescan is clean'), None)
+check('scan.yml: the rescan tracks findings in one issue when there are any (FOUND != 0) and closes the open Rescan: issue with a comment naming the clean release when there are none (FOUND == 0) - gh issue close only in the clean step',
+      track is not None and close is not None and "env.FOUND != '0'" in (track.get('if') or '') and "env.FOUND == '0'" in (close.get('if') or '') and "env.SKIP != '1'" in (close.get('if') or '')
+      and 'gh issue close' in (close.get('run') or '') and 'gh issue close' not in (track.get('run') or '') and 'gh issue comment' in (close.get('run') or '') and 'found no High / Critical finding with a fix; closing' in (close.get('run') or '')
+      and '${TAG}' in (close.get('run') or '') and 'in:title "Rescan:"' in (close.get('run') or '') and '--state open' in (close.get('run') or '') and 'nothing to close' in (close.get('run') or ''),
+      [st.get('name') for st in rescan_steps])
 check('build.yml: the installers job stops with a clear message if an installer SBOM ever exceeds the 16 MiB attestation limit', '[ "$size" -le 16777216 ]' in runs(jobs['installers']) and 'sbom-packages.py' in runs(jobs['installers']))
 check('the release notes, SECURITY.md and README say which image SBOM is attested (the package-level copy) and why', 'packages.spdx.json' in workflows['release.yml'][0] and 'packages.spdx.json' in read('SECURITY.md') and 'packages.spdx.json' in readme)
 import json as _json, subprocess as _sp, tempfile as _tf

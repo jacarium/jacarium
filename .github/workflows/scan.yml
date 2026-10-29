@@ -117,22 +117,39 @@ jobs:
             vex
           sparse-checkout-cone-mode: true
 
-      - name: The latest release's SBOMs
+      # The release's SBOMs and its VEX document, both from the release itself (release.yml attaches the VEX
+      # the build attested, vex-document -> release/*): the rescan then scans exactly what shipped, whichever
+      # ref this run was dispatched on. The repository's copy on the checked-out ref is the fallback (the
+      # same file, committed by the release); a release without a VEX anywhere is an error, not a warning -
+      # every published release has one, and a scan without it would report what the decisions already cover.
+      - name: The latest release's SBOMs and VEX
         run: |
           tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)"
           [ -n "$tag" ] || { echo "no published release yet - nothing to rescan"; echo "SKIP=1" >> "$GITHUB_ENV"; exit 0; }
-          mkdir -p sboms
+          version="${tag#v}"
+          echo "release $tag; this run: ${GITHUB_REF} at ${GITHUB_SHA}"
+          mkdir -p sboms vexdoc
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.spdx.json' --dir sboms
-          ls -la sboms
-          echo "TAG=$tag" >> "$GITHUB_ENV"
-          echo "VERSION=${tag#v}" >> "$GITHUB_ENV"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.openvex.json' --dir vexdoc 2>/dev/null || true
+          ls -la sboms vexdoc
+          vex="vexdoc/jacarium-${version}.openvex.json"
+          if [ -f "$vex" ]; then
+            echo "VEX: the release's asset $vex"
+          elif [ -f "vex/jacarium-${version}.openvex.json" ]; then
+            vex="vex/jacarium-${version}.openvex.json"
+            echo "::warning::the release $tag carries no VEX asset; using the repository's $vex from ${GITHUB_REF}"
+          else
+            echo "::error::no VEX for $tag: neither a jacarium-${version}.openvex.json asset on the release nor vex/jacarium-${version}.openvex.json on ${GITHUB_REF} (${GITHUB_SHA}) - a published release always has one (scripts/release.cjs commits it, build.yml attaches it)"
+            exit 1
+          fi
+          { echo "TAG=$tag"; echo "VERSION=$version"; echo "VEX=$vex"; } >> "$GITHUB_ENV"
 
       - name: Scan them (grype, pinned and verified; the release's VEX applied)
         if: env.SKIP != '1'
         run: |
           grype="$(.github/scripts/fetch-tool.sh grype)"
-          vex="vex/jacarium-${VERSION}.openvex.json"
-          if [ -f "$vex" ]; then vexarg="--vex $vex"; else vexarg=""; echo "::warning::no $vex in the repository - scanning without a VEX"; fi
+          [ -f "$VEX" ] || { echo "::error::the VEX $VEX is gone"; exit 1; }
+          vexarg="--vex $VEX"
           mkdir -p out
           found=0
           for s in sboms/*.spdx.json; do
@@ -163,7 +180,9 @@ jobs:
           category: grype-rescan
 
       # One issue carries the state: created on the first finding, a comment added when the set changes, left
-      # alone otherwise. Nothing is created when nothing is found.
+      # alone otherwise. Nothing is created when nothing is found - and when nothing is found while the issue
+      # is open (the findings got their fix or their decision in a release since), the issue is closed with a
+      # comment naming the clean release, by the step after this one.
       - name: Track the findings in one issue
         if: env.SKIP != '1' && env.FOUND != '0'
         run: |
@@ -176,3 +195,12 @@ jobs:
           else
             gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body" --label security
           fi
+
+      - name: Close the tracking issue when the rescan is clean
+        if: env.SKIP != '1' && env.FOUND == '0'
+        run: |
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search 'in:title "Rescan:"' --json number --jq '.[0].number' 2>/dev/null || true)"
+          if [ -z "$existing" ]; then echo "clean, and no open Rescan: issue - nothing to close"; exit 0; fi
+          gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "The rescan of ${TAG} found no High / Critical finding with a fix; closing. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}."
+          gh issue close "$existing" --repo "$GITHUB_REPOSITORY" --reason completed
+          echo "closed #$existing: the rescan of ${TAG} is clean"

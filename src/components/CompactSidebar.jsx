@@ -570,19 +570,25 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
 
   const handleOpenTasksInNewWindow = () => openPopOut('openTasksWindow', 'tasks', 'Tasks');
 
+  // The rail's buttons - the navigation, the actions and the brand mark at the
+  // top - share one box: the 48 x 48 square (rounded by the rail's button rule in
+  // src/index.css) with the theme's hover and active tones; a gradient theme
+  // paints its rail with the gradient, so its tones are white tints.
+  const railButtonClass = (active = false) => `relative flex items-center justify-center w-12 h-12 transition-all duration-200 group ${
+    isGradientTheme
+      ? active
+        ? 'bg-white/20 backdrop-blur-xs text-white'
+        : 'text-white hover:bg-white/10 hover:backdrop-blur-xs'
+      : active
+        ? 'bg-os-rail-active text-os-rail-text-active'
+        : 'text-os-rail-text hover:bg-os-rail-hover hover:text-os-rail-text-active'
+  }`;
+
   const NavButton = ({ icon: Icon, label, active, onClick, onContextMenu }) => (
     <button
       onClick={onClick}
       onContextMenu={onContextMenu}
-      className={`relative flex items-center justify-center w-12 h-12 transition-all duration-200 group ${
-        isGradientTheme
-          ? active
-            ? 'bg-white/20 backdrop-blur-xs text-white'
-            : 'text-white hover:bg-white/10 hover:backdrop-blur-xs'
-          : active
-            ? 'bg-os-rail-active text-os-rail-text-active'
-            : 'text-os-rail-text hover:bg-os-rail-hover hover:text-os-rail-text-active'
-      }`}
+      className={railButtonClass(active)}
     >
       <Icon size={20} />
       <div className="absolute left-full ml-2 px-2 py-1 bg-os-rail-tooltip text-white text-xs rounded-sm opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
@@ -596,15 +602,7 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
       onClick={onClick}
       onContextMenu={onContextMenu}
       data-testid={testId}
-      className={`relative flex items-center justify-center w-12 h-12 transition-all duration-200 group ${
-        isGradientTheme
-          ? active
-            ? 'bg-white/20 backdrop-blur-xs text-white'
-            : 'text-white hover:bg-white/10 hover:backdrop-blur-xs'
-          : active
-            ? 'bg-os-rail-active text-os-rail-text-active'
-            : 'text-os-rail-text hover:bg-os-rail-hover hover:text-os-rail-text-active'
-      }`}
+      className={railButtonClass(active)}
     >
       <Icon size={20} />
       {badge && (
@@ -687,14 +685,20 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
         }}
       >
         {/* The mark: the rail is dark in every theme, so the blossom is the
-            lilac of the dark variant; a click opens Settings (its default category) */}
+            lilac of the dark variant; a click opens Settings (its default
+            category). The same square, hover tone and rounding as the
+            navigation buttons below (railButtonClass): the 36 px mark sits
+            centred with 6 px to each edge, which is where the seasonal
+            decorations end (the hat's crown and the fireworks reach the
+            top and right edges, nothing hangs over). The gap above the
+            divider stays. */}
         <button
           type="button"
           onClick={() => openAppSettings()}
           title="Jacarium - Settings"
           aria-label="Jacarium - Settings"
           data-testid="sidebar-brand-mark"
-          className={`flex items-center justify-center w-12 h-11 mb-1 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white/40 ${isGradientTheme ? 'hover:bg-white/10' : 'hover:bg-os-rail-hover'}`}
+          className={`${railButtonClass()} mb-1 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white/40`}
         >
           <BrandMark size={36} tone="dark" seasonal />
         </button>

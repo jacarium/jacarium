@@ -132,7 +132,7 @@ try {
   const mark = await app.waitFor(`!!document.querySelector('[data-testid="sidebar-brand-mark"] svg[data-brand="mark"]')`, 15000);
   check('the sidebar carries the mark at its top', !!mark);
   const sidebarMark = await app.evaluate(`(() => { const b = document.querySelector('[data-testid="sidebar-brand-mark"]'); const r = b.getBoundingClientRect(); const svg = b.querySelector('svg'); const s = svg.getBoundingClientRect(); const sep = b.nextElementSibling; return { w: r.width, h: r.height, mark: s.width, top: r.top, title: b.getAttribute('title'), separator: sep && sep.getAttribute('aria-hidden') === 'true', firstNav: !!document.querySelector('[data-testid="sidebar-brand-mark"] ~ div button') }; })()`);
-  check('the mark is 36 px in a 48x44 slot above a separator and the navigation', sidebarMark.mark === 36 && sidebarMark.w === 48 && sidebarMark.h === 44 && sidebarMark.separator && sidebarMark.firstNav && /Settings/.test(sidebarMark.title), JSON.stringify(sidebarMark));
+  check('the mark is 36 px in a 48x48 slot (the rail buttons\' square) above a separator and the navigation', sidebarMark.mark === 36 && sidebarMark.w === 48 && sidebarMark.h === 48 && sidebarMark.separator && sidebarMark.firstNav && /Settings/.test(sidebarMark.title), JSON.stringify(sidebarMark));
   await app.evaluate(`document.querySelector('[data-testid="sidebar-brand-mark"]').click()`);
   const settingsFromMark = await app.waitFor(`!!document.querySelector('[data-testid="settings-modal"]')`, 8000);
   check('a click on the sidebar mark opens Settings', !!settingsFromMark);

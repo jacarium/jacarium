@@ -214,3 +214,8 @@ day old), pinned by its manifest-list digest
 `sha256:be8204d4bd327363357f532187b752ff62759c31bedf98e9e18fc08c9cbd605c`; the Node.js release itself is outside
 the cooldown. The image's `node` reports v24.22.1, and the Grype gate on the rebuilt arm64 image (the 3.6.0
 VEX, `--ignore-states not-fixed,wont-fix --fail-on high`) reports "No vulnerabilities found".
+
+**Follow-up, 2026-10-29:** body-parser 2.4.0 cleared the seven-day cooldown at 11:39 UTC, so the temporary
+`"body-parser": "^2.4.0"` overrides are removed from both package.json files. Express 5's own `body-parser
+^2.2.1` now resolves to 2.4.0 under `min-release-age=7` - both lock files are unchanged and hold 2.4.0, and
+`npm audit` stays clean.

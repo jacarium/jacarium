@@ -4,8 +4,11 @@
  * through the localStorage preview knob, src/brand/seasonal/active.js) and
  * each of the eight themes (Light, Jacaranda, Dark neutral and the five
  * gradients, through the app's own `app-theme` setting) the sidebar mark
- * stays 36 px at the same spot in its 48 x 44 slot and the navigation below
- * it does not move (no layout shift), the decoration group overflows the
+ * stays 36 px at the same spot in its 48 x 48 slot - the rail buttons' square:
+ * the logo button's box is square, the size of the navigation buttons' box,
+ * horizontally centred with them, its hover tone the navigation's, its
+ * keyboard focus ring on the same square - and the navigation below it does
+ * not move (no layout shift), the decoration group overflows the
  * mark's box without being clipped by any scrolling or overflow-hidden
  * ancestor (the rail, the Settings modal around About), the decoration is
  * visibly there (the top-left corner and the About hero differ from the
@@ -13,7 +16,9 @@
  * arch, and no runtime exception occurs.
  *
  * Screenshots land in SEASONAL_SHOTS_DIR (default: a temp dir): the
- * top-left corner (3x) and the About hero (2x) per decoration and theme,
+ * top-left corner (3x) and the About hero (2x) per decoration and theme, the
+ * top-left corner with the logo button hovered (rail-hover-<id>-<theme>.png)
+ * on Jacaranda, Light and Magma, and once focused from the keyboard,
  * a grid per decoration with all eight themes (grid-<id>.png: the themes in
  * columns under a header strip, the rail above the hero), and a side-by-side
  * close-up of the five marks at 256 px on the dark rail and on the light
@@ -95,8 +100,14 @@ const markProbe = (container) => app.evaluate(`(() => {
     }
   }
   const slot = c.closest('button') || c;
+  // the first navigation button: the next button in the rail after the logo (the divider and the navigation's wrapper sit between)
+  const rail = slot.closest('nav') || slot.parentElement;
+  // ...the second one (Calendar), never the active page's (Documents, whose tone is the active one, not the hover one),
+  // chosen by position so the same element is read before and while it is hovered
+  const nav = rail ? Array.from(rail.querySelectorAll('button')).filter((b) => b !== slot && !slot.contains(b))[1] : null;
+  const cs = getComputedStyle(slot);
   const edge = getComputedStyle(svg).getPropertyValue('--decor-blade-edge').trim();
-  return { svg: r(svg), slot: r(slot), decoration: g ? g.getAttribute('data-decoration') : null, group: g ? r(g) : null, overflow: svg.getAttribute('overflow'), clipped, next: slot.nextElementSibling ? r(slot.nextElementSibling) : null, outer: svg.outerHTML, edge, theme: document.documentElement.getAttribute('data-theme'), dark: document.documentElement.classList.contains('dark') };
+  return { svg: r(svg), slot: r(slot), nav: nav ? r(nav) : null, radius: cs.borderTopLeftRadius, navRadius: nav ? getComputedStyle(nav).borderTopLeftRadius : null, bg: cs.backgroundColor, navBg: nav ? getComputedStyle(nav).backgroundColor : null, shadow: cs.boxShadow, decoration: g ? g.getAttribute('data-decoration') : null, group: g ? r(g) : null, overflow: svg.getAttribute('overflow'), clipped, next: slot.nextElementSibling ? r(slot.nextElementSibling) : null, outer: svg.outerHTML, edge, theme: document.documentElement.getAttribute('data-theme'), dark: document.documentElement.classList.contains('dark') };
 })()`);
 
 // the app reads both settings when it starts: set them, reload, land signed in on the documents page
@@ -164,7 +175,27 @@ try {
       if (p.missing) { files.push({}); continue; }
       if (t.key === 'dark') railMarkup[id] = p.outer;
       check(`${tag}: the decoration group is ${id === 'none' ? 'absent' : 'present'}`, (p.decoration || 'none') === id, String(p.decoration));
-      check(`${tag}: the mark is 36 px in its 48 x 44 slot`, p.svg[2] === 36 && p.svg[3] === 36 && p.slot[2] === 48 && p.slot[3] === 44, JSON.stringify([p.svg, p.slot]));
+      check(`${tag}: the mark is 36 px in its 48 x 48 slot`, p.svg[2] === 36 && p.svg[3] === 36 && p.slot[2] === 48 && p.slot[3] === 48, JSON.stringify([p.svg, p.slot]));
+      check(`${tag}: the logo button's box is square, the navigation buttons' size (+/- 1 px), horizontally centred with them, the same rounding`, p.nav && Math.abs(p.slot[2] - p.slot[3]) <= 1 && Math.abs(p.slot[2] - p.nav[2]) <= 1 && Math.abs(p.slot[3] - p.nav[3]) <= 1 && Math.abs((p.slot[0] + p.slot[2] / 2) - (p.nav[0] + p.nav[2] / 2)) <= 1 && p.radius === p.navRadius && p.radius !== '0px', JSON.stringify([p.slot, p.nav, p.radius, p.navRadius]));
+      check(`${tag}: the mark is centred in the square (6 px to each edge)`, p.svg[0] - p.slot[0] === 6 && p.svg[1] - p.slot[1] === 6, JSON.stringify([p.svg, p.slot]));
+      if (id !== 'none') check(`${tag}: the decoration stays within the square (nothing hangs over its edge)`, p.group[0] >= p.slot[0] - 0.5 && p.group[1] >= p.slot[1] - 0.5 && p.group[0] + p.group[2] <= p.slot[0] + p.slot[2] + 0.5 && p.group[1] + p.group[3] <= p.slot[1] + p.slot[3] + 0.5, JSON.stringify([p.group, p.slot]));
+      // hover: the mouse over the logo button paints the navigation's hover tone on the whole square (the hit area is the highlight)
+      const hoverAt = async (box) => { await app.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: box[0] + box[2] / 2, y: box[1] + box[3] / 2 }); await sleep(250); };
+      await hoverAt(p.slot);
+      const hovered = await markProbe('[data-testid="sidebar-brand-mark"]');
+      await hoverAt(p.nav);
+      const navHovered = await markProbe('[data-testid="sidebar-brand-mark"]');
+      check(`${tag}: hovering the logo paints the navigation's hover tone on its square (and nothing when the mouse is elsewhere)`, hovered.bg !== p.bg && hovered.bg === navHovered.navBg && navHovered.bg === p.bg, JSON.stringify([p.bg, hovered.bg, navHovered.navBg]));
+      if (['dark', 'light', 'gradient-red-purple'].includes(t.key)) {
+        await hoverAt(p.slot);
+        const f = await shot(`rail-hover-${tag}`, RAIL_CLIP);
+        check(`${tag}: the hovered top-left corner renders`, pixelSpread(f) > 40);
+        await app.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 700, y: 700 });
+        await sleep(200);
+      } else {
+        await app.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 700, y: 700 });
+        await sleep(200);
+      }
       const rail = await shot(`rail-${tag}`, RAIL_CLIP);
       check(`${tag}: the top-left corner renders non-blank`, pixelSpread(rail) > 40);
       if (id === 'none') {
@@ -180,6 +211,16 @@ try {
         check(`${tag}: the sword's edge variable is ${t.key.startsWith('gradient-') ? 'the theme\'s deep tone' : t.key === 'light' ? 'the mid blue' : 'none'}`, t.key.startsWith('gradient-') ? /^#[0-9A-Fa-f]{6}$/.test(p.edge) && p.edge.toUpperCase() !== '#4F7BE8' : t.key === 'light' ? p.edge.toUpperCase() === '#4F7BE8' : p.edge === 'none', p.edge);
         const diff = differing(baseline[t.key].rail, rail);
         check(`${tag}: the decoration is visible in the top-left corner (${diff} pixels differ from the undecorated mark at 3x; >= 300 expected)`, diff >= 300, String(diff));
+      }
+      if (id === 'none' && t.key === 'dark') {
+        // keyboard focus: the ring on the same square
+        await app.evaluate(`document.querySelector('[data-testid="sidebar-brand-mark"]').focus({ focusVisible: true }); true`);
+        await sleep(200);
+        const focused = await markProbe('[data-testid="sidebar-brand-mark"]');
+        check('keyboard focus shows a ring on the logo button\'s square (a box-shadow ring, the box unchanged)', focused.shadow !== 'none' && JSON.stringify(focused.slot) === JSON.stringify(p.slot), `${focused.shadow} ${JSON.stringify(focused.slot)}`);
+        const f = await shot('rail-focus-none-dark', RAIL_CLIP);
+        check('the focused top-left corner renders', pixelSpread(f) > 40);
+        await app.evaluate(`document.activeElement && document.activeElement.blur(); true`);
       }
       if (id === 'christmas' && t.key === 'dark') {
         // the hat's body is above the arch: a hit test 3 px above the svg's top edge, three quarters along, lands in the hat

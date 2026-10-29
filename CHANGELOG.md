@@ -4,6 +4,24 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.6.2
+
+_2026-10-30_
+
+### [SYNC]
+
+Sync retries a read that got no answer or a temporary server error (twice, after 0.3 and 0.9 seconds), so one dropped connection no longer leaves a device behind until the next cycle
+
+### [UI]
+
+The top-left logo button highlights as the same square as the navigation buttons, with the seasonal decoration inside it
+
+### [SECURITY]
+
+The weekly vulnerability rescan uses the VEX attached to the release, refuses to scan without one, and closes its tracking issue when a later rescan is clean
+
+body-parser 2.4.0 now comes from Express 5 itself (the temporary pin is gone); eslint-plugin-react-refresh 0.5.7
+
 ## What's New in v3.6.1
 
 _2026-10-29_
