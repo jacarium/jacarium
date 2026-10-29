@@ -4,6 +4,14 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.6.1
+
+_2026-10-29_
+
+### [SECURITY]
+
+The container's Node.js (the central server) is 24.22.1, which fixes CVE-2026-111497 in its bundled brotli decoder - a Critical flaw that is being exploited; the release's vulnerability scan reports no vulnerabilities
+
 ## What's New in v3.6.0
 
 _2026-10-29_

@@ -198,3 +198,19 @@ Checked for anything else with an available fix, under the same grant: the Grype
 (`--ignore-states not-fixed,wont-fix`, the 3.5.2 VEX) lists nothing but the two x/net lines above, and a dry-run
 `microdnf upgrade` in the built image finds no newer RPM in the UBI repositories for the installed set - so
 nothing else went past the rule.
+
+## 2026-10-29 - the container's Node.js 24.21.0 -> 24.22.1 (CVE-2026-111497)
+
+Approved by the maintainer as part of the same day's grant for the brotli flaw ("brotli2shell"). The v3.6.0
+release's Grype gate found Node.js 24.21.0 - copied into the runtime image for the central server - affected by
+CVE-2026-111497 (Critical, listed in CISA's Known Exploited Vulnerabilities catalog): Node bundles its own
+brotli decoder. Node.js 24.22.1 (released 2026-10-20, nine days before, a security release) fixes it by
+cherry-picking the upstream brotli fix into the bundled copy (`deps: brotli: cherry-pick 0ed4268a4401abcb44720963`
+in the v24.22.1 changelog), so `process.versions.brotli` still reads 1.2.0; no Node.js release reports 1.2.1.
+The application's Python `brotli` package is 1.2.1.
+
+What went past the rule: the image `docker.io/library/node:24.22.1-bookworm-slim`, rebuilt on 2026-10-28 (one
+day old), pinned by its manifest-list digest
+`sha256:be8204d4bd327363357f532187b752ff62759c31bedf98e9e18fc08c9cbd605c`; the Node.js release itself is outside
+the cooldown. The image's `node` reports v24.22.1, and the Grype gate on the rebuilt arm64 image (the 3.6.0
+VEX, `--ignore-states not-fixed,wont-fix --fail-on high`) reports "No vulnerabilities found".

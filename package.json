@@ -1,7 +1,7 @@
 {
   "name": "jacarium",
   "private": true,
-  "version": "3.6.0",
+  "version": "3.6.1",
   "description": "Everything you know and use for technical work, in one place.",
   "homepage": "https://jacarium.com",
   "desktopName": "com.jacarium.app.desktop",
