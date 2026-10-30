@@ -17,7 +17,10 @@
  *   5. a large document (2 MB) round-trips intact;
  *   6. a long offline period: 1200 changes on A reach B through paged pulls;
  *   7. kanban boards + cards keep their board reference across devices
- *      (local ids differ), media blobs round-trip;
+ *      (local ids differ), media blobs round-trip; an image replaced in
+ *      place on A (Replace Image, src/utils/media.js replaceMedia) reaches
+ *      B as an edit of the SAME record - one row, the same sync identity,
+ *      the new bytes;
  *   8. first link pairs a document created independently on both devices
  *      with the same title + category instead of duplicating it, after a
  *      snapshot of the local data was taken;
@@ -116,6 +119,7 @@ async function device(name, dbName, clockOffsetMs = 0) {
     export { db } from '@worktree/src/db/database.js';
     export * as documents from '@worktree/src/utils/documents.js';
     export * as kanban from '@worktree/src/utils/kanban.js';
+    export * as media from '@worktree/src/utils/media.js';
   `);
   const out = path.join(WORK, `${name}.cjs`);
   await build({
@@ -268,6 +272,23 @@ try {
   // of jsdom's Blob loses its methods, so the content is checked when it can be)
   const blobOk = mediaB?.blob && (typeof mediaB.blob.text === 'function' ? (await mediaB.blob.text()) === 'synthetic bytes' : true);
   check('7. a media record with its blob round-trips', !!mediaB && !!blobOk && mediaB.mimeType === 'image/png', JSON.stringify({ has: !!mediaB?.blob, type: mediaB?.mimeType }));
+
+  // ---- 7b: an image replaced in place on A is an edit of the same record on B ----
+  // the store hands back a preview URL for the stored blob; Node's URL.createObjectURL wants a real Blob and
+  // fake-indexeddb hands back a bare object here, so a stand-in URL is enough
+  const realCreateObjectURL = URL.createObjectURL;
+  URL.createObjectURL = () => 'blob:synthetic';
+  URL.revokeObjectURL = () => {};
+  const picA = await A.db.media.where('filename').equals('pic.png').first();
+  const NEW_BYTES = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 7, 7, 7]);
+  const replaced = await A.media.replaceMedia(picA.id, new Blob([NEW_BYTES], { type: 'image/png' }));
+  await syncA(); await syncB();
+  const picsB = await B.db.media.where('filename').equals('pic.png').toArray();
+  const bytesB = picsB[0]?.blob && typeof picsB[0].blob.arrayBuffer === 'function' ? Array.from(new Uint8Array(await picsB[0].blob.arrayBuffer())).join(',') : null;
+  check('7b. the replaced image reaches B as the SAME record: one pic.png, the same sync identity, the new size, updatedAt set', picsB.length === 1 && picsB[0].syncId === picA.syncId && picsB[0].size === NEW_BYTES.length && picsB[0].updatedAt === replaced.updatedAt && picsB[0].uploadedAt === picA.uploadedAt, JSON.stringify({ n: picsB.length, size: picsB[0]?.size, same: picsB[0]?.syncId === picA.syncId }));
+  check('7b. ...with the new bytes behind it (when the clone keeps them readable)', bytesB === null || bytesB === Array.from(NEW_BYTES).join(','), bytesB);
+  check('7b. nothing stays pending on A after the push', (await A.db._syncState.where('dirty').equals(1).count()) === 0);
+  URL.createObjectURL = realCreateObjectURL;
 
   // ---- status ----
   const st = A.engine.getSyncStatus();

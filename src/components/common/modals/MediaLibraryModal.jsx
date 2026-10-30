@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { X, Upload, Search, Image as ImageIcon, Download, MoreHorizontal, Check, Tag, FileText, CheckSquare, Square, ClipboardPaste } from 'lucide-react';
 import { SubTabs, Field, TextInput, Button, ButtonRow } from '../../ui/primitives';
 import {
-  uploadMedia, getAllMedia, deleteMedia, updateMediaTags, getMediaUsage
+  uploadMedia, getAllMedia, deleteMedia, updateMediaTags, getMediaUsage, replaceMedia, replaceRefusal, readImageHead
 } from '../../../utils/media';
-import { sanitizeMediaName, uniqueMediaName, screenshotName, clipboardImageFiles } from '../../../utils/mediaNames';
+import { sanitizeMediaName, uniqueMediaName, screenshotName, clipboardImageFiles, imageExtensions, imageTypeLabel } from '../../../utils/mediaNames';
 import { useNotifications } from '../../../contexts/NotificationContext';
 import ConfirmationModal from '../ConfirmationModal';
+import BaseModal from './BaseModal';
 import { MenuItemIcon } from '../../common/menus/MenuItemIcon';
 
 const UNTAGGED = '__untagged__';
@@ -37,9 +38,28 @@ function fileExtension(filename) {
  * screenshot-YYYY-MM-DD-HHMMSS.<ext>), and stores them on Upload / Enter
  * under those names - sanitised and made unique by src/utils/mediaNames.js,
  * which the store applies again regardless. Text pastes are not touched.
+ * "Replace Image" in an image's menu opens the Upload tab in replace mode
+ * (a banner names the image, with Cancel): one image, given the same ways,
+ * becomes the single pending row - its name read-only, since the image is
+ * replaced in place under its name (so every document using it shows the
+ * new image), keeping its tags, its date and its sync identity - and must
+ * be of the SAME type as the current image (PNG for a PNG, JPEG / JPG for a
+ * JPEG; the picker is narrowed to it, the hint names it, another type is
+ * refused inline and Replace stays disabled); Replace asks for confirmation
+ * and the Browse tab then shows the new image under the old name.
+ * While rows are pending, the drop zone folds to one line (in replace mode
+ * it goes, one image being all it takes), the rows sit at the top, and the
+ * actions (Cancel, Upload / Replace) are in the modal's footer next to
+ * Close - outside the scroll area, so they are in view whatever the window.
  * Shows insert affordances when an onSelectImage callback is provided.
+ * The shell is the shared BaseModal (focus kept inside, given back to
+ * `returnFocusTo` - the control that opened the library - on close).
+ * Escape closes the innermost layer first: the ... menu, a confirmation,
+ * the tag editor, the preview; then it cancels the pending rows of the
+ * Upload tab, then replace mode; only then does it close the library -
+ * from a text field as from anywhere else.
  */
-export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
+export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, returnFocusTo = null }) {
   const [media, setMedia] = useState([]);
   const [usage, setUsage] = useState(new Map()); // filename -> [{id, title}]
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,11 +78,16 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
   const [mediaToDelete, setMediaToDelete] = useState(null); // { id, filename }
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [tagEditor, setTagEditor] = useState(null); // { item, value }
-  const [pending, setPending] = useState([]); // images waiting for a name: { key, file, name, preview, source: 'picker' | 'drop' | 'paste' }
+  const [pending, setPending] = useState([]); // images waiting for a name: { key, file, name, preview, source: 'picker' | 'drop' | 'paste', refused? }
+  const [replacing, setReplacing] = useState(null); // { item }: the Upload tab replaces this image's bytes in place
+  const [showReplaceModal, setShowReplaceModal] = useState(false);
   const fileInputRef = useRef(null);
   const firstNameRef = useRef(null);
+  const contextMenuRef = useRef(null);
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
+  const replacingRef = useRef(replacing);
+  replacingRef.current = replacing;
   const { addNotification } = useNotifications();
 
   const clearPending = useCallback(() => {
@@ -82,18 +107,41 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
       setRecentlyUploaded([]);
       setSelectedIds(new Set());
       setSearchQuery('');
+      setReplacing(null);
       clearPending();
     }
   }, [isOpen, clearPending]);
 
-  // Close context menu when clicking outside
+  // Close context menu when clicking outside (in the capture phase: the
+  // shared modal's backdrop stops clicks from bubbling to the document).
+  // A click INSIDE the menu is left to its item: closing here first would
+  // unmount the item before React delivers the click to it (in a production
+  // build nothing then happens - Replace Image, Preview, Download...)
   useEffect(() => {
-    const handleClickOutside = () => setContextMenu(null);
+    const handleClickOutside = (e) => {
+      if (contextMenuRef.current && contextMenuRef.current.contains(e.target)) return;
+      setContextMenu(null);
+    };
     if (contextMenu) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
+      document.addEventListener('click', handleClickOutside, true);
+      return () => document.removeEventListener('click', handleClickOutside, true);
     }
   }, [contextMenu]);
+
+  // Escape: the innermost layer first, then the pending rows, then replace
+  // mode, then the library
+  const handleEscape = useCallback(() => {
+    if (contextMenu) { setContextMenu(null); return; }
+    if (showDeleteModal) { setShowDeleteModal(false); setMediaToDelete(null); return; }
+    if (showBulkDeleteModal) { setShowBulkDeleteModal(false); return; }
+    if (showReplaceModal) { setShowReplaceModal(false); return; }
+    if (tagEditor) { setTagEditor(null); return; }
+    if (previewImage) { setPreviewImage(null); return; }
+    if (uploading) return;
+    if (pendingRef.current.length > 0) { clearPending(); return; }
+    if (replacing) { setReplacing(null); return; }
+    onClose();
+  }, [contextMenu, showDeleteModal, showBulkDeleteModal, showReplaceModal, tagEditor, previewImage, uploading, clearPending, replacing, onClose]);
 
   async function loadMedia() {
     const allMedia = await getAllMedia();
@@ -186,10 +234,34 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
 
   // The images given to the Upload tab become pending rows (a preview, an
   // editable name) rather than uploads; `source` says where they came from.
+  // In replace mode one image is taken (a second, or more at once, is
+  // refused with a message) and checked against the current image's type:
+  // by its declared type at once, by its first bytes as soon as they are
+  // read; a refusal is shown on the row and blocks Replace.
   const queueFiles = useCallback((files, source) => {
     const now = new Date();
+    const target = replacingRef.current;
+    let list = Array.from(files || []);
+    if (target && list.length > 0) {
+      if (pendingRef.current.length > 0) {
+        addNotification({
+          type: 'error',
+          title: 'One Image',
+          message: `Replacing ${target.item.filename} takes one image; cancel the pending one to pick another`
+        });
+        return;
+      }
+      if (list.length > 1) {
+        addNotification({
+          type: 'error',
+          title: 'One Image',
+          message: `Replacing ${target.item.filename} takes one image; the first was taken, ${list.length - 1} ignored`
+        });
+        list = list.slice(0, 1);
+      }
+    }
     const rows = [];
-    for (const file of Array.from(files || [])) {
+    for (const file of list) {
       if (!file || typeof file.type !== 'string' || !file.type.startsWith('image/')) {
         addNotification({
           type: 'error',
@@ -203,6 +275,16 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
       rows.push({ key: `${now.getTime()}-${rows.length}-${Math.random().toString(36).slice(2, 8)}`, file, name: clean.name || requested, preview: URL.createObjectURL(file), source });
     }
     if (rows.length === 0) return;
+    if (target) {
+      const row = rows[0];
+      row.refused = replaceRefusal(target.item, row.file, null);
+      if (!row.refused) {
+        readImageHead(row.file).then((head) => {
+          const refused = replaceRefusal(target.item, row.file, head);
+          if (refused) setPending((prev) => prev.map((r) => (r.key === row.key ? { ...r, refused } : r)));
+        }).catch(() => { /* unreadable: the declared type decided */ });
+      }
+    }
     setRecentlyUploaded([]);
     setPending((prev) => [...prev, ...rows]);
     setActiveTab('upload');
@@ -234,20 +316,72 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
 
   // What each pending row will be stored as: the sanitised name, made unique
   // against the library and the rows before it; or the sanitiser's message.
+  // In replace mode: the replaced image's own name, or the type refusal.
   const pendingNames = useMemo(() => {
     const taken = new Set(media.map((item) => item.filename));
     return pending.map((row) => {
+      if (replacing) return row.refused ? { error: row.refused } : { storedAs: replacing.item.filename };
       const clean = sanitizeMediaName(row.name, row.file.type);
       if (clean.error) return { error: clean.error };
       const storedAs = uniqueMediaName(clean.name, taken);
       taken.add(storedAs);
       return { storedAs };
     });
-  }, [pending, media]);
+  }, [pending, media, replacing]);
   const pendingInvalid = pendingNames.some((n) => n.error);
+
+  // Replace mode: the type the new image must be, as a label and as the
+  // picker's `accept` (the MIME type and its extensions)
+  const replaceLabel = replacing ? (imageTypeLabel(replacing.item.mimeType) || 'image') : '';
+  const replaceAccept = replacing
+    ? [replacing.item.mimeType, ...(imageExtensions(replacing.item.mimeType) || []).map((ext) => `.${ext}`)].filter(Boolean).join(',')
+    : 'image/*';
+
+  function startReplace(item) {
+    clearPending();
+    setRecentlyUploaded([]);
+    setReplacing({ item });
+    setActiveTab('upload');
+    setContextMenu(null);
+    setPreviewImage(null);
+  }
+
+  function cancelReplace() {
+    clearPending();
+    setReplacing(null);
+  }
+
+  // The pending image replaces the current one, after confirmation
+  async function handleReplaceConfirm() {
+    const target = replacing;
+    const row = pending[0];
+    if (!target || !row || row.refused || uploading) return;
+    setUploading(true);
+    try {
+      const updated = await replaceMedia(target.item.id, row.file);
+      clearPending();
+      setReplacing(null);
+      addNotification({
+        type: 'success',
+        title: 'Image Replaced',
+        message: `${updated.filename} now shows the new image in every document that uses it`
+      });
+      await loadMedia();
+      setActiveTab('browse');
+    } catch (error) {
+      addNotification({
+        type: 'error',
+        title: 'Replace Failed',
+        message: error.message
+      });
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function uploadPending() {
     if (pending.length === 0 || pendingInvalid || uploading) return;
+    if (replacing) { setShowReplaceModal(true); return; }
     const rows = pending;
     setUploading(true);
     setRecentlyUploaded([]); // Only reflect the latest batch
@@ -434,9 +568,9 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
     e.target.value = '';   // the same file can be picked again
   }
 
+  // Enter uploads; Escape is the modal's (the pending rows go first)
   function handlePendingKey(e) {
     if (e.key === 'Enter') { e.preventDefault(); uploadPending(); }
-    if (e.key === 'Escape') { e.preventDefault(); clearPending(); }
   }
 
   function handleContextMenu(e, item) {
@@ -482,10 +616,19 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
 
   const hasActiveFilters = searchQuery || typeFilter !== 'all' ||
     usageFilter !== 'all' || tagFilter !== 'all';
+  const modKey = navigator.platform?.startsWith('Mac') ? 'Cmd' : 'Ctrl';
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-os-modal rounded-lg shadow-xl max-w-6xl w-full h-[85vh] flex flex-col">
+    <BaseModal
+      isOpen={isOpen}
+      onClose={onClose}
+      onEscape={handleEscape}
+      closeOnBackdropClick={false}
+      trapFocus
+      returnFocusTo={returnFocusTo}
+      className="rounded-lg max-w-6xl w-full h-[85vh] flex flex-col"
+    >
+      <div className="flex flex-col h-full min-h-0" data-testid="media-library">
         {/* Header */}
         <div className="p-4 border-b border-os-border flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -519,8 +662,53 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-4">
           {activeTab === 'upload' ? (
-            // Upload Tab
-            <div className="flex flex-col items-center justify-center min-h-full gap-6">
+            // Upload Tab (centred while empty; from the top once rows are pending)
+            <div className={`flex flex-col items-center ${pending.length > 0 ? 'justify-start gap-4' : 'justify-center min-h-full gap-6'}`}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={replaceAccept}
+                multiple={!replacing}
+                onChange={handleFileSelect}
+                data-testid="media-upload-input"
+                className="hidden"
+              />
+              {/* Replace mode: the image being replaced, and the way out */}
+              {replacing && (
+                <div className="w-full max-w-2xl flex items-center gap-3 border border-os-border rounded-lg p-2 bg-os-modal" data-testid="media-replace-banner">
+                  <div className="w-14 h-14 shrink-0 rounded-sm overflow-hidden bg-os-card-secondary dark:bg-os-sidebar">
+                    <img src={replacing.item.data} alt="" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-os-text-primary truncate" title={replacing.item.filename}>
+                      Replacing {replacing.item.filename}
+                    </p>
+                    <p className="text-xs text-os-text-secondary">
+                      The name, the tags and every document using it stay; only the image changes. Needs a {replaceLabel} image.
+                    </p>
+                  </div>
+                  <Button size="sm" onClick={cancelReplace} disabled={uploading} data-testid="media-replace-cancel" title="Leave replace mode; the image stays as it is">Exit replace</Button>
+                </div>
+              )}
+              {pending.length > 0 && !replacing && (
+                // the folded drop zone: one line, the same drop / paste / picker
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  data-testid="media-upload-drop"
+                  className={`rounded-lg border border-dashed border-os-border px-4 py-2 w-full max-w-2xl flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-os-text-secondary transition-colors ${
+ dragOver
+ ?'bg-blue-50 dark:bg-blue-900/20'
+ :''
+ }`}
+                >
+                  <Upload size={16} className="shrink-0 text-os-text-muted" aria-hidden="true" />
+                  <span>Drop or paste ({modKey}+V) to add another, or</span>
+                  <Button variant="link" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>Browse Files</Button>
+                </div>
+              )}
+              {pending.length === 0 && (
               <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -534,10 +722,12 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
               >
                 <Upload size={64} className="mx-auto mb-4 text-os-text-muted" />
                 <p className="text-lg font-medium text-os-text-primary mb-2">
-                  Upload Images
+                  {replacing ? 'Replace Image' : 'Upload Images'}
                 </p>
                 <p className="text-sm text-os-text-secondary mb-4">
-                  Drag and drop images here, paste one with {navigator.platform?.startsWith('Mac') ? 'Cmd' : 'Ctrl'}+V, or
+                  {replacing
+                    ? `Drag and drop a ${replaceLabel} image here, paste one with ${modKey}+V, or`
+                    : `Drag and drop images here, paste one with ${modKey}+V, or`}
                 </p>
                 <button
                   onClick={() => fileInputRef.current?.click()}
@@ -546,30 +736,24 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
                 >
                   {uploading ? 'Uploading...' : 'Browse Files'}
                 </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleFileSelect}
-                  data-testid="media-upload-input"
-                  className="hidden"
-                />
-                <p className="text-xs text-os-text-muted mt-4">
-                  Supports: JPG, PNG, GIF, WebP
+                <p className="text-xs text-os-text-muted mt-4" data-testid="media-upload-hint">
+                  {replacing ? `Accepts: ${replaceLabel} only (the current image is a ${replaceLabel})` : 'Supports: JPG, PNG, GIF, WebP'}
                 </p>
               </div>
+              )}
 
-              {/* Pending images: a preview and a name each, then Upload / Cancel */}
+              {/* Pending images: a preview and a name each (Upload / Cancel are in the footer) */}
               {pending.length > 0 && (
                 <div className="w-full max-w-2xl" data-testid="media-pending">
                   <p className="text-sm font-medium text-os-text-primary mb-2">
-                    {pending.length === 1 ? 'Name this image' : `Name these ${pending.length} images`}
+                    {replacing ? 'Replace with this image' : pending.length === 1 ? 'Name this image' : `Name these ${pending.length} images`}
                   </p>
                   <div className="flex flex-col gap-2">
                     {pending.map((row, i) => {
                       const outcome = pendingNames[i] || {};
-                      const hint = outcome.storedAs && outcome.storedAs !== row.name ? `Stored as ${outcome.storedAs}` : undefined;
+                      const hint = replacing
+                        ? (outcome.error ? undefined : 'Keeps this name, so the documents using it show the new image')
+                        : outcome.storedAs && outcome.storedAs !== row.name ? `Stored as ${outcome.storedAs}` : undefined;
                       return (
                         <div key={row.key} className="flex items-center gap-3 border border-os-border rounded-lg p-2 bg-os-modal" data-testid="media-pending-row">
                           <div className="w-14 h-14 shrink-0 rounded-sm overflow-hidden bg-os-card-secondary dark:bg-os-sidebar">
@@ -581,7 +765,8 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
                                 id={`media-name-${row.key}`}
                                 ref={i === 0 ? firstNameRef : undefined}
                                 size="sm"
-                                value={row.name}
+                                value={replacing ? replacing.item.filename : row.name}
+                                readOnly={!!replacing}
                                 onChange={(e) => setPending((prev) => prev.map((r) => (r.key === row.key ? { ...r, name: e.target.value } : r)))}
                                 onKeyDown={handlePendingKey}
                                 data-testid="media-pending-name"
@@ -600,12 +785,6 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
                       );
                     })}
                   </div>
-                  <ButtonRow className="mt-3">
-                    <Button onClick={clearPending} disabled={uploading} data-testid="media-upload-cancel">Cancel</Button>
-                    <Button variant="primary" onClick={uploadPending} disabled={uploading || pendingInvalid} data-testid="media-upload-confirm">
-                      {uploading ? 'Uploading...' : pending.length === 1 ? 'Upload' : `Upload ${pending.length}`}
-                    </Button>
-                  </ButtonRow>
                 </div>
               )}
 
@@ -842,6 +1021,11 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
         {/* Footer */}
         <div className="p-4 border-t border-os-border flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-sm">
+            {activeTab === 'upload' && pending.length > 0 && (
+              <span className="text-os-text-secondary" data-testid="media-pending-count">
+                {replacing ? `Replacing ${replacing.item.filename}` : pending.length === 1 ? '1 image to upload' : `${pending.length} images to upload`}
+              </span>
+            )}
             {activeTab === 'browse' && media.length > 0 && (
               selectedIds.size > 0 ? (
                 <>
@@ -872,19 +1056,31 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
               )
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-os-text-secondary hover:bg-os-card-secondary rounded-sm transition-colors"
-          >
-            Close
-          </button>
+          <ButtonRow>
+            {activeTab === 'upload' && pending.length > 0 && (
+              <>
+                <Button onClick={clearPending} disabled={uploading} data-testid="media-upload-cancel">Cancel</Button>
+                <Button variant="primary" onClick={uploadPending} disabled={uploading || pendingInvalid} data-testid="media-upload-confirm">
+                  {replacing ? (uploading ? 'Replacing...' : 'Replace') : uploading ? 'Uploading...' : pending.length === 1 ? 'Upload' : `Upload ${pending.length}`}
+                </Button>
+              </>
+            )}
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-os-text-secondary hover:bg-os-card-secondary rounded-sm transition-colors"
+            >
+              Close
+            </button>
+          </ButtonRow>
         </div>
       </div>
 
       {/* Context Menu */}
       {contextMenu && (
         <div
+          ref={contextMenuRef}
           className="fixed bg-os-modal border border-os-border rounded-lg shadow-xl py-1 z-50 min-w-[160px]"
+          data-testid="media-context-menu"
           style={{
             left: `${contextMenu.x}px`,
             top: `${contextMenu.y}px`,
@@ -928,6 +1124,17 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
           <button
             onClick={(e) => {
               e.stopPropagation();
+              startReplace(contextMenu.item);
+            }}
+            className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2"
+            data-testid="media-menu-replace"
+          >
+            <MenuItemIcon action="replaceImage" />
+            Replace Image
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
               handleDownload(contextMenu.item.data, contextMenu.item.filename);
               setContextMenu(null);
             }}
@@ -955,6 +1162,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
       {previewImage && (
         <div
           className="fixed inset-0 bg-black/90 flex items-center justify-center z-60"
+          data-testid="media-preview"
           onClick={() => setPreviewImage(null)}
         >
           {/* Close Button - Top Right */}
@@ -1016,6 +1224,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
       {tagEditor && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-70"
+          data-testid="media-tag-editor"
           onClick={() => setTagEditor(null)}
         >
           <div
@@ -1034,7 +1243,6 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
               onChange={(e) => setTagEditor({ ...tagEditor, value: e.target.value })}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleTagEditorSave();
-                if (e.key === 'Escape') setTagEditor(null);
               }}
               placeholder="e.g. screenshots, networking, openshift"
               autoFocus
@@ -1074,6 +1282,18 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
         />
       )}
 
+      {/* Replace Confirmation Modal */}
+      {showReplaceModal && replacing && (
+        <ConfirmationModal
+          isOpen={showReplaceModal}
+          onConfirm={handleReplaceConfirm}
+          onClose={() => setShowReplaceModal(false)}
+          title="Replace Image"
+          message={`Replace ${replacing.item.filename}? Documents using it will show the new image.`}
+          confirmText="Replace"
+        />
+      )}
+
       {/* Bulk Delete Confirmation Modal */}
       {showBulkDeleteModal && (
         <ConfirmationModal
@@ -1090,6 +1310,6 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage }) {
           dangerous={true}
         />
       )}
-    </div>
+    </BaseModal>
   );
 }

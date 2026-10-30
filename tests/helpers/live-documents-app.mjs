@@ -13,6 +13,22 @@
  * can exit 0 with a SKIP line and ./tests/run-all.sh stays green on machines
  * without a browser. Set CHROME_BIN=/path/to/chrome to run there.
  *
+ * Two ways to serve the app, chosen by the `build` option or LIVE_BUILD:
+ *   - 'dev' (the default): the Vite dev server, as `npm run dev`;
+ *   - 'production': a production build (`vite build` with BUILD_MODE=
+ *     production, the packaged app's build: minified, console dropped,
+ *     no React development checks) served by `vite preview` from a
+ *     temporary directory. The build runs once per process and is shared
+ *     by every launch; LIVE_BUILD_DIST=<dir> reuses a build already made.
+ *     Development and production React differ in when a state update
+ *     commits inside a browser event, so what a dev-server test proves
+ *     about a click is not always true of the packaged app
+ *     (tests/production-build-live.test.mjs runs the critical interactions
+ *     this way). The built app finds its backend through the
+ *     __JACARIUM_BACKEND_URL seam (src/utils/backendUrl.js), set on every
+ *     new document before the app's scripts run, since `vite preview` does
+ *     not proxy the API the way the deployments' reverse proxy does.
+ *
  * Same conventions as tests/documents-pdf-export-smoke.mjs and
  * tests/documents-mermaid-live.test.mjs (which predate this helper and keep
  * their own inline copies).
@@ -56,12 +72,41 @@ const stop = (child) => new Promise((resolve) => {
  *   waitFor: (expression: string, timeoutMs: number, stepMs?: number) => Promise<any>,
  *   errors: string[],
  *   close: () => Promise<void>,
+ *   build: 'dev' | 'production',
  * }>}
  */
-export async function launchDocumentsApp({ port, profilePrefix = 'documents-live-', debugPort = port + 1000, chromeArgs = [] }) {
+let productionDist = null;   // the one production build of this process: a promise of its directory
+
+/**
+ * Build the UI the way the packaged app is built, once per process, into a
+ * temporary directory (or take LIVE_BUILD_DIST); resolves to the directory.
+ */
+export function productionBuild() {
+  if (!productionDist) {
+    productionDist = (async () => {
+      if (process.env.LIVE_BUILD_DIST) return process.env.LIVE_BUILD_DIST;
+      const dir = mkdtempSync(path.join(tmpdir(), 'jacarium-live-dist-'));
+      process.once('exit', () => { try { rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ } });
+      const started = Date.now();
+      await new Promise((resolve, reject) => {
+        const build = spawn(process.execPath, [path.join(REPO, 'node_modules', 'vite', 'bin', 'vite.js'), 'build', '--outDir', dir, '--logLevel', 'error'], { cwd: REPO, stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, BUILD_MODE: 'production' } });
+        build.once('exit', (code) => (code === 0 ? resolve() : reject(new Error(`vite build exited with ${code}`))));
+        build.once('error', reject);
+      });
+      console.log(`INFO: production build in ${Math.round((Date.now() - started) / 1000)}s -> ${dir}`);
+      return dir;
+    })();
+  }
+  return productionDist;
+}
+
+export async function launchDocumentsApp({ port, profilePrefix = 'documents-live-', debugPort = port + 1000, chromeArgs = [], build = process.env.LIVE_BUILD || 'dev', backendUrl = 'http://localhost:8080' }) {
   // debugPort / chromeArgs: a second Chrome against the SAME Vite port (two
   // browser contexts with their own storage, as two teammates) needs its own
   // CDP port; chromeArgs adds flags such as --ignore-certificate-errors.
+  // build: 'dev' | 'production' (see the header); backendUrl: where the
+  // production build's app finds the backend.
+  if (!['dev', 'production'].includes(build)) throw new Error(`launchDocumentsApp: build must be 'dev' or 'production', not ${JSON.stringify(build)}`);
   if (process.env.SKIP_BROWSER_TESTS) {
     return { skip: 'SKIP_BROWSER_TESTS is set - not launching Chrome. Unset it to run this real-browser check.' };
   }
@@ -74,7 +119,11 @@ export async function launchDocumentsApp({ port, profilePrefix = 'documents-live
   // (Chrome and Vite die with this process, however it ends: an interrupted
   // test must not leave a signed-in tab polling the backend port for days -
   // tests/helpers/reap.mjs)
-  const vite = reapOnExit(spawn(process.execPath, [path.join(REPO, 'node_modules', 'vite', 'bin', 'vite.js'), '--port', String(port), '--strictPort'], { cwd: REPO, stdio: 'ignore' }));
+  const dist = build === 'production' ? await productionBuild() : null;
+  const viteArgs = build === 'production'
+    ? ['preview', '--outDir', dist, '--port', String(port), '--strictPort']
+    : ['--port', String(port), '--strictPort'];
+  const vite = reapOnExit(spawn(process.execPath, [path.join(REPO, 'node_modules', 'vite', 'bin', 'vite.js'), ...viteArgs], { cwd: REPO, stdio: 'ignore' }));
   let ready = false;
   for (let i = 0; i < 240 && !ready; i++) { // up to 60s: Vite may re-optimize deps after a lockfile change
     try { ready = (await fetch(url)).ok; } catch { await sleep(250); }
@@ -137,12 +186,16 @@ export async function launchDocumentsApp({ port, profilePrefix = 'documents-live
 
     await send('Runtime.enable');
     await send('Page.enable');
+    if (build === 'production') {
+      // the built app would take its own origin for the backend (the deployments' reverse proxy forwards the API); here the backend is a port of its own
+      await send('Page.addScriptToEvaluateOnNewDocument', { source: `globalThis.__JACARIUM_BACKEND_URL = ${JSON.stringify(backendUrl)};` });
+    }
     await send('Page.navigate', { url });
     await sleep(5000);
     // Known light state: ThemeContext's default is 'auto' (prefers-color-scheme)
     await evaluate(`document.documentElement.classList.remove('dark')`);
 
-    return { evaluate, send, waitFor, errors, close };
+    return { evaluate, send, waitFor, errors, close, build };
   } catch (err) {
     await close();
     throw err;

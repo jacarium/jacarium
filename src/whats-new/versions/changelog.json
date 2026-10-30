@@ -1,5 +1,31 @@
 [
   {
+    "version": "3.7.0",
+    "date": "2026-10-30",
+    "features": [
+      {
+        "category": "DOCUMENTS",
+        "description": [
+          "Right-click in the editor offers Cut, Copy and Paste (Cut and Copy when text is selected), with the keyboard shortcuts shown; the selection stays highlighted while the menu is open, and the arrow keys, Enter and Escape work in it",
+          "Media Library: Replace Image in an image's menu swaps the picture for a new one of the same type - same name, tags and links, so every document using it shows the new image (also on synced devices and in ZIP exports)",
+          "Media Library: Escape closes it (the innermost menu, preview or pending upload first), focus returns to where you opened it, and the Upload and Replace buttons stay in view"
+        ]
+      },
+      {
+        "category": "UI",
+        "description": [
+          "Every context menu in the app can be used with the keyboard (arrows, Home/End, Escape) and is announced properly to screen readers"
+        ]
+      },
+      {
+        "category": "TESTS",
+        "description": [
+          "Browser tests run against a production build with real mouse and keyboard input, and a check keeps every click-outside handler from swallowing clicks inside its own menu"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.6.2",
     "date": "2026-10-29",
     "features": [

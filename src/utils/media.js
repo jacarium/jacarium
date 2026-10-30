@@ -1,5 +1,5 @@
 import { db } from '../db/database';
-import { sanitizeMediaName, uniqueMediaName } from './mediaNames';
+import { sanitizeMediaName, uniqueMediaName, sameImageType, sniffImageType, imageTypeLabel } from './mediaNames';
 
 /**
  * Media Management Utilities
@@ -50,6 +50,61 @@ export async function uploadMedia(file, { name } = {}) {
 
   const id = await db.media.add(mediaRecord);
   return { id, ...mediaRecord };
+}
+
+/**
+ * Replace an image's bytes in place: the record keeps its id, its name (and
+ * so every `attachment:<name>` reference in the documents, which show the
+ * new image at once), its tags, its upload date and its sync identity; the
+ * blob, the type and the size are the new file's, and `updatedAt` marks
+ * the edit (the sync tables read it as the record's time, so another device
+ * takes the replacement as an edit of the same record, not a deletion and a
+ * new one). The new file must be an image of the SAME type as the current
+ * one - .jpg and .jpeg being one type - by its declared MIME type and by
+ * its bytes' signature where the format has one: the exports write each
+ * image under its stored name, extension included, and a different type
+ * under the old name would give files whose extension does not match their
+ * content. Resolves to the updated record (with a fresh `data` URL);
+ * rejects with a message for the user when the file is not acceptable.
+ * @param {number} id - The media id
+ * @param {File|Blob} file - The new image
+ */
+export async function replaceMedia(id, file) {
+  const record = await db.media.get(id);
+  if (!record) throw new Error('This image is no longer in the library.');
+  const refused = replaceRefusal(record, file, await readImageHead(file));
+  if (refused) throw new Error(refused);
+  const updatedAt = new Date().toISOString();
+  // the same type by the rule above, so the record's own spelling stays (image/jpeg for a file declared image/jpg)
+  await db.media.update(id, { blob: file, mimeType: record.mimeType || file.type, size: file.size, updatedAt });
+  const url = objectUrlCache.get(id);
+  if (url) {
+    URL.revokeObjectURL(url);
+    objectUrlCache.delete(id);
+  }
+  const fresh = await db.media.get(id);
+  return { ...fresh, tags: Array.isArray(fresh.tags) ? fresh.tags : [], data: getObjectUrl(fresh) };
+}
+
+/** The first bytes of a file (enough for every image signature), as a Uint8Array. */
+export async function readImageHead(file) {
+  return new Uint8Array(await file.slice(0, 512).arrayBuffer());
+}
+
+/**
+ * Why `file` may not replace `record`, as a sentence for the user, or null
+ * when it may: not an image; a different image type (by the declared type,
+ * or by the bytes' signature when the format has one); `head` is the file's
+ * first bytes.
+ */
+export function replaceRefusal(record, file, head) {
+  const want = record.mimeType || '';
+  const label = imageTypeLabel(want) || 'image';
+  if (!file || typeof file.type !== 'string' || !file.type.startsWith('image/')) return `Replace with a ${label} image (the current image is a ${label}).`;
+  if (!sameImageType(file.type, want)) return `Replace with a ${label} image (the current image is a ${label}).`;
+  const sniffed = head ? sniffImageType(head) : null;
+  if (sniffed && !sameImageType(sniffed, want)) return `Replace with a ${label} image (the current image is a ${label}; this file's content is ${imageTypeLabel(sniffed) || sniffed}).`;
+  return null;
 }
 
 /**

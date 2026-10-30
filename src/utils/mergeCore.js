@@ -144,7 +144,7 @@ export const SYNC_TABLES = {
   calendarEventTemplates: { idField: 'syncId', naturalKey: byName, timestamp: updatedOrCreated },
   sshCommands:            { idField: 'syncId', naturalKey: byName, timestamp: updatedOrCreated },
   openshiftTemplates:     { idField: 'syncId', naturalKey: byNameCategory, timestamp: updatedOrCreated },
-  media:                  { idField: 'syncId', naturalKey: (m) => joinKey(keyPart(m.filename)), timestamp: (m) => m.uploadedAt, blobFields: ['blob'] },
+  media:                  { idField: 'syncId', naturalKey: (m) => joinKey(keyPart(m.filename)), timestamp: (m) => m.updatedAt || m.uploadedAt, blobFields: ['blob'] },   // updatedAt: a replaced image (src/utils/media.js replaceMedia)
   gtfobinsFunctions:      { idField: 'syncId', naturalKey: (f) => joinKey(keyPart(f.funcId)), timestamp: () => null },
   gtfobinsExecutables:    { idField: 'syncId', naturalKey: byName, timestamp: (e) => e.updatedAt },
   gtfobinsContexts:       { idField: 'syncId', naturalKey: (c) => joinKey(keyPart(c.contextId)), timestamp: () => null },

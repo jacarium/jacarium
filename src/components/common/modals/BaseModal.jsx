@@ -50,6 +50,10 @@ export const DIALOG_Z_INDEX = 2147483647;
  * @param {ReactNode} children - Modal content
  * @param {boolean} closeOnBackdropClick - Close when clicking backdrop (default: true)
  * @param {boolean} closeOnEscape - Close on Escape key (default: true)
+ * @param {function} onEscape - What Escape does instead of onClose, for a
+ *   modal with layers of its own (a menu, a lightbox, an inner dialog,
+ *   pending input) that an Escape should close first; the modal decides
+ *   and calls onClose itself when nothing is left
  * @param {string} className - Additional CSS classes for modal container
  * @param {string} backdropClassName - Additional CSS classes for backdrop
  * @param {number} zIndex - Z-index for modal (default: 50; see tier table above.
@@ -75,6 +79,7 @@ export default function BaseModal({
   children,
   closeOnBackdropClick = true,
   closeOnEscape = true,
+  onEscape = null,
   className = '',
   backdropClassName = '',
   zIndex = 50,
@@ -87,18 +92,25 @@ export default function BaseModal({
 
   // Focus: into the panel on open (a layout effect: before anything else
   // can move the focus, and while the element that had it is still
-  // focused), back out on close - a frame later, when the dialog underneath
-  // has dropped its `inert` (focus() on an inert element does nothing).
+  // focused), back out on close - a tick later, when the dialog underneath
+  // has dropped its `inert` (focus() on an inert element does nothing). A
+  // timer, not an animation frame: frames do not run in a hidden page (a
+  // background window, a headless browser), the focus must still return.
+  // Nothing is given back while the panel is still in the page holding
+  // the focus: development's double-run of the effects would otherwise
+  // pull the focus out of the dialog it has just opened.
   useLayoutEffect(() => {
     if (!isOpen || !trapFocus) return undefined;
     const opener = document.activeElement;
-    panelRef.current?.focus();
+    const panel = panelRef.current;
+    panel?.focus();
     return () => {
       const named = returnFocusRef.current;
       const target = (typeof named === 'function' ? named() : named) || opener;
-      requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (panel && document.contains(panel) && panel.contains(document.activeElement)) return;
         if (target && typeof target.focus === 'function' && document.contains(target)) target.focus();
-      });
+      }, 0);
     };
   }, [isOpen, trapFocus]);
 
@@ -108,13 +120,14 @@ export default function BaseModal({
 
     function handleEscape(e) {
       if (e.key === 'Escape') {
-        onClose();
+        if (onEscape) onEscape();
+        else onClose();
       }
     }
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose, closeOnEscape]);
+  }, [isOpen, onClose, onEscape, closeOnEscape]);
 
   // Prevent body scroll when modal is open
   useEffect(() => {

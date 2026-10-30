@@ -82,6 +82,7 @@ import { downloadBlob } from '../../../utils/exportHelpers';
 import { useContextMenu } from '../../../hooks/useContextMenu';
 import ContextMenu, { ContextMenuItem } from '../../common/menus/ContextMenu';
 import TextSelectionMenu from './TextSelectionMenu';
+import { readClipboardState, copySelection, cutSelection, pasteInto } from '../../../utils/editorClipboard';
 import QuickWorkflow from './QuickWorkflow';
 import QuickTasks from './QuickTasks';
 import { getUserColor, hexToRgba } from '../../../utils/userColors';
@@ -189,6 +190,7 @@ export default function DocumentEditor({
 
   // Media library state
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+  const mediaOpener = useRef(null);   // the toolbar button the Media Library was opened from
   // The toolbar (see the "Toolbar" markup below): four dropdowns rendered
   // by ToolbarMenu (Heading, List, Insert, and the phone's "More"), each
   // with its open state and anchor ref; the strip itself is a WAI-ARIA
@@ -214,8 +216,10 @@ export default function DocumentEditor({
     visible: false,
     x: 0,
     y: 0,
-    text: ''
+    text: '',
+    clipboard: 'unknown'   // what the clipboard holds, for the menu's Paste: 'text' | 'empty' | 'unknown'
   });
+  const closeSelectionMenu = useCallback(() => setSelectionMenu({ visible: false, x: 0, y: 0, text: '', clipboard: 'unknown' }), []);
 
   // Cloud document ownership state
   const [isOwner, setIsOwner] = useState(true);
@@ -1062,7 +1066,7 @@ export default function DocumentEditor({
   useEffect(() => {
     function handleClickOutside(event) {
       if (selectionMenuRef.current && !selectionMenuRef.current.contains(event.target)) {
-        setSelectionMenu({ visible: false, x: 0, y: 0, text: '' });
+        closeSelectionMenu();
       }
     }
 
@@ -1070,7 +1074,7 @@ export default function DocumentEditor({
       window.document.addEventListener('mousedown', handleClickOutside);
       return () => window.document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [selectionMenu.visible]);
+  }, [selectionMenu.visible, closeSelectionMenu]);
 
   const insertMarkdown = (before, after = '', placeholder = '') => {
     if (locked || isPreviewActive) return;
@@ -2702,24 +2706,43 @@ export default function DocumentEditor({
     }
   }, [showSearchReplace]);
 
-  // Text selection context menu handler
+  // When the editor takes no typing: a locked or foreign cloud document, offline for a cloud document, the
+  // server copy unavailable, auto-typing in progress - the textarea is read-only and the menu's Cut / Paste are off
+  const editorReadOnly = locked || !isOwner || (document?.inCloud && !isOnline) || serverCopyUnavailable || isAutoTyping;
+
+  // The editor's right-click menu: always ours (Cut / Copy / Paste with or
+  // without a selection; the AI and Search items with one). The clipboard is
+  // asked what it holds while the menu opens, so Paste can be greyed when it
+  // is known to be empty (src/utils/editorClipboard.js: 'unknown' keeps it on).
   const handleTextSelectionContextMenu = (e) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
+    e.preventDefault();
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.substring(start, end);
+    const opened = { visible: true, x: e.clientX, y: e.clientY, text: selectedText, start, end, clipboard: 'unknown' };
+    setSelectionMenu(opened);
+    readClipboardState().then((clipboard) => {
+      setSelectionMenu((menu) => (menu.visible && menu.start === start && menu.end === end && menu.x === opened.x && menu.y === opened.y ? { ...menu, clipboard } : menu));
+    });
+  };
 
-    const selectedText = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
-
-    if (selectedText && selectedText.trim()) {
-      e.preventDefault();
-      setSelectionMenu({
-        visible: true,
-        x: e.clientX,
-        y: e.clientY,
-        text: selectedText,
-        start: textarea.selectionStart,
-        end: textarea.selectionEnd
-      });
-    }
+  // The clipboard items do what the keys do, on the selection the menu was opened on
+  const handleSelectionCut = async () => {
+    const { start, end } = selectionMenu;
+    closeSelectionMenu();
+    await cutSelection(textareaRef.current, { start, end });
+  };
+  const handleSelectionCopy = async () => {
+    const { start, end } = selectionMenu;
+    closeSelectionMenu();
+    await copySelection(textareaRef.current, { start, end });
+  };
+  const handleSelectionPaste = async () => {
+    const { start, end } = selectionMenu;
+    closeSelectionMenu();
+    await pasteInto(textareaRef.current, { start, end });
   };
 
   // Detect and replace IPs and hostnames
@@ -2835,7 +2858,7 @@ export default function DocumentEditor({
   const handleAddSelectionAsAIContext = () => {
     if (!selectionMenu.text) return;
     const text = selectionMenu.text;
-    setSelectionMenu({ visible: false, x: 0, y: 0, text: '' });
+    closeSelectionMenu();
     window.dispatchEvent(new CustomEvent('aiChatSidebarStateChange', { detail: { isOpen: true } }));
     setTimeout(async () => {
       const { selectionContextPayload } = await import('../../../utils/aiContext');
@@ -2850,7 +2873,7 @@ export default function DocumentEditor({
   const handleAskQuickAIAboutSelection = () => {
     if (!selectionMenu.text) return;
     const { text, start, end, x, y } = selectionMenu;
-    setSelectionMenu({ visible: false, x: 0, y: 0, text: '' });
+    closeSelectionMenu();
     if (locked) return;
     const popupWidth = 400;
     const popupHeight = 500;
@@ -2872,7 +2895,7 @@ export default function DocumentEditor({
     if (onSearchInEngine) {
       onSearchInEngine(template, sanitized);
     }
-    setSelectionMenu({ visible: false, x: 0, y: 0, text: '' });
+    closeSelectionMenu();
   };
 
   // For preview, use live content from Yjs (ytext.toString()) for cloud docs, content prop for local docs.
@@ -2994,7 +3017,8 @@ export default function DocumentEditor({
   // array method on a list of helpers that read the textarea ref reads, to
   // the React Compiler, a ref during render)
   const tableItem = { id: 'table', Icon: Table, label: 'Table', onSelect: insertTable };
-  const imageItem = { id: 'image', Icon: ImageIcon, label: 'Image', onSelect: () => setShowMediaLibrary(true) };
+  // (the library gives the focus back to the toolbar button whose menu listed the item)
+  const imageItem = { id: 'image', Icon: ImageIcon, label: 'Image', onSelect: () => { mediaOpener.current = (isMobile ? moreMenu : insertMenu).anchor.current; setShowMediaLibrary(true); } };
   const tocItem = { id: 'toc', Icon: TableOfContents, label: 'Table of contents', onSelect: insertTableOfContents };
   const calloutItems = CALLOUT_TYPES.map((c) => ({ id: `callout-${c.type}`, Icon: CALLOUT_ICONS[c.type], label: c.label, onSelect: () => insertCallout(c.type) }));
   const quoteItem = { id: 'quote', Icon: Quote, label: 'Quote', onSelect: () => insertMarkdown('> ', '', 'quote') };
@@ -3250,7 +3274,7 @@ export default function DocumentEditor({
                 handleKeyDown(e);
               }}
               onKeyUp={handleCursorMove}
-              readOnly={locked || !isOwner || (document?.inCloud && !isOnline) || serverCopyUnavailable || isAutoTyping}
+              readOnly={editorReadOnly}
               placeholder={
                 locked
                   ? 'This document is locked'
@@ -3774,11 +3798,16 @@ export default function DocumentEditor({
         x={selectionMenu.x}
         y={selectionMenu.y}
         selectedText={selectionMenu.text}
+        editable={!editorReadOnly}
+        clipboard={selectionMenu.clipboard}
+        onCut={handleSelectionCut}
+        onCopy={handleSelectionCopy}
+        onPaste={handleSelectionPaste}
         onAskAI={handleAskQuickAIAboutSelection}
         onAddAsContext={handleAddSelectionAsAIContext}
         onSearchIn={handleSearchInEngine}
         engineTemplates={engineTemplates}
-        onClose={() => setSelectionMenu({ visible: false, x: 0, y: 0, text: '' })}
+        onClose={closeSelectionMenu}
       />
 
       {/* Search and Replace Panel */}
@@ -3994,6 +4023,7 @@ export default function DocumentEditor({
         isOpen={showMediaLibrary}
         onClose={() => setShowMediaLibrary(false)}
         onSelectImage={insertImage}
+        returnFocusTo={() => mediaOpener.current}
       />
 
       {/* Diagram context menu (right-click on a rendered mermaid diagram in the preview) */}

@@ -143,6 +143,7 @@ export default function DocumentSidebar({
   const creatingCategoryRef = useRef(false); // in-flight guard for handleCreateCategory
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+  const menuTrigger = useRef(null);   // the header's menu button: the Media Library gives the focus back to it
   const { addNotification } = useNotifications();
 
   // Load machine ID on mount and when documents change
@@ -1000,7 +1001,7 @@ export default function DocumentSidebar({
       <SidebarHeader
         title="Documents"
         icon={FileText}
-        onMenuClick={(e) => openMenu(e, { align: 'right' })}
+        onMenuClick={(e) => { menuTrigger.current = e.currentTarget; openMenu(e, { align: 'right' }); }}
         onAddClick={() => onCreateDocument && onCreateDocument()}
         status={centralServerStatus}
         statusTitle={centralServerStatus === 'online' ? 'Central server connected' : centralServerStatus === 'offline' ? 'Central server disconnected' : 'Checking central server...'}
@@ -2218,6 +2219,7 @@ export default function DocumentSidebar({
       <MediaLibraryModal
         isOpen={showMediaLibrary}
         onClose={() => setShowMediaLibrary(false)}
+        returnFocusTo={() => menuTrigger.current}
       />
     </div>
   );

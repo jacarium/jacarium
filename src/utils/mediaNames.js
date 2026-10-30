@@ -113,3 +113,41 @@ export function clipboardImageFiles(clipboardData) {
     .map((item) => item.getAsFile())
     .filter(Boolean);
 }
+
+/** A short label for an image type, for messages: PNG, JPEG, GIF, WebP, SVG, BMP, AVIF, TIFF; '' when unknown. */
+export function imageTypeLabel(mimeType) {
+  const type = String(mimeType || '').toLowerCase().split(';')[0].trim();
+  return { 'image/png': 'PNG', 'image/jpeg': 'JPEG', 'image/jpg': 'JPEG', 'image/gif': 'GIF', 'image/webp': 'WebP', 'image/svg+xml': 'SVG', 'image/bmp': 'BMP', 'image/avif': 'AVIF', 'image/tiff': 'TIFF' }[type] || '';
+}
+
+/**
+ * True when two MIME types are the same image type (image/jpeg and image/jpg
+ * alike, since .jpg and .jpeg are one format); false for an unknown type.
+ */
+export function sameImageType(a, b) {
+  const norm = (t) => { const type = String(t || '').toLowerCase().split(';')[0].trim(); return type === 'image/jpg' ? 'image/jpeg' : type; };
+  const x = norm(a);
+  const y = norm(b);
+  return !!x && x === y && !!imageExtensions(x);
+}
+
+/**
+ * The image type the bytes themselves say, from the file's signature:
+ * image/png, image/jpeg, image/gif, image/webp, image/bmp, image/tiff,
+ * image/avif, image/svg+xml (text that opens an <svg> element), or null
+ * when the signature is none of these (then only the declared type counts).
+ */
+export function sniffImageType(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+  const ascii = (from, to) => String.fromCharCode(...b.subarray(from, to));
+  if (b.length >= 8 && b[0] === 0x89 && ascii(1, 4) === 'PNG' && b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a) return 'image/png';
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b.length >= 6 && (ascii(0, 6) === 'GIF87a' || ascii(0, 6) === 'GIF89a')) return 'image/gif';
+  if (b.length >= 12 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return 'image/webp';
+  if (b.length >= 2 && ascii(0, 2) === 'BM') return 'image/bmp';
+  if (b.length >= 4 && (ascii(0, 4) === 'II*\0' || ascii(0, 4) === 'MM\0*')) return 'image/tiff';
+  if (b.length >= 12 && ascii(4, 8) === 'ftyp' && /^avi[fs]$/.test(ascii(8, 12))) return 'image/avif';
+  const head = ascii(0, Math.min(b.length, 512)).replace(/^\uFEFF/, '').trimStart();
+  if (head.startsWith('<') && /<svg[\s>]/i.test(head)) return 'image/svg+xml';
+  return null;
+}
