@@ -226,6 +226,25 @@ decisions:
     decided_by: maintainer
     decided_on: 2026-10-26
 
+  # ---- minimatch in the build and lint tooling only (ESLint's config-array, electron-builder's dir-compare /
+  # filelist / glob): GHSA-g3hv-75wg-m249 (published 2026-10-30), fixed only in minimatch 11.0.1, with nothing
+  # backported to the 3.x / 5.x / 9.x / 10.x lines these tools pin. No production dependency of the app or the
+  # central server uses minimatch (`npm ls minimatch --omit=dev` is empty in both), so it is neither in the
+  # installers nor in the container image; the lock-file scan sees it in package-lock.json's dev tree.
+  - id: GHSA-g3hv-75wg-m249
+    aliases: [CVE-2026-118764]
+    status: not_affected
+    justification: vulnerable_code_cannot_be_controlled_by_adversary
+    versions: ['>=3.7.1']
+    components: [pkg:npm/minimatch@3.1.5, pkg:npm/minimatch@5.1.9, pkg:npm/minimatch@9.0.9, pkg:npm/minimatch@10.2.6]
+    impact: >-
+      minimatch is only part of the build and lint tooling (ESLint, electron-builder) and is not shipped in the
+      desktop installers or the container image. Those tools match the project's own file patterns from its
+      configuration, never patterns supplied by a user or over the network, so an attacker cannot provide the
+      amplifying glob the advisory describes. Removed once ESLint and electron-builder move to minimatch 11.
+    decided_by: maintainer
+    decided_on: 2026-10-31
+
   # ---- the base image's own Node.js 22 / npm (nodejs, npm, nodejs-libs, nodejs-full-i18n, nodejs-docs RPMs),
   # whose bundled npm modules the scanners flagged (brace-expansion, picomatch under /usr/lib/node_modules/npm):
   # removed from the image since 3.4.0 (deploy/Containerfile); the image runs the Node 24 copied from the UI

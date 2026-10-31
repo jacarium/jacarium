@@ -4,6 +4,14 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.7.2
+
+_2026-11-01_
+
+### [SECURITY]
+
+VEX: minimatch's GHSA-g3hv-75wg-m249 (CVE-2026-118764) does not affect Jacarium - minimatch is only in the build and lint tooling (ESLint, electron-builder), not in the installers or the container image, and its patterns come from the project's own configuration
+
 ## What's New in v3.7.1
 
 _2026-11-01_
