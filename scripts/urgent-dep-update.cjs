@@ -1,14 +1,19 @@
 #!/usr/bin/env node
 // An urgent dependency update that bypasses .npmrc's min-release-age for
 // the named packages only, with the supply-chain checks done first and the
-// paper trail written after. Used only when the user asks for it (an
-// advisory whose fix is younger than seven days); never from a script.
+// paper trail written after. This is the npm side of the security lane
+// (SECURITY.md, "Dependency policy"): the general rule stays 7 days
+// (min-release-age=7); a version that fixes a published advisory may be
+// installed from 2 days of age with the checks below; anything younger than
+// 2 days only on the maintainer's explicit decision (--force). Never run
+// it from a script or on your own initiative.
 //
 //   npm run deps:urgent -- body-parser@1.20.9 fast-uri@3.1.9 --reason "GHSA-27r3-jxmh-p828, GHSA-w74x-v6f9-j3xg"
-//   npm run deps:urgent -- electron@42.11.16 --reason "GHSA-jr5w-w6x2-84p9" --dry-run
+//   npm run deps:urgent -- electron@42.11.16 --reason "GHSA-jr5w-w6x2-84p9" --dry-run --diff
 //
-// It refuses without explicit name@version specs and a --reason. For each
-// spec it reports, before anything is installed:
+// It refuses without explicit name@version specs and a --reason that names
+// at least one advisory (a CVE, GHSA, PYSEC, RHSA or GO id). For each spec
+// it reports, before anything is installed:
 //   - the publisher (_npmUser) against the installed version's (a change is
 //     a red flag);
 //   - dist.signatures present;
@@ -17,7 +22,10 @@
 //   - the tarball diffed against the installed copy: the changed files, new
 //     or changed dependencies, new install scripts, new child_process / fs /
 //     net / eval / env usage in the changed source files (red flags);
-//   - the version's age.
+//     --diff also prints the unified diff of every changed source file, for
+//     the review the log entry asks for;
+//   - the version's age: younger than 2 days is a red flag (the lane's
+//     floor); younger than 7 is what this script exists for.
 // A red flag stops the run unless --force is given. The install passes
 // --min-release-age=0 to npm for exactly these specs (an override for a
 // transitive dependency, the right dependency field for a direct one);
@@ -29,6 +37,9 @@
 // behind a lockfile backup, docs/security/urgent-updates.md gets the note
 // and the suggested commit message is printed. --dry-run runs every check
 // and installs nothing.
+//
+// The Python, RPM and Go counterparts are scripts/verify-pypi-release.py,
+// scripts/verify-rpm-update.sh and scripts/verify-go-module.sh.
 //
 // The registry, the shell and the clock are injectable (the test feeds a
 // fake registry and records the commands); nothing here needs the network
@@ -50,18 +61,23 @@ const DANGEROUS = [
 ];
 const INSTALL_SCRIPTS = ['preinstall', 'install', 'postinstall', 'prepare', 'prepublish', 'preprepare', 'postprepare'];
 const SOURCE_FILE = /\.(c?js|mjs|ts|cts|mts|json|sh)$/;
+// the security lane: a fix for a published advisory may go in from this age; younger only with --force
+const LANE_MIN_AGE_DAYS = 2;
+// what --reason must name: at least one advisory id of the kinds the scanners report
+const ADVISORY_ID = /\b(CVE-\d{4}-\d{4,}|GHSA(?:-[23456789cfghjmpqrvwx]{4}){3}|PYSEC-\d{4}-\d+|RHSA-\d{4}:\d+|GO-\d{4}-\d+)\b/i;
 
 // ---------------------------------------------------------------------------
 // arguments
 // ---------------------------------------------------------------------------
 function parseArgs(argv) {
-  const out = { specs: [], reason: '', force: false, dryRun: false, errors: [] };
+  const out = { specs: [], reason: '', force: false, dryRun: false, diff: false, errors: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--reason') { out.reason = String(argv[++i] || '').trim(); continue; }
     if (a.startsWith('--reason=')) { out.reason = a.slice('--reason='.length).trim(); continue; }
     if (a === '--force') { out.force = true; continue; }
     if (a === '--dry-run') { out.dryRun = true; continue; }
+    if (a === '--diff') { out.diff = true; continue; }
     if (a.startsWith('--')) { out.errors.push(`unknown option ${a}`); continue; }
     const m = /^(@?[^@]+)@(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)$/.exec(a);
     if (!m) { out.errors.push(`"${a}" is not an explicit name@x.y.z spec (ranges, tags and "update everything" are refused)`); continue; }
@@ -69,6 +85,7 @@ function parseArgs(argv) {
   }
   if (!out.specs.length) out.errors.push('at least one explicit name@version spec is required');
   if (!out.reason) out.errors.push('--reason "<GHSA / CVE ...>" is required');
+  else if (!ADVISORY_ID.test(out.reason)) out.errors.push(`--reason must name the advisory the version fixes (a CVE-, GHSA-, PYSEC-, RHSA- or GO- id); got "${out.reason}"`);
   return out;
 }
 
@@ -125,6 +142,11 @@ function publisherOf(versionDoc) {
   if (!u) return '';
   if (typeof u === 'string') return u;
   return [u.name, u.email ? `<${u.email}>` : ''].filter(Boolean).join(' ');
+}
+
+/** The account name alone, for the log and the commit message (no e-mail address lands in a tracked file). */
+function publisherName(publisher) {
+  return String(publisher || '').split(' <')[0];
 }
 
 function repoSlug(repository) {
@@ -209,7 +231,7 @@ function daysBetween(a, b) { return Math.round((b - a) / 86400000 * 10) / 10; }
 /**
  * Every check for one spec against the registry: { report: [lines], flags: [red flags], facts }.
  */
-async function assess(spec, { registry, repoDir, now = Date.now() }) {
+async function assess(spec, { registry, repoDir, now = Date.now(), showDiff = false }) {
   const report = [];
   const flags = [];
   const packument = await registry.packument(spec.name);
@@ -224,7 +246,10 @@ async function assess(spec, { registry, repoDir, now = Date.now() }) {
   const publishedAt = packument.time && packument.time[spec.version] ? Date.parse(packument.time[spec.version]) : NaN;
   const ageDays = Number.isFinite(publishedAt) ? daysBetween(publishedAt, now) : null;
   report.push(`== ${spec.raw}  (installed: ${installedVersion || 'not installed'})`);
-  report.push(`   published ${packument.time && packument.time[spec.version] ? packument.time[spec.version] : 'unknown'}${ageDays !== null ? ` (${ageDays} days old${ageDays < 7 ? ', younger than min-release-age' : ''})` : ''}`);
+  const ageNote = ageDays === null ? '' : ageDays < LANE_MIN_AGE_DAYS ? `, younger than the security lane's ${LANE_MIN_AGE_DAYS} days` : ageDays < 7 ? ', younger than min-release-age: within the security lane' : '';
+  report.push(`   published ${packument.time && packument.time[spec.version] ? packument.time[spec.version] : 'unknown'}${ageDays !== null ? ` (${ageDays} days old${ageNote})` : ''}`);
+  if (ageDays === null) flags.push(`${spec.raw}: the registry gives no publish time, so the age cannot be checked`);
+  else if (ageDays < LANE_MIN_AGE_DAYS) flags.push(`${spec.raw}: ${ageDays} days old, younger than the security lane's ${LANE_MIN_AGE_DAYS} days (only on the maintainer's explicit decision: --force)`);
 
   // the publisher
   const publisher = publisherOf(doc), prevPublisher = publisherOf(prevDoc);
@@ -259,7 +284,22 @@ async function assess(spec, { registry, repoDir, now = Date.now() }) {
   for (const c of d.depChanges) { report.push(`   dependency change: ${c}`); flags.push(`${spec.raw}: dependency change (${c})`); }
   for (const c of d.scriptChanges) { report.push(`   install script: ${c}`); flags.push(`${spec.raw}: new or changed install script (${c})`); }
   for (const c of d.dangerous) { report.push(`   new usage: ${c}`); flags.push(`${spec.raw}: new ${c}`); }
+  if (showDiff) for (const line of unifiedDiff(installedDir, newDir, d)) report.push(line);
   return { report, flags, facts: { installedVersion, publisher, prevPublisher, ageDays, provenance: prov, signatures: sigs.length, integrity: doc.dist && doc.dist.integrity, diff: d, direct: directField(repoDir, spec.name) } };
+}
+
+/** The unified diff of every changed or added source file (diff -u; nothing if diff is missing), for the review. */
+function unifiedDiff(oldDir, newDir, d) {
+  const out = [];
+  for (const f of [...d.changed, ...d.added]) {
+    if (!SOURCE_FILE.test(f) || /\.min\.(c?js|mjs)$/.test(f)) continue;
+    const oldPath = oldDir && d.changed.includes(f) ? path.join(oldDir, f) : '/dev/null';
+    const r = spawnSync('diff', ['-u', '--label', `${f} (installed)`, '--label', `${f} (new)`, oldPath, path.join(newDir, f)], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    if (r.error) { out.push(`   (diff not available: ${r.error.message})`); break; }
+    out.push(`   --- diff ${f}`);
+    for (const line of (r.stdout || '').split('\n')) if (line) out.push(`   ${line}`);
+  }
+  return out;
 }
 
 /** 'dependencies' | 'devDependencies' | null (a transitive dependency) */
@@ -351,7 +391,7 @@ function auditNote({ repoDir, specs, reason, assessments, results, now = new Dat
   for (const s of specs) {
     const a = assessments[s.raw];
     const f = a.facts;
-    lines.push(`- ${s.raw}: installed ${f.installedVersion || 'none'} -> ${s.version}, ${f.ageDays !== null && f.ageDays !== undefined ? `${f.ageDays} days old` : 'age unknown'}, publisher ${f.publisher || '?'}${f.prevPublisher && f.prevPublisher !== f.publisher ? ` (was ${f.prevPublisher})` : ''}, signatures ${f.signatures || 0}, provenance ${f.provenance ? f.provenance.repository + ' ' + f.provenance.ref : 'none'}, files ${f.diff ? `${f.diff.changed.length} changed / ${f.diff.added.length} added / ${f.diff.removed.length} removed` : '?'}${a.flags.length ? `; FLAGS: ${a.flags.join('; ')}` : ''}`);
+    lines.push(`- ${s.raw}: installed ${f.installedVersion || 'none'} -> ${s.version}, ${f.ageDays !== null && f.ageDays !== undefined ? `${f.ageDays} days old` : 'age unknown'}, publisher ${publisherName(f.publisher) || '?'}${f.prevPublisher && f.prevPublisher !== f.publisher ? ` (was ${publisherName(f.prevPublisher)})` : ''}, signatures ${f.signatures || 0}, provenance ${f.provenance ? f.provenance.repository + ' ' + f.provenance.ref : 'none'}, files ${f.diff ? `${f.diff.changed.length} changed / ${f.diff.added.length} added / ${f.diff.removed.length} removed` : '?'}${a.flags.length ? `; FLAGS: ${a.flags.map(publisherName).join('; ')}` : ''}`);
   }
   lines.push('', `Checks after the install: ${results.join('; ')}`, '');
   fs.appendFileSync(file, lines.join('\n') + '\n');
@@ -360,8 +400,8 @@ function auditNote({ repoDir, specs, reason, assessments, results, now = new Dat
 
 function commitMessage(specs, reason, assessments) {
   const title = `Security: ${specs.map((s) => s.raw).join(', ')} (${reason})`;
-  const body = specs.map((s) => { const f = assessments[s.raw].facts; return `${s.name} ${f.installedVersion || 'none'} -> ${s.version}: ${f.ageDays !== null && f.ageDays !== undefined ? `${f.ageDays} days old, ` : ''}publisher ${f.publisher || '?'}, ${f.signatures || 0} signature(s), provenance ${f.provenance ? f.provenance.repository : 'none'}, ${f.diff ? f.diff.changed.length + ' file(s) changed' : ''}.`; }).join('\n');
-  return `${title}\n\nInstalled past .npmrc's min-release-age=7 on the user's request (scripts/urgent-dep-update.cjs); the\nchecks are in docs/security/urgent-updates.md.\n${body}`;
+  const body = specs.map((s) => { const f = assessments[s.raw].facts; return `${s.name} ${f.installedVersion || 'none'} -> ${s.version}: ${f.ageDays !== null && f.ageDays !== undefined ? `${f.ageDays} days old, ` : ''}publisher ${publisherName(f.publisher) || '?'}, ${f.signatures || 0} signature(s), provenance ${f.provenance ? f.provenance.repository : 'none'}, ${f.diff ? f.diff.changed.length + ' file(s) changed' : ''}.`; }).join('\n');
+  return `${title}\n\nInstalled past .npmrc's min-release-age=7 under the security lane (scripts/urgent-dep-update.cjs); the\nchecks are in docs/security/urgent-updates.md.\n${body}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -376,7 +416,7 @@ async function main(argv, deps = {}) {
   const args = parseArgs(argv);
   if (args.errors.length) {
     for (const e of args.errors) log(`refused: ${e}`);
-    log('usage: npm run deps:urgent -- <name@x.y.z> [...] --reason "<GHSA / CVE ...>" [--dry-run] [--force]');
+    log('usage: npm run deps:urgent -- <name@x.y.z> [...] --reason "<GHSA / CVE ...>" [--dry-run] [--diff] [--force]');
     return { ok: false, refused: true, errors: args.errors, installed: false };
   }
   if (!npmrcHasAge(repoDir)) { log('refused: .npmrc does not carry min-release-age=7 (this script only bypasses it for the named packages)'); return { ok: false, refused: true, installed: false }; }
@@ -384,7 +424,7 @@ async function main(argv, deps = {}) {
   const assessments = {};
   const flags = [];
   for (const s of args.specs) {
-    const a = await assess(s, { registry, repoDir, now });
+    const a = await assess(s, { registry, repoDir, now, showDiff: args.diff });
     assessments[s.raw] = a;
     for (const line of a.report) log(line);
     flags.push(...a.flags);
@@ -434,7 +474,7 @@ async function main(argv, deps = {}) {
   return { ok: vulns === 0 && sig.status === 0, flags, assessments, installed: true, results, vulns, signatures: sig.status === 0 };
 }
 
-module.exports = { parseArgs, assess, diffPackages, provenanceOf, publisherOf, repoSlug, lockDiff, allowedLockKeys, installSpecs, reinstallTestOnly, auditNote, commitMessage, npmrcHasAge, main, DANGEROUS, INSTALL_SCRIPTS };
+module.exports = { parseArgs, assess, diffPackages, unifiedDiff, provenanceOf, publisherOf, publisherName, repoSlug, lockDiff, allowedLockKeys, installSpecs, reinstallTestOnly, auditNote, commitMessage, npmrcHasAge, main, DANGEROUS, INSTALL_SCRIPTS, LANE_MIN_AGE_DAYS, ADVISORY_ID };
 
 if (require.main === module) {
   main(process.argv.slice(2)).then((r) => { process.exit(r.ok ? 0 : 1); }).catch((e) => { console.error(e.message || e); process.exit(1); });

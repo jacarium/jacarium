@@ -69,25 +69,76 @@ in its root (`./Jacarium-*.AppImage --appimage-extract`, then
 `squashfs-root/com.jacarium.app.desktop`, with `.DirIcon` and
 `jacarium.png` next to it).
 
-## Urgent dependency updates (only on the user's explicit request)
+## Urgent dependency updates (the security lane; only on the user's explicit request)
 
-`.npmrc` refuses package versions published less than seven days ago
-(`min-release-age=7`), so a hijacked release has time to be caught. When a
-security fix is younger than that and the user explicitly asks for it,
-`npm run deps:urgent -- <name@x.y.z> [...] --reason "<GHSA / CVE ...>"`
-installs exactly those versions past the limit: it refuses without explicit
-specs and a reason, checks each version first (the publisher against the
-installed version's, the registry signature, the SLSA provenance and its
-repository, the tarball diffed against the installed copy with new
-dependencies, install scripts and new child_process / fs / network / eval /
-env usage flagged, the version's age), stops on a red flag unless `--force`
-is given, installs with a one-off `--min-release-age=0` (an override for a
-transitive package, the dependency field for a direct one; `.npmrc` is never
-edited), then checks the lockfile diff and integrity, runs `npm audit` and
-`npm audit signatures`, reinstalls the test-only packages, appends the note
-to `docs/security/urgent-updates.md` and prints the commit message.
-`--dry-run` runs every check and installs nothing. Never run it on your own
-initiative, and never for "everything".
+The rule is 7 days: `.npmrc` refuses package versions published less than
+seven days ago (`min-release-age=7`), the Python lock and the pip installs
+have the same cooldown, base images are pinned by digest and a week old, so
+a hijacked release has time to be caught. The security lane (SECURITY.md,
+"Dependency policy", decided 2026-10-31) is the one exception, per package:
+a version that fixes a published advisory - a CVE, GHSA, PYSEC, RHSA or GO
+id reported by Grype, OSV-Scanner, `npm audit` or GitHub - may be installed
+once it is at least **2 days** old, provided the publisher matches the
+previous version's (or the move to trusted publishing is documented), the
+registry signature and the provenance where it exists check out, the code
+diff is reviewed (no new dependency, install script, or network / file /
+eval / exec use beyond the fix) and the entry is written in
+`docs/security/urgent-updates.md`. Younger than 2 days only on the
+maintainer's explicit decision (`--force`), said so in the entry. `.npmrc`
+and the pip cooldown are never edited. Never run any of this on your own
+initiative, and never for "everything". One script per ecosystem does the
+checks, so the evidence in the log is reproducible by anyone:
+
+- **npm**: `npm run deps:urgent -- <name@x.y.z> [...] --reason "<GHSA / CVE ...>" [--dry-run] [--diff]`
+  (`scripts/urgent-dep-update.cjs`) installs exactly those versions past the
+  limit: it refuses without explicit specs and a `--reason` naming an
+  advisory id, checks each version first (the publisher against the
+  installed version's, the registry signature, the SLSA provenance and its
+  repository, the tarball diffed against the installed copy with new
+  dependencies, install scripts and new child_process / fs / network / eval /
+  env usage flagged, the version's age - younger than 2 days is a red flag),
+  stops on a red flag unless `--force` is given, installs with a one-off
+  `--min-release-age=0` (an override for a transitive package, the dependency
+  field for a direct one), then checks the lockfile diff and integrity, runs
+  `npm audit` and `npm audit signatures`, reinstalls the test-only packages,
+  appends the first draft of the entry to `docs/security/urgent-updates.md`
+  and prints the commit message. `--dry-run` runs every check and installs
+  nothing; `--diff` prints the unified diff of the changed source files for
+  the review.
+- **PyPI**: `scripts/verify-pypi-release.py NAME OLD NEW [--diff] [--compare-tag OWNER/REPO@TAG]`
+  reports the age, the PEP 740 provenance of every file (the Trusted
+  Publisher's repository, workflow and environment) against OLD's, the
+  release metadata's author / maintainer, the project page's maintainer
+  accounts, the sdist's and one wheel's sha256 against the index, the two
+  trees diffed (new subprocess / network / eval / ctypes / env use, a changed
+  build backend or an added setup.py are red flags), the dependency changes
+  and, with `--compare-tag`, the import packages against the project's git
+  tag - the check that stands in for provenance where a project has none.
+  `backend/lock-requirements.sh --past-cooldown NAME==VERSION` runs it
+  against the version the lock holds before resolving, stops on a red flag
+  unless `--force` is given, and keeps the versions already approved in
+  `backend/cooldown-exceptions.txt` exempt from the cutoff; the new version
+  then goes into that file with its advisory, upload date and the date it was
+  added (`tests/cooldown_exceptions.test.py` checks the two days).
+- **Red Hat RPMs** (the `microdnf ... upgrade` line in deploy/Containerfile):
+  `scripts/verify-rpm-update.sh --cve CVE-... NAME-VERSION-RELEASE [...]`
+  finds the erratum in Red Hat's security data, reads its first release date
+  (the age), severity and fixed packages from the CSAF document, upgrades the
+  package inside a throwaway container from the pinned base image (gpgcheck
+  on) and reports the installed version-release, the signature's key id
+  (Red Hat's release key 2 unless `--key` adds another), vendor, build time
+  and source RPM. `--advisory RHSA-...` when the erratum is known,
+  `--no-container` for the advisory checks alone.
+- **Go modules** (the Caddy build's `*_VERSION` arguments):
+  `scripts/verify-go-module.sh MODULE VERSION [--expect-sum h1:...] [--go-sum FILE]`
+  reads the checksum database record (the module and go.mod hashes, compared
+  with what is expected) and the proxy's record (the version's time and age,
+  the VCS origin, tag and commit).
+
+Each prints `no red flag` and exits 0, or the flags and exits 1; the tests
+`tests/urgent-dep-update.test.mjs`, `tests/verify_pypi_release.test.py`,
+`tests/verify_rpm_update.test.py` and `tests/verify_go_module.test.py` drive
+them against local fakes (no network).
 
 ## Python dependencies
 

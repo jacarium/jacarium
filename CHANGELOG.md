@@ -4,6 +4,24 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v3.7.1
+
+_2026-11-01_
+
+### [DOCUMENTS]
+
+PDF export: a table of contents whose entry has many sub-entries continues on the same page instead of jumping whole to the next one (a list item holding a nested list may now break between its sub-items)
+
+Home and End in the editor go to the start and end of the current line (Home first to the line's text, then column 0); Shift extends the selection, and Cmd/Ctrl+Home/End still go to the start and end of the document
+
+### [SECURITY]
+
+Dependency policy: updates still wait 7 days, but a version that fixes a published advisory may go in from 2 days old, after publisher, signature, provenance and code-diff checks that are logged - now documented in SECURITY.md and enforced by the tooling
+
+pyasn1 0.6.5 in the container image (GHSA-2qm8-x737-gmw5, GHSA-9m75-vc3g-4x39, GHSA-fm9c-5rcf-2q5p, GHSA-mm57-4v3p-rchx); follow-redirects 1.16.2 (GHSA-mrwp-f3q8-3g9p) and joi 17.13.9 (GHSA-4528-x5fx-h6hg) in the development tooling
+
+Reusable verifiers for dependency updates: scripts/verify-pypi-release.py, scripts/verify-rpm-update.sh and scripts/verify-go-module.sh
+
 ## What's New in v3.7.0
 
 _2026-10-31_

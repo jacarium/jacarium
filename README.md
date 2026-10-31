@@ -54,15 +54,19 @@ yourself.
   keyless, the SBOM attached as a cosign attestation.
 - **Signed source**: the release commit and tag are SSH-signed; the public
   keys are in [`.github/allowed_signers`](.github/allowed_signers).
-- **Dependency policy**: nothing younger than 7 days is installed (npm
-  `min-release-age`, the Python lock, pip, Dependabot's cooldown), base
+- **Dependency policy**: in general nothing younger than 7 days is
+  installed (npm `min-release-age`, the Python lock, pip, Dependabot's
+  cooldown); a fix for a published advisory may go in from 2 days of age,
+  per package, after its publisher, signature, provenance and code diff
+  have been checked by the scripts in `scripts/` and logged in
+  [`docs/security/urgent-updates.md`](docs/security/urgent-updates.md) -
+  younger than that only on the maintainer's explicit decision. Base
   images are pinned by digest, GitHub actions by full commit - only
   GitHub's own actions (`actions/*`, `github/codeql-action`) plus one
   explicit exception, `ossf/scorecard-action`, which alone can publish the
   Scorecard results behind the badge above. Third-party tools run as pinned
   binaries verified against [`.github/tools.env`](.github/tools.env) and
-  their upstream signatures. The rare urgent exception is logged in
-  [`docs/security/urgent-updates.md`](docs/security/urgent-updates.md).
+  their upstream signatures.
 - **Continuous checks**: CodeQL over the JavaScript and Python sources and
   the OpenSSF Scorecard weekly and on every push (the badges above);
   OSV-Scanner over the lock files on every push, Grype over the image at

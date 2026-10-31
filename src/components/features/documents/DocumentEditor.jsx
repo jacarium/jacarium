@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
+import { homeEndSelection } from '../../../utils/lineCaret';
 import { Bold, Italic, Info, Lightbulb, MessageSquareWarning, TriangleAlert, OctagonAlert, Code, List, ListOrdered, ListTodo, Link, Quote, Pilcrow, Heading1, Heading2, Heading3, Table, TableOfContents, Image as ImageIcon, Strikethrough, IndentDecrease, IndentIncrease, Minus, SeparatorHorizontal, File, AlignCenter, PanelTop, PanelBottom, Ellipsis, Plus, Eye, Edit3, BookTemplate, Bot, X, RefreshCw, Check, Trash2, FileCode, Search, Replace, ChevronDown, ChevronUp, Square, Type, Download } from 'lucide-react';
 import { CALLOUT_TYPES } from '../../../utils/callouts';
 import ToolbarMenu from './ToolbarMenu';
@@ -1548,6 +1549,21 @@ export default function DocumentEditor({
         indentText(!e.shiftKey);
         return;
       }
+    }
+
+    // Home / End: the start / end of the current line (smart Home: the first
+    // non-blank character first), Shift extending the selection - not the
+    // whole document, as a macOS textarea would; Cmd/Ctrl+Home/End keep the
+    // document start / end (src/utils/lineCaret.js). The right-click menu
+    // routes its own Home/End before this handler sees them.
+    if ((e.key === 'Home' || e.key === 'End') && !hasChordModifier(e) && !e.altKey && !slashMenu.visible && textareaRef.current) {
+      const textarea = textareaRef.current;
+      const next = homeEndSelection(textarea.value, e.key, e.shiftKey, {
+        start: textarea.selectionStart, end: textarea.selectionEnd, direction: textarea.selectionDirection,
+      });
+      e.preventDefault();
+      textarea.setSelectionRange(next.start, next.end, next.direction);
+      return;
     }
 
     if (!slashMenu.visible) return;

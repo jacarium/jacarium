@@ -1,12 +1,19 @@
 # Approved exceptions to the 7-day supply-chain cooldown (pip --uploaded-prior-to=P7D).
 #
 # Each line is an exact pin that requirements.lock holds although the version was younger than
-# the cooldown when it was locked (backend/lock-requirements.sh --past-cooldown X==V). Only on the
-# maintainer's explicit request, after the checks in docs/security/urgent-updates.md.
+# the cooldown when it was locked (backend/lock-requirements.sh --past-cooldown X==V), under the
+# security lane (SECURITY.md, "Dependency policy"): a release that fixes a published advisory may
+# be locked from 2 days of age, after the checks scripts/verify-pypi-release.py runs (the publisher
+# or Trusted Publisher against the previous release, the digests, the file diff, the dependencies)
+# and with the entry in docs/security/urgent-updates.md; younger than 2 days only on the
+# maintainer's explicit decision. Every line carries a comment naming the advisory it fixes (or
+# "maintainer decision" when it is not a fix), the upload date and the date it was added;
+# tests/cooldown_exceptions.test.py checks the form and the two days.
 #
 # rebuild.sh installs these exact versions first (no dependencies, no cooldown), then installs
 # requirements.txt with the lock under the cooldown as usual; pip keeps the already-installed
 # exceptions. A line can be removed once its version is older than 7 days.
-fastembed==0.9.1
-brotli==1.2.1
-certifi==2026.10.19
+fastembed==0.9.1  # maintainer decision: the first fastembed that allows pillow 13 (GHSA-8g5g-8vmr-9782 and four more); uploaded 2026-10-24, added 2026-10-26
+brotli==1.2.1  # PYSEC-2026-4322 / GHSA-9v8h-qqgm-4m35; uploaded 2026-10-22, added 2026-10-26
+certifi==2026.10.19  # GHSA-6q48-6c7w-9gw2 / PYSEC-2026-4320; uploaded 2026-10-20, added 2026-10-26
+pyasn1==0.6.5  # GHSA-2qm8-x737-gmw5, GHSA-9m75-vc3g-4x39, GHSA-fm9c-5rcf-2q5p, GHSA-mm57-4v3p-rchx; uploaded 2026-10-27, added 2026-10-31

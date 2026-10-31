@@ -22,15 +22,24 @@
 #   backend/lock-requirements.sh --past-cooldown X==V  lock X at exactly V although V is
 #                                                      younger than the cooldown (repeatable;
 #                                                      see below)
+#   backend/lock-requirements.sh ... --force           go on although the checks of a
+#                                                      --past-cooldown version raised a red flag
 #
 # Supply-chain cooldown: like .npmrc's min-release-age=7 and the pip
 # --uploaded-prior-to=P7D in the build scripts, only releases uploaded to
-# PyPI at least 7 days ago are considered. --past-cooldown is the one-off
-# bypass for a security fix younger than that, on the user's explicit
-# request only (the Python counterpart of `npm run deps:urgent`): the named
-# package is exempted from the cutoff and pinned to exactly that version;
-# the checks (publisher / Trusted Publisher provenance, the diff) are done
-# by hand first and the run is noted in docs/security/urgent-updates.md.
+# PyPI at least 7 days ago are considered. --past-cooldown is the security
+# lane (SECURITY.md, "Dependency policy"; the Python counterpart of `npm run
+# deps:urgent`): a release that fixes a published advisory may be locked
+# from 2 days of age. The named package is exempted from the cutoff and
+# pinned to exactly that version, after scripts/verify-pypi-release.py has
+# checked it against the version the lock holds (the age, the publisher or
+# Trusted Publisher, the digests, the file diff, the dependencies; a red
+# flag stops the run unless --force is given - younger than 2 days is one,
+# and only the maintainer's explicit decision goes past it). The version
+# then goes into cooldown-exceptions.txt with its advisory and dates, and
+# the run is noted in docs/security/urgent-updates.md. The pins already in
+# cooldown-exceptions.txt stay exempt on every run, so a later lock refresh
+# does not stumble over them while they are still under the cutoff.
 #
 # Needs python3 and network access. Uses `uv` from PATH when present,
 # otherwise installs it into a temporary venv for the duration of the run
@@ -48,9 +57,11 @@ cd "$(dirname "$SELF")"
 UPGRADE_ALL=0
 UPGRADE_PACKAGES=()
 PAST_COOLDOWN=()
+FORCE=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --upgrade|-U) UPGRADE_ALL=1 ;;
+        --force) FORCE=1 ;;
         --upgrade-package|-P)
             [ $# -ge 2 ] || { echo "error: $1 needs a package name" >&2; exit 2; }
             UPGRADE_PACKAGES+=("$2"); shift ;;
@@ -59,7 +70,7 @@ while [ $# -gt 0 ]; do
             [ $# -ge 2 ] || { echo "error: $1 needs NAME==VERSION" >&2; exit 2; }
             PAST_COOLDOWN+=("$2"); shift ;;
         --past-cooldown=*) PAST_COOLDOWN+=("${1#*=}") ;;
-        -h|--help) sed -n '2,45p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,/^set -euo pipefail/p' "$SELF" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "error: unknown argument $1 (see --help)" >&2; exit 2 ;;
     esac
     shift
@@ -70,6 +81,42 @@ for spec in "${PAST_COOLDOWN[@]+"${PAST_COOLDOWN[@]}"}"; do
         *) echo "error: --past-cooldown takes NAME==VERSION, got '$spec'" >&2; exit 2 ;;
     esac
 done
+
+# The security lane's checks for every version named on the command line (the ones already
+# approved in cooldown-exceptions.txt were checked when they were added): against the version
+# the lock holds, when it holds one.
+for spec in "${PAST_COOLDOWN[@]+"${PAST_COOLDOWN[@]}"}"; do
+    name="${spec%%==*}"; version="${spec#*==}"
+    old="$(grep -iE "^$(printf '%s' "$name" | sed 's/[-_]/[-_]/g')==" requirements.lock 2>/dev/null | head -1 | sed 's/^[^=]*==//; s/[[:space:];#].*$//')"
+    if [ -z "$old" ]; then
+        echo "note: $name is not in the lock yet - run scripts/verify-pypi-release.py by hand against the version it replaces"
+        continue
+    fi
+    if [ "$old" = "$version" ]; then
+        continue
+    fi
+    echo "Checking $name $old -> $version (scripts/verify-pypi-release.py)"
+    if ! python3 -I "$(dirname "$SELF")/../scripts/verify-pypi-release.py" "$name" "$old" "$version"; then
+        if [ "$FORCE" = "1" ]; then
+            echo "--force given: going on past the red flags for $spec"
+        else
+            echo "error: the checks for $spec raised a red flag; read them, then re-run with --force only on the maintainer's explicit decision" >&2
+            exit 1
+        fi
+    fi
+done
+# the approved exceptions stay exempt from the cutoff (their lines are "name==version  # ...")
+if [ -f cooldown-exceptions.txt ]; then
+    while IFS= read -r line; do
+        line="${line%%#*}"; line="${line//[[:space:]]/}"
+        [ -n "$line" ] || continue
+        already=0
+        for spec in "${PAST_COOLDOWN[@]+"${PAST_COOLDOWN[@]}"}"; do
+            [ "${spec%%==*}" = "${line%%==*}" ] && already=1
+        done
+        [ "$already" = "1" ] || PAST_COOLDOWN+=("$line")
+    done < cooldown-exceptions.txt
+fi
 
 CUTOFF="$(python3 -c 'import datetime as d; print((d.datetime.now(d.timezone.utc) - d.timedelta(days=7)).strftime("%Y-%m-%dT00:00:00Z"))')"
 TMP="$(mktemp -d)"

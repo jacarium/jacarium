@@ -89,6 +89,10 @@ body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .pdf-export-root table, .pdf-export-root img, .pdf-export-root .mermaid-diagram,
 .pdf-export-root blockquote { break-inside: avoid; }
 .pdf-export-root tr { break-inside: avoid; }
+/* ...except a list item that holds a nested list: kept whole, a tall one (an entry of a table of
+   contents with many sub-entries, a long nested list) jumped to the next page and left the page
+   before it half empty. It may break between its sub-items, which stay atomic themselves. */
+.pdf-export-root li:has(> ul), .pdf-export-root li:has(> ol) { break-inside: auto; }
 .pdf-export-root h1, .pdf-export-root h2, .pdf-export-root h3,
 .pdf-export-root h4, .pdf-export-root h5, .pdf-export-root h6 { break-inside: avoid; break-after: avoid; }
 /* [[pagebreak]] / [[blankpage]] markers: no preview chrome (dashed rule + label), just the break */
