@@ -18,7 +18,7 @@ requests==2.34.2
 PyYaml==6.0.3
 beautifulsoup4==4.12.3
 markdownify==1.2.3
-flask-socketio==5.6.1
+flask-socketio==5.7.0
 paramiko==5.1.0
 python-socketio==5.16.2
 google-api-python-client==2.199.0
