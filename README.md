@@ -33,9 +33,9 @@ Everything you know and use for technical work, in one place.
 
 ## Security & supply chain
 
-As an engineer and DevSecOps Certified AI Security Professional, currently
-working towards becoming a Software Supply Chain Security Expert, I make
-security the priority in this app: what you download can be traced back to
+As an engineer, DevSecOps Certified AI Security Professional and Certified
+Software Supply Chain Security Expert, I make security the priority in this
+app: what you download can be traced back to
 the exact source and the exact build that produced it, and you can check it
 yourself.
 
