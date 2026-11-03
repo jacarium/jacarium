@@ -1,6 +1,7 @@
 import {
   ArrowDownAZ,
   Binary,
+  BookPlus,
   Bot,
   CalendarMinus,
   CalendarPlus,
@@ -36,6 +37,7 @@ import {
   RefreshCw,
   Search,
   Settings,
+  SpellCheck,
   Tags,
   Trash2,
   Unlock,
@@ -100,6 +102,9 @@ export const MENU_ICONS = {
   lock: Lock,
   unlock: Unlock,
   aiContext: Bot,
+  // the editor's spelling items (a suggestion, Add to dictionary)
+  spelling: SpellCheck,
+  addWord: BookPlus,
   findInFiles: FileSearch,
   searchIn: Search,
   applyFilter: Filter,

@@ -6,12 +6,11 @@ import { clipboardMenuState, clipboardShortcuts } from '../../../utils/editorCli
 
 /**
  * TextSelectionMenu - the Documents editor's right-click menu, on the shared
- * ContextMenu (keyboard navigation, Escape). The editor keeps the focus
- * while the menu is open (ContextMenu's keepFocus): a textarea's selection
- * is only painted while the textarea is focused, and the user must see what
- * Cut / Copy / Ask AI will act on; the arrow keys reach the menu all the
- * same (the active item is marked and announced through the textarea's
- * aria-activedescendant).
+ * ContextMenu (its first item takes the focus; Arrow keys, Home / End,
+ * Enter, Escape; the editor gets the focus back when the menu goes). The
+ * editor's selection stays painted meanwhile - CodeMirror draws it from
+ * its state, focused or not - so the user sees what Cut / Copy / Ask AI
+ * will act on.
  *
  *   Cut / Copy / Paste, with the platform's shortcuts, enabled as the keys
  *   would be: Cut with a selection in an editable editor, Paste in an
@@ -27,6 +26,13 @@ import { clipboardMenuState, clipboardShortcuts } from '../../../utils/editorCli
  *   with the selection as context), Add as AI Context (a new AI Chat with
  *   the selection attached, redacted), Search In (submenu with engine
  *   templates).
+ *
+ *   In the desktop app, when the click landed on a word the spell checker
+ *   flagged (`spell`: the word and up to six suggestions, from the main
+ *   process - electron/spellcheck.cjs), the suggestions come first, then
+ *   "Add to dictionary", then a separator; choosing a suggestion replaces
+ *   the word (onReplaceWord: an ordinary edit of the editor, undoable). A
+ *   browser shows no such items: Shift + right-click opens its own menu.
  */
 const TextSelectionMenu = forwardRef(function TextSelectionMenu({
   visible,
@@ -43,6 +49,9 @@ const TextSelectionMenu = forwardRef(function TextSelectionMenu({
   onAddAsContext,
   onSearchIn,
   engineTemplates = [],
+  spell = null,
+  onReplaceWord,
+  onAddWord,
   onClose,
 }, ref) {
   const [showSearchSubmenu, setShowSearchSubmenu] = useState(false);
@@ -66,7 +75,17 @@ const TextSelectionMenu = forwardRef(function TextSelectionMenu({
   const categories = Object.keys(categorizedTemplates).sort();
 
   return (
-    <ContextMenu ref={ref} isVisible={visible} x={x} y={y} zIndex={50} onClose={onClose} label="Editor" testId="editor-context-menu" keepFocus>
+    <ContextMenu ref={ref} isVisible={visible} x={x} y={y} zIndex={50} onClose={onClose} label="Editor" testId="editor-context-menu">
+      {spell && spell.misspelledWord && (
+        <>
+          {spell.suggestions.length === 0 && <ContextMenuItem label="No suggestions" action="spelling" disabled onClick={() => {}} testId="spell-no-suggestions" />}
+          {spell.suggestions.map((suggestion) => (
+            <ContextMenuItem key={suggestion} label={suggestion} action="spelling" onClick={() => onReplaceWord?.(suggestion)} testId="spell-suggestion" />
+          ))}
+          <ContextMenuItem label="Add to dictionary" action="addWord" onClick={() => onAddWord?.(spell.misspelledWord)} testId="spell-add-word" />
+          <ContextMenuDivider />
+        </>
+      )}
       {hasSelection && <ContextMenuItem label="Cut" action="cut" shortcut={keys.cut} disabled={!enabled.cut} onClick={() => onCut?.()} testId="selection-cut" />}
       {hasSelection && <ContextMenuItem label="Copy" action="copy" shortcut={keys.copy} disabled={!enabled.copy} onClick={() => onCopy?.()} testId="selection-copy" />}
       <ContextMenuItem label="Paste" action="paste" shortcut={keys.paste} disabled={!enabled.paste} onClick={() => onPaste?.()} testId="selection-paste" />

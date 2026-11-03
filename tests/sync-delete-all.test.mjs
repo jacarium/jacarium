@@ -19,7 +19,7 @@
  * Real backend (accounts mode), real engine on fake-indexeddb, synthetic data.
  * Run: node tests/sync-delete-all.test.mjs
  */
-import { spawn } from 'node:child_process';
+import { spawnReaped } from './helpers/reap.mjs';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -51,7 +51,7 @@ globalThis.localStorage = globalThis.window.localStorage;
 const freePort = () => new Promise((resolve) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); });
 const PORT = await freePort();
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-delete-all-'));
-const backend = spawn(PYTHON, ['app.py'], { cwd: path.join(REPO, 'backend'), env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('JACARIUM_'))), HOME: DATA, PORT: String(PORT), JACARIUM_AUTH_MODE: 'accounts', JACARIUM_REPORTS_ROOT: path.join(DATA, 'reports'), JACARIUM_KNOWN_HOSTS: path.join(DATA, '.ssh', 'known_hosts') }, stdio: ['ignore', 'pipe', 'pipe'] });
+const backend = spawnReaped(PYTHON, ['app.py'], { cwd: path.join(REPO, 'backend'), env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('JACARIUM_'))), HOME: DATA, PORT: String(PORT), JACARIUM_AUTH_MODE: 'accounts', JACARIUM_REPORTS_ROOT: path.join(DATA, 'reports'), JACARIUM_KNOWN_HOSTS: path.join(DATA, '.ssh', 'known_hosts') }, stdio: ['ignore', 'pipe', 'pipe'] });
 let backendLog = '';
 backend.stdout.on('data', (d) => { backendLog += d; }); backend.stderr.on('data', (d) => { backendLog += d; });
 const BASE = `http://127.0.0.1:${PORT}`;

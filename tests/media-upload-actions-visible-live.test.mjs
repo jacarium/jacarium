@@ -19,7 +19,8 @@
  * Needs backend/venv, Chrome and ports 5173/8080 free; skips cleanly
  * otherwise. Synthetic data only (1x1 PNGs made here).
  */
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
+import { spawnReaped } from './helpers/reap.mjs';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -28,8 +29,8 @@ import zlib from 'node:zlib';
 import { launchDocumentsApp, createNewDocument, REPO, sleep } from './helpers/live-documents-app.mjs';
 import { dismissWhatsNew } from './helpers/visual-snapshots.mjs';
 
-const VITE_PORT = 5173;
-const FLASK_PORT = 8080;
+const VITE_PORT = Number(process.env.LIVE_VITE_PORT || 5173);
+const FLASK_PORT = Number(process.env.LIVE_BACKEND_PORT || 8080);
 let failed = 0;
 const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}: ${name}${detail ? ' | ' + String(detail).slice(0, 300) : ''}`); if (!ok) failed++; };
 const portFree = (port) => new Promise((resolve) => { const s = createServer(); s.once('error', () => resolve(false)); s.listen(port, '127.0.0.1', () => s.close(() => resolve(true))); });
@@ -48,7 +49,7 @@ function png([r, g, b]) {
 const RED = png([255, 0, 0]), GREEN = png([0, 255, 0]), BLUE = png([0, 0, 255]);
 
 const DATA = mkdtempSync(path.join(tmpdir(), 'media-actions-data-'));
-const backend = spawn(PYTHON, ['app.py'], {
+const backend = spawnReaped(PYTHON, ['app.py'], {
   cwd: path.join(REPO, 'backend'),
   env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('JACARIUM_'))), HOME: DATA, PORT: String(FLASK_PORT), JACARIUM_AUTH_MODE: 'accounts', JACARIUM_REPORTS_ROOT: path.join(DATA, 'reports'), JACARIUM_KNOWN_HOSTS: path.join(DATA, '.ssh', 'known_hosts') },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -64,7 +65,7 @@ const setupCode = readFileSync(path.join(DATA, 'setup-code'), 'utf8').trim();
 
 const outDir = process.env.MEDIA_ACTIONS_SHOTS_DIR || mkdtempSync(path.join(tmpdir(), 'media-actions-shots-'));
 mkdirSync(outDir, { recursive: true });
-const app = await launchDocumentsApp({ port: VITE_PORT, profilePrefix: 'media-actions-' });
+const app = await launchDocumentsApp({ port: VITE_PORT, profilePrefix: 'media-actions-', backendUrl: `http://localhost:${FLASK_PORT}` });
 if (app.skip) { console.log(`SKIP: ${app.skip}`); stopBackend(); process.exit(0); }
 
 const { PNG } = await import('pngjs');

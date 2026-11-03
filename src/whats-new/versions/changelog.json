@@ -1,5 +1,38 @@
 [
   {
+    "version": "3.8.0",
+    "date": "2026-11-03",
+    "features": [
+      {
+        "category": "DOCUMENTS",
+        "description": [
+          "A new editor (CodeMirror 6): typing stays instant even in documents of tens of thousands of lines, with the toolbar, slash commands, find, the right-click menu, Home/End, live collaboration and remote cursors carried over",
+          "Spell checking that skips code blocks, inline code, links and [[...]] directives; right-click a misspelled word for suggestions and Add to dictionary"
+        ]
+      },
+      {
+        "category": "SETTINGS",
+        "description": [
+          "Settings > Editor: spell checking on or off, the spelling languages on Windows and Linux (English US, UK and Australian, Czech, Slovak) and the custom words"
+        ]
+      },
+      {
+        "category": "SECURITY",
+        "description": [
+          "Windows and Linux ship verified spell-check dictionaries instead of downloading them from Google's servers",
+          "curl-minimal 7.76.1-40.el9_8.9 in the container image (CVE-2026-8932); minimatch 11.0.3 in the build tooling (GHSA-g3hv-75wg-m249)",
+          "npm audit in two tiers: the shipped dependencies are kept clean at moderate and above, the build tooling at high and above, with the rest listed"
+        ]
+      },
+      {
+        "category": "DEPLOY",
+        "description": [
+          "Self-hosting guide: a Podman Quadlet unit and a pod file for podman kube play, both pinned to the release's signed image digest"
+        ]
+      }
+    ]
+  },
+  {
     "version": "3.7.2",
     "date": "2026-11-01",
     "features": [

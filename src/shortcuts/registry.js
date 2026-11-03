@@ -25,7 +25,7 @@
  * show the layout's character for that key (formatChord with a
  * KeyboardLayoutMap).
  *
- * Scopes, innermost first: 'editor' (the document editor's textarea has
+ * Scopes, innermost first: 'editor' (the document editor's surface has
  * focus), 'workflow-canvas' (the workflow page, focus not in a field),
  * 'page:documents' / 'page:search' (that page is shown), 'global'.
  *

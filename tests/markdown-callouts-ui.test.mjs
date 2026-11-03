@@ -21,6 +21,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { reapOnExit } from './helpers/reap.mjs';
+import { pwEditor, pwEditorValue, pwSetEditorText, pwSelect } from './helpers/editor-surface.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const req = createRequire(path.join(REPO, 'package.json'));
@@ -117,9 +118,9 @@ try {
       await page.waitForTimeout(1200);
       await page.locator('[data-testid="editor-mode-toggle"]').click(); await page.waitForTimeout(500);
       if (await page.locator('.markdown-preview').count()) { await page.locator('[data-testid="editor-mode-toggle"]').click(); await page.waitForTimeout(500); }
-      const textarea = page.locator('.sc-editor-textarea');
-      check('the editor is back (textarea present)', await textarea.count() === 1);
-      await textarea.evaluate((el) => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); });
+      const textarea = pwEditor(page);
+      check('the editor is back (the editor surface present)', await textarea.count() === 1);
+      await pwSetEditorText(page, await pwEditorValue(page));
       await page.locator('[data-testid="insert-menu-button"]').click(); await page.waitForTimeout(200);
       const items = await page.locator('[data-testid="insert-menu"] [data-menu-item^="callout-"]').allTextContents();
       check('the toolbar\'s Insert menu lists the callouts Note, Tip, Important, Warning, Caution', items.map((t) => t.trim()).join() === 'Note,Tip,Important,Warning,Caution', items.join());
@@ -129,22 +130,21 @@ try {
       check('desktop: Escape closes the menu', await page.locator('[data-testid="insert-menu"]').count() === 0);
       await page.locator('[data-testid="insert-menu-button"]').click(); await page.waitForTimeout(200);
       await page.locator('[data-testid="insert-menu"] [data-menu-item="callout-tip"]').click(); await page.waitForTimeout(300);
-      const afterInsert = await textarea.inputValue();
+      const afterInsert = await pwEditorValue(page);
       check('choosing Tip inserts "> [!TIP]" with a quoted placeholder line on its own paragraph', /\n\n> \[!TIP\]\n> Tip text$/.test(afterInsert), JSON.stringify(afterInsert.slice(-60)));
       // a selection of two lines becomes a quoted body under the marker
-      await textarea.fill('first line\nsecond line'); await page.waitForTimeout(200);
-      await textarea.evaluate((el) => { el.focus(); el.setSelectionRange(0, el.value.length); });
+      await pwSetEditorText(page, 'first line\nsecond line'); await page.waitForTimeout(200);
+      await pwSelect(page, 0, 'first line\nsecond line'.length);
       await page.locator('[data-testid="insert-menu-button"]').click(); await page.waitForTimeout(200);
       await page.locator('[data-testid="insert-menu"] [data-menu-item="callout-warning"]').click(); await page.waitForTimeout(300);
-      check('a two-line selection is wrapped: the marker, then each line quoted', (await textarea.inputValue()) === '> [!WARNING]\n> first line\n> second line', JSON.stringify(await textarea.inputValue()));
+      check('a two-line selection is wrapped: the marker, then each line quoted', (await pwEditorValue(page)) === '> [!WARNING]\n> first line\n> second line', JSON.stringify(await pwEditorValue(page)));
       // the slash menu
-      await textarea.fill('Intro\n\n'); await page.waitForTimeout(200);
-      await textarea.evaluate((el) => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); });
+      await pwSetEditorText(page, 'Intro\n\n'); await page.waitForTimeout(200);
       await page.keyboard.type('/cau'); await page.waitForTimeout(400);
       const slashItems = await page.evaluate(() => Array.from(document.querySelectorAll('.fixed .text-sm.font-medium')).map((e) => e.textContent.trim()));
       check('typing "/cau" offers the Caution callout (/caution) entry in the slash menu', slashItems.some((t) => /\/caution/.test(t)), slashItems.join());
       await page.keyboard.press('Enter'); await page.waitForTimeout(300);
-      check('Enter inserts the Caution marker in place of the command', /^Intro\n\n> \[!CAUTION\]\n> $/.test(await textarea.inputValue()), JSON.stringify(await textarea.inputValue()));
+      check('Enter inserts the Caution marker in place of the command', /^Intro\n\n> \[!CAUTION\]\n> $/.test(await pwEditorValue(page)), JSON.stringify(await pwEditorValue(page)));
     }
     await desk.context.close();
   }
@@ -162,9 +162,9 @@ try {
   await phone.page.waitForTimeout(1200);
   await phone.page.locator('[data-testid="editor-mode-toggle"]').click(); await phone.page.waitForTimeout(500);
   if (await phone.page.locator('.markdown-preview').count()) { await phone.page.locator('[data-testid="editor-mode-toggle"]').click(); await phone.page.waitForTimeout(500); }
-  const pta = phone.page.locator('.sc-editor-textarea');
+  const pta = pwEditor(phone.page);
   check('phone: the editor is back', await pta.count() === 1);
-  await pta.evaluate((el) => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); });
+  await pwSetEditorText(phone.page, await pwEditorValue(phone.page));
   // on the phone the callouts live in the toolbar's "More" menu (the strip fits without scrolling;
   // the menu is capped at the space under its button and scrolls, so a row is reachable once scrolled into view)
   await phone.page.locator('[data-testid="more-menu-button"]').tap(); await phone.page.waitForTimeout(300);
@@ -178,7 +178,7 @@ try {
   });
   check('phone: the Insert callout menu is portalled (fixed, z-40), hangs under its button, fully on screen, every row reachable (elementFromPoint is the menu, not the editor)', pmenu.menu && pmenu.inBody && pmenu.position === 'fixed' && pmenu.z === '40' && pmenu.underButton && pmenu.onScreen && pmenu.rows.length === 5 && pmenu.rows.every((r) => r.reachable), JSON.stringify(pmenu));
   await phone.page.locator('[data-testid="more-menu"] [data-menu-item="callout-tip"]').tap(); await phone.page.waitForTimeout(300);
-  check('phone: tapping Tip inserts the callout and closes the menu', /> \[!TIP\]\n> Tip text$/.test(await pta.inputValue()) && await phone.page.locator('[data-testid="more-menu"]').count() === 0, JSON.stringify((await pta.inputValue()).slice(-40)));
+  check('phone: tapping Tip inserts the callout and closes the menu', /> \[!TIP\]\n> Tip text$/.test(await pwEditorValue(phone.page)) && await phone.page.locator('[data-testid="more-menu"]').count() === 0, JSON.stringify((await pwEditorValue(phone.page)).slice(-40)));
   await phone.page.locator('[data-testid="more-menu-button"]').tap(); await phone.page.waitForTimeout(200);
   await phone.page.touchscreen.tap(200, 500); await phone.page.waitForTimeout(200);
   check('phone: a tap outside closes the menu', await phone.page.locator('[data-testid="more-menu"]').count() === 0);

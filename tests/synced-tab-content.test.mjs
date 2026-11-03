@@ -107,7 +107,7 @@ const documentsState = (page) => page.evaluate(() => ({
   header: document.querySelector('[data-testid="mobile-page-header"]')?.textContent || null,
   tabs: Array.from(document.querySelectorAll('[data-testid="document-tab"], [data-testid="tabs-overflow-item"]')).map((t) => t.textContent.trim()),
   open: document.querySelector('[data-testid="tabs-overflow"]')?.textContent.trim() || null,
-  editor: document.querySelector('.sc-editor-textarea, textarea.resize-none')?.value || '',
+  editor: (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface)?.value || '',
   preview: document.querySelector('.markdown-preview')?.textContent || '',
   empty: /No Document Selected/.test(document.body.innerText),
   stored: JSON.parse(localStorage.getItem('documentOpenTabs') || '[]').map((t) => t.title),

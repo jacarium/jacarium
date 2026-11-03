@@ -29,6 +29,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { reapOnExit } from './reap.mjs';
+import { productionBuild } from './live-documents-app.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -94,7 +95,15 @@ export async function launchElectronApp({ profilePrefix = 'electron-test-', args
   if (!ready) {
     // (dies with this process however it ends - tests/helpers/reap.mjs; the
     // Electron app itself is Playwright's child, which it kills likewise)
-    vite = reapOnExit(spawn(process.execPath, [path.join(REPO, 'node_modules', 'vite', 'bin', 'vite.js'), '--port', String(VITE_PORT), '--strictPort'], { cwd: REPO, stdio: 'ignore' }));
+    // LIVE_BUILD=production: the production build of the UI (minified, no
+    // React development checks - what the packaged app runs) served by
+    // `vite preview` on the same port, as live-documents-app.mjs does for
+    // the browser tests; the app's main process only knows the port.
+    const build = process.env.LIVE_BUILD || 'dev';
+    const viteArgs = build === 'production'
+      ? ['preview', '--outDir', await productionBuild(), '--port', String(VITE_PORT), '--strictPort']
+      : ['--port', String(VITE_PORT), '--strictPort'];
+    vite = reapOnExit(spawn(process.execPath, [path.join(REPO, 'node_modules', 'vite', 'bin', 'vite.js'), ...viteArgs], { cwd: REPO, stdio: 'ignore' }));
     for (let i = 0; i < 240 && !ready; i++) {
       try { ready = (await fetch(url)).ok; } catch { await sleep(250); }
     }
@@ -112,8 +121,12 @@ export async function launchElectronApp({ profilePrefix = 'electron-test-', args
     try { rmSync(userDataDir, { recursive: true, force: true }); } catch { /* best effort */ }
   };
   try {
+    // In the Linux container (tests/linux/run.sh sets LINUX_CONTAINER) the
+    // app runs as root under xvfb, where Chromium refuses to start with its
+    // sandbox on; nowhere else.
+    const containerArgs = process.env.LINUX_CONTAINER ? ['--no-sandbox'] : [];
     app = await electron.launch({
-      args: [REPO, ...args],
+      args: [REPO, ...containerArgs, ...args],
       cwd: REPO,
       env: { ...process.env, JACARIUM_USER_DATA_DIR: userDataDir, NODE_ENV: 'development', ...env },
       timeout: 60000,
@@ -153,11 +166,11 @@ export async function createNewDocument(page) {
   return ok;
 }
 
-/** Replace the editor textarea's text and let autosave run. */
+/** Replace the editor's text (select all on the CodeMirror surface, then real input) and let autosave run. */
 export async function setEditorText(page, text) {
-  const ta = page.locator('textarea').first();
-  await ta.click();
-  await ta.fill(text);
+  await page.locator('.sc-editor-cm .cm-content').first().click();
+  await page.evaluate(() => { const s = document.querySelector('.sc-editor-cm').editorSurface; s.focus(); s.select(); });
+  await page.keyboard.insertText(text);
   await page.waitForTimeout(1500);
 }
 

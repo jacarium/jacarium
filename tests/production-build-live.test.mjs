@@ -35,7 +35,7 @@
  * Needs backend/venv, Chrome and ports 5173/8080 free; skips cleanly
  * otherwise. Synthetic data only (a 1x1 PNG made here).
  */
-import { spawn } from 'node:child_process';
+import { spawnReaped } from './helpers/reap.mjs';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -66,7 +66,7 @@ function png([r, g, b]) {
 const RED = png([255, 0, 0]), GREEN = png([0, 255, 0]);
 
 const DATA = mkdtempSync(path.join(tmpdir(), 'production-live-data-'));
-const backend = spawn(PYTHON, ['app.py'], {
+const backend = spawnReaped(PYTHON, ['app.py'], {
   cwd: path.join(REPO, 'backend'),
   env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('JACARIUM_'))), HOME: DATA, PORT: String(FLASK_PORT), JACARIUM_AUTH_MODE: 'accounts', JACARIUM_REPORTS_ROOT: path.join(DATA, 'reports'), JACARIUM_KNOWN_HOSTS: path.join(DATA, '.ssh', 'known_hosts') },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -88,10 +88,12 @@ if (app.skip) { console.log(`SKIP: ${app.skip}`); stopBackend(); process.exit(0)
 const q = (sel) => `document.querySelector(${JSON.stringify(sel)})`;
 const has = (sel) => app.evaluate(`!!${q(sel)}`);
 const text = (sel) => app.evaluate(`(${q(sel)} || {}).textContent || ''`);
-const value = () => app.evaluate(`document.querySelector('textarea').value`);
+const EDITOR = `(document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface)`;   // the editor surface (tests/helpers/editor-surface.mjs)
+const value = () => app.evaluate(`${EDITOR}.value`);
 const active = () => app.evaluate(`(() => { const a = document.activeElement; return a ? (a.getAttribute('data-testid') || a.tagName) : ''; })()`);
+// (Enter carries its character, as a real key press does: a focused menu button activates on the keypress)
 const keyChord = async (key, code, vk, modifiers = 0, commands = []) => {
-  await app.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers, commands });
+  await app.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers, commands, ...(key === 'Enter' && !modifiers ? { text: '\r' } : {}) });
   await app.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers });
 };
 const escape = async () => { await keyChord('Escape', 'Escape', 27); await sleep(300); };
@@ -139,7 +141,7 @@ try {
   await app.waitFor(`!!document.querySelector('[data-testid="sidebar-brand-mark"]')`, 20000);
   check('the app is signed in after the reload (the built app found the backend through the seam)', await has('[data-testid="sidebar-brand-mark"]'));
   await createNewDocument(app);
-  await app.waitFor(`!!document.querySelector('textarea')`, 10000);
+  await app.waitFor(`!!${EDITOR}`, 10000);
   await app.evaluate(`(() => { if (!window.__anchorClicks) { window.__anchorClicks = 0; HTMLAnchorElement.prototype.click = function () { window.__anchorClicks += 1; }; } })()`);
 
   if (section('media-menu') || section('upload') || section('escape')) {
@@ -230,13 +232,13 @@ try {
 
   if (section('editor-clipboard')) {
     await app.send('Browser.grantPermissions', { permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'], origin: `http://localhost:${VITE_PORT}` });
-    await app.evaluate(`(() => { const ta = document.querySelector('textarea'); ta.focus(); ta.select(); })()`);
+    await app.evaluate(`(() => { const ta = ${EDITOR}; ta.focus(); ta.select(); })()`);
     await app.send('Input.insertText', { text: 'alpha bravo charlie' });
     await sleep(500);
-    const select = (a, b) => app.evaluate(`(() => { const ta = document.querySelector('textarea'); ta.focus(); ta.setSelectionRange(${a}, ${b}); return ta.value.slice(${a}, ${b}); })()`);
+    const select = (a, b) => app.evaluate(`(() => { const ta = ${EDITOR}; ta.focus(); ta.setSelectionRange(${a}, ${b}); return ta.value.slice(${a}, ${b}); })()`);
     const openEditorMenu = async () => {
-      const b = await app.evaluate(`(() => { const r = document.querySelector('textarea').getBoundingClientRect(); return [r.left + 60, r.top + 30]; })()`);
-      await app.evaluate(`document.querySelector('textarea').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: ${b[0]}, clientY: ${b[1]}, view: window })); true`);
+      const b = await app.evaluate(`(() => { const r = document.querySelector('.sc-editor-cm .cm-content').getBoundingClientRect(); return [r.left + 60, r.top + 30]; })()`);
+      await app.evaluate(`document.querySelector('.sc-editor-cm .cm-content').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: ${b[0]}, clientY: ${b[1]}, view: window })); true`);
       await app.waitFor(`!!document.querySelector('[data-testid="editor-context-menu"]')`, 3000);
       await sleep(300);
     };
@@ -257,7 +259,7 @@ try {
     await select(0, 5);
     await openEditorMenu();
     await escape();
-    check('Escape closes the editor menu (the shared ContextMenu) and the editor keeps the focus', !(await has('[data-testid="editor-context-menu"]')) && (await active()) === 'TEXTAREA', await active());
+    check('Escape closes the editor menu (the shared ContextMenu) and the editor has the focus again', !(await has('[data-testid="editor-context-menu"]')) && (await app.evaluate(`document.activeElement === document.querySelector('.sc-editor-cm .cm-content')`)), await active());
   }
 
   if (section('logo-hover')) {

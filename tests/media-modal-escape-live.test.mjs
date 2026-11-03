@@ -16,7 +16,7 @@
  * Needs backend/venv, Chrome and ports 5173/8080 free; skips cleanly
  * otherwise. Synthetic data only (a 1x1 PNG made here).
  */
-import { spawn } from 'node:child_process';
+import { spawnReaped } from './helpers/reap.mjs';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -25,8 +25,9 @@ import zlib from 'node:zlib';
 import { launchDocumentsApp, createNewDocument, REPO, sleep } from './helpers/live-documents-app.mjs';
 import { dismissWhatsNew } from './helpers/visual-snapshots.mjs';
 
-const VITE_PORT = 5173;
-const FLASK_PORT = 8080;
+// LIVE_VITE_PORT / LIVE_BACKEND_PORT pick other ports (5173 / 8080), as the other live tests do
+const VITE_PORT = Number(process.env.LIVE_VITE_PORT || 5173);
+const FLASK_PORT = Number(process.env.LIVE_BACKEND_PORT || 8080);
 let failed = 0;
 const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}: ${name}${detail ? ' | ' + String(detail).slice(0, 240) : ''}`); if (!ok) failed++; };
 const portFree = (port) => new Promise((resolve) => { const s = createServer(); s.once('error', () => resolve(false)); s.listen(port, '127.0.0.1', () => s.close(() => resolve(true))); });
@@ -44,7 +45,7 @@ function png([r, g, b]) {
 const RED = png([255, 0, 0]);
 
 const DATA = mkdtempSync(path.join(tmpdir(), 'media-escape-data-'));
-const backend = spawn(PYTHON, ['app.py'], {
+const backend = spawnReaped(PYTHON, ['app.py'], {
   cwd: path.join(REPO, 'backend'),
   env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('JACARIUM_'))), HOME: DATA, PORT: String(FLASK_PORT), JACARIUM_AUTH_MODE: 'accounts', JACARIUM_REPORTS_ROOT: path.join(DATA, 'reports'), JACARIUM_KNOWN_HOSTS: path.join(DATA, '.ssh', 'known_hosts') },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -58,7 +59,7 @@ const stopBackend = () => { try { backend.kill('SIGTERM'); } catch { /* gone */ 
 if (!up) { console.log('FAIL: the backend did not start\n' + backendLog.slice(-800)); stopBackend(); process.exit(1); }
 const setupCode = readFileSync(path.join(DATA, 'setup-code'), 'utf8').trim();
 
-const app = await launchDocumentsApp({ port: VITE_PORT, profilePrefix: 'media-escape-' });
+const app = await launchDocumentsApp({ port: VITE_PORT, profilePrefix: 'media-escape-', backendUrl: `http://localhost:${FLASK_PORT}` });
 if (app.skip) { console.log(`SKIP: ${app.skip}`); stopBackend(); process.exit(0); }
 
 const noMotion = () => app.evaluate(`(() => { const s = document.createElement('style'); s.textContent = '*, *::before, *::after { transition: none !important; animation: none !important; }'; document.head.appendChild(s); })()`);

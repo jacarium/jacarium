@@ -195,6 +195,26 @@ callback`, the server redirecting you to Google with a state value bound
 to your session, and the token saved per account under the account's home.
 The desktop app keeps the Desktop-app flow either way.
 
+## Spell checking
+
+The Documents editor underlines misspelled words as you type and leaves
+code alone: fenced and indented code blocks, inline code, links and the
+`[[toc]]`-style directives are not checked. Right-click a flagged word for
+the suggestions and "Add to dictionary"; Settings > Editor turns
+the checking off and on, lists the custom words and, on Windows and Linux,
+chooses the languages. (In a browser the browser's own checker does the
+underlining; Shift + right-click opens its menu with the suggestions.)
+
+The desktop app uses Electron's spell checker (Chromium's). On macOS that is
+the system's own checker, which follows the languages in System Settings. On
+Windows and Linux it needs a Hunspell dictionary per language, which Electron
+would normally download from Google's CDN the first time; Jacarium ships them
+instead - English (US), English (UK), English (Australia), Czech and Slovak - and copies them into
+your profile's `Dictionaries` directory when it starts, so no request leaves
+the machine for them. Their origin and checks are in
+[docs/security/spellcheck-dictionaries.md](security/spellcheck-dictionaries.md).
+A language that is not shipped is not checked (and not fetched).
+
 ## Updates
 
 The desktop app does not look for new versions by itself. Jacarium is

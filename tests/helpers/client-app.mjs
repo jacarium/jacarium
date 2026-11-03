@@ -29,23 +29,27 @@ function fire(el, type, extra = {}) {
   el.dispatchEvent(ev);
 }
 
+// The editor: the CodeMirror surface behind a textarea's API (value, selectionStart / End,
+// setSelectionRange, focus, insertText, ... - src/components/features/documents/codemirror/CodeMirrorSurface.js)
 function editorTextarea() {
-  // The editor textarea is the only <textarea> in the tree (search box is an <input>)
-  return document.querySelector('textarea');
+  const el = document.querySelector('.sc-editor-cm');
+  return (el && el.editorSurface) || null;
 }
 
 function editorDocumentProp() {
   const ta = editorTextarea();
-  if (!ta) return { error: 'no textarea mounted' };
-  const key = Object.keys(ta).find((k) => k.startsWith('__reactFiber$'));
-  if (!key) return { error: 'no react fiber on textarea' };
+  if (!ta) return { error: 'no editor mounted' };
+  // the React fiber sits on the host element the editor component renders (the surface's DOM is CodeMirror's)
+  const host = document.querySelector('.sc-editor-cm-host');
+  const key = host && Object.keys(host).find((k) => k.startsWith('__reactFiber$'));
+  if (!key) return { error: 'no react fiber on the editor host' };
   // The DOM node's fiber pointer can lag one commit behind when a render
   // didn't touch the textarea host fiber itself, so props-only updates (e.g.
   // a refreshed `document` object) may only be visible on the OTHER fiber
   // tree. Walk up to the HostRoot to learn which tree is current, then read
   // the DocumentEditor's props from that tree.
   let docFiber = null;
-  let fiber = ta[key];
+  let fiber = host[key];
   let top = fiber;
   while (fiber) {
     const t = fiber.type;
@@ -69,28 +73,22 @@ function editorDocumentProp() {
   };
 }
 
+// Type at the end of the document (a typed change: the editor's onChange runs,
+// a bound live document's binding pushes it into the Y.Text)
 function typeText(text) {
   const ta = editorTextarea();
-  if (!ta) return { error: 'no textarea' };
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-  setter.call(ta, ta.value + text);
+  if (!ta) return { error: 'no editor' };
+  ta.focus();
   ta.setSelectionRange(ta.value.length, ta.value.length);
-  ta.dispatchEvent(new window.Event('input', { bubbles: true }));
+  ta.insertText(text);
   return { ok: true, value: ta.value };
 }
 
-// Insert text at the current caret position (real user-typing shape: value is
-// spliced at selectionStart, caret advances, then an input event fires so the
-// real React onChange -> yjs.updateContent path runs).
+// Insert text at the current caret position (real user-typing shape)
 function typeAtCaret(text) {
   const ta = editorTextarea();
-  if (!ta) return { error: 'no textarea' };
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-  const start = ta.selectionStart;
-  const end = ta.selectionEnd;
-  setter.call(ta, ta.value.slice(0, start) + text + ta.value.slice(end));
-  ta.setSelectionRange(start + text.length, start + text.length);
-  ta.dispatchEvent(new window.Event('input', { bubbles: true }));
+  if (!ta) return { error: 'no editor' };
+  ta.insertText(text);
   return { ok: true };
 }
 
@@ -98,15 +96,20 @@ function fireKeyup(ta) {
   ta.dispatchEvent(new window.KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'a' }));
 }
 
-// Find a rendered collaborative-cursor overlay by its user label.
-// DocumentEditor renders: <div style={top,left}><div class="w-0.5 h-5 .."/>
-//                           <div class=".. -top-5 ..">{name}</div></div>
+// Find a peer's caret by its user label: y-codemirror.next draws it as an inline widget
+// (<span class="cm-ySelectionCaret"> ... <div class="cm-ySelectionInfo">name</div></span>) in the
+// line, so its place IS its document position: the line number and the characters before it.
 function findCursorOverlay(name) {
-  const label = Array.from(document.querySelectorAll('div'))
-    .find((d) => d.className && String(d.className).includes('-top-5') && d.textContent === name);
-  if (!label || !label.parentElement) return null;
-  const st = label.parentElement.style;
-  return { top: parseFloat(st.top), left: parseFloat(st.left) };
+  const info = Array.from(document.querySelectorAll('.sc-editor-cm .cm-ySelectionInfo')).find((d) => d.textContent === name);
+  const caret = info && info.closest('.cm-ySelectionCaret');
+  const line = caret && caret.closest('.cm-line');
+  if (!caret || !line) return null;
+  const lines = Array.from(document.querySelectorAll('.sc-editor-cm .cm-line'));
+  const range = document.createRange();
+  range.setStart(line, 0);
+  range.setEndBefore(caret);
+  const column = range.toString().replace(/\u2060/g, '').length;
+  return { line: lines.indexOf(line), column };
 }
 
 // State for the cursor watcher (MutationObserver-based renders recorder)
@@ -115,13 +118,13 @@ let cursorWatch = null;
 function snapshotCursor(name) {
   const ta = editorTextarea();
   if (!ta) return null;
-  const overlay = findCursorOverlay(name);
+  const caret = findCursorOverlay(name);
   const value = ta.value;
   const lastNl = value.lastIndexOf('\n');
   return {
-    present: !!overlay,
-    top: overlay ? overlay.top : null,
-    left: overlay ? overlay.left : null,
+    present: !!caret,
+    line: caret ? caret.line : null,
+    column: caret ? caret.column : null,
     scrollTop: ta.scrollTop,
     scrollLeft: ta.scrollLeft,
     valueLen: value.length,
@@ -286,7 +289,7 @@ async function main() {
           });
           break;
         }
-        // Whether the rendered page (outside the textarea's value) contains a
+        // Whether the rendered page (outside the editor's text) contains a
         // piece of text - used to assert banners are (not) shown.
         case 'page-contains':
           res({ id, contains: document.body.textContent.includes(args.text) });
@@ -299,18 +302,19 @@ async function main() {
           break;
         case 'set-cursor': {
           const ta = editorTextarea();
-          if (!ta) { res({ id, error: 'no textarea' }); break; }
-          ta.setSelectionRange(args.pos, args.selEnd ?? args.pos);
-          fireKeyup(ta); // real path: onKeyUp -> handleCursorMove -> yjs.updateCursor
+          if (!ta) { res({ id, error: 'no editor' }); break; }
+          ta.focus();
+          ta.setSelectionRange(args.pos, args.selEnd ?? args.pos);   // the binding publishes the selection to the peers
+          fireKeyup(ta);
           res({ id, ok: true, pos: ta.selectionStart });
           break;
         }
         case 'scroll-to': {
           const ta = editorTextarea();
-          if (!ta) { res({ id, error: 'no textarea' }); break; }
+          if (!ta) { res({ id, error: 'no editor' }); break; }
           ta.scrollTop = args.top || 0;
           ta.scrollLeft = args.left || 0;
-          ta.dispatchEvent(new window.Event('scroll', { bubbles: false }));
+          ta.scrollDOM.dispatchEvent(new window.Event('scroll', { bubbles: false }));
           res({ id, ok: true, scrollTop: ta.scrollTop });
           break;
         }
@@ -330,13 +334,13 @@ async function main() {
           break;
         }
         case 'cursor-overlay':
-          res({ id, ...(snapshotCursor(args.name) || { error: 'no textarea' }) });
+          res({ id, ...(snapshotCursor(args.name) || { error: 'no editor' }) });
           break;
         // Record every rendered state of a named remote-cursor overlay.
         // A MutationObserver fires on each React commit that touches the DOM,
         // so brief transient (flickered) positions are captured even between
         // driver polls. Each sample pairs the overlay's rendered top/left with
-        // the textarea content AT THAT INSTANT, so the driver can check every
+        // the editor's text AT THAT INSTANT, so the driver can check every
         // rendered frame against ground truth.
         case 'watch-cursor': {
           if (cursorWatch) cursorWatch.obs.disconnect();
@@ -345,7 +349,7 @@ async function main() {
             const s = snapshotCursor(args.name);
             if (!s) return;
             const prev = samples[samples.length - 1];
-            if (prev && prev.present === s.present && prev.top === s.top && prev.left === s.left
+            if (prev && prev.present === s.present && prev.line === s.line && prev.column === s.column
                 && prev.valueLen === s.valueLen && prev.lineCount === s.lineCount
                 && prev.lastLineLen === s.lastLineLen) return;
             samples.push(s);

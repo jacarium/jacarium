@@ -18,6 +18,7 @@ const { readShortcutOverrides, writeShortcutOverrides, validateShortcutOverrides
 const { createUpdateChecker } = require('./update-check.cjs');
 const { installNavigationGuards } = require('./navigation-guard.cjs');
 const { installPdfExport } = require('./pdf-export.cjs');
+const spellcheck = require('./spellcheck.cjs');
 
 // Test only: point userData (IndexedDB, ui-settings.json, cert pins,
 // profile.json) at a throwaway directory so Electron-driven tests
@@ -669,6 +670,8 @@ function createWindow() {
   // Only the app's own entry document may ever be loaded in this window;
   // external links go to the OS browser and new windows are never created
   // from the renderer (see electron/navigation-guard.cjs).
+  // the editor's right-click menu gets Chromium's spelling suggestions (electron/spellcheck.cjs)
+  spellcheck.watchContextMenu(mainWindow.webContents);
   installNavigationGuards(mainWindow.webContents, {
     appEntryUrl: app.isPackaged ? pathToFileURL(indexPath).href : DEV_SERVER_URL,
     openExternal: openExternalUrl,
@@ -1031,7 +1034,10 @@ function createProfilePickerWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'profile-picker-preload.cjs'),
       // in-memory session: the picker stores nothing
-      partition: 'picker'
+      partition: 'picker',
+      // a list of profile names: no spell checking (and so no dictionary
+      // to look for in this throwaway session - electron/spellcheck.cjs)
+      spellcheck: false
     }
   });
   const pickerPath = path.join(__dirname, 'profile-picker.html');
@@ -1243,6 +1249,17 @@ ipcMain.handle('home-server:fetch', async (event, pathName, init) => {
 });
 
 app.whenReady().then(async () => {
+  // The spell checker's dictionaries (Windows / Linux; electron/spellcheck.cjs):
+  // the shipped files into this profile's Dictionaries directory and the
+  // dictionary download pointed at a local, unreachable URL - before any
+  // session exists, so Electron never fetches one from Google's CDN. The
+  // profile picker runs on a throwaway userData: only the URL, no copy.
+  try {
+    spellcheck.setUp({ app, session: require('electron').session, copy: !profileSelection.ask, log: (line) => console.log(line) });
+  } catch (err) {
+    // fail closed: the local URL once more, else the checker off - never a download
+    spellcheck.failClosed({ session: require('electron').session, error: err, log: (line) => console.warn(line) });
+  }
   // The About panel (macOS app menu / Linux Help menu): the brand's words
   // from package.json, the sync protocol, and the website - a plain link the
   // OS opens in the browser, nothing is fetched from it.
@@ -1285,6 +1302,10 @@ app.whenReady().then(async () => {
   // the account's settings, if this profile runs on them: fetched once the
   // local backend can take the overlay (it answers /health within seconds)
   setTimeout(() => { getAccountSettings().refresh().catch((error) => console.warn('[Settings] first refresh:', error.message)); }, 4000);
+  // The spell checker's dictionaries must be loaded before the first
+  // renderer exists, or that renderer never gets them (electron/spellcheck.cjs,
+  // ready(): a few milliseconds for the shipped files, capped; at once on macOS)
+  await spellcheck.ready();
   createWindow();
 
   // The scheduled release check: a tick shortly after start and then every
@@ -1314,6 +1335,10 @@ app.on('will-quit', () => {
     serverProcess.kill();
   }
 });
+
+// The spell checker's IPC: the menu's "Add to dictionary", Settings' custom
+// words and languages (electron/spellcheck.cjs validates each call)
+spellcheck.installIpc({ ipcMain, session: require('electron').session, log: (line) => console.log(line) });
 
 // IPC handlers (if needed for direct Electron-React communication)
 ipcMain.handle('get-app-path', () => {
@@ -1882,6 +1907,7 @@ async function openStandaloneWindow({ width, height, title, standaloneMode, erro
     const indexPath = path.join(__dirname, '../dist/index.html');
 
     // Same navigation policy as the main window (electron/navigation-guard.cjs).
+    spellcheck.watchContextMenu(standaloneWindow.webContents);
     installNavigationGuards(standaloneWindow.webContents, {
       appEntryUrl: app.isPackaged ? pathToFileURL(indexPath).href : DEV_SERVER_URL,
       openExternal: openExternalUrl,

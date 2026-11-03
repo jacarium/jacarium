@@ -46,6 +46,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire, isBuiltin } from 'node:module';
+import { installEditorSurfaceInJsdom, jsdomEditor } from './helpers/editor-surface.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(here, '..');
@@ -157,6 +158,7 @@ const origLog = console.log; const origErr = console.error; const origWarn = con
 const quiet = (fn) => (...a) => { const s = String(a[0] ?? ''); if (/^\[|^===|Warning:|act\(|Dexie|Error|no backend/.test(s)) return; fn(...a); };
 console.log = quiet(origLog); console.error = quiet(origErr); console.warn = quiet(origWarn);
 
+installEditorSurfaceInJsdom(window);   // what CodeMirror needs of jsdom
 createRequire(import.meta.url)(BUNDLE);
 const { document } = window;
 const H = window.__harness;
@@ -197,13 +199,13 @@ report('\n--- 2. Quick AI ("/ai" + Enter) in the real editor ---');
 async function quickAi(models) {
   MODELS = models; forgetAiModelChoice(); requests.length = 0;
   await waitFor(() => H.setContent);
-  H.unmount(); await waitFor(() => (!$('textarea') ? true : null));
+  H.unmount(); await waitFor(() => (!$('.sc-editor-cm') ? true : null));
   H.setContent('');
   H.mount('editor');
-  const ta = await waitFor(() => $('textarea'));
+  const ta = await jsdomEditor(document);
   await sleep(50);
-  setNative(ta, '/ai');
-  ta.setSelectionRange(3, 3);
+  ta.focus();
+  ta.insertText('/ai');   // typed: the "/" popup opens
   await waitFor(() => (H.getContent() === '/ai' ? true : null));
   await sleep(80);
   key(ta, 'Enter');

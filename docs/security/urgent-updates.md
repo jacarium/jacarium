@@ -313,3 +313,86 @@ The gate before and after, on the arm64 image built from this commit (`--vex vex
 --ignore-states not-fixed,wont-fix --fail-on high`, database 2026-10-31): before, six findings - the four pyasn1
 High and the two curl-minimal Medium - and exit 2; after, the two curl-minimal Medium alone and exit 0.
 
+
+## 2026-11-03 - curl-minimal / libcurl-minimal 7.76.1-40.el9_8.9 (CVE-2026-8932), the security lane
+
+RHSA-2026:92907 (Moderate), released 2026-10-30 01:23 UTC, 4.2 days old when applied - past the lane's 2 days.
+Checked with `scripts/verify-rpm-update.sh --cve CVE-2026-8932 curl-minimal-7.76.1-40.el9_8.9
+libcurl-minimal-7.76.1-40.el9_8.9` inside the pinned ubi9-minimal base: both RPMs in the erratum's fixed list,
+signed RSA/SHA256 with Red Hat's release key 2 (Key ID 199e2f91fd431d51), vendor Red Hat, source
+curl-7.76.1-40.el9_8.9.src.rpm - no red flag. Added to deploy/Containerfile's `microdnf ... upgrade` step with an
+`rpm -q` assertion of the exact versions.
+
+
+## 2026-11-03 - minimatch 9.0.9 / 10.2.6 -> 11.0.3 (GHSA-g3hv-75wg-m249), the security lane, a targeted override
+
+The 19 moderate findings of `npm audit` in the root were one advisory: GHSA-g3hv-75wg-m249 / CVE-2026-118764
+(Moderate, published 2026-10-30 23:09 UTC) - minimatch's `**/..` transformation in firstPhasePreProcess() clones
+glob parts inside a fixpoint loop and the second phase compares them pairwise, so a pattern can cost quadratic
+CPU and memory; it runs at `optimizationLevel >= 2` (the default is 1). Fixed in 11.0.1 alone (commit 77a0f5c,
+"limit \*\*/.. optimization pass to avoid quadratic explosion", 2026-10-27), nothing on the 3.x / 5.x / 9.x /
+10.x lines. The tree had four copies, all dev-only (no production dependency of the app or the central server
+uses minimatch): 10.2.6 hoisted (eslint 10.13.0 `^10.2.6`, @eslint/config-array `^10.2.4`, app-builder-lib
+`^10.2.5`), 9.0.9 under @electron/universal (`^9.0.3`), 3.1.5 under @electron/asar, glob 7 and dir-compare, 5.1.9
+under filelist (jake < ejs < app-builder-lib). Only the 9.x and 10.x copies contain the preprocessing passes
+(`grep -rl firstPhasePreProcess node_modules` names exactly those two; the option came with minimatch 7.1), so
+those two are replaced and the other two stay, decided `vulnerable_code_not_present` in vex/decisions.yaml. The
+upstream releases that would carry the fix (eslint 10.14.0 of 2026-10-30, electron-builder 26.18.0 of
+2026-10-29) still pin `^10.2.6` / `^10.2.5`, so no plain upgrade fixes it; npm's suggestion (electron-builder
+20.23.1) is a downgrade and was ignored. Ages are as of 2026-11-03 10:40 UTC.
+
+1. **minimatch 11.0.3** (the newest version at least 2 days old: 11.0.4 of 2026-11-02 04:50 UTC was 1.2 days).
+   Published 2026-10-28 20:00 UTC, 5.6 days old. `npm run deps:urgent -- minimatch@11.0.3 --reason
+   "GHSA-g3hv-75wg-m249" --dry-run --diff`: publisher `isaacs`, the same account as 10.2.6; two registry
+   signatures (key SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U, the same as 10.2.6's); no provenance
+   (10.2.6 had none); no install script; 10 files changed, 0 added, 16 removed (the `ast.*` and
+   `brace-expressions.*` modules are gone - 11.0 matches each path portion with a Matcher instead of a RegExp);
+   no new child_process / fs / network / eval / env use. Between 11.0.1 and 11.0.3: a dependency update, a cache
+   of the 256 most recent patterns, lazier matcher creation (commits 322feb1, 52d2aec, 293267a).
+   **Two red flags, both dependency changes**, on which the script stopped as it should: `brace-expansion
+   ^5.0.8 -> ^5.0.12` (5.0.12, published 2026-09-14 by juliangruber, is what the tree already has through the
+   existing `brace-expansion: ^5.0.8` override - no new resolution) and the new dependency
+   `@isaacs/nonrecursive-glob-match ^1.0.3`, a package first published 2026-10-26 by the same `isaacs`; 1.0.3
+   published 2026-10-28 19:50 UTC, 5.6 days old. Reviewed from its tarball (`npm pack` into an empty directory):
+   no dependencies, no install script (`prepare` / `prepublishOnly` run only in the author's checkout), the
+   files are `dist/` (CommonJS and ESM builds with maps, a minified copy) and `src/` (index.ts 27 KB,
+   parse-class.ts 5 KB), 380 KB in all; the only import is its own parse-class.js - no Node built-in, no network,
+   no eval; BlueOak-1.0.0; no `repository` field and no provenance, so there is no build to link it to beyond the
+   publisher. Lock integrity: minimatch sha512-iny/40PEGkNJQ5/Pv6z3nm6…, nonrecursive-glob-match
+   sha512-SI7kyKHq4XXDRozw+r9GlRZ…, both equal to the registry's `dist.integrity`. A new dependency is outside
+   what the lane admits on its own ("no new dependency beyond the fix"), so this one is the maintainer's
+   decision: the facts are here, the commit that carries it stands alone on the branch.
+
+   **The override is targeted and pinned.** The script's own install would have written the plain key
+   `minimatch`, which would also move glob 7's copy to 11 - and glob 7 reads what 11.0 removed (RegExp entries
+   in `Minimatch.set`, their `_glob`), as do nothing else; dir-compare and filelist would survive but gain
+   nothing. So the entry in package.json is `"minimatch@>=9.0.0": "11.0.3"`, the install was
+   `npm install --min-release-age=0` once (.npmrc untouched, still 7), and the version is exact: the first try
+   with `^11.0.3` resolved to 11.0.4, 1.2 days old, and was reverted. Lock diff: `node_modules/minimatch`
+   (10.2.6) removed; 11.0.3 under @electron/universal (was 9.0.9), @eslint/config-array, app-builder-lib and
+   eslint; `@isaacs/nonrecursive-glob-match` 1.0.3 added; nothing else. What the four consumers use of
+   minimatch is in 11's API - `new Minimatch(pattern, options)`, `.match(path, partial)`, `.pattern`, `.negate`,
+   `.set` read with `typeof entry === 'string'` (app-builder-lib's hasMagic), `minimatch(path, pattern,
+   { matchBase: true })` (@electron/universal); none of the removed makeRe / regexp / AST / matchOne / slashSplit
+   / debug. Proven: `npm run lint` 0 problems; `npm run build && npx electron-builder --dir` packages
+   dist-electron/mac-arm64/Jacarium.app, tests/electron-package-files.test.mjs (21156 asar entries, every
+   required file) and tests/packaged-app-smoke.test.mjs (the app launches isolated, reports 3.7.2, answers the
+   home-server call) pass; tests/urgent-dep-update.test.mjs and tests/vex.test.py pass.
+
+   After: `npm audit` 0 high / critical, 15 moderate - every one GHSA-g3hv-75wg-m249 through the 3.1.5 / 5.1.9
+   copies (minimatch, glob, rimraf, temp, filelist, jake, ejs, dir-compare, @electron/asar, @electron/universal,
+   electron-winstaller, electron-builder-squirrel-windows, app-builder-lib, dmg-builder, electron-builder); the
+   four ESLint-side findings (eslint, @eslint/config-array, @eslint-community/eslint-utils,
+   eslint-plugin-react-refresh) are gone. `npm audit signatures`: 809 verified registry signatures, 152
+   attestations. tests/npm-audit-clean.test.mjs now requires every moderate-or-worse advisory to be a
+   not_affected decision in vex/decisions.yaml for the next release, naming each copy the lock resolves inside
+   the vulnerable range, and keeps this override exact. The override goes when eslint and electron-builder
+   require minimatch 11 themselves.
+
+   **Maintainer decision (2026-11-03):** the new transitive dependency `@isaacs/nonrecursive-glob-match` 1.0.3 goes
+   beyond the security lane's "no new dependency" rule, so the guarded script stopped; it was reviewed by hand
+   (above) and accepted explicitly by the maintainer. Dev tooling only - it is not in the installers or the image.
+2. **minimatch 3.1.5 and 5.1.9: left, decided.** No fixed release exists on their lines; the vulnerable passes
+   are not in them (checked in node_modules: neither has firstPhasePreProcess, secondPhasePreProcess or
+   optimizationLevel). vex/decisions.yaml: the 2026-10-31 statement now covers 3.7.1 and 3.7.2 (the releases
+   with all four copies), a new one from 3.7.3 names the two remaining copies as `vulnerable_code_not_present`.

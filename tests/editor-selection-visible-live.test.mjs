@@ -4,20 +4,18 @@
  * backend) - on the Vite dev server AND on a production build of the UI
  * (tests/helpers/live-documents-app.mjs, build: 'production'):
  *
- *   - with "bravo" selected and the menu open, the textarea is still the
- *     active element with the same selection (a textarea's selection is
- *     only painted while it is focused), the textarea names the menu
- *     (aria-controls);
+ *   - with "bravo" selected and the menu open, the menu's first item has
+ *     the focus and the editor's selection is the same (the editor -
+ *     CodeMirror - draws its selection from its state, focused or not);
  *   - the paint itself: the pixels of the selected text's line with the
- *     menu open are the pixels of the focused, selected textarea without
+ *     menu open are the pixels of the focused, selected editor without
  *     the menu (the menu sits below the line), and differ from the line
  *     with nothing selected - the highlight is there, in the normal
  *     selection colour, in the light and the dark theme;
- *   - the keys reach the menu from the textarea: ArrowDown marks Cut
- *     active (data-active, aria-activedescendant on the textarea), the
+ *   - the keys move within the menu: ArrowDown goes from Cut to Copy, the
  *     selection untouched; Enter runs Cut (the text goes, the clipboard
  *     has it); Escape closes the menu with the focus and the selection
- *     still in the editor; a click outside closes it the same way;
+ *     back in the editor; a click outside closes it the same way;
  *   - the AI item still gets the selection (Ask AI opens with it);
  *   - without a selection the menu is Paste alone (no Cut, no Copy, no AI
  *     items), screenshots dark and light; with one, Cut and Copy are there;
@@ -28,7 +26,8 @@
  * Needs backend/venv, Chrome and the ports free; skips cleanly otherwise.
  * Synthetic text only.
  */
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
+import { spawnReaped } from './helpers/reap.mjs';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -47,7 +46,7 @@ if (!(await portFree(VITE_PORT)) || !(await portFree(FLASK_PORT))) { console.log
 if (spawnSync('node', ['-e', "require.resolve('pngjs')"], { cwd: REPO, stdio: 'ignore' }).status !== 0) { console.log('SKIP: pngjs missing'); process.exit(0); }
 
 const DATA = mkdtempSync(path.join(tmpdir(), 'editor-selection-data-'));
-const backend = spawn(PYTHON, ['app.py'], {
+const backend = spawnReaped(PYTHON, ['app.py'], {
   cwd: path.join(REPO, 'backend'),
   env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('JACARIUM_'))), HOME: DATA, PORT: String(FLASK_PORT), JACARIUM_AUTH_MODE: 'accounts', JACARIUM_REPORTS_ROOT: path.join(DATA, 'reports'), JACARIUM_KNOWN_HOSTS: path.join(DATA, '.ssh', 'known_hosts') },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -71,26 +70,29 @@ for (const build of ['dev', 'production']) {
   const tag = `[${build}]`;
   const q = (sel) => `document.querySelector(${JSON.stringify(sel)})`;
   const has = (sel) => app.evaluate(`!!${q(sel)}`);
-  const value = () => app.evaluate(`document.querySelector('textarea').value`);
+  const value = () => app.evaluate(`(document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface).value`);
   const active = () => app.evaluate(`(() => { const a = document.activeElement; return a ? (a.getAttribute('data-testid') || a.tagName) : ''; })()`);
-  const selection = () => app.evaluate(`(() => { const ta = document.querySelector('textarea'); return [ta.selectionStart, ta.selectionEnd]; })()`);
+  const selection = () => app.evaluate(`(() => { const ta = (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface); return [ta.selectionStart, ta.selectionEnd]; })()`);
+  // the editor's focusable element (CodeMirror's content) has the focus
+  const editorFocused = () => app.evaluate(`document.activeElement === document.querySelector('.sc-editor-cm .cm-content')`);
+  // (Enter carries its character, as a real key press does: a focused menu button activates on the keypress)
   const keyChord = async (key, code, vk) => {
-    await app.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
+    await app.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, ...(key === 'Enter' ? { text: '\r' } : {}) });
     await app.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
     await sleep(250);
   };
-  const noMotion = () => app.evaluate(`(() => { const s = document.createElement('style'); s.textContent = '*, *::before, *::after { transition: none !important; animation: none !important; caret-color: transparent !important; }'; document.head.appendChild(s); })()`);
+  const noMotion = () => app.evaluate(`(() => { const s = document.createElement('style'); s.textContent = '*, *::before, *::after { transition: none !important; animation: none !important; caret-color: transparent !important; } .cm-cursor { display: none !important; }'; document.head.appendChild(s); })()`);
   const setTheme = async (theme) => { await app.evaluate(`document.documentElement.classList.${theme === 'dark' ? 'add' : 'remove'}('dark')`); await sleep(300); };
-  const select = (a, b) => app.evaluate(`(() => { const ta = document.querySelector('textarea'); ta.focus(); ta.setSelectionRange(${a}, ${b}); return ta.value.slice(${a}, ${b}); })()`);
+  const select = (a, b) => app.evaluate(`(() => { const ta = (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface); ta.focus(); ta.setSelectionRange(${a}, ${b}); return ta.value.slice(${a}, ${b}); })()`);
   // the menu opens from a right-click BELOW the first line (its own box must not cover the selected text)
   const openMenu = async () => {
-    const b = await app.evaluate(`(() => { const r = document.querySelector('textarea').getBoundingClientRect(); return [r.left + 60, r.top + 90]; })()`);
-    await app.evaluate(`document.querySelector('textarea').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: ${b[0]}, clientY: ${b[1]}, view: window })); true`);
+    const b = await app.evaluate(`(() => { const r = document.querySelector('.sc-editor-cm .cm-content').getBoundingClientRect(); return [r.left + 60, r.top + 90]; })()`);
+    await app.evaluate(`document.querySelector('.sc-editor-cm .cm-content').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: ${b[0]}, clientY: ${b[1]}, view: window })); true`);
     await app.waitFor(`!!document.querySelector('[data-testid="editor-context-menu"]')`, 3000);
     await sleep(300);
   };
-  // the first text line of the textarea, as a clip
-  const lineClip = () => app.evaluate(`(() => { const r = document.querySelector('textarea').getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(Math.min(r.width, 420)), height: 32, scale: 1 }; })()`);
+  // the first text line of the editor, as a clip
+  const lineClip = () => app.evaluate(`(() => { const r = document.querySelector('.sc-editor-cm .cm-content').getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(Math.min(r.width, 420)), height: 32, scale: 1 }; })()`);
   const linePixels = async () => { const clip = await lineClip(); const r = await app.send('Page.captureScreenshot', { format: 'png', clip }); return PNG.sync.read(Buffer.from(r.result.data, 'base64')).data; };
   const differing = (a, b) => { let n = 0; for (let i = 0; i < Math.min(a.length, b.length); i += 4) { if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]) > 24) n++; } return n; };
   const shot = async (name) => { const f = path.join(outDir, `${name}.png`); const r = await app.send('Page.captureScreenshot', { format: 'png' }); writeFileSync(f, Buffer.from(r.result.data, 'base64')); return f; };
@@ -107,9 +109,9 @@ for (const build of ['dev', 'production']) {
     await dismissWhatsNew(app);
     await app.waitFor(`!!document.querySelector('[data-testid="sidebar-brand-mark"]')`, 20000);
     await createNewDocument(app);
-    await app.waitFor(`!!document.querySelector('textarea')`, 10000);
+    await app.waitFor(`!!(document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface)`, 10000);
     await app.send('Browser.grantPermissions', { permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'], origin: `http://localhost:${VITE_PORT}` });
-    await app.evaluate(`(() => { const ta = document.querySelector('textarea'); ta.focus(); ta.select(); })()`);
+    await app.evaluate(`(() => { const ta = (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface); ta.focus(); ta.select(); })()`);
     await app.send('Input.insertText', { text: 'alpha bravo charlie\n\n\n\n\n' });
     await sleep(600);
 
@@ -119,15 +121,15 @@ for (const build of ['dev', 'production']) {
       const plain = await linePixels();
       check(`${tag} ${theme}: "bravo" is selected`, (await select(6, 11)) === 'bravo');
       const selectedFocused = await linePixels();
-      check(`${tag} ${theme}: (the selection is painted while the textarea is focused: the line differs from the unselected one)`, differing(plain, selectedFocused) > 40, String(differing(plain, selectedFocused)));
+      check(`${tag} ${theme}: (the selection is painted while the editor is focused: the line differs from the unselected one)`, differing(plain, selectedFocused) > 40, String(differing(plain, selectedFocused)));
       await openMenu();
-      check(`${tag} ${theme}: with the menu open the textarea is still the active element with the same selection, and names the menu`, (await active()) === 'TEXTAREA' && JSON.stringify(await selection()) === '[6,11]' && await app.evaluate(`document.querySelector('textarea').getAttribute('aria-controls') === document.querySelector('[data-testid="editor-context-menu"]').id`), `${await active()} ${JSON.stringify(await selection())}`);
+      check(`${tag} ${theme}: with the menu open its first item (Cut) has the focus and the editor's selection is the same`, (await active()) === 'selection-cut' && JSON.stringify(await selection()) === '[6,11]', `${await active()} ${JSON.stringify(await selection())}`);
       const withMenu = await linePixels();
-      check(`${tag} ${theme}: the selection is painted while the menu is open, exactly as without the menu (the same highlight colour)`, differing(selectedFocused, withMenu) < 10 && differing(plain, withMenu) > 40, `menu vs focused: ${differing(selectedFocused, withMenu)}, menu vs plain: ${differing(plain, withMenu)}`);
+      check(`${tag} ${theme}: the selection is painted while the menu is open (the editor draws it from its state, focused or not), exactly as without the menu`, differing(selectedFocused, withMenu) < 10 && differing(plain, withMenu) > 40, `menu vs focused: ${differing(selectedFocused, withMenu)}, menu vs plain: ${differing(plain, withMenu)}`);
       const f = await shot(`editor-selection-menu-${build}-${theme}`);
       check(`${tag} ${theme}: the screenshot renders`, PNG.sync.read(readFileSync(f)).width > 0);
       await keyChord('Escape', 'Escape', 27);
-      check(`${tag} ${theme}: Escape closes the menu; the focus and the selection stay in the editor`, !(await has('[data-testid="editor-context-menu"]')) && (await active()) === 'TEXTAREA' && JSON.stringify(await selection()) === '[6,11]');
+      check(`${tag} ${theme}: Escape closes the menu; the focus and the selection are back in the editor`, !(await has('[data-testid="editor-context-menu"]')) && (await editorFocused()) && JSON.stringify(await selection()) === '[6,11]', `${await active()} ${JSON.stringify(await selection())}`);
     }
     await setTheme('light');
 
@@ -148,31 +150,33 @@ for (const build of ['dev', 'production']) {
     check(`${tag} with a selection Cut and Copy are there`, (await itemIds()).startsWith('selection-cut,selection-copy,selection-paste'), await itemIds());
     await keyChord('Escape', 'Escape', 27);
 
-    // the keys reach the menu from the textarea
+    // the keys move the focus within the menu; the editor's selection is untouched
     await select(6, 11);
     await openMenu();
     await keyChord('ArrowDown', 'ArrowDown', 40);
-    check(`${tag} ArrowDown marks Cut active and announces it on the textarea; the selection is untouched`, await app.evaluate(`(() => { const cut = document.querySelector('[data-testid="selection-cut"]'); const ta = document.querySelector('textarea'); return cut.getAttribute('data-active') === 'true' && ta.getAttribute('aria-activedescendant') === cut.id && document.activeElement === ta; })()`) && JSON.stringify(await selection()) === '[6,11]', JSON.stringify(await selection()));
+    check(`${tag} ArrowDown moves the focus from Cut to Copy; the selection is untouched`, (await active()) === 'selection-copy' && JSON.stringify(await selection()) === '[6,11]', `${await active()} ${JSON.stringify(await selection())}`);
     await keyChord('ArrowDown', 'ArrowDown', 40);
     await keyChord('ArrowUp', 'ArrowUp', 38);
-    check(`${tag} ArrowDown then ArrowUp is back on Cut`, await app.evaluate(`document.querySelector('[data-testid="selection-cut"]').getAttribute('data-active') === 'true'`));
+    check(`${tag} ArrowDown then ArrowUp is back on Copy`, (await active()) === 'selection-copy', await active());
+    await keyChord('ArrowUp', 'ArrowUp', 38);
+    check(`${tag} ArrowUp again is on Cut`, (await active()) === 'selection-cut', await active());
     await keyChord('Enter', 'Enter', 13);
     await sleep(300);
     check(`${tag} Enter runs Cut: the text goes, the clipboard has it, the menu is closed`, (await value()).startsWith('alpha  charlie') && (await app.evaluate(`navigator.clipboard.readText().catch(() => 'ERROR')`)) === 'bravo' && !(await has('[data-testid="editor-context-menu"]')), (await value()).slice(0, 30));
     // a click outside
     await select(0, 5);
     await openMenu();
-    const outside = await app.evaluate(`(() => { const r = document.querySelector('textarea').getBoundingClientRect(); return [r.left + 300, r.top + 300]; })()`);
+    const outside = await app.evaluate(`(() => { const r = document.querySelector('.sc-editor-cm .cm-content').getBoundingClientRect(); return [r.left + 300, r.top + 300]; })()`);
     await app.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: outside[0], y: outside[1], button: 'left', clickCount: 1 });
     await app.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: outside[0], y: outside[1], button: 'left', clickCount: 1 });
     await sleep(300);
-    check(`${tag} a click outside closes the menu, the editor keeps the focus`, !(await has('[data-testid="editor-context-menu"]')) && (await active()) === 'TEXTAREA');
+    check(`${tag} a click outside closes the menu, the editor has the focus`, !(await has('[data-testid="editor-context-menu"]')) && (await editorFocused()), await active());
     // the AI item still gets the selection
     await select(0, 5);
     await openMenu();
     await app.evaluate(`${q('[data-testid="selection-ask-ai"]')}.click(); true`);
     await sleep(600);
-    check(`${tag} Ask AI About This opens with the selection`, await app.evaluate(`/alpha/.test(document.body.textContent) && !document.querySelector('[data-testid="editor-context-menu"]') && !!Array.from(document.querySelectorAll('textarea, input, [contenteditable], div')).find((el) => (el.value || el.textContent || '').includes('alpha') && !el.closest('.editor') && el !== document.querySelector('textarea'))`));
+    check(`${tag} Ask AI About This opens with the selection`, await app.evaluate(`/alpha/.test(document.body.textContent) && !document.querySelector('[data-testid="editor-context-menu"]') && !!Array.from(document.querySelectorAll('textarea, input, [contenteditable], div')).find((el) => (el.value || el.textContent || '').includes('alpha') && !el.closest('.editor') && el !== document.querySelector('.sc-editor-cm .cm-content'))`));
     await keyChord('Escape', 'Escape', 27);
     check(`${tag} no runtime exception`, app.errors.length === 0, app.errors.join(' || ').slice(0, 300));
   } catch (e) {

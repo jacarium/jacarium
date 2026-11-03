@@ -59,6 +59,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire, isBuiltin } from 'node:module';
+import { installEditorSurfaceInJsdom, jsdomEditor } from './helpers/editor-surface.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(here, '..');
@@ -161,6 +162,7 @@ window.HTMLElement.prototype.scrollTo = function () {};
 let phone = false;
 window.matchMedia = (q) => ({ matches: phone && (/max-width: 767px/.test(q) || /pointer: coarse/.test(q)), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent() { return false; } });
 window.indexedDB = globalThis.indexedDB; window.IDBKeyRange = globalThis.IDBKeyRange;
+installEditorSurfaceInJsdom(window);   // what CodeMirror needs of jsdom
 const failingFetch = () => Promise.reject(new Error('no backend in test'));
 define('fetch', failingFetch); window.fetch = failingFetch;
 const origLog = console.log; const origErr = console.error; const origWarn = console.warn;
@@ -174,24 +176,25 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 const click = (el) => el.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
 const key = (el, k, init = {}) => { const e = new window.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...init }); el.dispatchEvent(e); return e.defaultPrevented; };
-const setNative = (el, value) => { Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set.call(el, value); el.dispatchEvent(new window.Event('input', { bubbles: true })); };
+// The editor surface (tests/helpers/editor-surface.mjs): a textarea's API over CodeMirror
 async function mount(opts = {}) {
   phone = !!opts.mobile;
   await waitFor(() => H.setContent); // the host has rendered
   H.unmount();
-  await waitFor(() => (!$('textarea') ? true : null));
+  await waitFor(() => (!$('.sc-editor-cm') ? true : null));
   H.setContent(opts.content || '');
   H.mount({ locked: !!opts.locked });
-  const textarea = await waitFor(() => $('textarea'));
+  const editor = await jsdomEditor(document);
   await sleep(30);
-  return textarea;
+  return editor;
 }
-async function setContent(textarea, text, start = text.length, end = start) {
-  setNative(textarea, text);
-  await waitFor(() => (H.getContent() === text ? true : null));
-  textarea.focus();
-  textarea.setSelectionRange(start, end);
-  textarea.dispatchEvent(new window.KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
+// the document's text through the parent's state (what a switch or an import does), then the caret
+async function setContent(editor, text, start = text.length, end = start) {
+  H.setContent(text);
+  await waitFor(() => (H.getContent() === text && editor.value === text ? true : null));
+  editor.focus();
+  editor.setSelectionRange(start, end);
+  editor.dispatchEvent(new window.KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
   await sleep(40);
 }
 const content = async (expected, timeout = 2000) => waitFor(() => (typeof expected === 'function' ? (expected(H.getContent()) ? H.getContent() : null) : (H.getContent() === expected ? expected : null)), timeout) ?? H.getContent();
@@ -388,8 +391,7 @@ report('\n--- 7. the "/" built-ins ---');
 /* ================================================================== */
 async function slash(cmd, start = '') {
   await setContent(ta, start, start.length);
-  setNative(ta, start + cmd);
-  ta.setSelectionRange(start.length + cmd.length, start.length + cmd.length);
+  ta.insertText(cmd);   // typed: the popup opens on the input
   await waitFor(() => (H.getContent() === start + cmd ? true : null));
   await sleep(60);
   const popup = $$('.fixed .text-sm.font-medium').map((e) => e.textContent.trim());

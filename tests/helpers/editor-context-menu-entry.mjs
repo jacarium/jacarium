@@ -1,7 +1,8 @@
 /**
  * jsdom entry for tests/editor-context-clipboard.test.mjs: the REAL
- * TextSelectionMenu (on the shared ContextMenu) mounted on its own, and the
- * real src/utils/editorClipboard.js, from ONE bundle. Bundled with esbuild by
+ * TextSelectionMenu (on the shared ContextMenu) mounted on its own, the
+ * real src/utils/editorClipboard.js and the real editor surface
+ * (CodeMirrorSurface), from ONE bundle. Bundled with esbuild by
  * tests/helpers/jsdom-documents-env.mjs; `@worktree/` resolves to the repo.
  */
 import React from 'react';
@@ -11,6 +12,7 @@ import TextSelectionMenu from '@worktree/src/components/features/documents/TextS
 import ContextMenu, { ContextMenuItem } from '@worktree/src/components/common/menus/ContextMenu.jsx';
 
 export * as editorClipboard from '@worktree/src/utils/editorClipboard.js';
+export { CodeMirrorSurface } from '@worktree/src/components/features/documents/codemirror/CodeMirrorSurface.js';
 
 let root = null;
 
@@ -30,7 +32,7 @@ export function unmountMenu() {
   }
 }
 
-// a plain shared ContextMenu (no keepFocus), in its own root: the generic focus behaviour
+// a plain shared ContextMenu, in its own root: the generic focus behaviour
 let genericRoot = null;
 export function renderGenericMenu({ visible = true, x = 0, y = 0, onClose = () => {} } = {}) {
   if (!genericRoot) {

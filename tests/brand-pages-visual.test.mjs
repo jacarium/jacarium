@@ -11,7 +11,8 @@
  * BRAND_SHOTS_DIR (default: a temp dir). Needs backend/venv, Chrome and
  * ports 5173/8080 free; skips cleanly otherwise. Synthetic data only.
  */
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
+import { spawnReaped } from './helpers/reap.mjs';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -35,7 +36,7 @@ const pkg = JSON.parse(readFileSync(path.join(REPO, 'package.json'), 'utf8'));
 const PROTOCOL = Number(JSON.parse(readFileSync(path.join(REPO, 'protocol.json'), 'utf8')).protocol) || 1;
 
 const DATA = mkdtempSync(path.join(tmpdir(), 'brand-pages-data-'));
-const backend = spawn(PYTHON, ['app.py'], {
+const backend = spawnReaped(PYTHON, ['app.py'], {
   cwd: path.join(REPO, 'backend'),
   env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('JACARIUM_'))), HOME: DATA, PORT: String(FLASK_PORT), JACARIUM_AUTH_MODE: 'accounts', JACARIUM_REPORTS_ROOT: path.join(DATA, 'reports'), JACARIUM_KNOWN_HOSTS: path.join(DATA, '.ssh', 'known_hosts') },
   stdio: ['ignore', 'pipe', 'pipe'],

@@ -69,6 +69,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire, isBuiltin } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { installEditorSurfaceInJsdom, jsdomEditor } from './helpers/editor-surface.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(here, '..');
@@ -291,7 +292,8 @@ createRoot(document.getElementById('root')).render(
   const quiet = (fn) => (...a) => { const s = String(a[0] ?? ''); if (/^\[|Warning:|act\(|Dexie|Error|no backend/.test(s)) return; fn(...a); };
   console.log = quiet(origLog); console.error = quiet(origErr); console.warn = quiet(origWarn);
 
-  createRequire(import.meta.url)(BUNDLE);
+  installEditorSurfaceInJsdom(window);   // what CodeMirror needs of jsdom
+createRequire(import.meta.url)(BUNDLE);
   const { document } = window;
   const H = window.__harness;
   await waitFor(() => H.mount);
@@ -434,12 +436,12 @@ createRoot(document.getElementById('root')).render(
   // =====================================================================
   // Section 4: the real DocumentEditor honours the focus request
   // =====================================================================
-  const ta = () => document.querySelector('textarea');
+  const ta = () => (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface) || null;   // the editor surface (tests/helpers/editor-surface.mjs)
   // (a) plain document, request armed -> focused, caret at the end, request consumed
   const eA = await H.createDocument({ title: 'From task A', content: 'hello', category: 'Ops' });
   H.openDoc.openDocumentInEditor(eA);
   H.mount('editor', { documentId: eA, document: { id: eA, title: 'From task A', inCloud: false }, content: 'hello' });
-  check('section 4: editor with the requested document focuses the body', await waitFor(() => ta() && document.activeElement === ta()));
+  check('section 4: editor with the requested document focuses the body', await waitFor(() => ta() && document.activeElement === ta().contentDOM));
   check('section 4: ... caret at the end of the body', ta().selectionStart === 5 && ta().selectionEnd === 5, `${ta().selectionStart}`);
   check('section 4: ... and consumes the request', H.openDoc.peekPendingEditorFocus() === null);
   H.unmount(); await sleep(50);
@@ -450,7 +452,7 @@ createRoot(document.getElementById('root')).render(
   window.localStorage.setItem('previewAllDocuments', 'true');
   H.openDoc.openDocumentInEditor(eB);
   H.mount('editor', { documentId: eB, document: { id: eB, title: 'From task B', inCloud: false }, content: '' });
-  check('section 4: a document in preview mode (and "preview all" on) drops to edit mode with the body focused', await waitFor(() => ta() && document.activeElement === ta()));
+  check('section 4: a document in preview mode (and "preview all" on) drops to edit mode with the body focused', await waitFor(() => ta() && document.activeElement === ta().contentDOM));
   check('section 4: ... the per-document preview flag is cleared and "preview all" is switched off',
     JSON.parse(window.sessionStorage.getItem('documentPreviewModes'))[eB] === false && window.localStorage.getItem('previewAllDocuments') === 'false');
   H.unmount(); await sleep(50);
@@ -460,7 +462,7 @@ createRoot(document.getElementById('root')).render(
   window.localStorage.setItem('previewAllDocuments', 'true');
   H.mount('editor', { documentId: eC, document: { id: eC, title: 'Untouched C', inCloud: false }, content: '# c' });
   await sleep(300);
-  check('section 4: a document without a request stays in preview (no textarea, "preview all" untouched)', !ta() && window.localStorage.getItem('previewAllDocuments') === 'true');
+  check('section 4: a document without a request stays in preview (no editor, "preview all" untouched)', !ta() && window.localStorage.getItem('previewAllDocuments') === 'true');
   H.unmount(); await sleep(50);
   window.localStorage.setItem('previewAllDocuments', 'false');
   window.sessionStorage.removeItem('documentPreviewModes');
@@ -485,7 +487,7 @@ createRoot(document.getElementById('root')).render(
   const activeAfter = Array.from(document.querySelectorAll('div[draggable]')).find((t) => t.className.includes('border-b-os-blue'));
   check('section 5: the stale persisted document did not steal the editor after the list loaded', !!activeAfter && /From task D/.test(activeAfter.textContent), activeAfter && activeAfter.textContent.trim());
   check('section 5: the persisted current document is now the new one', window.localStorage.getItem('currentDocumentId') === JSON.stringify(fresh));
-  check('section 5: the editor body is mounted (edit mode) and focused', !!ta() && document.activeElement === ta());
+  check('section 5: the editor body is mounted (edit mode) and focused', !!ta() && document.activeElement === ta().contentDOM);
   // Sidebar rows carry the title as a tooltip (span[title]); tab labels do not.
   const sidebarRow = document.querySelector('span[title="From task D"]');
   check('section 5: the sidebar lists the document under its (expanded) category', !!sidebarRow);

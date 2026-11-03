@@ -98,14 +98,14 @@ async function press(key, code, vk, mods) {
   await sleep(350);
 }
 const letter = (k) => ({ key: k.toUpperCase(), code: `Key${k.toUpperCase()}`, vk: k.toUpperCase().charCodeAt(0) });
-const onDocuments = () => ev(`!!document.querySelector('.sc-editor-textarea') && !document.querySelector('[data-testid="calendar-connect-state"]')`);
+const onDocuments = () => ev(`!!document.querySelector('.sc-editor-cm') && !document.querySelector('[data-testid="calendar-connect-state"]')`);
 const onCalendars = () => ev(`!!document.querySelector('[data-testid="calendar-connect-state"]')`);
 const clickRail = (label) => ev(`(() => { const want = ${JSON.stringify(label)}; const b = Array.from(document.querySelectorAll('button')).find((x) => [x.getAttribute('title'), x.getAttribute('aria-label'), x.textContent.trim()].some((t) => t === want)) || Array.from(document.querySelectorAll('button, [role="button"]')).find((x) => [x.getAttribute('title'), x.getAttribute('aria-label'), x.getAttribute('data-tooltip'), x.textContent].some((t) => t && t.toLowerCase().includes(want.toLowerCase()))); if (!b) return false; b.click(); return true; })()`);
 const dismiss = async () => { for (let i = 0; i < 6; i++) { const ok = await ev(`(() => { const b = Array.from(document.querySelectorAll('button')).find((x) => /^Got it!$/.test(x.textContent.trim())); if (b) { b.click(); return true; } return false; })()`); if (ok) break; await sleep(300); } };
 const PAGE_KEYS = ['d', 'c', 'k', 't', 'w', 'a', 's', 'o'];
-// a controlled React textarea: the value through the prototype setter, then an input event
-const setTa = (sel, text, start, end) => ev(`(() => { const ta = ${sel}; if (!ta) return false; ta.focus(); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, ${JSON.stringify(text)}); ta.dispatchEvent(new Event('input', { bubbles: true })); ta.setSelectionRange(${start}, ${end}); ta.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true })); return true; })()`);
-const EDITOR = `document.querySelector('.sc-editor-textarea')`;
+// the editor surface (tests/helpers/editor-surface.mjs): the text set as a document switch would, then the caret
+const setTa = (sel, text, start, end) => ev(`(() => { const ta = ${sel}; if (!ta) return false; ta.focus(); ta.value = ${JSON.stringify(text)}; ta.setSelectionRange(${start}, ${end}); ta.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true })); return true; })()`);
+const EDITOR = `(document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface)`;
 try {
   for (const platform of ['Linux', 'Mac']) {
     const mac = platform === 'Mac';
@@ -119,8 +119,8 @@ try {
     await dismiss();
     const reported = await ev('navigator.platform');
     check(`${platform}: navigator.platform reads ${mac ? 'MacIntel' : 'Linux x86_64'}`, reported === (mac ? 'MacIntel' : 'Linux x86_64'), reported);
-    if (!(await ev(`!!document.querySelector('.sc-editor-textarea')`))) { await createNewDocument(app); await sleep(1200); }
-    if (!(await ev(`!!document.querySelector('.sc-editor-textarea')`))) { await clickRail('Documents'); await sleep(800); await createNewDocument(app); await sleep(1200); }
+    if (!(await ev(`!!document.querySelector('.sc-editor-cm')`))) { await createNewDocument(app); await sleep(1200); }
+    if (!(await ev(`!!document.querySelector('.sc-editor-cm')`))) { await clickRail('Documents'); await sleep(800); await createNewDocument(app); await sleep(1200); }
     check(`${platform}: the Documents page with an open document`, await onDocuments());
     // the control: the rail still switches pages
     const switched = await clickRail('Calendars'); await sleep(900);
@@ -147,23 +147,23 @@ try {
     await setTa(EDITOR, 'see ', 4, 4);
     await sleep(300);
     await press('k', 'KeyK', 75, mod);
-    const afterK = await ev(`({ content: document.querySelector('.sc-editor-textarea').value, palette: !!document.querySelector('[role="combobox"][placeholder="Type a command or search..."]') })`);
+    const afterK = await ev(`({ content: (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface).value, palette: !!document.querySelector('[role="combobox"][placeholder="Type a command or search..."]') })`);
     check(`${platform}: ${mac ? 'Cmd' : 'Ctrl'}+K in the editor textarea inserts no link (the palette opens, as everywhere)`, afterK.content === 'see ' && afterK.palette, JSON.stringify(afterK));
     await press('Escape', 'Escape', 27, 0); await sleep(200);
     await setTa(EDITOR, 'x', 0, 1);
     await sleep(200);
     await press('b', 'KeyB', 66, mod);
-    check(`${platform}: ${mac ? 'Cmd' : 'Ctrl'}+B in the editor changes nothing`, (await ev(`document.querySelector('.sc-editor-textarea').value`)) === 'x');
+    check(`${platform}: ${mac ? 'Cmd' : 'Ctrl'}+B in the editor changes nothing`, (await ev(`(document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface).value`)) === 'x');
     const findBar = () => ev(`Array.from(document.querySelectorAll('span')).some((s) => /^Find( & Replace)?$/.test(s.textContent.trim()))`);
     await press('r', 'KeyR', 82, mod);
-    check(`${platform}: ${mac ? 'Cmd' : 'Ctrl'}+R in the editor opens no Find/Replace bar`, !(await findBar()) && (await ev(`document.querySelector('.sc-editor-textarea').value`)) === 'x');
+    check(`${platform}: ${mac ? 'Cmd' : 'Ctrl'}+R in the editor opens no Find/Replace bar`, !(await findBar()) && (await ev(`(document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface).value`)) === 'x');
     await press('f', 'KeyF', 70, mod);
     check(`${platform}: ${mac ? 'Cmd' : 'Ctrl'}+F in the editor opens Find, with "+ Replace"`, (await findBar()) && (await ev(`Array.from(document.querySelectorAll('button')).some((b) => b.textContent.trim() === '+ Replace')`)));
     await ev(`(() => { const b = Array.from(document.querySelectorAll('button')).find((x) => x.getAttribute('title') === 'Close (Esc)'); b && b.click(); })()`); await sleep(200);
     await setTa(EDITOR, 'x', 0, 1);
     await sleep(200);
     await press('i', 'KeyI', 73, mod);
-    check(`${platform}: ${mac ? 'Cmd' : 'Ctrl'}+I in the editor italicises the selection`, (await ev(`document.querySelector('.sc-editor-textarea').value`)) === '*x*', await ev(`document.querySelector('.sc-editor-textarea').value`));
+    check(`${platform}: ${mac ? 'Cmd' : 'Ctrl'}+I in the editor italicises the selection`, (await ev(`(document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface).value`)) === '*x*', await ev(`(document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface).value`));
   }
   check('no page exception during the live run', app.errors.length === 0, app.errors.join(' ; '));
 } finally {

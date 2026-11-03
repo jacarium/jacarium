@@ -1,35 +1,32 @@
 /**
- * Guards against two collaborative-cursor rendering bugs in DocumentEditor
- * (both observed in real multi-machine testing of cloud documents):
+ * A peer's caret in a live document is drawn where the peer is - at the
+ * exact document position, through every concurrent edit - in the real
+ * DocumentsPage / DocumentEditor tree (the CodeMirror surface bound through
+ * y-codemirror.next) with a real jacarium-central, real socket.io and real
+ * Yjs, one jsdom client per simulated machine.
  *
- * Bug 1 - "Cursor flicker": while both users type at the same time, the
- *   remote peer's cursor briefly renders at a wrong position (jumping toward
- *   the beginning of the line) before snapping back. Root cause: awareness
- *   cursor positions are ABSOLUTE character indices computed against the
- *   sender's document state; when the receiver's document has concurrent
- *   edits the sender hadn't seen yet, that index lands in the wrong place
- *   until the peer re-broadcasts. Fixed by carrying Yjs RELATIVE positions
- *   (anchor/head) in the awareness cursor field and re-resolving them against
- *   the live local Y.Doc on every text change - immune to message timing.
- *   The test has both simulated machines type rapidly at the same time while
- *   a MutationObserver records EVERY rendered frame of the remote cursor
- *   overlay; since the observed peer only ever types at the end of the
- *   document, every rendered frame must show its cursor exactly at
- *   end-of-content - any deviating frame is the flicker.
+ * Two bugs of the former textarea overlay are what this guards against, in
+ * the terms the CodeMirror surface makes structural:
  *
- * Bug 2 - "Cursor invisible in large documents": the overlay's vertical
- *   position was computed as (logicalLineNumber - 1) * lineHeight, ignoring
- *   soft line wrapping, while the textarea itself wraps long lines across
- *   multiple visual rows. In a large document with wrapped lines the computed
- *   `top` falls thousands of pixels above the cursor's real location, so
- *   viewport culling silently drops the overlay - the remote cursor never
- *   shows. Fixed by computing `top` from lineLayoutData's cumulative
- *   wrap-aware per-line heights (the same system the gutter uses).
- *   The test builds a 1200-line document whose first 1000 lines each wrap
- *   into 2 visual rows (via stubbed textarea geometry), parks the remote
- *   peer's cursor at the end, scrolls the viewer to the cursor's TRUE visual
- *   position (must be rendered there, at the exact wrap-aware coordinates)
- *   and to the naive un-wrapped position (must NOT be rendered there).
+ * Bug 1 - "Cursor flicker": while both users typed at the same time the
+ *   remote caret briefly rendered at a wrong position (the overlay was
+ *   placed from an absolute index computed on the sender's document state).
+ *   The surface draws the caret from a Yjs RELATIVE position, re-resolved on
+ *   the receiver's own document at every change, so no rendered frame can
+ *   ever show it away from its true place. The test has both machines type
+ *   rapidly at the same time while a MutationObserver records EVERY
+ *   rendered frame of the peer's caret on the other machine; since the
+ *   observed peer only ever types at the end of the document, every frame
+ *   must show the caret on the last line at its last column.
+ *
+ * Bug 2 - "Cursor invisible / misplaced in large documents": the overlay's
+ *   pixel position ignored soft wrapping and drifted thousands of pixels
+ *   off. The caret is now an inline widget in the text itself - its place
+ *   IS the position - so the test checks what matters: with the peer's
+ *   caret parked at the end of line 20 of a 40-line document it is drawn on
+ *   line 20 at that column; when the other machine inserts text before it
+ *   on the same line, the caret moves by exactly that much; when the peer
+ *   goes to the start of the document, the caret is at (0, 0).
  *
  * Self-contained end-to-end test in the style of cloud-upload-live-sync:
  * real jacarium-central, real socket.io, real Yjs, the real DocumentsPage/
@@ -184,12 +181,6 @@ server.stdout.on('data', (d) => serverLog.write(d));
 server.stderr.on('data', (d) => serverLog.write(d));
 await sleep(1200);
 
-// Rendering constants mirrored from DocumentEditor's overlay math
-const LINE_H = 22.4;     // 1.6 line-height * 14px font
-const CHAR_W = 8.4;      // jsdom measures 0, so the editor falls back to 8.4
-const PAD_TOP = 16;      // textarea py-4 top padding added to overlay top
-const PAD_LEFT = 24;     // textarea px-6 left padding added to overlay left
-
 /**
  * Shared flow: owner uploads its pre-created doc to the cloud, the other
  * machine receives the broadcast copy and opens it, then waits until its
@@ -240,9 +231,9 @@ let exitCode = 1;
 const clients = [];
 try {
   // ================================================================
-  // Scenario 1 (Bug 1): cursor flicker while both users type at once
+  // Scenario 1 (Bug 1): no frame ever shows the peer's caret away from its place
   // ================================================================
-  console.log('\n--- Scenario 1: simultaneous typing must never flicker the remote cursor ---');
+  console.log('\n--- Scenario 1: simultaneous typing must never misplace the remote caret ---');
   const DOC1 = 'Flicker Doc';
   const BASE1 = 'alpha line\nbravo line'; // alice types at end of line 1, bob at end of doc
   const alice1 = new Client('alice1', {
@@ -263,8 +254,10 @@ try {
   await alice1.cmd('set-cursor', { pos: 'alpha line'.length });
   await bob1.cmd('set-cursor', { pos: BASE1.length });
   await sleep(800);
+  const parked = await alice1.cmd('cursor-overlay', { name: 'bob1' });
+  check("scenario 1: bob's caret is drawn on alice's screen at the end of the document (line 1, column 10)", parked.present && parked.line === 1 && parked.column === 'bravo line'.length, JSON.stringify(parked));
 
-  // Record every rendered frame of bob's cursor overlay on alice's screen.
+  // Record every rendered frame of bob's caret on alice's screen.
   await alice1.cmd('watch-cursor', { name: 'bob1' });
 
   // Both machines type rapidly AT THE SAME TIME (the reported repro).
@@ -287,8 +280,8 @@ try {
     `aliceLen=${aFinal && aFinal.length} bobLen=${bFinal && bFinal.length} expected=${expectedFinal.length}`);
 
   // Ground truth: bob only ever types at the very END of the document, so at
-  // EVERY instant his cursor is at end-of-content - i.e. every rendered frame
-  // of his overlay must sit at (last line, last column) OF THE CONTENT AS
+  // EVERY instant his caret is at end-of-content - i.e. every rendered frame
+  // must show it on the last line at the last column OF THE CONTENT AS
   // RENDERED IN THAT SAME FRAME. Any deviating frame is the flicker bug.
   const frames = [];
   let seen = false;
@@ -296,51 +289,31 @@ try {
     if (s.present) seen = true;
     if (seen) frames.push(s);
   }
-  const mismatches = [];
-  let lineStartJumps = 0;
-  for (const s of frames) {
-    if (!s.present) { mismatches.push({ ...s, why: 'overlay missing' }); continue; }
-    const expTop = (s.lineCount - 1) * LINE_H + PAD_TOP - s.scrollTop;
-    const expLeft = s.lastLineLen * CHAR_W + PAD_LEFT - s.scrollLeft;
-    if (Math.abs(s.top - expTop) > 0.5 || Math.abs(s.left - expLeft) > 0.5) {
-      mismatches.push({ ...s, expTop, expLeft });
-      if (Math.abs(s.left - PAD_LEFT) <= 0.5 && expLeft > PAD_LEFT + CHAR_W) lineStartJumps++;
-    }
-  }
-  check('scenario 1: cursor overlay was actually rendered and re-rendered during typing',
+  const mismatches = frames.filter((s) => !s.present || s.line !== s.lineCount - 1 || s.column !== s.lastLineLen);
+  check('scenario 1: the caret was rendered and re-rendered during typing',
     frames.length >= 5, `rendered frames: ${frames.length}`);
-  check('scenario 1: NO rendered frame ever showed the remote cursor away from its true position (no flicker)',
+  check('scenario 1: NO rendered frame ever showed the remote caret away from its true position (no flicker)',
     mismatches.length === 0,
-    `${mismatches.length}/${frames.length} bad frames (${lineStartJumps} at line start), e.g. ${JSON.stringify(mismatches.slice(0, 3))}`);
+    `${mismatches.length}/${frames.length} bad frames, e.g. ${JSON.stringify(mismatches.slice(0, 3))}`);
 
   alice1.kill(); bob1.kill();
   await sleep(300);
 
   // =====================================================================
-  // Scenario 2 (Bug 2): remote cursor must render in a large wrapped doc
+  // Scenario 2 (Bug 2): the caret sits at the peer's exact position in a longer document
   // =====================================================================
-  console.log('\n--- Scenario 2: remote cursor in a large document with soft-wrapped lines ---');
-  // Geometry stubbed on alice2's textarea: 336px wide -> floor(336/8.4) = 40
-  // chars per visual row. 1000 lines x 80 chars wrap into 2 rows each; the
-  // remaining 200 lines x 20 chars are 1 row each.
-  const TA_W = 336, TA_H = 448;
-  const CHARS_PER_ROW = Math.floor(TA_W / CHAR_W); // 40
+  console.log('\n--- Scenario 2: the remote caret in a longer document, through edits around it ---');
   const lines = [];
-  for (let i = 0; i < 1000; i++) lines.push(`L${i}`.padEnd(80, 'x'));
-  for (let i = 1000; i < 1200; i++) lines.push(`S${i}`.padEnd(20, 'y'));
+  for (let i = 0; i < 40; i++) lines.push(`L${i} `.padEnd(60, 'x'));
   const BIG = lines.join('\n');
-  const LAST_LINE_LEN = 20;
-  const visualRowsBeforeLast = 1000 * Math.ceil(80 / CHARS_PER_ROW) + 199 * 1; // 2199
-  const TRUE_TOP = visualRowsBeforeLast * LINE_H;          // 49257.6 (wrap-aware)
-  const NAIVE_TOP = (lines.length - 1) * LINE_H;           // 26857.6 (wrap-blind)
-  const TRUE_SCROLL = 48900;   // viewport [48900..49348]: contains TRUE_TOP only
-  const NAIVE_SCROLL = 26800;  // viewport [26800..27248]: contains NAIVE_TOP only
+  const LINE = 20;
+  const lineStart = lines.slice(0, LINE).join('\n').length + 1;
+  const lineLen = lines[LINE].length;
 
-  const DOC2 = 'Big Wrapped Doc';
+  const DOC2 = 'Big Doc';
   const alice2 = new Client('alice2', {
     MACHINE_ID: 'alice2@account-test', SERVER_URL,
     CREATE_DOC_TITLE: DOC2, CREATE_DOC_CONTENT: BIG,
-    TA_CLIENT_WIDTH: String(TA_W), TA_CLIENT_HEIGHT: String(TA_H),
   });
   const bob2 = new Client('bob2', { MACHINE_ID: 'bob2@account-test', SERVER_URL });
   clients.push(alice2, bob2);
@@ -352,32 +325,26 @@ try {
 
   await shareAndOpen(alice2, bob2, DOC2, BIG.length);
 
-  // Bob parks his cursor at the very end of the document (line 1200).
-  await bob2.cmd('set-cursor', { pos: BIG.length });
+  // Bob parks his caret at the end of line 20.
+  await bob2.cmd('set-cursor', { pos: lineStart + lineLen });
   await sleep(1000); // awareness propagation + render
+  const atLine = await alice2.cmd('cursor-overlay', { name: 'bob2' });
+  check(`scenario 2: bob's caret is drawn on line ${LINE} at column ${lineLen}`, atLine.present && atLine.line === LINE && atLine.column === lineLen, JSON.stringify(atLine));
 
-  // Alice scrolls to where bob's cursor REALLY is (wrap-aware position).
-  await alice2.cmd('scroll-to', { top: TRUE_SCROLL });
-  await sleep(700); // scroll state throttle (100ms in perf mode) + render
-  const atTrue = await alice2.cmd('cursor-overlay', { name: 'bob2' });
-  const expTop2 = TRUE_TOP + PAD_TOP - TRUE_SCROLL;
-  const expLeft2 = LAST_LINE_LEN * CHAR_W + PAD_LEFT;
-  check("scenario 2: bob's cursor IS rendered at its true visual position in the wrapped document",
-    atTrue.present, JSON.stringify(atTrue));
-  check(`scenario 2: rendered top matches wrap-aware position (expected ~${expTop2.toFixed(1)}px)`,
-    atTrue.present && Math.abs(atTrue.top - expTop2) <= 2,
-    `top=${atTrue.top} left=${atTrue.left}`);
-  check(`scenario 2: rendered left matches column position (expected ~${expLeft2.toFixed(1)}px)`,
-    atTrue.present && Math.abs(atTrue.left - expLeft2) <= 2,
-    `left=${atTrue.left}`);
+  // Alice inserts five characters at the START of that line: the caret moves by five, on the same line.
+  await alice2.cmd('set-cursor', { pos: lineStart });
+  await alice2.cmd('burst-type', { text: 'NEW: ', intervalMs: 10 }, 30000);
+  await sleep(800);
+  const shifted = await alice2.cmd('cursor-overlay', { name: 'bob2' });
+  check(`scenario 2: after alice's insert before it, the caret is at column ${lineLen + 5} of line ${LINE} (moved with the text)`, shifted.present && shifted.line === LINE && shifted.column === lineLen + 5, JSON.stringify(shifted));
+  const bobSees = (await bob2.cmd('textarea')).value;
+  check("scenario 2: bob's document took alice's insert", bobSees.includes('NEW: L20 '), bobSees.slice(lineStart, lineStart + 12));
 
-  // At the naive (wrap-blind) position the cursor must NOT appear - it was
-  // exactly this ghost location the pre-fix code rendered it at.
-  await alice2.cmd('scroll-to', { top: NAIVE_SCROLL });
-  await sleep(700);
-  const atNaive = await alice2.cmd('cursor-overlay', { name: 'bob2' });
-  check("scenario 2: bob's cursor is NOT rendered at the wrap-blind ghost position",
-    !atNaive.present, JSON.stringify(atNaive));
+  // Bob goes to the start of the document: the caret is at (0, 0).
+  await bob2.cmd('set-cursor', { pos: 0 });
+  await sleep(800);
+  const atStart = await alice2.cmd('cursor-overlay', { name: 'bob2' });
+  check("scenario 2: bob's caret at the document start is drawn at line 0, column 0", atStart.present && atStart.line === 0 && atStart.column === 0, JSON.stringify(atStart));
 
   alice2.kill(); bob2.kill();
 

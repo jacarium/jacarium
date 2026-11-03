@@ -86,7 +86,7 @@ import TextSelectionMenu from './TextSelectionMenu';
 import { readClipboardState, copySelection, cutSelection, pasteInto } from '../../../utils/editorClipboard';
 import QuickWorkflow from './QuickWorkflow';
 import QuickTasks from './QuickTasks';
-import { getUserColor, hexToRgba } from '../../../utils/userColors';
+import { getUserColor } from '../../../utils/userColors';
 import { useYjsText } from '../../../hooks/useYjsText';
 import { LIVE_CONTENT_EVENT } from '../../../utils/aiContextSources';
 import { getMachineId } from '../../../utils/cloudCentralSync';
@@ -97,13 +97,22 @@ import MediaLibraryModal from '../../common/modals/MediaLibraryModal';
 import { useLocalStorage } from '../../../hooks/useLocalStorage';
 import { takePendingEditorFocus, takePendingEditorJump, DOCUMENT_JUMP_EVENT } from '../../../utils/openDocument';
 import { lineStartOffset } from '../../../utils/findInFiles';
-import { attachMacPeriodSubstitutionGuard } from '../../../utils/macPeriodSubstitution';
-import { computeLineLayout, flatLineLayout, measureLinesWithMirror, measureTextareaRowPitch } from './gutterLineLayout';
+import { isSpellcheckEnabled, SPELLCHECK_CHANGED_EVENT } from '../../../utils/editorSurface';
+import CodeMirrorEditor from './codemirror/CodeMirrorEditor';
+import { wordAtPointer } from '../../../utils/editorWords';
 import NoticeBanner, { NoticeBannerAction } from '../../common/NoticeBanner';
 import { MENU_ICONS } from '../../common/menus/menuIcons';
 
 /**
  * DocumentEditor - Sophisticated markdown editor with toolbar
+ *
+ * The text surface is CodeMirror 6 (./codemirror/: a virtualised
+ * document, so a 50,000-line document types like a short one; the native
+ * spell checker on, skipping code, URLs and the [[...]] directives; the
+ * live document's Yjs binding and remote carets; its own line numbers,
+ * undo history and find-match marks), behind the API of the textarea it
+ * replaced (CodeMirrorSurface: value, selectionStart / End,
+ * setSelectionRange, focus, ...), which everything below addresses.
  *
  * Features:
  * - Full markdown editing
@@ -137,6 +146,17 @@ export default function DocumentEditor({
   // console.log('=== DocumentEditor component rendered ===');
   // console.log('DocumentEditor props - documentId:', documentId, 'document.inCloud:', document?.inCloud, 'content.length:', content.length);
 
+  // The editor surface: CodeMirror behind a ref that answers a textarea's
+  // API (CodeMirrorSurface: value, selectionStart / End, setSelectionRange,
+  // focus, scrollTop, ...), so the toolbar, the popups, the find bar and
+  // the Yjs hook address it as they always did; `managesYjs` says when the
+  // surface itself is bound to a live document.
+  const [spellcheckOn, setSpellcheckOn] = useState(isSpellcheckEnabled);
+  useEffect(() => {
+    const onSpellcheck = () => setSpellcheckOn(isSpellcheckEnabled());
+    window.addEventListener(SPELLCHECK_CHANGED_EVENT, onSpellcheck);
+    return () => window.removeEventListener(SPELLCHECK_CHANGED_EVENT, onSpellcheck);
+  }, []);
   const textareaRef = useRef(null);
   const previewRef = useRef(null);
   const slashMenuRef = useRef(null);
@@ -218,37 +238,27 @@ export default function DocumentEditor({
     x: 0,
     y: 0,
     text: '',
-    clipboard: 'unknown'   // what the clipboard holds, for the menu's Paste: 'text' | 'empty' | 'unknown'
+    clipboard: 'unknown',   // what the clipboard holds, for the menu's Paste: 'text' | 'empty' | 'unknown'
+    word: null,             // the word under the pointer: { from, to, text } (what a spelling suggestion replaces)
+    spell: null,            // the desktop app's spelling report for it: { misspelledWord, suggestions } (electron/spellcheck.cjs)
   });
-  const closeSelectionMenu = useCallback(() => setSelectionMenu({ visible: false, x: 0, y: 0, text: '', clipboard: 'unknown' }), []);
+  const closeSelectionMenu = useCallback(() => setSelectionMenu({ visible: false, x: 0, y: 0, text: '', clipboard: 'unknown', word: null, spell: null }), []);
+
+  // The spelling suggestions of the desktop app arrive after the menu
+  // opened (Chromium reports the right-click to the main process once the
+  // page let it through): they join the open menu when they are about the
+  // word it was opened on.
+  useEffect(() => {
+    const subscribe = window.electronAPI?.onEditorContextMenu;
+    if (typeof subscribe !== 'function') return undefined;
+    return subscribe((payload) => {
+      if (!payload || typeof payload.misspelledWord !== 'string') return;
+      setSelectionMenu((menu) => (menu.visible && menu.word && menu.word.text === payload.misspelledWord ? { ...menu, spell: { misspelledWord: payload.misspelledWord, suggestions: Array.isArray(payload.suggestions) ? payload.suggestions.slice(0, 6) : [] } } : menu));
+    });
+  }, []);
 
   // Cloud document ownership state
   const [isOwner, setIsOwner] = useState(true);
-
-  // Track scroll position to update cursor positions
-  const [scrollPosition, setScrollPosition] = useState({ top: 0, left: 0 });
-
-  // Cached character width for search highlights
-  const charWidthRef = useRef(null);
-  const measureDivRef = useRef(null);
-  const matchPositionCache = useRef(new Map()); // Cache for match positions
-
-  // Performance mode detection
-  const [performanceMode, setPerformanceMode] = useState(false);
-  const documentSizeRef = useRef(0);
-
-  // Line numbers gutter
-  const [textareaContentWidth, setTextareaContentWidth] = useState(0);
-  // The textarea element currently mounted (null while the preview pane is
-  // shown). The gutter's lineLayoutData memo below measures the live
-  // textarea, but it is memoized on content/width: after preview mode (or a
-  // document switch that lands back in the editor) swaps in a NEW textarea
-  // of the same width, no dependency changed, the memo kept the uncalibrated
-  // flat layout it computed while no textarea existed, and the line numbers
-  // stayed hidden until the next keystroke. Tracking the element itself makes
-  // every (re)mount one guaranteed re-render with the new element measurable.
-  const [textareaElement, setTextareaElement] = useState(null);
-  const gutterRef = useRef(null);
 
   // Search and Replace state
   const [showSearchReplace, setShowSearchReplace] = useState(false);
@@ -289,7 +299,7 @@ export default function DocumentEditor({
   // "Add as AI Context" asks the open editors for the document's live text
   // (src/utils/aiContextSources.js): unsaved edits, and a cloud document's
   // Yjs text, which reaches IndexedDB only through a debounced mirror. The
-  // textarea holds the live text in both modes; the ytext / the prop stand
+  // editor holds the live text in both modes; the ytext / the prop stand
   // in while the preview hides it.
   useEffect(() => {
     const answer = (e) => {
@@ -339,42 +349,25 @@ export default function DocumentEditor({
     const documentChanged = previousDocumentIdRef.current !== documentId;
 
     if (documentChanged && textareaRef.current) {
-      // Sync textarea value when switching documents (not during typing!)
+      // Sync the editor's text when switching documents (not during typing!)
       // For cloud documents: Set initial content from IndexedDB, then let Yjs override when synced
       // For local documents: always sync
       console.log('[DocumentEditor] Document changed - yjsEnabled:', yjsEnabled, 'yjs.ytext:', !!yjs.ytext, 'yjs.isReady:', yjs?.isReady, 'content.length:', content?.length || 0);
 
       // Always start with IndexedDB content when switching documents
-      // Yjs will update the textarea when it's ready with the server content
+      // Yjs will update the editor when it's ready with the server content
       const currentContent = content;
 
-      if (!yjsEnabled || (yjsEnabled && !yjs.ytext)) {
-        // Local documents OR cloud documents when offline
-        console.log('[DocumentEditor] Syncing document content to textarea (doc change):', currentContent?.length || 0, 'chars');
-        if (textareaRef.current.value !== currentContent) {
-          textareaRef.current.value = currentContent;
-        }
-      } else {
-        // Cloud document - always show IndexedDB content initially
-        // Yjs will update it when synced (via useYjsText's textarea update)
-        console.log('[DocumentEditor] Cloud doc - showing IndexedDB content (Yjs will update when ready):', currentContent?.length || 0, 'chars');
-        if (textareaRef.current.value !== currentContent) {
-          textareaRef.current.value = currentContent;
-        }
-      }
-
-      textareaRef.current.scrollTop = 0;
-      textareaRef.current.setSelectionRange(0, 0);
+      // A fresh editor state for the new document (no undo history of the
+      // previous one). Local documents and offline cloud documents show the
+      // IndexedDB copy; a cloud document shows it too until the hook is
+      // ready and the surface binds to the live text (CodeMirrorEditor).
+      console.log('[DocumentEditor] Syncing document content to the editor (doc change):', currentContent?.length || 0, 'chars');
+      textareaRef.current.replaceDocument(currentContent || '');
     }
 
     if (documentChanged && previewRef.current) {
       previewRef.current.scrollTop = 0;
-    }
-
-    // Cleanup measure div when document changes
-    if (documentChanged && measureDivRef.current) {
-      window.document.body.removeChild(measureDivRef.current);
-      measureDivRef.current = null;
     }
 
     // Restore preview mode for this document from sessionStorage
@@ -535,73 +528,23 @@ export default function DocumentEditor({
     });
   }, [yjsEnabled, yjs]);
 
-  // Send cursor position and selection updates (for Yjs awareness)
+  // The caret moved (a click, a key, a selection change): the toolbar's
+  // Heading / List state follows it. (A live document's peers see the
+  // selection through y-codemirror.next, which publishes it itself.)
   const handleCursorMove = () => {
     syncCaretBlock();
-    if (!yjsEnabled || !yjs.updateCursor || !textareaRef.current) {
-      return;
-    }
-
-    const start = textareaRef.current.selectionStart;
-    const end = textareaRef.current.selectionEnd;
-
-    // Update Yjs awareness with cursor position
-    yjs.updateCursor(start, end);
   };
 
   // The caret line's block after any content change (toolbar actions move
-  // the caret in a timeout, after the new content is in the textarea)
+  // the caret in a timeout, after the new content is in the editor)
   useEffect(() => {
     const timer = setTimeout(syncCaretBlock, 0);
     return () => clearTimeout(timer);
   }, [content, yjs.content, syncCaretBlock]);
 
-  // Detect document size and enable performance mode for large documents
-  useEffect(() => {
-    const currentContent = yjsEnabled && yjs.content !== undefined ? yjs.content : content;
-    const lineCount = currentContent.split('\n').length;
-    const charCount = currentContent.length;
-
-    documentSizeRef.current = lineCount;
-
-    const shouldUsePerformanceMode = lineCount > 1000 || charCount > 50000;
-    if (shouldUsePerformanceMode !== performanceMode) {
-      // Guarded flip of the derived performance flag (no cascade: only fires
-      // when the threshold is actually crossed)
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPerformanceMode(shouldUsePerformanceMode);
-    }
-    // performanceMode is only compared, not a trigger; ytext identity is
-    // covered by content/yjs.content
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content, yjs.content]);
-
-  // Calibrate monospace character width and textarea content width
-  useEffect(() => {
-    if (!textareaRef.current) return;
-    const textarea = textareaRef.current;
-    const cs = window.getComputedStyle(textarea);
-
-    const span = window.document.createElement('span');
-    span.style.font = cs.font;
-    span.style.lineHeight = cs.lineHeight;
-    span.style.visibility = 'hidden';
-    span.style.position = 'absolute';
-    span.style.whiteSpace = 'pre';
-    span.textContent = 'MMMMMMMMMM';
-    window.document.body.appendChild(span);
-    charWidthRef.current = span.getBoundingClientRect().width / 10;
-    window.document.body.removeChild(span);
-
-    const padLeft = parseFloat(cs.paddingLeft) || 0;
-    const padRight = parseFloat(cs.paddingRight) || 0;
-    setTextareaContentWidth(textarea.clientWidth - padLeft - padRight);
-    // Re-run when preview mode swaps the textarea out and back in (new element)
-  }, [documentId, isPreviewActive]);
-
   // Live version counter for the shared Yjs CRDT: bumped on every ytext change (local
   // keystrokes AND remote collaborators' edits). useYjsText intentionally never updates
-  // React state after init (uncontrolled textarea), so for cloud docs neither the
+  // React state after init (the surface is bound to the Y.Text), so for cloud docs neither the
   // content prop nor yjs.content reflects live typing - yjs.ytext.toString() is the
   // only live source. Since ytext is a mutable object with a stable reference, this
   // counter is the cache-buster that lets memos/effects recompute on CRDT changes.
@@ -618,210 +561,6 @@ export default function DocumentEditor({
     bumpVersion();
     return () => ytext.unobserve(bumpVersion);
   }, [yjsEnabled, yjs.ytext]);
-
-  // Gutter line heights are measured, never estimated (see gutterLineLayout.js):
-  // every distinct logical line is measured once against a hidden mirror of the
-  // textarea and cached by its text, so a keystroke only measures the line it
-  // changed and the gutter is exact on the same render as the keystroke. The
-  // earlier design (character-count estimate while typing, real measurement
-  // 200ms after the last keystroke) made numbers jump and then "fix" on every
-  // Enter in a wrapped line.
-  const lineHeightCacheRef = useRef({ key: '', map: new Map() });
-  // The textarea's real px-per-row (Chrome lays textarea rows out on its 1/64px
-  // grid slightly differently from a div), calibrated once per layout key
-  const rowPitchRef = useRef({ key: '', value: 0 });
-
-  // Web fonts (the editor's monospace face is Red Hat Mono with font-display:
-  // swap) can land after the first measurement and move every wrap point; bump
-  // a version so the cache is dropped and the gutter re-measured when that
-  // happens.
-  const [fontsVersion, setFontsVersion] = useState(0);
-  useEffect(() => {
-    const fonts = window.document.fonts;
-    if (!fonts) return undefined;
-    const bump = () => setFontsVersion((v) => v + 1);
-    fonts.addEventListener('loadingdone', bump);
-    fonts.ready.then(bump).catch(() => {});
-    return () => fonts.removeEventListener('loadingdone', bump);
-  }, []);
-
-  // Measure per-line visual heights for gutter line numbers
-  /* eslint-disable react-hooks/refs -- deliberate render-time DOM measurement:
-     the gutter layout must read the live textarea geometry (clientWidth,
-     computed styles) to compute wrap-aware line heights; every read has a
-     non-DOM fallback for the first render. */
-  const lineLayoutData = useMemo(() => {
-    // For cloud docs read the live CRDT (see yjsContentVersion above); before Yjs is
-    // ready - or while the server copy is unavailable (ytext is an empty degraded
-    // placeholder) - fall back to the content prop, which is what the textarea shows.
-    const currentContent = yjsEnabled && yjs.ytext && yjs.isReady && !serverCopyUnavailable ? yjs.ytext.toString() : content;
-    const lines = currentContent.split('\n');
-
-    // Not calibrated yet (first paint) or the textarea is hidden / zero-width:
-    // keep a flat layout for stability and let the gutter hide its numbers
-    // (calibrated: false) rather than show one-row-per-line numbers that are
-    // wrong for every wrapped line.
-    const textarea = textareaRef.current;
-    if (!textarea || textareaContentWidth <= 0 || textarea.clientWidth <= 0) {
-      return flatLineLayout(lines.length);
-    }
-
-    const cs = window.getComputedStyle(textarea);
-    // Everything that can change where lines wrap invalidates the cache
-    const cacheKey = [
-      textarea.clientWidth, cs.padding, cs.font, cs.letterSpacing, cs.wordSpacing,
-      cs.tabSize, cs.wordBreak, cs.textTransform, fontsVersion
-    ].join('|');
-
-    if (rowPitchRef.current.key !== cacheKey) {
-      rowPitchRef.current = { key: cacheKey, value: measureTextareaRowPitch(textarea, cs) };
-    }
-
-    return computeLineLayout(
-      lines,
-      lineHeightCacheRef.current,
-      cacheKey,
-      (missing) => measureLinesWithMirror(missing, textarea, cs),
-      rowPitchRef.current.value
-    );
-    // yjsContentVersion is a deliberate cache-buster for Yjs CRDT changes (ytext is mutable);
-    // textareaElement re-runs the measurement for a newly mounted textarea (see its declaration)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content, yjs?.ytext, yjs?.isReady, yjsEnabled, serverCopyUnavailable, textareaElement, textareaContentWidth, yjsContentVersion, fontsVersion]);
-  /* eslint-enable react-hooks/refs */
-
-  // Memoize gutter line number elements so they don't rebuild on scroll
-  const gutterElements = useMemo(() => {
-    const { lineCount, heights, rowHeight } = lineLayoutData;
-    const rowLineHeight = `${rowHeight}px`;
-    const elements = new Array(lineCount);
-    for (let i = 0; i < lineCount; i++) {
-      elements[i] = (
-        <div
-          key={i}
-          className="text-os-text-muted font-mono text-xs flex items-start justify-center"
-          style={{ height: heights[i], lineHeight: rowLineHeight }}
-        >
-          {i + 1}
-        </div>
-      );
-    }
-    return elements;
-  }, [lineLayoutData]);
-
-  // Wrap-aware visual position (in textarea content space, before the
-  // padding/scroll adjustments) for a character index. Reuses lineLayoutData's
-  // cumulative per-line heights - the SAME system the gutter uses - so a
-  // logical line that soft-wraps across multiple visual rows pushes everything
-  // below it down here too. The naive (lineNumber - 1) * lineHeight math this
-  // replaces ignored wrapping entirely, which made remote-cursor overlays
-  // drift ever further from the real text the deeper into a wrapped document
-  // the cursor sat, until viewport culling silently dropped them ("the other
-  // user's cursor doesn't show at all" in large documents).
-  const getWrapAwarePosition = (charIndex, contentStr) => {
-    const baseLineHeight = lineLayoutData.rowHeight || 22.4; // textarea's calibrated px per row
-    const charWidth = charWidthRef.current || 8.4;
-    const beforeLines = contentStr.substring(0, charIndex).split('\n');
-    const lineIndex = beforeLines.length - 1;
-    const column = beforeLines[lineIndex].length;
-
-    const { cumulative, heights, lineCount } = lineLayoutData;
-    let lineTop;
-    let rowsInLine;
-    if (lineIndex < lineCount) {
-      lineTop = lineIndex === 0 ? 0 : cumulative[lineIndex - 1];
-      rowsInLine = Math.max(1, Math.round(heights[lineIndex] / baseLineHeight));
-    } else {
-      // Layout data momentarily behind the live content - extrapolate flat
-      // rows past the last measured line rather than rendering nothing.
-      lineTop = (lineCount > 0 ? cumulative[lineCount - 1] : 0) + (lineIndex - lineCount) * baseLineHeight;
-      rowsInLine = 1;
-    }
-
-    // Estimate which wrapped visual row of this logical line the column falls
-    // on (character-count estimate; the row COUNT itself comes from the
-    // measured lineLayoutData), clamped to the rows the line actually has.
-    const charsPerRow = textareaContentWidth > 0
-      ? Math.max(1, Math.floor(textareaContentWidth / charWidth))
-      : 0;
-    const row = charsPerRow > 0 ? Math.min(Math.floor(column / charsPerRow), rowsInLine - 1) : 0;
-    const columnInRow = column - row * charsPerRow;
-
-    return {
-      top: lineTop + row * baseLineHeight,
-      left: columnInRow * charWidth,
-      lineHeight: baseLineHeight
-    };
-  };
-
-  // Track scroll position for cursor rendering and search highlights
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    let rafId = null;
-    let fallbackTimerId = null;
-    let lastUpdateTime = 0;
-    // Adjust update interval based on performance mode and search state
-    const UPDATE_INTERVAL = performanceMode ? 100 : (showSearchReplace ? 50 : 16);
-    // Performance mode: 10fps, Search mode: 20fps, Normal: 60fps
-
-    const syncScrollPosition = () => {
-      if (textarea) {
-        setScrollPosition({
-          top: textarea.scrollTop,
-          left: textarea.scrollLeft
-        });
-        lastUpdateTime = performance.now();
-      }
-    };
-
-    const syncGutter = () => {
-      if (gutterRef.current) {
-        gutterRef.current.scrollTop = textarea.scrollTop;
-      }
-    };
-
-    const handleScroll = () => {
-      // Sync gutter immediately — direct DOM, no React render needed
-      syncGutter();
-
-      // Cancel any pending update
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
-      if (fallbackTimerId) {
-        clearTimeout(fallbackTimerId);
-        fallbackTimerId = null;
-      }
-
-      // Schedule update for next animation frame
-      rafId = requestAnimationFrame((timestamp) => {
-        if (textarea && timestamp - lastUpdateTime >= UPDATE_INTERVAL) {
-          syncScrollPosition();
-        } else {
-          // Throttled — schedule a fallback so we don't drop the final position
-          fallbackTimerId = setTimeout(syncScrollPosition, UPDATE_INTERVAL);
-        }
-      });
-    };
-
-    // Set initial scroll position
-    syncScrollPosition();
-    syncGutter();
-
-    textarea.addEventListener('scroll', handleScroll, { passive: true });
-
-    return () => {
-      textarea.removeEventListener('scroll', handleScroll);
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
-      if (fallbackTimerId) {
-        clearTimeout(fallbackTimerId);
-      }
-    };
-  }, [documentId, showSearchReplace, performanceMode, isPreviewActive]);
 
   // Listen for toggle preview mode event (from context menu)
   useEffect(() => {
@@ -854,7 +593,7 @@ export default function DocumentEditor({
       textareaRef.current.focus({ preventScroll: true });
       if (caretToEndAfterFocusRef.current) {
         // Deferred half of the open-from-elsewhere request below: the
-        // textarea only exists now that preview mode is off.
+        // editor only exists now that preview mode is off.
         caretToEndAfterFocusRef.current = false;
         const end = textareaRef.current.value.length;
         textareaRef.current.setSelectionRange(end, end);
@@ -884,7 +623,7 @@ export default function DocumentEditor({
       } catch (error) {
         console.error('Error saving preview mode:', error);
       }
-      // The textarea mounts on the next render; the auto-focus effect above
+      // The editor mounts on the next render; the auto-focus effect above
       // focuses it when isPreviewActive flips and moves the caret to the end.
       caretToEndAfterFocusRef.current = true;
       return;
@@ -931,7 +670,7 @@ export default function DocumentEditor({
     const target = pendingJumpRef.current;
     if (!target) return undefined;
     if (isPreviewActive) {
-      // Leave preview mode first; this effect re-runs once the textarea is
+      // Leave preview mode first; this effect re-runs once the editor is
       // mounted (isPreviewActive flips) and applies the jump then.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPreviewMode(false);
@@ -946,7 +685,7 @@ export default function DocumentEditor({
       }
       return undefined;
     }
-    // The document-switch effect above has just synced the textarea's value;
+    // The document-switch effect above has just synced the editor's text;
     // defer one tick so the position measurement sees the new content.
     const timer = setTimeout(() => {
       if (pendingJumpRef.current !== target) return;
@@ -970,18 +709,18 @@ export default function DocumentEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId, isPreviewActive, jumpVersion]);
 
-  // Sync textarea when cloud document goes offline (yjs.ytext becomes null)
+  // Sync the editor when cloud document goes offline (yjs.ytext becomes null)
   // OR when content changes while offline (e.g., loading from IndexedDB on mount)
   useEffect(() => {
     console.log('[DocumentEditor] Offline sync check - yjsEnabled:', yjsEnabled, 'yjs.ytext:', !!yjs.ytext, 'content.length:', content?.length || 0, 'hasTextarea:', !!textareaRef.current);
     if (yjsEnabled && !yjs.ytext && textareaRef.current) {
-      // Cloud document is offline - sync content from IndexedDB to textarea
+      // Cloud document is offline - sync content from IndexedDB to the editor
       // This handles: going offline, staying offline, and initial mount when offline
       const currentContent = content || '';
       const currentTextareaValue = textareaRef.current.value || '';
       console.log('[DocumentEditor] Cloud doc offline - syncing content. Current textarea:', currentTextareaValue.length, 'chars, new content:', currentContent.length, 'chars');
       if (textareaRef.current.value !== currentContent) {
-        console.log('[DocumentEditor] ✓ Syncing offline cloud document content to textarea:', currentContent.length, 'chars');
+        console.log('[DocumentEditor] ✓ Syncing offline cloud document content to the editor:', currentContent.length, 'chars');
         textareaRef.current.value = currentContent;
       } else {
         console.log('[DocumentEditor] Content already synced, skipping');
@@ -989,11 +728,11 @@ export default function DocumentEditor({
     }
   }, [yjsEnabled, yjs.ytext, content]);
 
-  // Sync textarea value when switching from preview to edit mode for cloud documents
+  // Sync the editor's text when switching from preview to edit mode for cloud documents
   useEffect(() => {
     if (!isPreviewActive && yjsEnabled && textareaRef.current) {
-      // When switching to edit mode, sync textarea with current content
-      // Cloud documents use uncontrolled textarea, so we manually sync the value
+      // When switching to edit mode, sync the editor with the current content
+      // (a new view: the binding re-attaches through CodeMirrorEditor once it mounts)
       // Online: use yjs.ytext (live CRDT), Offline: use content prop (from IndexedDB)
       // Server copy unavailable: ytext is the server's EMPTY degraded
       // placeholder, not real content - keep showing the IndexedDB copy.
@@ -1077,6 +816,26 @@ export default function DocumentEditor({
     }
   }, [selectionMenu.visible, closeSelectionMenu]);
 
+  // Every programmatic edit (the toolbar, the slash commands, the panels,
+  // replace) ends here with the whole new text and where the caret goes:
+  // a CodeMirror surface takes it as one transaction (its history and, for
+  // a live document, the Y.Text through the binding), then the owner of
+  // the document is told - the Y.Text through the hook for the textarea,
+  // or the parent's state for a local document (no-op for a bound
+  // CodeMirror surface, which already did the Yjs part)
+  const applyEdit = (newText, caret) => {
+    const surface = textareaRef.current;
+    if (surface) {
+      surface.value = newText;
+      if (surface.managesYjs) return;
+    }
+    if (yjsEnabled && yjs.updateContent) {
+      yjs.updateContent(newText, caret);
+    } else if (onContentChange) {
+      onContentChange({ target: { value: newText } });
+    }
+  };
+
   const insertMarkdown = (before, after = '', placeholder = '') => {
     if (locked || isPreviewActive) return;
 
@@ -1097,16 +856,7 @@ export default function DocumentEditor({
 
     const newPos = start + before.length + selectedText.length + after.length;
 
-    // Update content based on document type
-    if (yjsEnabled && yjs.updateContent) {
-      // For Yjs documents, use Yjs update
-      yjs.updateContent(newText, newPos);
-    } else {
-      // For local documents, update React state
-      if (onContentChange) {
-        onContentChange({ target: { value: newText } });
-      }
-    }
+    applyEdit(newText, newPos);
 
     // Restore selection
     setTimeout(() => {
@@ -1148,11 +898,7 @@ export default function DocumentEditor({
     const newStart = Math.max(lineStart, start + firstDelta);
     const newEnd = Math.max(newStart, end + delta);
 
-    if (yjsEnabled && yjs.updateContent) {
-      yjs.updateContent(newText, newEnd);
-    } else if (onContentChange) {
-      onContentChange({ target: { value: newText } });
-    }
+    applyEdit(newText, newEnd);
     setTimeout(() => {
       textarea.focus({ preventScroll: true });
       textarea.setSelectionRange(newStart, newEnd);
@@ -1165,11 +911,7 @@ export default function DocumentEditor({
     if (!textarea) return;
     const text = textarea.value;
     const newText = text.substring(0, from) + replacement + text.substring(to);
-    if (yjsEnabled && yjs.updateContent) {
-      yjs.updateContent(newText, selectEnd);
-    } else if (onContentChange) {
-      onContentChange({ target: { value: newText } });
-    }
+    applyEdit(newText, selectEnd);
     setTimeout(() => {
       textarea.focus({ preventScroll: true });
       textarea.setSelectionRange(selectStart, selectEnd);
@@ -1297,11 +1039,7 @@ export default function DocumentEditor({
     // the body selected, so typing replaces the placeholder
     const bodyStart = before.length + prefix.length + `> [!${type.toUpperCase()}]\n> `.length;
     const bodyEnd = before.length + block.length - suffix.length;
-    if (yjsEnabled && yjs.updateContent) {
-      yjs.updateContent(newText, bodyEnd);
-    } else if (onContentChange) {
-      onContentChange({ target: { value: newText } });
-    }
+    applyEdit(newText, bodyEnd);
     setTimeout(() => {
       textarea.focus({ preventScroll: true });
       textarea.setSelectionRange(selected ? bodyEnd : bodyStart, bodyEnd);
@@ -1384,7 +1122,7 @@ export default function DocumentEditor({
 
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const selectedText = content.substring(start, end);
+    const selectedText = textarea.value.substring(start, end);
 
     // Insert code block with selected text or placeholder
     const codeContent = selectedText || 'code here';
@@ -1446,6 +1184,16 @@ export default function DocumentEditor({
   // Escape closes it and leaves the text as typed. The old immediate
   // triggers (typing "/wf", "/ai" or "/task" opened their panel at once, so
   // a path containing them could not be typed) are gone.
+  // Where a popup opened from the caret goes: below the caret's line (the
+  // surface knows the caret's screen position; the editor's corner when the
+  // caret is scrolled out of view)
+  const caretPopupAnchor = (surface, cursorPos) => {
+    const coords = surface.coordsAtPos(cursorPos);
+    if (coords) return { x: coords.left, y: coords.bottom + 10 };
+    const rect = surface.getBoundingClientRect();
+    return { x: rect.left + 20, y: rect.top + 30 };
+  };
+
   const handleContentInput = (e) => {
     if (locked || isPreviewActive) return;
 
@@ -1453,7 +1201,12 @@ export default function DocumentEditor({
     if (!textarea) return;
 
     const cursorPos = textarea.selectionStart;
-    const textBeforeCursor = e.target.value.substring(0, cursorPos);
+    const value = e.target.value;
+    // the caret's line first (cheap on any document); the whole text before
+    // the caret only when a command is being typed (slashQueryAt looks for
+    // an open code fence above)
+    const lineText = value.slice(value.lastIndexOf('\n', cursorPos - 1) + 1, cursorPos);
+    const textBeforeCursor = /(?:^|\s)\/\w*$/.test(lineText) ? value.substring(0, cursorPos) : lineText;
     const query = slashQueryAt(textBeforeCursor);
     const matching = query != null && templates.some((t) => matchesSlashQuery(t, query));
 
@@ -1466,16 +1219,7 @@ export default function DocumentEditor({
     }
 
     // Calculate popup position near cursor
-    const rect = textarea.getBoundingClientRect();
-    const textareaStyle = window.getComputedStyle(textarea);
-    const fontSize = parseFloat(textareaStyle.fontSize);
-    const lineHeight = parseFloat(textareaStyle.lineHeight) || fontSize * 1.6;
-
-    const lines = textBeforeCursor.split('\n');
-    const currentLineNum = lines.length - 1;
-
-    let x = rect.left + 20;
-    let y = rect.top + (currentLineNum * lineHeight) + lineHeight + 10;
+    const { x, y } = caretPopupAnchor(textarea, cursorPos);
 
     // Adjust position to keep popup within window bounds
     const popupWidth = 400;
@@ -1499,11 +1243,6 @@ export default function DocumentEditor({
   // is editable), from the editor.find / editor.replace shortcuts
   const openFind = (withReplace) => {
     const isEditable = !locked && isOwner && !(document?.inCloud && !isOnline) && !serverCopyUnavailable;
-    // Cleanup old measure div for fresh measurements
-    if (measureDivRef.current) {
-      window.document.body.removeChild(measureDivRef.current);
-      measureDivRef.current = null;
-    }
     setShowSearchReplace(true);
     setShowReplace(withReplace && isEditable);
     setTimeout(() => searchInputRef.current?.focus(), 0);
@@ -1512,7 +1251,7 @@ export default function DocumentEditor({
   // The editor's shortcuts (src/shortcuts/registry.js: Find and Italic
   // bound by default; Find and replace, Bold and Insert link unassigned
   // until the user binds them in Settings > Shortcuts). They fire only
-  // while this textarea has focus (scope 'editor'); the dispatcher
+  // while the editor has focus (scope 'editor'); the dispatcher
   // consumes the event, so the browser's own Ctrl+F never opens.
   useShortcut('editor.find', () => openFind(false));
   useShortcut('editor.replace', () => openFind(true));
@@ -1531,13 +1270,15 @@ export default function DocumentEditor({
     // a shortcut the dispatcher already ran (it stops propagation, so this
     // is only a guard against a synthetic re-dispatch)
     if (e.defaultPrevented) return;
+    // the keys of a composition (an IME choosing characters) are the IME's: Enter commits, arrows pick
+    if (e.isComposing || e.keyCode === 229) return;
     // Don't interfere if search panel is open (unless it's a shortcut)
     if (showSearchReplace && !hasChordModifier(e)) {
       return;
     }
 
     // Tab / Shift+Tab inside a list indent / outdent the lines (outside a
-    // list Tab keeps moving the focus, as a textarea does). A fixed
+    // list Tab keeps moving the focus, as it did in the textarea). A fixed
     // shortcut (editor.indent / editor.outdent in the registry): not a
     // chord a user can move, so it stays here rather than in the dispatcher.
     if (e.key === 'Tab' && !hasChordModifier(e) && !e.altKey && !slashMenu.visible && textareaRef.current) {
@@ -1638,7 +1379,7 @@ export default function DocumentEditor({
       else if (BLOCK_ACTIONS[template.action]) {
         // /hr, /quote, /toc, /code and the PDF directives: the typed command goes, then the
         // toolbar's own helper runs at that spot (after the content update
-        // has reached the textarea, which the helpers read)
+        // has reached the editor, which the helpers read)
         const typed = /(?:^|\s)(\/\w*)$/.exec(currentContent.substring(0, cursorPos));
         const slashStart = typed ? cursorPos - typed[1].length : cursorPos;
         const run = BLOCK_ACTIONS[template.action];
@@ -1668,16 +1409,7 @@ export default function DocumentEditor({
 
       const newCursorPos = slashStart + template.content.length;
 
-      // Update content based on document type
-      if (yjsEnabled && yjs.updateContent) {
-        // For Yjs documents, use Yjs update
-        yjs.updateContent(newContent, newCursorPos);
-      } else {
-        // For local documents, update React state
-        if (onContentChange) {
-          onContentChange({ target: { value: newContent } });
-        }
-      }
+      applyEdit(newContent, newCursorPos);
 
       // Set cursor position after template insertion
       setTimeout(() => {
@@ -1701,6 +1433,7 @@ export default function DocumentEditor({
     // For cloud documents when OFFLINE, update parent state (falls through to else)
     // Yjs manages content via DOM, not React state
     if (yjsEnabled && yjs.updateContent) {
+      if (textareaRef.current?.managesYjs) return;   // y-codemirror.next synced the keystroke
       console.log('[DocumentEditor] Online cloud doc - calling yjs.updateContent');
       yjs.updateContent(newContent, cursorPos);
     } else {
@@ -1721,17 +1454,7 @@ export default function DocumentEditor({
     if (!textarea) return;
 
     // Calculate popup position near cursor
-    const rect = textarea.getBoundingClientRect();
-    const textareaStyle = window.getComputedStyle(textarea);
-    const fontSize = parseFloat(textareaStyle.fontSize);
-    const lineHeight = parseFloat(textareaStyle.lineHeight) || fontSize * 1.6;
-
-    const textBeforeCursor = content.substring(0, cursorPos);
-    const lines = textBeforeCursor.split('\n');
-    const currentLineNum = lines.length - 1;
-
-    let x = rect.left + 20;
-    let y = rect.top + (currentLineNum * lineHeight) + lineHeight + 10;
+    const { x, y } = caretPopupAnchor(textarea, cursorPos);
 
     // Adjust position to keep popup within window bounds
     const popupWidth = 400;
@@ -1860,16 +1583,7 @@ export default function DocumentEditor({
     const newContent = baseContent.substring(0, insertPos) + inserted + baseContent.substring(insertPos);
     const newPos = insertPos + inserted.length;
 
-    // Update content based on document type
-    if (yjsEnabled && yjs.updateContent) {
-      // For Yjs documents, use Yjs update
-      yjs.updateContent(newContent, newPos);
-    } else {
-      // For local documents, update React state
-      if (onContentChange) {
-        onContentChange({ target: { value: newContent } });
-      }
-    }
+    applyEdit(newContent, newPos);
 
     // Focus and set cursor position after inserted text
     setTimeout(() => {
@@ -2034,17 +1748,7 @@ export default function DocumentEditor({
     if (!textarea) return;
 
     // Calculate popup position near cursor
-    const rect = textarea.getBoundingClientRect();
-    const textareaStyle = window.getComputedStyle(textarea);
-    const fontSize = parseFloat(textareaStyle.fontSize);
-    const lineHeight = parseFloat(textareaStyle.lineHeight) || fontSize * 1.6;
-
-    const textBeforeCursor = content.substring(0, cursorPos);
-    const lines = textBeforeCursor.split('\n');
-    const currentLineNum = lines.length - 1;
-
-    let x = rect.left + 20;
-    let y = rect.top + (currentLineNum * lineHeight) + lineHeight + 10;
+    let { x, y } = caretPopupAnchor(textarea, cursorPos);
 
     // Adjust position to keep popup within window bounds
     const popupWidth = 500;
@@ -2087,16 +1791,7 @@ export default function DocumentEditor({
     const newContent = baseContent.substring(0, insertPos) + resultText + baseContent.substring(insertPos);
     const newPos = insertPos + resultText.length;
 
-    // Update content based on document type
-    if (yjsEnabled && yjs.updateContent) {
-      // For Yjs documents, use Yjs update
-      yjs.updateContent(newContent, newPos);
-    } else {
-      // For local documents, update React state
-      if (onContentChange) {
-        onContentChange({ target: { value: newContent } });
-      }
-    }
+    applyEdit(newContent, newPos);
 
     // Focus and set cursor position after inserted text
     setTimeout(() => {
@@ -2117,17 +1812,7 @@ export default function DocumentEditor({
     if (!textarea) return;
 
     // Calculate popup position near cursor
-    const rect = textarea.getBoundingClientRect();
-    const textareaStyle = window.getComputedStyle(textarea);
-    const fontSize = parseFloat(textareaStyle.fontSize);
-    const lineHeight = parseFloat(textareaStyle.lineHeight) || fontSize * 1.6;
-
-    const textBeforeCursor = content.substring(0, cursorPos);
-    const lines = textBeforeCursor.split('\n');
-    const currentLineNum = lines.length - 1;
-
-    let x = rect.left + 20;
-    let y = rect.top + (currentLineNum * lineHeight) + lineHeight + 10;
+    let { x, y } = caretPopupAnchor(textarea, cursorPos);
 
     // Adjust position to keep popup within window bounds
     const popupWidth = 480;
@@ -2169,16 +1854,7 @@ export default function DocumentEditor({
       const newContent = currentContent.substring(0, quickTasksCursorPos - 5) + currentContent.substring(quickTasksCursorPos);
       newPos = quickTasksCursorPos - 5;
 
-      // Update content based on document type
-      if (yjsEnabled && yjs.updateContent) {
-        // For Yjs documents, use Yjs update
-        yjs.updateContent(newContent, newPos);
-      } else {
-        // For local documents, update React state
-        if (onContentChange) {
-          onContentChange({ target: { value: newContent } });
-        }
-      }
+      applyEdit(newContent, newPos);
     }
 
     // Focus and restore the cursor position
@@ -2209,7 +1885,7 @@ export default function DocumentEditor({
     const textarea = textareaRef.current;
     if (!textarea) return;
 
-    // Focus the textarea to simulate user interaction
+    // Focus the editor to simulate user interaction
     textarea.focus({ preventScroll: true });
 
     setIsAutoTyping(true);
@@ -2233,7 +1909,7 @@ export default function DocumentEditor({
       const char = loremIpsumText[charIndex];
 
       if (yjsEnabled && yjs.ytext) {
-        // For Yjs documents, read current cursor position from textarea
+        // For Yjs documents, read current cursor position from the editor
         // This accounts for any changes made by other users
         const currentPos = textarea.selectionStart;
 
@@ -2248,18 +1924,7 @@ export default function DocumentEditor({
           }
         }, 0);
 
-        // Update cursor awareness every 3 characters (not every character)
-        // This reduces race conditions between text and cursor updates
-        // and makes the cursor movement smoother on other clients' screens
-        if (charIndex % 3 === 0 || charIndex === loremIpsumText.length - 1) {
-          setTimeout(() => {
-            if (textarea && yjs.updateCursor) {
-              // Re-read cursor position in case other users edited meanwhile
-              const finalPos = textarea.selectionStart;
-              yjs.updateCursor(finalPos, finalPos);
-            }
-          }, 30); // Small delay to let text update propagate
-        }
+        // (the caret itself reaches the peers through the surface's binding)
       } else {
         // For local documents, read current cursor position
         const currentPos = textarea.selectionStart;
@@ -2299,76 +1964,12 @@ export default function DocumentEditor({
     };
   }, []);
 
-  // Get or create the measurement div
-  const getMeasureDiv = () => {
-    if (!textareaRef.current) {
-      return null;
-    }
-
-    const textarea = textareaRef.current;
-    const computedStyle = window.getComputedStyle(textarea);
-    // Use clientWidth (excludes border and scrollbar) so the div's text wrapping
-    // area exactly matches the textarea's, regardless of scrollbar width differences
-    const contentWidth = textarea.clientWidth;
-
-    if (measureDivRef.current) {
-      measureDivRef.current.style.width = `${contentWidth}px`;
-      return measureDivRef.current;
-    }
-
-    const div = window.document.createElement('div');
-    div.style.position = 'fixed';
-    div.style.top = '-9999px';
-    div.style.left = '-9999px';
-    div.style.visibility = 'hidden';
-    div.style.pointerEvents = 'none';
-    div.style.overflowX = 'hidden';
-    div.style.overflowY = 'hidden';
-    div.style.whiteSpace = 'pre-wrap';
-    div.style.wordWrap = 'break-word';
-    div.style.overflowWrap = 'break-word';
-    div.style.boxSizing = 'border-box';
-    div.style.width = `${contentWidth}px`;
-    div.style.padding = computedStyle.padding;
-    div.style.border = 'none';
-    div.style.font = computedStyle.font;
-    // CRITICAL: copy the textarea's SPECIFIED line-height (unitless "1.6" from its
-    // inline style), not the computed pixel string ("22.4px"). Chromium rounds the
-    // two forms to different 1/64px layout units (22.390625 vs 22.40625 per row),
-    // which makes the div drift ~1 full line taller per ~1400 rows and misplaces
-    // every highlight below the drift. With the specified value copied verbatim,
-    // both elements produce identical row heights and wrapping (verified against
-    // live Chromium), so measured positions need no correction factor.
-    div.style.lineHeight = textarea.style.lineHeight || computedStyle.lineHeight;
-    div.style.letterSpacing = computedStyle.letterSpacing;
-    div.style.wordSpacing = computedStyle.wordSpacing;
-    div.style.textIndent = computedStyle.textIndent;
-    div.style.textTransform = computedStyle.textTransform;
-    div.style.wordBreak = computedStyle.wordBreak;
-    div.style.tabSize = computedStyle.tabSize;
-    div.style.textRendering = computedStyle.textRendering;
-    // Glyph-width-affecting properties: any mismatch here changes where lines
-    // soft-wrap, which would shift every measurement below the divergent line.
-    div.style.fontKerning = computedStyle.fontKerning;
-    div.style.fontFeatureSettings = computedStyle.fontFeatureSettings;
-    div.style.fontVariantLigatures = computedStyle.fontVariantLigatures;
-    div.style.direction = computedStyle.direction;
-    div.style.unicodeBidi = computedStyle.unicodeBidi;
-    div.style.zIndex = '-1';
-
-    window.document.body.appendChild(div);
-    measureDivRef.current = div;
-
-    return div;
-  };
-
-  // Live document content for the search/replace/highlight subsystem. For Yjs
-  // documents the textarea is uncontrolled and kept in sync with the CRDT via
-  // direct DOM updates, so yjs.content (React state) is frozen at load time and
-  // must NOT be used here: searching or measuring against it misplaces every
-  // match once the document has been edited. The textarea's value is the
-  // authoritative source for what is actually rendered (same pattern as the
-  // collaborative cursor overlay); ytext is the fallback before the ref mounts.
+  // Live document content for the search/replace subsystem. For Yjs documents
+  // the surface is bound to the CRDT, so yjs.content (React state) is frozen at
+  // load time and must NOT be used here: searching against it misplaces every
+  // match once the document has been edited. The surface's value is the
+  // authoritative source for what is actually rendered; ytext is the fallback
+  // before the ref mounts.
   const getSearchContent = () => {
     if (!yjsEnabled) return content;
     if (textareaRef.current) return textareaRef.current.value;
@@ -2376,75 +1977,24 @@ export default function DocumentEditor({
     return yjs.content !== undefined ? yjs.content : content;
   };
 
-  // Measure the position of a character index accounting for line wrapping
-  const measureTextPosition = (charIndex) => {
-    // Check cache first
-    const cacheKey = `${charIndex}`;
-    if (matchPositionCache.current.has(cacheKey)) {
-      return matchPositionCache.current.get(cacheKey);
-    }
-
-    const measureDiv = getMeasureDiv();
-    if (!measureDiv || !textareaRef.current) {
-      return { top: 0, left: 0, lineHeight: 22.4 };
-    }
-
-    const textBefore = getSearchContent().substring(0, charIndex);
-
-    // Use a span with a zero-width space for reliable getBoundingClientRect
-    const span = window.document.createElement('span');
-    span.textContent = '​';
-    measureDiv.textContent = textBefore;
-    measureDiv.appendChild(span);
-
-    const rect = span.getBoundingClientRect();
-    const divRect = measureDiv.getBoundingClientRect();
-    const lineHeight = parseFloat(window.getComputedStyle(measureDiv).lineHeight) || 22.4;
-
-    const top = rect.top - divRect.top;
-    const left = rect.left - divRect.left;
-
-    measureDiv.removeChild(span);
-
-    const position = { top, left, lineHeight };
-
-    // Cache the result
-    matchPositionCache.current.set(cacheKey, position);
-
-    return position;
-  };
-
   // Search and Replace handlers
+  // Centre a match in the view (the match marks themselves are decorations: the effect below)
   const scrollToMatch = (match) => {
     if (!textareaRef.current || !match) return;
-
-    const textarea = textareaRef.current;
-
-    // Use measureTextPosition to get the actual visual position (accounts for line wrapping)
-    const pos = measureTextPosition(match.start);
-    const matchTop = pos.top;
-    const lineHeight = pos.lineHeight;
-    const textareaHeight = textarea.clientHeight;
-
-    // Center the match vertically in the viewport
-    const scrollTop = matchTop - (textareaHeight / 2) + (lineHeight / 2);
-    textarea.scrollTop = Math.max(0, scrollTop);
-
-    // Sync gutter immediately
-    if (gutterRef.current) {
-      gutterRef.current.scrollTop = textarea.scrollTop;
-    }
-
-    // Force an immediate scroll position sync so highlights align right away
-    setScrollPosition({
-      top: textarea.scrollTop,
-      left: textarea.scrollLeft
-    });
+    textareaRef.current.scrollToPos(match.start, { center: true });
   };
   // Keep the jump-to-line effect's ref pointed at the latest scrollToMatch
   useEffect(() => {
     scrollToMatchRef.current = scrollToMatch;
   });
+
+  // The find bar's matches: decorations in the view (re-applied when the
+  // editor comes back from the preview pane, a new view)
+  useEffect(() => {
+    const surface = textareaRef.current;
+    if (!surface) return;
+    surface.setSearchMatches(showSearchReplace ? searchMatches : [], currentMatchIndex);
+  }, [searchMatches, currentMatchIndex, showSearchReplace, isPreviewActive]);
 
   // Debounce timer for search
   const searchDebounceTimer = useRef(null);
@@ -2456,7 +2006,6 @@ export default function DocumentEditor({
     if (!query || query.length < 2) {
       setSearchMatches([]);
       setCurrentMatchIndex(-1);
-      matchPositionCache.current.clear();
       lastMatchSignatureRef.current = '';
       return;
     }
@@ -2470,9 +2019,6 @@ export default function DocumentEditor({
       matches.push({ start: index, end: index + query.length });
       index += query.length;
     }
-
-    // Clear position cache when search results change
-    matchPositionCache.current.clear();
 
     // Only reset match index when results actually changed (avoids resetting during navigation)
     const signature = matches.map(m => m.start).join(',');
@@ -2542,19 +2088,7 @@ export default function DocumentEditor({
       replaceText +
       currentContent.substring(match.end);
 
-    // Update content based on document type
-    if (yjsEnabled && yjs.updateContent && textareaRef.current) {
-      // For Yjs documents, use Yjs update
-      yjs.updateContent(newContent, match.start + replaceText.length);
-    } else {
-      // For local documents, update React state
-      if (onContentChange) {
-        onContentChange({ target: { value: newContent } });
-      }
-    }
-
-    // Clear position cache since content changed
-    matchPositionCache.current.clear();
+    applyEdit(newContent, match.start + replaceText.length);
 
     // Re-run search after replacement (skip scrolling to keep focus in search panel)
     setTimeout(() => {
@@ -2578,20 +2112,7 @@ export default function DocumentEditor({
 
     const newContent = currentContent.replace(regex, replaceText);
 
-    // Update content based on document type
-    if (yjsEnabled && yjs.updateContent && textareaRef.current) {
-      // For Yjs documents, use Yjs update
-      const cursorPos = textareaRef.current.selectionStart;
-      yjs.updateContent(newContent, cursorPos);
-    } else {
-      // For local documents, update React state
-      if (onContentChange) {
-        onContentChange({ target: { value: newContent } });
-      }
-    }
-
-    // Clear position cache since content changed
-    matchPositionCache.current.clear();
+    applyEdit(newContent, textareaRef.current ? textareaRef.current.selectionStart : 0);
 
     // Clear search after replace all
     setSearchMatches([]);
@@ -2609,16 +2130,7 @@ export default function DocumentEditor({
     setReplaceText('');
     setSearchMatches([]);
     setCurrentMatchIndex(-1);
-
-    // Clear position cache
-    matchPositionCache.current.clear();
     lastMatchSignatureRef.current = '';
-
-    // Cleanup measure div
-    if (measureDivRef.current) {
-      window.document.body.removeChild(measureDivRef.current);
-      measureDivRef.current = null;
-    }
 
     textareaRef.current?.focus({ preventScroll: true });
   };
@@ -2648,43 +2160,6 @@ export default function DocumentEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [content, yjsContentVersion]);
 
-  // Invalidate position cache on textarea resize (window resize, sidebar toggle, etc.)
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    // Record the (re)mounted element so the gutter re-measures it even when
-    // the ResizeObserver's width update below is identical to the last one
-    // (React skips identical state updates, so it alone could not re-render).
-    setTextareaElement(textarea || null);
-    if (!textarea) return;
-
-    const observer = new ResizeObserver(() => {
-      matchPositionCache.current.clear();
-      if (measureDivRef.current) {
-        window.document.body.removeChild(measureDivRef.current);
-        measureDivRef.current = null;
-      }
-      const cs = window.getComputedStyle(textarea);
-      const padLeft = parseFloat(cs.paddingLeft) || 0;
-      const padRight = parseFloat(cs.paddingRight) || 0;
-      setTextareaContentWidth(textarea.clientWidth - padLeft - padRight);
-    });
-    observer.observe(textarea);
-
-    return () => observer.disconnect();
-    // The textarea is a different element after preview mode toggles, so the
-    // observer must re-attach to the current one
-  }, [isPreviewActive, documentId]);
-
-  // macOS "Add period with double-space" turns `a␣␣` into `a.␣` in every
-  // Chromium text field, which destroys Markdown hard line breaks (two
-  // trailing spaces). Cancel that one OS substitution on the editor textarea
-  // and keep the two spaces - see utils/macPeriodSubstitution.js. Keyed on
-  // the mounted element so it re-attaches after preview/document switches.
-  useEffect(() => {
-    if (!textareaElement) return undefined;
-    return attachMacPeriodSubstitutionGuard(textareaElement);
-  }, [textareaElement]);
-
   // Handle ESC key to close search panel
   useEffect(() => {
     const handleEscKey = (e) => {
@@ -2699,31 +2174,25 @@ export default function DocumentEditor({
     }
   }, [showSearchReplace]);
 
-  // Cleanup measure div and debounce timer on component unmount
+  // Cleanup the search debounce timer on component unmount
   useEffect(() => {
     return () => {
-      if (measureDivRef.current) {
-        window.document.body.removeChild(measureDivRef.current);
-        measureDivRef.current = null;
-      }
       if (searchDebounceTimer.current) {
         clearTimeout(searchDebounceTimer.current);
       }
     };
   }, []);
 
-  // Update scroll position when search is opened to ensure highlights render correctly
-  useEffect(() => {
-    if (showSearchReplace && textareaRef.current) {
-      setScrollPosition({
-        top: textareaRef.current.scrollTop,
-        left: textareaRef.current.scrollLeft
-      });
-    }
-  }, [showSearchReplace]);
+  // The Y.Text and awareness a CodeMirror surface binds to (y-codemirror.next) once the hook is ready and
+  // the server's copy is real - null keeps it a local document (its own undo history)
+  const yjsBinding = useMemo(
+    () => (yjsEnabled && yjs.ytext && yjs.isReady && !serverCopyUnavailable ? { ytext: yjs.ytext, awareness: yjs.awareness || null } : null),
+    [yjsEnabled, yjs.ytext, yjs.awareness, yjs.isReady, serverCopyUnavailable],
+  );
+  const onSurface = useCallback((surface) => { textareaRef.current = surface; }, []);
 
   // When the editor takes no typing: a locked or foreign cloud document, offline for a cloud document, the
-  // server copy unavailable, auto-typing in progress - the textarea is read-only and the menu's Cut / Paste are off
+  // server copy unavailable, auto-typing in progress - the editor is read-only and the menu's Cut / Paste are off
   const editorReadOnly = locked || !isOwner || (document?.inCloud && !isOnline) || serverCopyUnavailable || isAutoTyping;
 
   // The editor's right-click menu: always ours (Cut / Copy / Paste with or
@@ -2733,15 +2202,38 @@ export default function DocumentEditor({
   const handleTextSelectionContextMenu = (e) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-    e.preventDefault();
+    // The desktop app lets Chromium see the click: its context-menu event
+    // (no native menu is shown) brings the word it flagged and the
+    // suggestions, which join this menu. A browser keeps the menu ours;
+    // Shift + right-click there opens the browser's own, with its suggestions.
+    if (typeof window.electronAPI?.onEditorContextMenu !== 'function') e.preventDefault();
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const selectedText = textarea.value.substring(start, end);
-    const opened = { visible: true, x: e.clientX, y: e.clientY, text: selectedText, start, end, clipboard: 'unknown' };
+    const opened = { visible: true, x: e.clientX, y: e.clientY, text: selectedText, start, end, clipboard: 'unknown', word: wordAtPointer(textarea, e), spell: null };
     setSelectionMenu(opened);
     readClipboardState().then((clipboard) => {
       setSelectionMenu((menu) => (menu.visible && menu.start === start && menu.end === end && menu.x === opened.x && menu.y === opened.y ? { ...menu, clipboard } : menu));
     });
+  };
+
+  // A spelling suggestion replaces the word the menu was opened on: an
+  // ordinary edit (one CodeMirror transaction, so the live document and the
+  // undo history see it); "Add to dictionary" asks the main process, which
+  // only takes the word of the last menu.
+  const handleSpellReplace = (suggestion) => {
+    const { word } = selectionMenu;
+    closeSelectionMenu();
+    if (!word || editorReadOnly || typeof suggestion !== 'string') return;
+    const textarea = textareaRef.current;
+    if (!textarea || textarea.value.slice(word.from, word.to) !== word.text) return;
+    replaceRange(word.from, word.to, suggestion, word.from + suggestion.length);
+  };
+  const handleSpellAddWord = (word) => {
+    closeSelectionMenu();
+    const api = window.electronAPI?.spellcheck;
+    if (!api || typeof word !== 'string') return;
+    api.addWord(word).catch(() => {});
   };
 
   // The clipboard items do what the keys do, on the selection the menu was opened on
@@ -3030,7 +2522,7 @@ export default function DocumentEditor({
     { id: 'list-task', kind: 'radio', checked: caretBlock.list === 'task', Icon: ListTodo, label: 'Task list', onSelect: () => setListKind('task') },
   ];
   // (the item objects are built once and listed in both menus: calling an
-  // array method on a list of helpers that read the textarea ref reads, to
+  // array method on a list of helpers that read the editor ref reads, to
   // the React Compiler, a ref during render)
   const tableItem = { id: 'table', Icon: Table, label: 'Table', onSelect: insertTable };
   // (the library gives the focus back to the toolbar button whose menu listed the item)
@@ -3245,17 +2737,6 @@ export default function DocumentEditor({
           />
         ) : (
           <div className="h-full overflow-hidden flex">
-            {/* Line Numbers Gutter */}
-            <div
-              ref={gutterRef}
-              className="shrink-0 overflow-hidden select-none bg-os-card-secondary border-r border-os-border"
-              style={{ width: 48 }}
-            >
-              <div style={{ paddingTop: 16, paddingBottom: 16, visibility: lineLayoutData.calibrated ? 'visible' : 'hidden' }}>
-                {gutterElements}
-              </div>
-            </div>
-
             <div className="relative flex-1 h-full overflow-hidden">
             {/* Auto-typing indicator */}
             {isAutoTyping && (
@@ -3264,33 +2745,19 @@ export default function DocumentEditor({
                 Auto-typing...
               </div>
             )}
-            <textarea
-              ref={textareaRef}
-              {...(yjsEnabled
-                ? { defaultValue: content } // For Yjs docs, use defaultValue (uncontrolled) - content is managed via ref
-                : { value: content } // For local docs, use value (controlled)
-              )}
+            <CodeMirrorEditor
+              value={yjsEnabled ? undefined : content}
+              defaultValue={content}
+              yjs={yjsBinding}
+              onSurface={onSurface}
               onChange={handleContentChange}
               onContextMenu={handleTextSelectionContextMenu}
               onMouseUp={handleCursorMove}
-              onClick={(e) => {
-                // Prevent clicking elsewhere during auto-typing
-                if (isAutoTyping) {
-                  e.preventDefault();
-                  return;
-                }
-                handleCursorMove();
-              }}
-              onKeyDown={(e) => {
-                // Prevent typing during auto-typing
-                if (isAutoTyping) {
-                  e.preventDefault();
-                  return;
-                }
-                handleKeyDown(e);
-              }}
-              onKeyUp={handleCursorMove}
+              onSelect={handleCursorMove}
+              onClick={(e) => { if (isAutoTyping) e.preventDefault(); }}
+              onKeyDown={(e) => { if (isAutoTyping) { e.preventDefault(); return; } handleKeyDown(e); }}
               readOnly={editorReadOnly}
+              spellcheck={spellcheckOn}
               placeholder={
                 locked
                   ? 'This document is locked'
@@ -3303,254 +2770,9 @@ export default function DocumentEditor({
                 : isAutoTyping
                 ? 'Auto-typing in progress...'
                 : 'Type / for commands and templates (callouts, Quick Workflow, Quick AI, Quick Task)...'
-            }
-            className={`sc-editor-textarea w-full h-full px-6 py-4 font-mono resize-none outline-hidden border-0 text-sm bg-os-card text-os-text-primary ${
- locked || !isOwner || isAutoTyping ?'cursor-default':''
- }`}
-            style={{
-              lineHeight: '1.6',
-              willChange: performanceMode ? 'scroll-position' : 'auto',
-              transform: performanceMode ? 'translateZ(0)' : 'none',
-            }}
-          />
-
-          {/* eslint-disable react-hooks/refs -- deliberate render-time viewport
-              culling: search-match and collaborative-cursor overlays read the
-              live textarea geometry/value so culling can never disagree with
-              what is painted; each read falls back gracefully when null. */}
-          {/* Search Match Highlights */}
-          {showSearchReplace && searchMatches.length > 0 && textareaRef.current && (
-            <div
-              className="absolute top-0 left-0 pointer-events-none w-full h-full overflow-hidden"
-              style={{
-                pointerEvents: 'none',
-                userSelect: 'none',
-                touchAction: 'none'
-              }}
-            >
-              {searchMatches.filter((match, idx) => {
-                // Always render the current match
-                if (idx === currentMatchIndex) return true;
-
-                const textarea = textareaRef.current;
-                if (!textarea) return true;
-
-                // Use measureTextPosition for accurate position (accounts for line wrapping)
-                const pos = measureTextPosition(match.start);
-                const matchTop = pos.top;
-                const viewportTop = scrollPosition.top;
-                const viewportBottom = scrollPosition.top + textarea.clientHeight;
-
-                // Buffer of 5 lines above and below viewport for smooth scrolling
-                const buffer = pos.lineHeight * 5;
-                return matchTop >= (viewportTop - buffer) && matchTop <= (viewportBottom + buffer);
-              }).map((match) => {
-                const idx = searchMatches.indexOf(match);
-                const currentContent = getSearchContent();
-
-                // Measure actual position accounting for line wrapping
-                const startPos = measureTextPosition(match.start);
-                const endPos = measureTextPosition(match.end);
-
-                const top = startPos.top - scrollPosition.top;
-                const left = startPos.left - scrollPosition.left;
-                const width = endPos.left - startPos.left;
-                const height = startPos.lineHeight;
-
-                const isCurrentMatch = idx === currentMatchIndex;
-
-                // Only render if on the same visual line (multi-line matches are complex)
-                const onSameLine = Math.abs(endPos.top - startPos.top) < 2;
-
-                if (!onSameLine) {
-                  // For matches that span multiple lines, just highlight the first line
-                  const matchText = currentContent.substring(match.start, match.end);
-                  const firstLineEnd = matchText.indexOf('\n');
-                  const firstLineLength = firstLineEnd === -1 ? matchText.length : firstLineEnd;
-                  const firstLineEndPos = measureTextPosition(match.start + firstLineLength);
-                  const firstLineWidth = firstLineEndPos.left - startPos.left;
-
-                  return (
-                    <div
-                      key={`search-match-${idx}`}
-                      className="absolute"
-                      style={{
-                        top: `${top}px`,
-                        left: `${left}px`,
-                        width: `${firstLineWidth}px`,
-                        height: `${height}px`,
-                        backgroundColor: isCurrentMatch ? 'rgba(255, 165, 0, 0.4)' : 'rgba(255, 255, 0, 0.3)',
-                        border: isCurrentMatch ? '1px solid rgba(255, 165, 0, 0.8)' : 'none',
-                        pointerEvents: 'none',
-                        zIndex: 1
-                      }}
-                    />
-                  );
-                }
-
-                return (
-                  <div
-                    key={`search-match-${idx}`}
-                    className="absolute"
-                    style={{
-                      top: `${top}px`,
-                      left: `${left}px`,
-                      width: `${width}px`,
-                      height: `${height}px`,
-                      backgroundColor: isCurrentMatch ? 'rgba(255, 165, 0, 0.4)' : 'rgba(255, 255, 0, 0.3)',
-                      border: isCurrentMatch ? '1px solid rgba(255, 165, 0, 0.8)' : 'none',
-                      pointerEvents: 'none',
-                      zIndex: 1
-                    }}
-                  />
-                );
-              })}
-            </div>
-          )}
-
-          {/* Collaborative Cursors and Selections (via Yjs) */}
-          {yjsEnabled && yjs.cursors && Object.keys(yjs.cursors).length > 0 && (
-            <div className="absolute top-0 left-0 pointer-events-none w-full h-full overflow-hidden">
-              {Object.entries(yjs.cursors).filter(([userId, cursorData]) => {
-                if (!cursorData || cursorData.position === undefined) {
-                  return false;
-                }
-
-                // Viewport culling for performance
-                const textarea = textareaRef.current;
-                if (!textarea) return true;
-
-                const position = cursorData.position || 0;
-                // CRITICAL: Use textarea.value (actual DOM) instead of yjs.content (stale React state)
-                // For collaborative docs, we update DOM directly without React re-renders
-                const currentContent = textarea.value || '';
-
-                // Defensive check: Don't render cursor if position is beyond content length
-                // This prevents cursor jumping when cursor updates arrive before text updates
-                if (position > currentContent.length) {
-                  console.log(`[DocumentEditor] Skipping cursor render for ${userId} - position ${position} beyond content length ${currentContent.length}`);
-                  return false;
-                }
-
-                // Wrap-aware top (same math as the render below) so culling
-                // and rendering can never disagree about where a cursor is.
-                const cursorTop = getWrapAwarePosition(position, currentContent).top;
-                const viewportTop = scrollPosition.top;
-                const viewportBottom = scrollPosition.top + textarea.clientHeight;
-
-                // Add buffer for smooth scrolling
-                const buffer = 22.4 * 10;
-                return cursorTop >= (viewportTop - buffer) && cursorTop <= (viewportBottom + buffer);
-              }).map(([userId, cursorData]) => {
-                console.log('[DocumentEditor] Rendering Yjs cursor for user:', userId, 'data:', cursorData);
-
-                const position = cursorData.position || 0;
-                const selectionEnd = cursorData.selectionEnd || position;
-                const hasSelection = selectionEnd !== position;
-
-                // Get current content for cursor calculation
-                // CRITICAL: Use textarea.value (actual DOM) instead of stale React state
-                const textarea = textareaRef.current;
-                const currentContent = textarea ? textarea.value : '';
-
-                // Wrap-aware pixel position (accounting for soft line
-                // wrapping via lineLayoutData, plus padding and scroll).
-                // charWidth uses the measured width of the actual rendered
-                // font (charWidthRef) like the gutter does, with the old 8.4
-                // approximation only as a fallback.
-                const vis = getWrapAwarePosition(position, currentContent);
-                const lineHeight = vis.lineHeight;
-                const charWidth = charWidthRef.current || 8.4;
-                const top = vis.top + 16 - scrollPosition.top; // 16px padding, minus scroll
-                const left = vis.left + 24 - scrollPosition.left; // 24px padding, minus scroll
-
-                const userColor = cursorData.color || getUserColor(userId);
-
-                return (
-                  <div key={userId}>
-                    {/* Selection highlight */}
-                    {hasSelection && (
-                      <div className="absolute inset-0">
-                        {(() => {
-                          const start = Math.min(position, selectionEnd);
-                          const end = Math.max(position, selectionEnd);
-                          const selectedText = currentContent.substring(start, end);
-                          const selectionLines = selectedText.split('\n');
-
-                          // Viewport culling for selection lines (only render visible lines)
-                          const textarea = textareaRef.current;
-                          const viewportTop = textarea ? scrollPosition.top : 0;
-                          const viewportBottom = textarea ? scrollPosition.top + textarea.clientHeight : Infinity;
-
-                          // Character index where the current selection line
-                          // segment begins; positions come from the same
-                          // wrap-aware helper the cursor itself uses.
-                          let segmentStart = start;
-                          return selectionLines.map((line, idx) => {
-                            const segPos = getWrapAwarePosition(segmentStart, currentContent);
-                            segmentStart += line.length + 1; // step past this line and its '\n'
-
-                            // Only render if line is likely visible
-                            const buffer = lineHeight * 5;
-                            if (segPos.top < (viewportTop - buffer) || segPos.top > (viewportBottom + buffer)) {
-                              return null;
-                            }
-
-                            const highlightTop = segPos.top + 16 - scrollPosition.top;
-                            const highlightLeft = segPos.left + 24 - scrollPosition.left;
-                            const highlightWidth = line.length * charWidth;
-
-                            return (
-                              <div
-                                key={`${userId}-sel-${idx}`}
-                                className="absolute"
-                                style={{
-                                  top: `${highlightTop}px`,
-                                  left: `${highlightLeft}px`,
-                                  width: `${highlightWidth}px`,
-                                  height: `${lineHeight}px`,
-                                  backgroundColor: hexToRgba(userColor, 0.25),
-                                  pointerEvents: 'none'
-                                }}
-                              />
-                            );
-                          });
-                        })()}
-                      </div>
-                    )}
-
-                    {/* Cursor line */}
-                    <div
-                      className="absolute"
-                      style={{
-                        top: `${top}px`,
-                        left: `${left}px`,
-                        zIndex: 10
-                      }}
-                    >
-                      <div
-                        className="w-0.5 h-5 animate-pulse"
-                        style={{
-                          backgroundColor: userColor,
-                        }}
-                      />
-                      {/* User label */}
-                      <div
-                        className="absolute -top-5 left-0 px-1.5 py-0.5 rounded-sm text-xs text-white whitespace-nowrap shadow-xs"
-                        style={{
-                          backgroundColor: userColor,
-                          fontSize: '10px'
-                        }}
-                      >
-                        {cursorData.name || userId}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {/* eslint-enable react-hooks/refs */}
+              }
+              className={`h-full ${locked || !isOwner || isAutoTyping ? 'cursor-default' : ''}`}
+            />
             </div>
           </div>
         )}
@@ -3823,6 +3045,9 @@ export default function DocumentEditor({
         onAddAsContext={handleAddSelectionAsAIContext}
         onSearchIn={handleSearchInEngine}
         engineTemplates={engineTemplates}
+        spell={selectionMenu.spell}
+        onReplaceWord={handleSpellReplace}
+        onAddWord={handleSpellAddWord}
         onClose={closeSelectionMenu}
       />
 

@@ -20,6 +20,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setupDocumentsEnv, makeChecker, sleep } from './helpers/jsdom-documents-env.mjs';
+import { installEditorSurfaceInJsdom } from './helpers/editor-surface.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { check, summary } = makeChecker();
@@ -28,6 +29,7 @@ const { mod, window } = await setupDocumentsEnv('ai-context-yjs', {
   stubs: { 'utils/cloudWebSocket': path.join(here, 'helpers', 'cloud-websocket-fake.mjs') },
 });
 const { document } = window;
+installEditorSurfaceInJsdom(window);   // what CodeMirror needs of jsdom
 const { sources, documents, getYjsProvider, getMachineId, db, fakeSocket, renderEditor, unmountEditor } = mod;
 
 try {
@@ -39,7 +41,7 @@ try {
 
   renderEditor({ documentId: id, document: doc, content: doc.content });
   await sleep(200);
-  const textarea = () => document.querySelector('textarea.sc-editor-textarea');
+  const textarea = () => (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface) || null;   // the editor surface
   check('the real editor is mounted on the document', !!textarea());
   check('the editor opened the Yjs provider on the (fake) socket and asked for sync-step1', fakeSocket.emitted.some((e) => e.event === 'yjs-sync-step1' && e.payload?.documentId === 'cloud-doc-1'), JSON.stringify(fakeSocket.emitted.map((e) => e.event)));
 
@@ -47,7 +49,7 @@ try {
   const ytext = getYjsProvider('cloud-doc-1').ydoc.getText('content');
   let seeded = false;
   for (let i = 0; i < 30 && !seeded; i++) { await sleep(250); seeded = ytext.toString() === BODY; }
-  check('after the hook\'s offline fallback the Yjs text holds the body and the textarea shows it', seeded && textarea().value === BODY, `ytext="${ytext.toString()}" textarea="${textarea()?.value}"`);
+  check('after the hook\'s offline fallback the Yjs text holds the body and the editor shows it', seeded && textarea().value === BODY, `ytext="${ytext.toString()}" textarea="${textarea()?.value}"`);
 
   // a collaborator's edit arrives in the shared Y.Doc
   ytext.insert(ytext.length, ' Live Yjs addition.');

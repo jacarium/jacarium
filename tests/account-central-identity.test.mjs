@@ -32,6 +32,7 @@
  * --no-save jsdom fake-indexeddb. Run: node tests/account-central-identity.test.mjs
  */
 import { spawn } from 'node:child_process';
+import { spawnReaped } from './helpers/reap.mjs';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -63,7 +64,7 @@ fs.mkdirSync(S_DATA, { recursive: true }); fs.mkdirSync(C_DATA, { recursive: tru
 const baseEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('JACARIUM_') && k !== 'ACCOUNT_TICKET_KEY' && k !== 'ENROLLMENT_SECRET'));
 const logs = { S: '', C: '' };
 const S_PORT = await freePort(); const C_PORT = await freePort();
-const S = spawn(PYTHON, ['app.py'], { cwd: path.join(REPO, 'backend'), env: { ...baseEnv, HOME: S_DATA, PORT: String(S_PORT), JACARIUM_AUTH_MODE: 'accounts', JACARIUM_REPORTS_ROOT: path.join(S_DATA, 'reports'), JACARIUM_KNOWN_HOSTS: path.join(S_DATA, '.ssh', 'known_hosts'), JACARIUM_CENTRAL_PATH: '/central', JACARIUM_CENTRAL_TICKET_KEY: KEY }, stdio: ['ignore', 'pipe', 'pipe'] });
+const S = spawnReaped(PYTHON, ['app.py'], { cwd: path.join(REPO, 'backend'), env: { ...baseEnv, HOME: S_DATA, PORT: String(S_PORT), JACARIUM_AUTH_MODE: 'accounts', JACARIUM_REPORTS_ROOT: path.join(S_DATA, 'reports'), JACARIUM_KNOWN_HOSTS: path.join(S_DATA, '.ssh', 'known_hosts'), JACARIUM_CENTRAL_PATH: '/central', JACARIUM_CENTRAL_TICKET_KEY: KEY }, stdio: ['ignore', 'pipe', 'pipe'] });
 const C = spawn('node', ['server.js'], { cwd: SERVER_DIR, env: { ...baseEnv, PORT: String(C_PORT), DATA_DIR: C_DATA, ACCOUNT_TICKET_KEY: KEY, TRUST_PROXY: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
 for (const [tag, child] of [['S', S], ['C', C]]) { child.stdout.on('data', (d) => { logs[tag] += d; }); child.stderr.on('data', (d) => { logs[tag] += d; }); }
 const S_URL = `http://127.0.0.1:${S_PORT}`; const C_URL = `http://127.0.0.1:${C_PORT}`;

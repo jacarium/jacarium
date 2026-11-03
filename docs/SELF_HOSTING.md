@@ -113,39 +113,181 @@ makes that one request on the click. The result lives in
 a running container from inside needs the podman or docker socket, a
 privilege the app should not have.
 
-*Updating automatically.* If you want the container to follow new
-releases on its own, let podman do it, outside the container: run the
-container as a systemd unit with the registry auto-update label and
-enable `podman-auto-update.timer`, which pulls the image daily, restarts
-the unit when the image changed, and rolls back when the restarted unit
-fails its health check:
+**Starting at boot: a systemd unit (Quadlet).** On a Linux box or a
+Raspberry Pi with rootless podman 4.4 or later, a Quadlet `.container` file
+makes the container a systemd user service: started at boot, restarted when
+it dies, logs in the journal. This is the same unit `deploy/deploy-to-host.sh`
+writes on the target (see below), with the image pinned to one release by
+its digest and the data on a named volume:
 
 ```ini
-# ~/.config/containers/systemd/jacarium.container  (quadlet; podman 4.4+)
+# ~/.config/containers/systemd/jacarium.container   (Quadlet; podman 4.4+)
+[Unit]
+Description=Jacarium
+After=network-online.target
+Wants=network-online.target
+
 [Container]
-Image=quay.io/zerodayz/jacarium:latest
 ContainerName=jacarium
 HostName=jacarium
+# one release, by its digest (how to find and verify it: "Pinning a release" below)
+Image=quay.io/zerodayz/jacarium@sha256:<the release's digest>
 PublishPort=127.0.0.1:8443:8443
-Volume=%h/.config/jacarium/server/data:/data:Z,U
-AutoUpdate=registry
-Label=io.containers.autoupdate=registry
+Volume=jacarium-data:/data
+Environment=JACARIUM_AUTH_MODE=accounts
+# Environment=TLS_SAN=IP:192.168.1.20,DNS:jacarium.lan   (with PublishPort=192.168.1.20:8443:8443)
+# UserNS=keep-id:uid=1001,gid=0   (only with a bind-mounted directory instead of the named volume)
 
 [Service]
 Restart=always
+RestartSec=5
+TimeoutStartSec=600
 
 [Install]
 WantedBy=default.target
 ```
 
+No secret belongs in this file: the API keys live on the volume in
+`/data/.jacarium.env`, set in Settings. A key the container must be handed
+(an external central server's `JACARIUM_CENTRAL_TICKET_KEY`, say) goes
+into `podman secret create <name> -` and the unit gets
+`Secret=<name>,type=env,target=JACARIUM_CENTRAL_TICKET_KEY`. The image's
+own health check (the console and, when it runs, the central server behind
+it) is inherited - `podman ps` shows `healthy` - so the unit needs no
+`HealthCmd`. The named volume is created on the first start and owned by
+the container's user; a bind-mounted directory instead (`Volume=%h/.config/jacarium/server/data:/data:Z,U`)
+is what the quick start does, and `deploy-to-host.sh` maps the user with
+`UserNS=keep-id:uid=1001,gid=0`. Install it:
+
 ```bash
-systemctl --user daemon-reload
-systemctl --user enable --now jacarium.service
-systemctl --user enable --now podman-auto-update.timer   # daily; `podman auto-update` runs one now
+mkdir -p ~/.config/containers/systemd
+cp jacarium.container ~/.config/containers/systemd/
+systemctl --user daemon-reload                 # Quadlet generates jacarium.service from the file
+systemctl --user start jacarium.service
+systemctl --user status jacarium.service
+journalctl --user -u jacarium.service -f       # the logs (the setup code of the first start is here)
+loginctl enable-linger "$USER"                 # rootless: start at boot without a login session
 ```
 
-`podman auto-update --dry-run` shows what would change. Pin a version tag
-in `Image=` instead of `:latest` if you would rather decide when.
+*Pinning a release.* A digest names exactly one image; a tag can move.
+The digest of a release is what the signature covers, so read it from the
+verification itself (the commands are the README's, under "Verify this
+release"; `X.Y.Z` is the version):
+
+```bash
+gh attestation verify oci://quay.io/zerodayz/jacarium:X.Y.Z --repo jacarium/jacarium \
+  --signer-workflow jacarium/jacarium/.github/workflows/build.yml --deny-self-hosted-runners
+cosign verify quay.io/zerodayz/jacarium:X.Y.Z \
+  --certificate-identity https://github.com/jacarium/jacarium/.github/workflows/build.yml@refs/tags/vX.Y.Z \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  | jq -r '.[0].critical.image."docker-manifest-digest"'     # sha256:... - this goes after the @ in Image=
+skopeo inspect docker://quay.io/zerodayz/jacarium:X.Y.Z --format '{{ .Digest }}'   # the same digest, unsigned
+```
+
+*Updating.* With a digest in `Image=`, updating means putting the next
+release's verified digest in the file and `systemctl --user daemon-reload
+&& systemctl --user restart jacarium.service` - the choice of version stays
+yours, which is the point of pinning. If you would rather have podman
+follow new releases on its own, `Image=` must be a tag
+(`quay.io/zerodayz/jacarium:latest`) and the unit gets
+`AutoUpdate=registry`; then `systemctl --user enable --now
+podman-auto-update.timer` pulls the image daily, restarts the unit when it
+changed, and rolls back when the restarted unit fails its health check
+(`podman auto-update --dry-run` shows what would change). The two
+exclude each other: auto-update follows the tag without verifying it.
+
+**A pod file for `podman kube play` (and Kubernetes).** The same
+deployment as a Kubernetes-style YAML, for people who keep their services
+in that form: a persistent volume claim for `/data` and one pod, pinned by
+digest, running as the image's user with every capability dropped, the
+image's health check as the probes:
+
+```yaml
+# jacarium.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jacarium-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: jacarium
+  labels:
+    app: jacarium
+spec:
+  hostname: jacarium
+  securityContext:
+    runAsUser: 1001
+    runAsGroup: 0
+    fsGroup: 0
+    runAsNonRoot: true
+  containers:
+  - name: jacarium
+    image: quay.io/zerodayz/jacarium@sha256:<the release's digest>
+    env:
+    - name: JACARIUM_AUTH_MODE
+      value: accounts
+    # - name: TLS_SAN
+    #   value: IP:192.168.1.20,DNS:jacarium.lan
+    ports:
+    - name: https
+      containerPort: 8443
+      hostIP: 127.0.0.1
+      hostPort: 8443
+    livenessProbe:
+      exec:
+        command: ["/bin/sh", "-c", "curl -fsk https://127.0.0.1:8443/health >/dev/null && { [ ! -f /tmp/central.expected ] || curl -fsk https://127.0.0.1:8443/central/api/health >/dev/null; }"]
+      initialDelaySeconds: 30
+      periodSeconds: 30
+      timeoutSeconds: 8
+      failureThreshold: 3
+    readinessProbe:
+      exec:
+        command: ["/bin/sh", "-c", "curl -fsk https://127.0.0.1:8443/health >/dev/null"]
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        memory: 2Gi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+    volumeMounts:
+    - name: data
+      mountPath: /data
+  volumes:
+  - name: data
+    persistentVolumeClaim:
+      claimName: jacarium-data
+```
+
+```bash
+podman kube play jacarium.yaml                 # the claim becomes the named volume jacarium-data
+podman logs jacarium-jacarium                  # the setup code of the first start
+podman kube play --replace jacarium.yaml       # after editing the file (a new digest, TLS_SAN)
+podman kube down jacarium.yaml                 # stops and removes the pod; the volume stays
+podman kube down --force jacarium.yaml         # ... and removes the volume: everything is gone
+```
+
+Secrets stay out of the file as above (a `podman secret` or a Kubernetes
+`Secret`, read with `valueFrom.secretKeyRef`). On plain Kubernetes
+(`kubectl apply -f jacarium.yaml`) run it as a `Deployment` with one
+replica and expose it with a `Service` or an Ingress instead of `hostPort`,
+and mount your certificate as a `Secret` at `/data/certs` (or point
+`TLS_CERT_FILE` / `TLS_KEY_FILE` at the mount); `fsGroup: 0` needs a volume
+driver that applies it, otherwise make the volume writable by uid 1001. A
+`.kube` Quadlet (`Yaml=%h/jacarium.yaml` under `[Kube]`) runs the pod file
+as a systemd service like the `.container` above.
 
 **Backups.** The `/data` volume is the backup: the accounts database
 (`accounts.sqlite`), every account's files under `users/`, the settings

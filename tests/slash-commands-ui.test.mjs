@@ -29,6 +29,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { reapOnExit } from './helpers/reap.mjs';
+import { pwEditor, pwEditorValue, pwSetEditorText } from './helpers/editor-surface.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const req = createRequire(path.join(REPO, 'package.json'));
@@ -87,13 +88,13 @@ async function open(device) {
   return { context, page, errors };
 }
 const popup = (page) => page.evaluate(() => { const header = Array.from(document.querySelectorAll('.fixed span')).find((s) => /Commands and templates/.test(s.textContent)); if (!header) return null; const box = header.closest('.fixed'); return { entries: Array.from(box.querySelectorAll('[data-slash-entry]')).map((e) => ({ id: e.getAttribute('data-slash-entry'), selected: /bg-purple-100|dark:bg-purple-900\/30/.test(e.className) })), groups: Array.from(box.querySelectorAll('[data-slash-group]')).map((g) => g.getAttribute('data-slash-group')) }; });
-const setText = (page, text) => page.locator('.sc-editor-textarea').evaluate((el, value) => { el.focus(); el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); el.setSelectionRange(el.value.length, el.value.length); }, text);
-const value = (page) => page.locator('.sc-editor-textarea').inputValue();
+const setText = pwSetEditorText;
+const value = pwEditorValue;
 
 try {
   const desk = await open({ viewport: { width: 1280, height: 900 } });
   const { page } = desk;
-  const ta = page.locator('.sc-editor-textarea');
+  const ta = pwEditor(page);
   check('the editor is open with an empty document', await ta.count() === 1);
 
   // /note + Enter
@@ -147,7 +148,7 @@ try {
 
   // the phone: the same from the touch keyboard
   const phone = await open(pw.devices['iPhone 14 Pro']);
-  const pta = phone.page.locator('.sc-editor-textarea');
+  const pta = pwEditor(phone.page);
   check('phone: the editor is open', await pta.count() === 1);
   await setText(phone.page, ''); await pta.tap(); await phone.page.keyboard.type('/tip'); await phone.page.waitForTimeout(500);
   const pp = await popup(phone.page);

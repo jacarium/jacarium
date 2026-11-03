@@ -143,8 +143,8 @@ LABEL org.opencontainers.image.title="Jacarium" \
 # database's install times (docs/security/reproducible-builds.md). The last line makes sure none of
 # the packages this base was chosen to be rid of came back as a dependency.
 RUN microdnf -y --setopt=install_weak_deps=0 --nodocs install python3.14 python3.14-pip-wheel openssh-clients sshpass openssl \
- && microdnf -y --setopt=install_weak_deps=0 --nodocs upgrade xz-libs \
- && rpm -q xz-libs-5.2.5-8.el9_8.1 \
+ && microdnf -y --setopt=install_weak_deps=0 --nodocs upgrade xz-libs curl-minimal libcurl-minimal \
+ && rpm -q xz-libs-5.2.5-8.el9_8.1 curl-minimal-7.76.1-40.el9_8.9 libcurl-minimal-7.76.1-40.el9_8.9 \
  && test "$(rpm -q python3 python3-libs python3-urllib3 python3-pip libbrotli brotli brotli-devel dnf nodejs npm 2>&1 | grep -vc 'is not installed')" = 0 \
  && microdnf clean all \
  && rm -rf /var/cache/yum /var/cache/dnf /var/log/dnf* /var/log/hawkey.log /var/lib/dnf/history.sqlite* /var/log/rhsm /var/lib/dnf/repos/*/countme /var/cache/ldconfig/aux-cache

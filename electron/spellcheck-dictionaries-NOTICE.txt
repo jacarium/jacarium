@@ -1,0 +1,38 @@
+Spell-checking dictionaries shipped with Jacarium (Windows and Linux)
+=====================================================================
+
+The files in this directory are Hunspell dictionaries in Chromium's
+compiled .bdic form, taken unchanged from the hunspell_dictionaries.zip
+asset of the Electron release this app is built on
+(https://github.com/electron/electron/releases). Chromium maintains them
+in https://chromium.googlesource.com/chromium/deps/hunspell_dictionaries/
+where each dictionary's full copyright notice and licence text is kept in
+README_<language>.txt next to its source .dic / .aff files.
+
+Jacarium does not change these dictionaries and does not download any: the
+copies here are the only ones the app uses (electron/spellcheck.cjs).
+
+  en-US-10-1.bdic   English (United States)
+  en-GB-10-1.bdic   English (United Kingdom)
+  en-AU-10-1.bdic   English (Australia)
+      From SCOWL (Spell Checker Oriented Word Lists), Copyright 2000-2018
+      Kevin Atkinson and the contributors named in README_en_US.txt /
+      README_en_GB.txt: permission to use, copy, modify, distribute and
+      sell these word lists is granted without fee provided the copyright
+      notices and the permission notice appear in all copies. The affix
+      rules are Copyright 1993 Geoff Kuenning under the BSD licence; parts
+      carry the WordNet 1.6 notice (Copyright 1997 Princeton University).
+
+  cs-CZ-3-0.bdic    Czech
+      GNU General Public License, version 2 (README_cs_CZ.txt).
+
+  sk-SK-3-0.bdic    Slovak
+      GNU General Public License v2, GNU Lesser General Public License
+      v2.1 or Mozilla Public License 1.1, at your option (README_sk_SK.txt).
+
+The licence texts published with the dictionaries by the Electron release
+are shipped beside this notice: LICENSE and COPYING (the aggregated texts:
+Apache-2.0, LGPL-2.1, LGPL-3.0, MPL-1.1, GPL-3.0), COPYING.MIT,
+COPYING.MPL, COPYING.GPL3, COPYING.LGPL, COPYING.LESSER and COPYING.Apache.
+macOS builds of Jacarium contain none of these files: there the operating
+system's own spell checker is used.

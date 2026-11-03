@@ -32,6 +32,8 @@ const CREDITS = [
   { name: 'Red Hat Mono', what: 'font', url: 'https://fonts.google.com/specimen/Red+Hat+Mono', ...OFL },
   { name: 'Sora', what: 'font', url: 'https://fonts.google.com/specimen/Sora', ...OFL },
   { name: 'React Flow', what: 'workflow canvas', url: 'https://reactflow.dev', licence: 'MIT', licenceUrl: 'https://github.com/xyflow/xyflow/blob/main/LICENSE' },
+  { name: 'CodeMirror', what: 'document editor', url: 'https://codemirror.net', licence: 'MIT', licenceUrl: 'https://github.com/codemirror/view/blob/main/LICENSE' },
+  { name: 'y-codemirror.next', what: 'live-document binding', url: 'https://github.com/yjs/y-codemirror.next', licence: 'MIT', licenceUrl: 'https://github.com/yjs/y-codemirror.next/blob/main/LICENSE' },
 ];
 
 function Row({ label, children, testId }) {

@@ -19,10 +19,13 @@
 # Real-browser tests (export-import-theme.test.mjs,
 # documents-import-theme.test.mjs, notice-banner-theme.test.mjs,
 # documents-find-in-files-live.test.mjs, tailwind-visual-regression.test.mjs,
-# browser-mode.test.mjs: Vite dev server + headless Chrome, see tests/helpers/live-documents-app.mjs)
+# editor-codemirror-live.test.mjs, browser-mode.test.mjs: Vite dev server +
+# headless Chrome, see tests/helpers/live-documents-app.mjs)
 # and the real-Electron tests (pdf-export-electron.test.mjs,
 # documents-mermaid-live.test.mjs, documents-pdf-trailing-page.test.mjs,
-# documents-code-highlight-live.test.mjs: Vite dev server + the Electron app
+# documents-code-highlight-live.test.mjs, electron-spellcheck-live.test.mjs,
+# editor-codemirror-electron.test.mjs, editor-codemirror-performance.test.mjs:
+# Vite dev server + the Electron app
 # via Playwright on a throwaway profile, see tests/helpers/electron-app.mjs;
 # the PDF export only exists in the desktop app; SKIPs on
 # SKIP_ELECTRON_TESTS=1 or when playwright-core / a GUI is unavailable)

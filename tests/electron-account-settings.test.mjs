@@ -29,7 +29,7 @@
  *      the scope back to the device; wipe() on unlink does the same.
  * Run: node tests/electron-account-settings.test.mjs
  */
-import { spawn } from 'node:child_process';
+import { spawnReaped } from './helpers/reap.mjs';
 import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
@@ -52,7 +52,7 @@ const freePort = () => new Promise((resolve) => { const s = net.createServer(); 
 const PORT = await freePort();
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'account-settings-data-'));
 function startBackend() {
-  return spawn(PYTHON, ['app.py'], {
+  return spawnReaped(PYTHON, ['app.py'], {
     cwd: path.join(REPO, 'backend'),
     env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('JACARIUM_'))), HOME: DATA, PORT: String(PORT), JACARIUM_AUTH_MODE: 'accounts', JACARIUM_REPORTS_ROOT: path.join(DATA, 'reports'), JACARIUM_KNOWN_HOSTS: path.join(DATA, '.ssh', 'known_hosts') },
     stdio: ['ignore', 'pipe', 'pipe'],

@@ -353,6 +353,19 @@ build_here() {
     [ -f dist/index.html ] || die "frontend build failed"
     log_success "frontend built ($(du -sh dist | cut -f1))"
 
+    # The spell checker's dictionaries for the Linux and Windows packages
+    # (resources/dictionaries; electron/spellcheck.cjs): fetched from the
+    # Electron release in package-lock.json and checked against the sha256
+    # pinned in electron/spellcheck-dictionaries.json - nothing is fetched
+    # when build/dictionaries already verifies. macOS uses the system
+    # checker and packages none.
+    case "$PLATFORM" in
+        linux|windows|all)
+            log_info "the spell checker's dictionaries (pinned, verified)"
+            node scripts/fetch-spellcheck-dictionaries.mjs || die "the spell-checking dictionaries did not verify"
+            ;;
+    esac
+
     log_info "packaging the Electron application"
     # --publish never: this script only builds. On a CI runner electron-builder
     # would otherwise try to upload to GitHub on its own when it sees a tag; the

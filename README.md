@@ -284,4 +284,6 @@ with this program (the [LICENSE](LICENSE) file). If not, see
 
 The fonts (Red Hat Text, Red Hat Mono, Sora) are under the
 [SIL Open Font License](https://openfontlicense.org); the workflow canvas is
-[React Flow](https://reactflow.dev) (MIT).
+[React Flow](https://reactflow.dev) (MIT); the document editor is
+[CodeMirror](https://codemirror.net) (MIT), bound to live documents with
+[y-codemirror.next](https://github.com/yjs/y-codemirror.next) (MIT).

@@ -54,6 +54,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('export-pdf-progress', listener);
   },
   getLocalIps: () => ipcRenderer.invoke('get-local-ips'),
+  // The editor's right-click menu: the word Chromium flagged under the
+  // pointer and its suggestions (electron/spellcheck.cjs forwards them from
+  // the webContents' context-menu event, at most 6 of at most 64 characters);
+  // "Add to dictionary" and Settings > General > Editor's custom words and
+  // languages go the other way, each validated in the main process.
+  onEditorContextMenu: (callback) => {
+    const listener = (event, payload) => callback(payload);
+    ipcRenderer.on('editor-context-menu', listener);
+    return () => ipcRenderer.removeListener('editor-context-menu', listener);
+  },
+  spellcheck: {
+    addWord: (word) => ipcRenderer.invoke('spellcheck:add-word', word),
+    removeWord: (word) => ipcRenderer.invoke('spellcheck:remove-word', word),
+    listWords: () => ipcRenderer.invoke('spellcheck:list-words'),
+    getLanguages: () => ipcRenderer.invoke('spellcheck:languages'),
+    setLanguages: (codes) => ipcRenderer.invoke('spellcheck:set-languages', codes),
+  },
   readEnvFile: () => ipcRenderer.invoke('read-env-file'),
   writeEnvFile: (envData) => ipcRenderer.invoke('write-env-file', envData),
   // Settings dialog: plain values + which secrets are stored (never their

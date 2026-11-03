@@ -139,11 +139,11 @@ try {
   check('Documents page shows the empty-state New Document button on a fresh profile',
     await evaluate(`(() => { const b = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'New Document'); if (!b) return false; b.click(); return true; })()`));
   await sleep(1500);
-  await evaluate(`(() => { const ta = document.querySelector('textarea'); ta.focus(); ta.select(); })()`);
+  await evaluate(`(() => { const ta = (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface); ta.focus(); ta.select(); })()`);
   await send('Input.insertText', { text: MARKDOWN });
   await sleep(1500); // autosave
-  const typed = await evaluate(`document.querySelector('textarea') && document.querySelector('textarea').value`);
-  check('the editor holds the synthetic markdown verbatim (no auto-pairing mangled the fences)', typed === MARKDOWN, typed ? `${typed.length} chars` : 'no textarea');
+  const typed = await evaluate(`(document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface) && (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface).value`);
+  check('the editor holds the synthetic markdown verbatim (no auto-pairing mangled the fences)', typed === MARKDOWN, typed ? `${typed.length} chars` : 'no editor');
 
   // ---------- 4. Preview: real mermaid renders (first preview ever, fresh document) ----------
   // The mermaid chunk must not have been loaded by merely opening the app or
@@ -226,7 +226,7 @@ try {
 
   // ---------- 6. Preview off / on ----------
   const closed = await closePreview();
-  const editorBack = closed && await evaluate(`!!document.querySelector('textarea') && !document.querySelector('.markdown-preview')`);
+  const editorBack = closed && await evaluate(`!!document.querySelector('.sc-editor-cm') && !document.querySelector('.markdown-preview')`);
   check('closing the preview returns to the editor (no leftover preview DOM, no exception from the aborted render)', editorBack);
   await evaluate(`document.querySelector('button[title="Preview"]').click()`);
   const reopened = await waitFor(`(() => { const s = ${STATE}; return s.total === 3 && s.rendered === 2 && s.error === 1; })()`, 20000);
@@ -235,10 +235,10 @@ try {
   // ---------- 6b. Edit the diagram, preview again: the UPDATED diagram, not a cached one ----------
   check('preview closed again for editing', await closePreview());
   const EDITED = MARKDOWN.replace('Triagex --> Resolvedz[Resolvedz]', 'Triagex --> Escalatedq[Escalatedq]');
-  await evaluate(`(() => { const ta = document.querySelector('textarea'); ta.focus(); ta.select(); })()`);
+  await evaluate(`(() => { const ta = (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface); ta.focus(); ta.select(); })()`);
   await send('Input.insertText', { text: EDITED });
   await sleep(1500); // autosave
-  const edited = await evaluate(`document.querySelector('textarea').value`);
+  const edited = await evaluate(`(document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface).value`);
   check('editing the document in place replaced the flowchart\'s last node (Resolvedz -> Escalatedq)', edited === EDITED && edited.includes('Escalatedq'));
   await evaluate(`document.querySelector('button[title="Preview"]').click()`);
   const updated = await waitFor(`(() => {
@@ -376,7 +376,7 @@ try {
   const worst = (r) => r ? Math.min(...r.nodes.map((n) => n.contrast ?? 0), ...r.clusters.map((c) => c.contrast ?? 0), ...r.edges.map((e) => e.contrast ?? 0)) : null;
 
   check('preview closed to type the pastel-classDef document', await closePreview());
-  await evaluate(`(() => { const ta = document.querySelector('textarea'); ta.focus(); ta.select(); })()`);
+  await evaluate(`(() => { const ta = (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface); ta.focus(); ta.select(); })()`);
   await send('Input.insertText', { text: PASTEL_DOC });
   await sleep(1200);
   await evaluate(`document.documentElement.classList.remove('dark')`);
@@ -554,7 +554,7 @@ try {
 
   // ... and so does a content edit.
   check('section 10: preview closed to edit the diagram', await closePreview());
-  await evaluate(`(() => { const ta = document.querySelector('textarea'); ta.focus(); ta.select(); })()`);
+  await evaluate(`(() => { const ta = (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface); ta.focus(); ta.select(); })()`);
   await send('Input.insertText', { text: PASTEL_DOC.replace('P6[Archive case]', 'P6[Archived caseq]') });
   await sleep(1200);
   await evaluate(`document.querySelector('button[title="Preview"]').click()`);

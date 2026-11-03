@@ -1,0 +1,96 @@
+{
+  "_comment": "The Hunspell dictionaries the desktop app ships for its spell checker on Windows and Linux (electron/spellcheck.cjs), pinned to the exact Electron release in package-lock.json: they come from that release's hunspell_dictionaries.zip, which scripts/fetch-spellcheck-dictionaries.mjs downloads at build time and checks against the sha256 recorded here (the zip, then every file taken out of it); the app checks the files again before it copies them into the profile. macOS uses the system spell checker and ships none of this. `node scripts/fetch-spellcheck-dictionaries.mjs --repin` rewrites this file for a new Electron release (after the 7-day cooldown of the dependency policy). Provenance: docs/security/spellcheck-dictionaries.md.",
+  "electron": "42.11.17",
+  "asset": {
+    "name": "hunspell_dictionaries.zip",
+    "url": "https://github.com/electron/electron/releases/download/v42.11.17/hunspell_dictionaries.zip",
+    "release": "https://github.com/electron/electron/releases/tag/v42.11.17",
+    "sha256": "5ce6e2a2e3d3faee770ce460c7eaaa3ede93ecfe29d4f46eaf3b88cbb423db28",
+    "size": 34144908,
+    "createdAt": "2026-10-20T16:23:52Z"
+  },
+  "dictionaries": [
+    {
+      "file": "en-US-10-1.bdic",
+      "language": "en-US",
+      "label": "English (United States)",
+      "sha256": "a075b01d9b015c616511a9e87da77da3d9881621db32f584e4606ddabf1c1100",
+      "size": 451968,
+      "licence": "SCOWL (Kevin Atkinson; permissive, MIT-style, with BSD-licensed affix rules and the WordNet notice)"
+    },
+    {
+      "file": "en-GB-10-1.bdic",
+      "language": "en-GB",
+      "label": "English (United Kingdom)",
+      "sha256": "eaed4a709abdbd2f14aa143f25fe9c4c1b44591c7cb1942f75f968fb2fcd3cf8",
+      "size": 451994,
+      "licence": "SCOWL (Kevin Atkinson; permissive, MIT-style, with BSD-licensed affix rules and the WordNet notice)"
+    },
+    {
+      "file": "en-AU-10-1.bdic",
+      "language": "en-AU",
+      "label": "English (Australia)",
+      "sha256": "9e045c63b05e5435cd2045c8db9e2e15239a896d3363298fcbba2a3890d74eb1",
+      "size": 453787,
+      "licence": "SCOWL (Kevin Atkinson; permissive, MIT-style, with BSD-licensed affix rules and the WordNet notice)"
+    },
+    {
+      "file": "cs-CZ-3-0.bdic",
+      "language": "cs-CZ",
+      "label": "Czech",
+      "sha256": "fd31ba12d939c43cc71d5a00441df9bace5edcdeca735ade0e84e5f10cd410d6",
+      "size": 3108527,
+      "licence": "GPL-2.0"
+    },
+    {
+      "file": "sk-SK-3-0.bdic",
+      "language": "sk-SK",
+      "label": "Slovak",
+      "sha256": "c4ef7e950bda27505c9103cd72abc01cd8d3f1a36d85708b9cc6d8e7dd230547",
+      "size": 1668425,
+      "licence": "GPL-2.0 / LGPL-2.1 / MPL-1.1 (tri-licence)"
+    }
+  ],
+  "licences": [
+    {
+      "file": "LICENSE",
+      "sha256": "d63c6240d6f6330a025aade63d317d7ff04f95fc3325fe6aea3848ca452f64ea",
+      "size": 108158
+    },
+    {
+      "file": "COPYING",
+      "sha256": "cde91164e09e33e94e1db4529aa77f89bc0c392b1ed138d689c66dfbd11d9701",
+      "size": 108204
+    },
+    {
+      "file": "COPYING.MIT",
+      "sha256": "379ddd904c597d64e11a88bba68663f59501c9fa59e8124c0f4f32a67a5dc77a",
+      "size": 1736
+    },
+    {
+      "file": "COPYING.MPL",
+      "sha256": "53692a2ed6c6a2c6ec9b32dd0b820dfae91e0a1fcdf625ca9ed0bdf8705fcc4f",
+      "size": 25755
+    },
+    {
+      "file": "COPYING.GPL3",
+      "sha256": "0ae0485a5bd37a63e63603596417e4eb0e653334fa6c7f932ca3a0e85d4af227",
+      "size": 35148
+    },
+    {
+      "file": "COPYING.LGPL",
+      "sha256": "5bbcbb737e60fe9deba08ecbd00920cfcc3403ba2e534c64fdeea49d6bb87509",
+      "size": 26532
+    },
+    {
+      "file": "COPYING.LESSER",
+      "sha256": "d7137682540000e5f57ff3cb0b4943b66aa3ac4ecca28614ce46991fc291bd15",
+      "size": 7795
+    },
+    {
+      "file": "COPYING.Apache",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "size": 11358
+    }
+  ]
+}

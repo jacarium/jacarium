@@ -22,7 +22,8 @@
  * Needs backend/venv, Chrome and ports 5173/8080 free; skips cleanly
  * otherwise. Synthetic text only.
  */
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
+import { spawnReaped } from './helpers/reap.mjs';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -30,8 +31,8 @@ import path from 'node:path';
 import { launchDocumentsApp, createNewDocument, REPO, sleep } from './helpers/live-documents-app.mjs';
 import { dismissWhatsNew } from './helpers/visual-snapshots.mjs';
 
-const VITE_PORT = 5173;
-const FLASK_PORT = 8080;
+const VITE_PORT = Number(process.env.LIVE_VITE_PORT || 5173);
+const FLASK_PORT = Number(process.env.LIVE_BACKEND_PORT || 8080);
 let failed = 0;
 const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}: ${name}${detail ? ' | ' + String(detail).slice(0, 240) : ''}`); if (!ok) failed++; };
 const portFree = (port) => new Promise((resolve) => { const s = createServer(); s.once('error', () => resolve(false)); s.listen(port, '127.0.0.1', () => s.close(() => resolve(true))); });
@@ -41,7 +42,7 @@ if (!(await portFree(VITE_PORT)) || !(await portFree(FLASK_PORT))) { console.log
 if (spawnSync('node', ['-e', "require.resolve('pngjs')"], { cwd: REPO, stdio: 'ignore' }).status !== 0) { console.log('SKIP: pngjs missing'); process.exit(0); }
 
 const DATA = mkdtempSync(path.join(tmpdir(), 'editor-menu-data-'));
-const backend = spawn(PYTHON, ['app.py'], {
+const backend = spawnReaped(PYTHON, ['app.py'], {
   cwd: path.join(REPO, 'backend'),
   env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('JACARIUM_'))), HOME: DATA, PORT: String(FLASK_PORT), JACARIUM_AUTH_MODE: 'accounts', JACARIUM_REPORTS_ROOT: path.join(DATA, 'reports'), JACARIUM_KNOWN_HOSTS: path.join(DATA, '.ssh', 'known_hosts') },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -57,39 +58,41 @@ const setupCode = readFileSync(path.join(DATA, 'setup-code'), 'utf8').trim();
 
 const outDir = process.env.EDITOR_MENU_SHOTS_DIR || mkdtempSync(path.join(tmpdir(), 'editor-menu-shots-'));
 mkdirSync(outDir, { recursive: true });
-const app = await launchDocumentsApp({ port: VITE_PORT, profilePrefix: 'editor-menu-' });
+const app = await launchDocumentsApp({ port: VITE_PORT, profilePrefix: 'editor-menu-', backendUrl: `http://localhost:${FLASK_PORT}` });
 if (app.skip) { console.log(`SKIP: ${app.skip}`); stopBackend(); process.exit(0); }
 
 const { PNG } = await import('pngjs');
 const pixelSpread = (file) => { const p = PNG.sync.read(readFileSync(file)); let min = 255, max = 0; for (let i = 0; i < p.data.length; i += 4 * 97) { const l = (p.data[i] + p.data[i + 1] + p.data[i + 2]) / 3; if (l < min) min = l; if (l > max) max = l; } return max - min; };
 const shot = async (name, clip) => { const f = path.join(outDir, `${name}.png`); const r = await app.send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip } : {}) }); writeFileSync(f, Buffer.from(r.result.data, 'base64')); return f; };
 const setTheme = async (theme) => { await app.evaluate(`document.documentElement.classList.${theme === 'dark' ? 'add' : 'remove'}('dark')`); await sleep(300); };
-const noMotion = () => app.evaluate(`(() => { const s = document.createElement('style'); s.textContent = '*, *::before, *::after { transition: none !important; animation: none !important; caret-color: transparent !important; }'; document.head.appendChild(s); })()`);
+const noMotion = () => app.evaluate(`(() => { const s = document.createElement('style'); s.textContent = '*, *::before, *::after { transition: none !important; animation: none !important; caret-color: transparent !important; } .cm-cursor { display: none !important; }'; document.head.appendChild(s); })()`);
 const q = (sel) => `document.querySelector(${JSON.stringify(sel)})`;
 const has = (sel) => app.evaluate(`!!${q(sel)}`);
-const value = () => app.evaluate(`document.querySelector('textarea').value`);
+const EDITOR = `(document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface)`;   // the editor surface (tests/helpers/editor-surface.mjs)
+const value = () => app.evaluate(`${EDITOR}.value`);
 const mac = process.platform === 'darwin';
+// (Enter carries its character, as a real key press does: a focused menu button activates on the keypress)
 const keyChord = async (key, code, vk, modifiers = 0, commands = []) => {
-  await app.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers, commands });
+  await app.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers, commands, ...(key === 'Enter' && !modifiers ? { text: '\r' } : {}) });
   await app.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers });
 };
-// the menu: a real right-click on the textarea (the browser raises contextmenu; Chrome moves the caret to the
-// click, so this is for the no-selection case), or the contextmenu event dispatched on the textarea at a
+// the menu: a real right-click on the editor (the browser raises contextmenu; Chrome moves the caret to the
+// click, so this is for the no-selection case), or the contextmenu event dispatched on the editor at a
 // point, which is what a right-click inside the selected text raises and leaves the selection as it is
 const rightClick = async ({ real = false } = {}) => {
-  const b = await app.evaluate(`(() => { const r = document.querySelector('textarea').getBoundingClientRect(); return [r.left + 60, r.top + 30]; })()`);
+  const b = await app.evaluate(`(() => { const r = document.querySelector('.sc-editor-cm .cm-content').getBoundingClientRect(); return [r.left + 60, r.top + 30]; })()`);
   if (real) {
     await app.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: b[0], y: b[1], button: 'right', clickCount: 1 });
     await app.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: b[0], y: b[1], button: 'right', clickCount: 1 });
   } else {
-    await app.evaluate(`document.querySelector('textarea').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: ${b[0]}, clientY: ${b[1]}, view: window })); true`);
+    await app.evaluate(`document.querySelector('.sc-editor-cm .cm-content').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: ${b[0]}, clientY: ${b[1]}, view: window })); true`);
   }
   await app.waitFor(`!!document.querySelector('[data-testid="editor-context-menu"]')`, 5000);
   await sleep(300);   // the clipboard probe
 };
 const menuItems = () => app.evaluate(`Array.from(document.querySelectorAll('[data-testid="editor-context-menu"] [role="menuitem"]')).map((b) => (b.getAttribute('data-testid') || '') + (b.disabled ? ':off' : ':on'))`);
 const clickItem = (id) => app.evaluate(`(() => { const b = document.querySelector('[data-testid="${id}"]'); if (!b || b.disabled) return false; b.click(); return true; })()`);
-const select = (start, end) => app.evaluate(`(() => { const ta = document.querySelector('textarea'); ta.focus(); ta.setSelectionRange(${start}, ${end}); return ta.value.slice(${start}, ${end}); })()`);
+const select = (start, end) => app.evaluate(`(() => { const ta = ${EDITOR}; ta.focus(); ta.setSelectionRange(${start}, ${end}); return ta.value.slice(${start}, ${end}); })()`);
 const readClip = () => app.evaluate(`navigator.clipboard.readText().catch((e) => 'ERROR ' + e.message)`);
 
 try {
@@ -105,8 +108,8 @@ try {
   await dismissWhatsNew(app);
   await app.waitFor(`!!document.querySelector('[data-testid="sidebar-brand-mark"]')`, 20000);
   await createNewDocument(app);
-  await app.waitFor(`!!document.querySelector('textarea')`, 10000);
-  await app.evaluate(`(() => { const ta = document.querySelector('textarea'); ta.focus(); ta.select(); })()`);
+  await app.waitFor(`!!${EDITOR}`, 10000);
+  await app.evaluate(`(() => { const ta = ${EDITOR}; ta.focus(); ta.select(); })()`);
   await app.send('Input.insertText', { text: 'alpha bravo charlie' });
   await sleep(800);
   check('the document holds the typed text', (await value()) === 'alpha bravo charlie', await value());
@@ -123,7 +126,7 @@ try {
   await setTheme('light');
   await keyChord('Escape', 'Escape', 27);
   await sleep(200);
-  check('Escape closes the menu and the editor has the focus again', !(await has('[data-testid="editor-context-menu"]')) && (await app.evaluate(`document.activeElement === document.querySelector('textarea')`)));
+  check('Escape closes the menu and the editor has the focus again', !(await has('[data-testid="editor-context-menu"]')) && (await app.evaluate(`document.activeElement === document.querySelector('.sc-editor-cm .cm-content')`)));
 
   // ---- with a selection: Copy ----
   check('"bravo" is selected', (await select(6, 11)) === 'bravo');
@@ -145,7 +148,7 @@ try {
   check('with text on the clipboard Paste is enabled', items.includes('selection-paste:on'), items.join(','));
   check('Paste from the menu is clicked', await clickItem('selection-paste'));
   await sleep(500);
-  check('Paste reproduced the text at the caret through the editor (the textarea shows it)', (await value()) === 'alpha bravo charliebravo', await value());
+  check('Paste reproduced the text at the caret through the editor (the editor shows it)', (await value()) === 'alpha bravo charliebravo', await value());
 
   // ---- Cut, then Undo ----
   check('"charlie" is selected', (await select(12, 19)) === 'charlie');
@@ -153,7 +156,7 @@ try {
   check('Cut from the menu is clicked', await clickItem('selection-cut'));
   await sleep(500);
   check('Cut removed the selection and put it on the clipboard', (await value()) === 'alpha bravo bravo' && (await readClip()) === 'charlie', `${await value()} | ${await readClip()}`);
-  await app.evaluate(`document.querySelector('textarea').focus(); true`);
+  await app.evaluate(`${EDITOR}.focus(); true`);
   await keyChord('z', 'KeyZ', 90, mac ? 4 : 2, ['Undo']);
   await sleep(500);
   check('Cmd/Ctrl+Z brings the cut text back (the native undo stack, as the key would leave it)', (await value()) === 'alpha bravo charliebravo', await value());

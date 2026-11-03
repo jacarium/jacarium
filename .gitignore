@@ -86,3 +86,8 @@ tests/linux/out/
 
 # Generated synthetic diagnostics reports (tests/fixtures/diagnostics-mock/generate.py)
 tests/fixtures/diagnostics-mock/out/
+
+# The spell checker's dictionaries, fetched from the Electron release at build time (scripts/fetch-spellcheck-dictionaries.mjs)
+build/dictionaries/
+# (also as a symlink, as a worktree may link it: the pattern above only matches a directory)
+backend/venv

@@ -28,6 +28,7 @@
  * caret are disabled in the page so captures are stable.
  */
 import { spawn } from 'node:child_process';
+import { spawnReaped } from './reap.mjs';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
@@ -99,7 +100,7 @@ export async function startFlask() {
   if (!existsSync(python)) return { skip: 'backend/venv missing - Flask-backed captures skipped' };
   if (!(await portFree(FLASK_PORT))) return { skip: `:${FLASK_PORT} in use - Flask-backed captures skipped` };
   const token = randomBytes(16).toString('hex');
-  const child = spawn(python, ['app.py'], {
+  const child = spawnReaped(python, ['app.py'], {
     cwd: path.join(REPO, 'backend'),
     env: { ...process.env, APP_AUTH_TOKEN: token, PORT: String(FLASK_PORT), FLASK_DEBUG: '0' },
     stdio: 'ignore',

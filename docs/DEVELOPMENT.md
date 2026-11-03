@@ -140,6 +140,39 @@ Each prints `no red flag` and exits 0, or the flags and exits 1; the tests
 `tests/verify_rpm_update.test.py` and `tests/verify_go_module.test.py` drive
 them against local fakes (no network).
 
+**Overrides for a transitive package** (`overrides` in package.json) are the
+lane's tool when the parent still pins the vulnerable line. The lane script
+writes the plain key (`name: ^x.y.z`), which moves every copy in the tree;
+when an older copy must stay because its parent reads what the fixed major
+removed (glob 7 and minimatch 11), the key names the range it replaces
+(`"minimatch@>=9.0.0"`) and the value is the exact version the lane checked
+- a caret resolves to whatever is newest on the next `npm install
+--min-release-age=0`, which may be younger than the lane allows. Each
+override has its entry in `docs/security/urgent-updates.md` with the checks,
+the parent's own use of the package verified in the parent's code and proven
+by what the parent does (`npm run lint` for ESLint's, a `--dir` build and the
+packaged app launched for electron-builder's), and goes when the parent moves
+to the fixed line.
+
+**The npm audit gate** (`tests/npm-audit-clean.test.mjs`, the root app and
+jacarium-central) has two tiers. The shipped product - `npm audit
+--omit=dev`, what the installers and the container carry - must have
+nothing at Moderate or above (a Low is printed, not failing). The whole tree
+with the build, lint and test tooling - `npm audit` - must have nothing High
+or Critical; its Moderates and Lows are printed on every run (the advisory,
+`package@version`, the dependency path from the root, whether the lock marks
+the entry dev, whether a VEX decision exists) and do not fail the test. A
+finding counts as dev-only when the full audit reports it and the
+`--omit=dev` audit does not; a package in both trees is shipped. The test
+cross-checks that with `npm ls --omit=dev` for one listed package and runs
+the rule offline against fixture reports (a Moderate in a shipped package
+fails, a High in a dev package fails, a Moderate in a dev package is
+listed). OSV-Scanner on GitHub still scans the full lock files, so a
+dev-only finding that stays gets a `not_affected` decision in
+`vex/decisions.yaml` with the verified reason (minimatch's remaining 3.x /
+5.x copies under electron-builder, for one) - that is what keeps the two
+checks consistent, and the printed list says which findings have one.
+
 ## Python dependencies
 
 `backend/requirements.txt` lists the backend's direct dependencies;

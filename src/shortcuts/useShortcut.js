@@ -9,7 +9,7 @@
  *   useShortcut('workflow.copyNodes', copy, { when: (e) => !isEditableTarget(e.target) });
  *
  * Scope decides who gets a chord that several actions share: 'editor'
- * handlers run only when the document editor's textarea has focus,
+ * handlers run only when the document editor's surface has focus,
  * 'workflow-canvas' and 'page:*' handlers only while their component is
  * mounted (and their `when` agrees), 'global' handlers always; the
  * innermost wins and the event is consumed (preventDefault +
@@ -34,7 +34,7 @@ let installed = false;
 function scopeActive(scope, e) {
   if (scope === 'editor') {
     const t = e.target;
-    return !!(t && typeof t.closest === 'function' && t.closest('.sc-editor-textarea'));
+    return !!(t && typeof t.closest === 'function' && t.closest('.sc-editor-surface'));
   }
   return true;
 }

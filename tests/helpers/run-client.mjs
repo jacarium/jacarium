@@ -5,6 +5,7 @@
  */
 import { JSDOM } from 'jsdom';
 import 'fake-indexeddb/auto'; // defines globalThis.indexedDB / IDBKeyRange
+import { installEditorSurfaceInJsdom } from './editor-surface.mjs';
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
   url: 'http://localhost/',
@@ -63,6 +64,7 @@ window.matchMedia = window.matchMedia || ((q) => ({
 // IndexedDB into the jsdom window too (Dexie may look on window/self)
 window.indexedDB = globalThis.indexedDB;
 window.IDBKeyRange = globalThis.IDBKeyRange;
+installEditorSurfaceInJsdom(window);   // what CodeMirror (the editor surface) needs of jsdom
 
 // Optional textarea geometry stubs (jsdom has no layout engine, so clientWidth/
 // clientHeight are always 0 and scrollTop is inert). When TA_CLIENT_WIDTH is
@@ -89,7 +91,7 @@ if (process.env.TA_CLIENT_WIDTH) {
   }
 
   // Emulate soft-wrap LAYOUT for the editor's hidden measuring divs (the gutter
-  // line-height mirror in gutterLineLayout.js and the search-highlight measure
+  // line-height mirror of the former gutter and the search-highlight measure
   // div): a <span> inside a pre-wrap <div> gets a rect derived from the text
   // before it, wrapping every charsPerRow characters (TA_CLIENT_WIDTH / 8.4px,
   // the editor's fallback char width in jsdom) at 22.4px per row. The editor

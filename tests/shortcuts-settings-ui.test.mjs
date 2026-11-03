@@ -61,7 +61,7 @@ import { useShortcut } from '@worktree/src/shortcuts/useShortcut.js';
 import DocumentEditorProbe from '@worktree/src/shortcuts/PageShortcuts.jsx';
 let setView = null; let key = 0;
 const fired = [];
-function Probe() { useShortcut('editor.find', () => { fired.push('editor.find'); }); useShortcut('app.palette', () => { fired.push('app.palette'); }); return React.createElement('textarea', { className: 'sc-editor-textarea', 'data-testid': 'probe-editor' }); }
+function Probe() { useShortcut('editor.find', () => { fired.push('editor.find'); }); useShortcut('app.palette', () => { fired.push('app.palette'); }); return React.createElement('textarea', { className: 'sc-editor-surface', 'data-testid': 'probe-editor' }); }
 function Host() {
   const [view, set] = React.useState(null);
   setView = set;
@@ -155,7 +155,7 @@ await H.initializePlatform();
 report('\n--- 1. the tab and the list (browser, Linux) ---');
 await open('shortcuts');
 const rail = () => $$('[data-testid="settings-modal"] .sc-rail-tab').map((t) => t.textContent.trim());
-check('the rail offers Shortcuts after AI Providers', rail().join() === 'General,Integrations,AI Providers,Shortcuts,About', rail().join());
+check('the rail offers Shortcuts after AI Providers', rail().join() === 'General,Editor,Integrations,AI Providers,Shortcuts,About', rail().join());
 const section = await waitFor(() => $('[data-testid="shortcuts-settings"]'));
 check('the Shortcuts section renders, stored on this browser', !!section && /stored on this device \(this browser\)/.test(section.textContent));
 check('the groups App, Pages, Editor, Workflow, JQL, Panels are listed', ['app', 'pages', 'editor', 'workflow', 'jql', 'panels'].every((g) => $(`[data-testid="shortcuts-section-${g}"]`)));
@@ -186,7 +186,7 @@ click($('[data-testid="recorder-use"]'));
 await waitFor(() => (chordText('editor.find') === 'Ctrl+J' ? true : null));
 check('Use binds it: the row reads Ctrl+J, the recorder is gone, a Reset appears, Reset all is enabled', chordText('editor.find') === 'Ctrl+J' && !recorder() && !!$('[data-testid="shortcut-reset-editor.find"]') && !$('[data-testid="shortcuts-reset-all"]').disabled);
 check('localStorage holds { version: 1, overrides: { "editor.find": "Mod+KeyJ" } } - only the override, by physical key', JSON.stringify(stored()) === JSON.stringify({ version: 1, overrides: { 'editor.find': 'Mod+KeyJ' } }), JSON.stringify(stored()));
-// the new chord works, the old one does not (the probe textarea has the editor scope)
+// the new chord works, the old one does not (the probe carries the editor scope's class, sc-editor-surface)
 H.fired.length = 0;
 const probe = $('[data-testid="probe-editor"]'); probe.focus();
 keydown(probe, { key: 'j', code: 'KeyJ', ctrlKey: true }); keydown(probe, { key: 'f', code: 'KeyF', ctrlKey: true });

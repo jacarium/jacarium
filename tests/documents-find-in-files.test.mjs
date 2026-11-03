@@ -36,12 +36,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setupDocumentsEnv, makeChecker, typeInto, byText, click, waitFor, sleep, REPO } from './helpers/jsdom-documents-env.mjs';
+import { installEditorSurfaceInJsdom, jsdomEditor } from './helpers/editor-surface.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { check, summary } = makeChecker();
 const { mod, window } = await setupDocumentsEnv('documents-find-in-files', { entry: path.join(here, 'helpers', 'find-in-files-entry.mjs') });
 const { documents, openDocument, findInFiles, db, renderSidebar, unmountSidebar, renderFindWindow, unmountFindWindow, renderEditor, unmountEditor, switchEditor } = mod;
 const { document } = window;
+installEditorSurfaceInJsdom(window);   // what CodeMirror (the editor surface) needs of jsdom
 
 const FIXTURE = JSON.parse(fs.readFileSync(path.join(here, 'fixtures', 'find-in-files', 'documents.json'), 'utf8'));
 const DOCS = FIXTURE.map((d, i) => ({ id: i + 1, updatedAt: 1000 + i, ...d }));
@@ -419,7 +421,8 @@ console.log('\n--- 5. editor: jump to line ---');
   const content1 = Array.from({ length: 30 }, (_, i) => `line ${i + 1} of the first document`).join('\n');
   const content2 = 'other\nsecond needle here\nthird';
   renderEditor({ documentId: 1, title: 'First', content: content1 });
-  const textarea = await waitFor(() => document.querySelector('textarea'), 4000);
+  const textarea = await jsdomEditor(document, 4000);   // the editor surface (a textarea's API)
+  await waitFor(() => textarea && textarea.value === content1, 2000);
   check('the real DocumentEditor mounted in jsdom showing document 1', !!textarea && textarea.value === content1);
 
   // already-showing path: the window event
@@ -429,14 +432,14 @@ console.log('\n--- 5. editor: jump to line ---');
   check('a jump for the document the editor already shows selects the matched range on that line',
     textarea.selectionStart === expectStart && textarea.selectionEnd === expectStart + 2 && content1.slice(textarea.selectionStart, textarea.selectionEnd) === '12', `${textarea.selectionStart}-${textarea.selectionEnd}`);
   check('the pending request was consumed by that editor', peekPendingEditorJump() === null);
-  check('the editor body has focus', document.activeElement === textarea);
+  check('the editor body has focus', document.activeElement === textarea.contentDOM);
 
   // switch path: pending request, taken when the editor switches to the document
   requestEditorJumpToLine(2, { line: 2, range: [7, 13], broadcast: false });
   await sleep(30);
   check('a request for another document leaves the current editor alone', textarea.selectionStart === expectStart && peekPendingEditorJump()?.documentId === 2);
   switchEditor({ documentId: 2, title: 'Second', content: content2 });
-  const ta2 = await waitFor(() => { const t = document.querySelector('textarea'); return t && t.value === content2 ? t : null; }, 2000);
+  const ta2 = await waitFor(() => { const t = (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface) || null; return t && t.value === content2 ? t : null; }, 2000);
   await waitFor(() => ta2 && ta2.selectionStart === 6 + 7, 2000);
   check('after the switch the editor jumps to line 2 and selects "needle"',
     !!ta2 && ta2.selectionStart === 13 && ta2.selectionEnd === 19 && content2.slice(ta2.selectionStart, ta2.selectionEnd) === 'needle', ta2 && `${ta2.selectionStart}-${ta2.selectionEnd}`);

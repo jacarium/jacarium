@@ -1,7 +1,10 @@
 /**
  * Cut / Copy / Paste for the Documents editor's right-click menu
  * (src/components/features/documents/TextSelectionMenu.jsx), behaving like
- * Cmd/Ctrl+X / C / V on the same textarea:
+ * Cmd/Ctrl+X / C / V on the editor. The editor is the CodeMirror surface
+ * (src/components/features/documents/codemirror/CodeMirrorSurface.js),
+ * addressed through the textarea API it answers - `value`, the selection,
+ * `focus`, `readOnly` - so a plain textarea works here too:
  *
  *   - whether each item is enabled is decided here from three facts: is
  *     there a selection, is the editor editable (not read-only), and what
@@ -19,8 +22,9 @@
  *     the selection with execCommand('insertText'), the same `input` path
  *     Cmd/Ctrl+V takes into the editor's onChange (and so into Yjs for a
  *     live document) and the same native undo stack. Where execCommand is
- *     not available (jsdom) the value is edited and `input` dispatched, so
- *     the editor still sees the change.
+ *     not available (jsdom) the surface's own insertText does the edit (a
+ *     typed change: onChange, history), or a textarea's value is edited and
+ *     `input` dispatched, so the editor still sees the change.
  */
 import { formatShortcut } from './shortcuts';
 
@@ -120,8 +124,17 @@ export async function pasteInto(textarea, { start, end, nav = typeof navigator !
   return text;
 }
 
-// The value set the way React's onChange notices (the prototype's setter, then `input`), with the caret after the edit
+// The edit as the editor notices it: the surface's insertText over the selection, or a textarea's value
+// through the prototype's setter followed by `input`, with the caret after the edit
 function setValue(textarea, value, caret, inputType) {
+  if (typeof textarea.insertText === 'function') {
+    const from = textarea.selectionStart;
+    const to = textarea.selectionEnd;
+    textarea.insertText(inputType === 'deleteByCut' ? '' : value.slice(from, caret));
+    try { textarea.setSelectionRange(caret, caret); } catch { /* best effort */ }
+    void to;
+    return;
+  }
   const proto = Object.getPrototypeOf(textarea);
   const setter = proto && Object.getOwnPropertyDescriptor(proto, 'value')?.set;
   if (setter) setter.call(textarea, value); else textarea.value = value;

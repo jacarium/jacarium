@@ -202,7 +202,7 @@ async function main() {
     check('document 2 holds the 3 synthetic lines', (await setEditorContent(app, SHORT)) === SHORT);
     check('a third document was created via the sidebar "+"', await createDocumentViaSidebar(app));
     const typedBig = await setEditorContent(app, BIG);
-    check(`document 3 holds the ${BIG_LINES} synthetic lines`, typedBig === BIG, typedBig ? `${typedBig.split('\n').length} lines` : 'no textarea');
+    check(`document 3 holds the ${BIG_LINES} synthetic lines`, typedBig === BIG, typedBig ? `${typedBig.split('\n').length} lines` : 'no editor');
     await sleep(2500); // let autosave land in IndexedDB
 
     // ---- open from the hamburger menu, search ----
@@ -342,15 +342,15 @@ async function main() {
     await sleep(1200);
     check('the window closed after opening', !(await windowOpen(app)));
     const state = await app.evaluate(`(() => {
-      const ta = document.querySelector('textarea');
+      const ta = (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface);
       if (!ta) return null;
       const value = ta.value;
       const lineStart = value.split('\\n').slice(0, 59).join('\\n').length + 1;
-      return { lines: value.split('\\n').length, selectionStart: ta.selectionStart, selectionEnd: ta.selectionEnd, selected: value.slice(ta.selectionStart, ta.selectionEnd), lineStart, scrollTop: ta.scrollTop, clientHeight: ta.clientHeight, scrollHeight: ta.scrollHeight, focused: document.activeElement === ta };
+      return { lines: value.split('\\n').length, selectionStart: ta.selectionStart, selectionEnd: ta.selectionEnd, selected: value.slice(ta.selectionStart, ta.selectionEnd), lineStart, scrollTop: ta.scrollTop, clientHeight: ta.clientHeight, scrollHeight: ta.scrollHeight, focused: document.activeElement === ta.contentDOM };
     })()`);
     check('the editor switched to the 80-line document', state && state.lines === 80, JSON.stringify(state));
-    check('the matched token on line 60 is selected in the textarea', state && state.selected === 'needle-alpha' && state.selectionStart === state.lineStart + 'line 60 carries the '.length, state && `${state.selectionStart}-${state.selectionEnd} "${state.selected}"`);
-    check('the textarea really scrolled to bring line 60 into view', state && state.scrollTop > 0 && state.scrollTop <= state.scrollHeight - state.clientHeight + 1, state && `scrollTop ${state.scrollTop}, clientHeight ${state.clientHeight}, scrollHeight ${state.scrollHeight}`);
+    check('the matched token on line 60 is selected in the editor', state && state.selected === 'needle-alpha' && state.selectionStart === state.lineStart + 'line 60 carries the '.length, state && `${state.selectionStart}-${state.selectionEnd} "${state.selected}"`);
+    check('the editor really scrolled to bring line 60 into view', state && state.scrollTop > 0 && state.scrollTop <= state.scrollHeight - state.clientHeight + 1, state && `scrollTop ${state.scrollTop}, clientHeight ${state.clientHeight}, scrollHeight ${state.scrollHeight}`);
     check('the editor body has focus', state && state.focused);
 
     // ---- dropdown: change re-runs the search; category context menu presets it ----

@@ -1,6 +1,6 @@
 /**
  * Find in Files - content search across documents, one result per matching
- * LINE of raw markdown (the editor is a plain textarea over the markdown
+ * LINE of raw markdown (the editor is a plain-text surface over the markdown
  * source, so "line N" here is exactly what the editor's gutter shows).
  *
  * Pure functions, no DOM: the window (FindInFilesWindow.jsx) owns loading,
@@ -159,7 +159,7 @@ export async function searchDocumentsAsync(docs, matcher, { scopeCategory = null
 
 /**
  * Character offset of the start of `line` (1-based) in `content`, in the
- * editor's textarea coordinates (which keeps `\r` if the content has it).
+ * editor's text coordinates (which keeps `\r` if the content has it).
  */
 export function lineStartOffset(content, line) {
   const text = String(content || '');

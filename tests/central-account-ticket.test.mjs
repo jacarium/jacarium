@@ -39,6 +39,7 @@
  * (socket.io-client). Run: node tests/central-account-ticket.test.mjs
  */
 import { spawn } from 'node:child_process';
+import { spawnReaped } from './helpers/reap.mjs';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -69,8 +70,8 @@ const baseEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !
 const logs = { S: '', C: '', C2: '', S2: '', C3: '' };
 const S_PORT = await freePort(); const C_PORT = await freePort(); const C2_PORT = await freePort(); const S2_PORT = await freePort(); const C3_PORT = await freePort();
 const backendEnv = (home, port, extra) => ({ ...baseEnv, HOME: home, PORT: String(port), JACARIUM_AUTH_MODE: 'accounts', JACARIUM_REPORTS_ROOT: path.join(home, 'reports'), JACARIUM_KNOWN_HOSTS: path.join(home, '.ssh', 'known_hosts'), ...extra });
-const S = spawn(PYTHON, ['app.py'], { cwd: path.join(REPO, 'backend'), env: backendEnv(S_DATA, S_PORT, { JACARIUM_CENTRAL_PATH: '/central', JACARIUM_CENTRAL_TICKET_KEY: KEY }), stdio: ['ignore', 'pipe', 'pipe'] });
-const S2 = spawn(PYTHON, ['app.py'], { cwd: path.join(REPO, 'backend'), env: backendEnv(S2_DATA, S2_PORT, { JACARIUM_CENTRAL_PATH: '/central' }), stdio: ['ignore', 'pipe', 'pipe'] });
+const S = spawnReaped(PYTHON, ['app.py'], { cwd: path.join(REPO, 'backend'), env: backendEnv(S_DATA, S_PORT, { JACARIUM_CENTRAL_PATH: '/central', JACARIUM_CENTRAL_TICKET_KEY: KEY }), stdio: ['ignore', 'pipe', 'pipe'] });
+const S2 = spawnReaped(PYTHON, ['app.py'], { cwd: path.join(REPO, 'backend'), env: backendEnv(S2_DATA, S2_PORT, { JACARIUM_CENTRAL_PATH: '/central' }), stdio: ['ignore', 'pipe', 'pipe'] });
 const C = spawn('node', ['server.js'], { cwd: SERVER_DIR, env: { ...baseEnv, PORT: String(C_PORT), DATA_DIR: C_DATA, ENROLLMENT_SECRET: 'team-secret', ACCOUNT_TICKET_KEY: KEY, TRUST_PROXY: '1', TICKET_FAILURE_LIMIT: '9' }, stdio: ['ignore', 'pipe', 'pipe'] });
 const C2 = spawn('node', ['server.js'], { cwd: SERVER_DIR, env: { ...baseEnv, PORT: String(C2_PORT), DATA_DIR: C2_DATA }, stdio: ['ignore', 'pipe', 'pipe'] });
 // the deployed shape: the key, no enrollment secret

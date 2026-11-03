@@ -27,6 +27,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire, isBuiltin } from 'node:module';
+import { installEditorSurfaceInJsdom, jsdomEditor } from './helpers/editor-surface.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(here, '..');
@@ -84,6 +85,7 @@ const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></
 const { window } = dom;
 const define = (name, value) => { Object.defineProperty(globalThis, name, { value, configurable: true, writable: true }); };
 for (const name of ['window', 'document', 'navigator', 'HTMLElement', 'HTMLTextAreaElement', 'HTMLInputElement', 'HTMLSelectElement', 'Element', 'Node', 'Event', 'KeyboardEvent', 'MouseEvent', 'CustomEvent', 'MutationObserver', 'DOMParser', 'localStorage', 'sessionStorage', 'File', 'FileReader', 'Blob']) define(name, window[name]);
+installEditorSurfaceInJsdom(window);   // what CodeMirror needs of jsdom
 define('getComputedStyle', window.getComputedStyle.bind(window));
 define('requestAnimationFrame', (cb) => setTimeout(cb, 0)); define('cancelAnimationFrame', (id) => clearTimeout(id));
 class FakeObserver { observe() {} unobserve() {} disconnect() {} }
@@ -121,15 +123,15 @@ const { forgetAiModelChoice, NO_AI_PROVIDER_MESSAGE } = H.aiRequestSettings;
 const sidebarEvents = [];
 for (const name of ['aiChatSidebarStateChange', 'addAIContext']) window.addEventListener(name, () => sidebarEvents.push(name));
 const quickAiInput = () => $('input[placeholder="for loop in bash, sort function..."]');
-const editor = () => $('.sc-editor-textarea');
+const editor = () => ($('.sc-editor-cm') && $('.sc-editor-cm').editorSurface) || null;
 
 async function mount(content) {
   await waitFor(() => H.setContent);
   H.unmount(); await waitFor(() => (!editor() ? true : null));
   H.setContent(content);
   H.mount();
-  const ta = await waitFor(() => editor());
-  await waitFor(() => (H.getContent() === content ? true : null));
+  const ta = await jsdomEditor(document);
+  await waitFor(() => (H.getContent() === content && ta.value === content ? true : null));
   await sleep(60);
   return ta;
 }
@@ -153,7 +155,7 @@ check('right-click on a selection shows the menu; "Ask AI About This" opens the 
 if (!input) { report(`\n${total - failures}/${total} checks passed`); process.exit(1); }
 check('the note sits ABOVE the input (between the header and the field) and the hint stays under the input', (() => { const note = $('[data-testid="quick-ai-context-note"]'); const hint = $$('p').find((p) => /Enter to submit/.test(p.textContent)); return !!note && !!(note.compareDocumentPosition(input) & window.Node.DOCUMENT_POSITION_FOLLOWING) && !!(input.compareDocumentPosition(hint) & window.Node.DOCUMENT_POSITION_FOLLOWING); })());
 check('the note says the highlighted text is included, with a muted one-line preview of the selection', /Your highlighted text is included with the question\./.test($('[data-testid="quick-ai-context-note"]')?.textContent || '') && $('[data-testid="quick-ai-context-preview"]')?.textContent === '10.0.0.1 beta', $('[data-testid="quick-ai-context-note"]')?.textContent);
-check('the textarea keeps its selection and content', ta.selectionStart === 6 && ta.selectionEnd === 19 && H.getContent() === CONTENT);
+check('the editor keeps its selection and content', ta.selectionStart === 6 && ta.selectionEnd === 19 && H.getContent() === CONTENT);
 
 /* 2. the request */
 report('\n--- 2. the request ---');

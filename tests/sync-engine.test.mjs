@@ -31,7 +31,7 @@
  * Needs fake-indexeddb + jsdom helpers (npm install --no-save jsdom
  * fake-indexeddb) and the backend venv. Run: node tests/sync-engine.test.mjs
  */
-import { spawn } from 'node:child_process';
+import { spawnReaped } from './helpers/reap.mjs';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -71,7 +71,7 @@ globalThis.localStorage = globalThis.window.localStorage;
 const freePort = () => new Promise((resolve) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); });
 const PORT = await freePort();
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-engine-data-'));
-const backend = spawn(PYTHON, ['app.py'], {
+const backend = spawnReaped(PYTHON, ['app.py'], {
   cwd: path.join(REPO, 'backend'),
   env: {
     ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('JACARIUM_'))),

@@ -8,6 +8,7 @@ import { getMachineId } from '../../../utils/cloudDocuments';
 
 // Import category components
 import GeneralSettings from './settings/GeneralSettings';
+import EditorSettings from './settings/EditorSettings';
 import IntegrationsSettings from './settings/IntegrationsSettings';
 import AIProvidersSettings from './settings/AIProvidersSettings';
 import UsersSettings from './settings/UsersSettings';
@@ -478,6 +479,7 @@ export default function SettingsModal({
           <div className="flex sm:flex-col gap-1" role="tablist">
             {[
               { id: 'general', label: 'General' },
+              { id: 'editor', label: 'Editor' },
               { id: 'integrations', label: SETTINGS_FIELDS.integrations.tab },
               { id: 'ai', label: SETTINGS_FIELDS.ai.tab },
               ...(isMobile ? [] : [{ id: 'shortcuts', label: 'Shortcuts' }]),
@@ -517,6 +519,8 @@ export default function SettingsModal({
             </div>
           ) : (
             <>
+              {activeTab === 'editor' && <EditorSettings />}
+
               {activeTab === 'general' && (
                 <GeneralSettings
                   settings={settings}

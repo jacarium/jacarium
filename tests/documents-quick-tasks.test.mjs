@@ -56,6 +56,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire, isBuiltin } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { installEditorSurfaceInJsdom, jsdomEditor } from './helpers/editor-surface.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(here, '..');
@@ -252,29 +253,29 @@ createRoot(document.getElementById('root')).render(
   const quiet = (fn) => (...a) => { const s = String(a[0] ?? ''); if (/^\[|Warning:|act\(|Dexie|Error/.test(s)) return; fn(...a); };
   console.log = quiet(origLog); console.error = quiet(origErr); console.warn = quiet(origWarn);
 
+  installEditorSurfaceInJsdom(window);   // what CodeMirror needs of jsdom
   createRequire(import.meta.url)(BUNDLE);
   const { document } = window;
   const H = window.__harness;
-  const textarea = await waitFor(() => document.querySelector('textarea'));
-  check('section 3: the real DocumentEditor mounted in jsdom', !!textarea);
+  const editor = await jsdomEditor(document);
+  check('section 3: the real DocumentEditor mounted in jsdom', !!editor);
 
   const setNative = (el, value) => {
     const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : el.tagName === 'SELECT' ? window.HTMLSelectElement.prototype : window.HTMLInputElement.prototype;
     Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);
   };
-  // Real typing shape: value spliced at the caret, caret advanced, input event -> React onChange
+  // Real typing shape: text inserted at the end as input (the editor's onChange runs)
   const typeAtEnd = (text) => {
-    const ta = document.querySelector('textarea');
-    setNative(ta, ta.value + text);
-    ta.setSelectionRange(ta.value.length, ta.value.length);
-    ta.dispatchEvent(new window.Event('input', { bubbles: true }));
+    editor.focus();
+    editor.setSelectionRange(editor.value.length, editor.value.length);
+    editor.insertText(text);
   };
   const setInput = (el, value) => { setNative(el, value); el.dispatchEvent(new window.Event('input', { bubbles: true })); };
   const setSelect = (el, value) => { setNative(el, value); el.dispatchEvent(new window.Event('change', { bubbles: true })); };
   const popup = () => document.querySelector('[data-testid="quick-tasks-popup"]');
   // the "/" popup: typing opens it with the command highlighted; Enter runs the command (nothing runs on typing alone)
   const slashPopup = () => Array.from(document.querySelectorAll('span')).find((s) => /Commands and templates/.test(s.textContent))?.closest('.fixed') || null;
-  const pressEnter = () => document.querySelector('textarea').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  const pressEnter = () => editor.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
   // "/task", then Enter on the Quick Task entry the popup offers: the window opens (typing alone opens nothing)
   const openQuickTasks = async () => {
     typeAtEnd('/task');
@@ -285,7 +286,7 @@ createRoot(document.getElementById('root')).render(
   const alerts = () => Array.from(popup()?.querySelectorAll('[role="alert"]') || []).map((e) => e.textContent.trim());
   const resetDoc = async (text) => {
     H.setContent(text);
-    await waitFor(() => document.querySelector('textarea').value === text);
+    await waitFor(() => editor.value === text);
   };
   const submitBtn = () => popup()?.querySelector('[data-testid="quick-tasks-submit"]');
   const instanceSelect = () => popup()?.querySelector('#quick-task-instance');
@@ -326,7 +327,7 @@ createRoot(document.getElementById('root')).render(
   // ---- Esc closes, document untouched ----
   p.querySelector('#quick-task-description').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
   check('section 3: Esc closes the window', await waitFor(() => !popup()));
-  check('section 3: cancelling leaves the document as typed (the "/task" stays, like /wf and /ai)', document.querySelector('textarea').value === 'Notes\n/task');
+  check('section 3: cancelling leaves the document as typed (the "/task" stays, like /wf and /ai)', editor.value === 'Notes\n/task');
   check('section 3: cancelling creates nothing', (await H.getTasks()).length === 0);
 
   // ---- /task only at a word boundary ----
@@ -335,7 +336,7 @@ createRoot(document.getElementById('root')).render(
   await sleep(150);
   pressEnter();
   await sleep(150);
-  check('section 3: "path/task" (no word boundary) offers nothing and opens nothing (Enter runs no command)', !popup() && !slashPopup() && /^path\/task/.test(document.querySelector('textarea').value), document.querySelector('textarea').value);
+  check('section 3: "path/task" (no word boundary) offers nothing and opens nothing (Enter runs no command)', !popup() && !slashPopup() && /^path\/task/.test(editor.value), editor.value);
 
   // ---- /wf and /ai still work (through the popup, with Enter) ----
   await resetDoc('Notes\n');
@@ -410,7 +411,7 @@ createRoot(document.getElementById('root')).render(
   const all = await H.getTasks();
   check('section 3: getTasks() (the Tasks page list) returns it, filterable by instanceId like TasksPage.loadTasks does',
     all.length === 1 && all.filter((x) => x.instanceId === beta.id).length === 1);
-  check('section 3: "/task" was removed from the document and nothing was inserted', await waitFor(() => document.querySelector('textarea').value === 'Notes\n'), JSON.stringify(document.querySelector('textarea').value));
+  check('section 3: "/task" was removed from the document and nothing was inserted', await waitFor(() => editor.value === 'Notes\n'), JSON.stringify(editor.value));
   check('section 3: a success notification was recorded (the app\'s usual feedback)',
     await waitFor(() => H.history.some((n) => n.type === 'success' && n.title === 'Task created' && /Rotate the lab certificates/.test(n.message) && /Beta Lab/.test(n.message))),
     JSON.stringify(H.history.map((n) => [n.type, n.title, n.message])));

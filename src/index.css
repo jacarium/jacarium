@@ -2486,6 +2486,50 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   }
 }
 
+/* The CodeMirror editor surface of the Documents page
+   (src/components/features/documents/codemirror/, Settings > General >
+   Editor): the theme's tokens and the editor's mono face, so every theme
+   reads the same as the textarea surface; CodeMirror's own line-number
+   gutter styled like the textarea's; the find bar's match marks; the
+   remote carets of a live document (y-codemirror.next) with their name
+   label always shown, as the textarea's overlay shows it. */
+.sc-editor-cm-host { height: 100%; min-height: 0; }
+.sc-editor-cm.cm-editor {
+  height: 100%;
+  background: var(--os-card);
+  color: var(--os-text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+.sc-editor-cm.cm-editor.cm-focused { outline: none; }
+.sc-editor-cm .cm-scroller { font-family: inherit; line-height: 1.6; overflow: auto; }
+.sc-editor-cm .cm-content { padding: 16px 24px; caret-color: var(--os-text-primary); }
+.sc-editor-cm .cm-line { padding: 0; }
+.sc-editor-cm .cm-cursor, .sc-editor-cm .cm-dropCursor { border-left-color: var(--os-text-primary); }
+.sc-editor-cm.cm-editor .cm-selectionLayer .cm-selectionBackground,
+.sc-editor-cm.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground { background: var(--os-terminal-selection); }   /* focused or not: the same highlight (a menu may hold the focus) */
+.sc-editor-cm .cm-placeholder { color: var(--os-text-muted); font-style: normal; }
+.sc-editor-cm .cm-gutters {
+  background: var(--os-card-secondary);
+  color: var(--os-text-muted);
+  border-right: 1px solid var(--os-border);
+  min-width: 48px;
+  font-size: 0.75rem;
+}
+.sc-editor-cm .cm-lineNumbers .cm-gutterElement { padding: 0 6px; text-align: center; min-width: 48px; }
+.sc-editor-cm .cm-activeLineGutter { background: transparent; }
+.sc-editor-cm .cm-searchMatch { background: color-mix(in srgb, var(--chart-warn) 30%, transparent); }
+.sc-editor-cm .cm-searchMatch-current { background: color-mix(in srgb, var(--chart-warn) 50%, transparent); outline: 1px solid var(--chart-warn); }
+.sc-editor-cm .cm-ySelectionInfo {
+  opacity: 1;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm, 8px);
+  top: -1.4em;
+}
+.sc-editor-cm .cm-ySelectionCaret:hover > .cm-ySelectionCaretDot { transform: none; }
+
 /* Brand typography: the wordmark and tagline of the brand pages
    (src/brand/BrandMark.jsx), in the app font. */
 .brand-wordmark {

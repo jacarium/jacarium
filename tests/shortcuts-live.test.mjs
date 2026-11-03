@@ -30,7 +30,7 @@ const clickTestId = (id) => ev(`(() => { const b = document.querySelector('[data
 const dismiss = async () => { for (let i = 0; i < 6; i++) { const ok = await ev(`(() => { const b = Array.from(document.querySelectorAll('button')).find((x) => /^Got it!$/.test(x.textContent.trim())); if (b) { b.click(); return true; } return false; })()`); if (ok) break; await sleep(300); } };
 const chordText = (id) => ev(`document.querySelector('[data-testid="shortcut-chord-${id}"]')?.textContent.trim()`);
 const findBar = () => ev(`Array.from(document.querySelectorAll('span')).some((s) => /^Find( & Replace)?$/.test(s.textContent.trim()))`);
-const EDITOR = `document.querySelector('.sc-editor-textarea')`;
+const EDITOR = `(document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface)`;   // the editor surface (tests/helpers/editor-surface.mjs)
 const focusEditor = () => ev(`(() => { const ta = ${EDITOR}; if (!ta) return false; ta.focus(); return true; })()`);
 async function openShortcuts() {
   await ev(`window.dispatchEvent(new Event('openAppSettings'))`);

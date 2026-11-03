@@ -1,7 +1,7 @@
 {
   "name": "jacarium",
   "private": true,
-  "version": "3.7.2",
+  "version": "3.8.0",
   "description": "Everything you know and use for technical work, in one place.",
   "homepage": "https://jacarium.com",
   "desktopName": "com.jacarium.app.desktop",
@@ -43,8 +43,8 @@
     "deps:urgent": "node scripts/urgent-dep-update.cjs",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "backend:build": "cd backend && bash build_backend.sh",
-    "electron:build": "npm run build && electron-builder",
-    "electron:build:full": "npm run backend:build && npm run build && electron-builder"
+    "electron:build": "npm run build && node scripts/fetch-spellcheck-dictionaries.mjs && electron-builder",
+    "electron:build:full": "npm run backend:build && npm run build && node scripts/fetch-spellcheck-dictionaries.mjs && electron-builder"
   },
   "build": {
     "appId": "com.jacarium.app",
@@ -82,12 +82,24 @@
         "nsis",
         "portable"
       ],
-      "icon": "build/icons/icon.ico"
+      "icon": "build/icons/icon.ico",
+      "extraResources": [
+        {
+          "from": "build/dictionaries",
+          "to": "dictionaries"
+        }
+      ]
     },
     "linux": {
       "target": [
         "AppImage",
         "deb"
+      ],
+      "extraResources": [
+        {
+          "from": "build/dictionaries",
+          "to": "dictionaries"
+        }
       ],
       "category": "Utility",
       "icon": "build/icons",
@@ -108,6 +120,12 @@
     }
   },
   "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/markdown": "^1.8.1",
     "asn1js": "^3.0.10",
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",
@@ -139,6 +157,7 @@
     "socket.io-client": "^4.8.3",
     "turndown": "^7.2.4",
     "xml2js": "^0.6.2",
+    "y-codemirror.next": "^0.3.6",
     "y-protocols": "^1.0.7",
     "y-websocket": "^3.0.0",
     "yjs": "^13.6.30"
@@ -184,6 +203,7 @@
     },
     "zod": "^4.6.6",
     "fast-uri": "^3.1.9",
-    "joi": "^17.13.9"
+    "joi": "^17.13.9",
+    "minimatch@>=9.0.0": "11.0.3"
   }
 }

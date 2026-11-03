@@ -36,7 +36,8 @@
  * jsdom + esbuild (npm install --no-save jsdom fake-indexeddb) and the
  * backend venv. Run: node tests/taskwarrior-follow.test.mjs
  */
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
+import { spawnReaped } from './helpers/reap.mjs';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -84,7 +85,7 @@ for (const d of [S_DATA, L_HOME, L_PROFILE]) fs.mkdirSync(d, { recursive: true }
 const baseEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('JACARIUM_') && k !== 'APP_AUTH_TOKEN' && k !== 'TASKRC' && k !== 'TASKDATA'));
 const logs = { S: '', L: '' };
 function backend(tag, port, env) {
-  const child = spawn(PYTHON, ['app.py'], { cwd: path.join(REPO, 'backend'), env: { ...baseEnv, PORT: String(port), ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawnReaped(PYTHON, ['app.py'], { cwd: path.join(REPO, 'backend'), env: { ...baseEnv, PORT: String(port), ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdout.on('data', (d) => { logs[tag] += d; });
   child.stderr.on('data', (d) => { logs[tag] += d; });
   return child;

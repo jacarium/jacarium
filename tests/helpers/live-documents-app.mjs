@@ -254,33 +254,25 @@ export async function clickPreviewButton(app) {
 
 /**
  * Snapshot of what the editor pane shows RIGHT NOW, without touching it:
- * whether the preview pane or the textarea is mounted, the textarea's text,
- * and the line-number gutter's state (computed visibility of the numbers
- * block and how many line rows it holds). `previewTitle` is the toolbar
- * button's current title, i.e. the mode the editor believes it is in.
+ * whether the preview pane or the editor is mounted, the editor's text, and
+ * its line-number gutter (how many numbers it shows - the visible lines of
+ * a virtualised document - and the first three). `previewTitle` is the
+ * toolbar button's current title, i.e. the mode the editor believes it is
+ * in. The editor is the CodeMirror surface (tests/helpers/editor-surface.mjs).
  */
 export function readEditorState(app) {
   return app.evaluate(`(() => {
-    const ta = document.querySelector('textarea');
+    const ed = (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface);
     const preview = document.querySelector('.markdown-preview');
     const btn = document.querySelector('button[title="Preview"], button[title="Edit"], button[title^="Preview (all documents)"]');
-    // Gutter: the 48px column left of the textarea; its inner block toggles
-    // visibility until the textarea has been measured.
-    let gutter = null;
-    if (ta) {
-      const column = Array.from(document.querySelectorAll('div')).find((d) => d.style && d.style.width === '48px' && d.firstElementChild && d.parentElement && d.parentElement.contains(ta));
-      const block = column && column.firstElementChild;
-      if (block) {
-        gutter = { visibility: getComputedStyle(block).visibility, rows: block.children.length, numbers: Array.from(block.children).slice(0, 3).map((c) => c.textContent).join(',') };
-      }
-    }
+    const numbers = Array.from(document.querySelectorAll('.sc-editor-cm .cm-lineNumbers .cm-gutterElement')).map((c) => c.textContent.trim()).filter(Boolean);
     return {
       previewOpen: !!preview,
       previewText: preview ? preview.textContent.trim().slice(0, 80) : null,
-      hasTextarea: !!ta,
-      textareaValue: ta ? ta.value : null,
-      textareaLines: ta ? ta.value.split('\\n').length : null,
-      gutter,
+      hasEditor: !!ed,
+      editorValue: ed ? ed.value : null,
+      editorLines: ed ? ed.value.split('\\n').length : null,
+      gutter: ed ? { rows: numbers.length, numbers: numbers.slice(0, 3).join(',') } : null,
       previewTitle: btn ? btn.title : null,
     };
   })()`);
@@ -288,10 +280,10 @@ export function readEditorState(app) {
 
 /** Replace the editor's whole text (select-all + insertText) and let autosave run. */
 export async function setEditorContent(app, text) {
-  await app.evaluate(`(() => { const ta = document.querySelector('textarea'); ta.focus(); ta.select(); })()`);
+  await app.evaluate(`(() => { const ed = (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface); ed.focus(); ed.select(); })()`);
   await app.send('Input.insertText', { text });
   await sleep(1500);
-  return app.evaluate(`document.querySelector('textarea') && document.querySelector('textarea').value`);
+  return app.evaluate(`(() => { const ed = (document.querySelector('.sc-editor-cm') && document.querySelector('.sc-editor-cm').editorSurface); return ed ? ed.value : null; })()`);
 }
 
 /**

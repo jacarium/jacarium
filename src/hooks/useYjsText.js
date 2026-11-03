@@ -10,28 +10,32 @@ import { isWebSocketConnected, onConnectionStatusChange } from '../utils/cloudWe
 import { updateDocument } from '../utils/documents';
 
 /**
- * Hook to synchronize a textarea with Yjs collaborative text
+ * Hook that owns a live document's Y.Text: the provider's lifecycle, when
+ * the text is ready (synced, or confirmed offline), the server's failure
+ * and refusal states, the mirror of the text into IndexedDB, and the user's
+ * name and colour in the awareness. The editor surface
+ * (src/components/features/documents/codemirror/CodeMirrorSurface.js) binds
+ * to the Y.Text and the awareness through y-codemirror.next once `isReady`:
+ * from then on local edits, remote edits and the peers' carets are the
+ * binding's; the hook only seeds the view (and the text) at initialisation.
  *
  * @param {string} documentId - The cloud document ID (UUID) to sync
  * @param {object} socket - Socket.io instance
- * @param {object} textareaRef - Ref to the textarea element
+ * @param {object} textareaRef - Ref to the editor surface (a textarea's API)
  * @param {string} initialContent - Initial content if document is new
  * @param {function} onContentChange - Callback when content changes
  * @param {number} localDocumentId - The local IndexedDB document ID for syncing
- * @returns {object} - { content, cursors, awareness }
+ * @returns {object} - { content, ytext, awareness, isReady, updateContent, setUserInfo, ... }
  */
 export function useYjsText(documentId, socket, textareaRef, initialContent = '', onContentChange, localDocumentId = null) {
   const [content, setContent] = useState(initialContent);
-  const [cursors, setCursors] = useState({});
   const [isConnected, setIsConnected] = useState(false);
   const [isReady, setIsReady] = useState(false); // Track if Yjs is ready for this document (STATE for re-render)
   const ytextRef = useRef(null);
   const awarenessRef = useRef(null);
-  const isLocalChangeRef = useRef(false);
   const currentDocumentIdRef = useRef(documentId);
   const documentContentRef = useRef(initialContent); // Track content for THIS specific document
   const lastSyncedToYjsRef = useRef(initialContent); // Track what we last sent to Yjs
-  const remoteCursorsRef = useRef({}); // Track remote cursor positions for prediction
   const secondaryTimeoutRef = useRef(null); // Track secondary fallback timeout
   const readyDocumentIdRef = useRef(null); // Track WHICH document we're ready for (prevents cross-doc contamination)
   const storeSyncTimerRef = useRef(null); // Debounce timer for the IndexedDB content mirror
@@ -58,68 +62,6 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
   // dropped and the true server state is shown. Per document.
   const [writeRejected, setWriteRejected] = useState(false);
   const writeRejectedRef = useRef(false);
-
-  /**
-   * Build the awareness 'cursor' field for a local cursor position.
-   *
-   * Besides the absolute indices (kept for backwards compatibility with peers
-   * running older builds), this attaches Yjs RELATIVE positions (anchor/head).
-   * Absolute indices are only meaningful against the exact document state the
-   * sender had when broadcasting; when both users type at the same time, the
-   * receiver's document contains concurrent edits the sender hadn't seen yet,
-   * so the absolute index lands in the wrong place and the rendered remote
-   * cursor visibly "flickers" until the peer re-broadcasts. Relative positions
-   * are anchored to CRDT item IDs, so the receiver can resolve them against
-   * its OWN current document state and always get the right index, regardless
-   * of message timing.
-   */
-  const encodeCursorField = (position, selectionEnd) => {
-    const field = { position, selectionEnd };
-    const ytext = ytextRef.current;
-    try {
-      if (ytext && ytext.doc) {
-        field.anchor = Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(ytext, position));
-        field.head = Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(ytext, selectionEnd));
-      }
-    } catch (error) {
-      // Fall back to absolute-only cursor data
-      console.warn('[useYjsText] Could not encode relative cursor position:', error);
-    }
-    return field;
-  };
-
-  /**
-   * Resolve a cursor entry's anchor/head relative positions against the
-   * current local Y.Doc, returning the entry with up-to-date absolute
-   * position/selectionEnd. Entries without relative data (older peers) are
-   * returned unchanged.
-   */
-  const resolveCursorEntry = (entry) => {
-    const ytext = ytextRef.current;
-    if (!ytext || !ytext.doc || (!entry.anchor && !entry.head)) {
-      return entry;
-    }
-    let { position, selectionEnd } = entry;
-    try {
-      if (entry.anchor) {
-        const abs = Y.createAbsolutePositionFromRelativePosition(
-          Y.createRelativePositionFromJSON(entry.anchor), ytext.doc);
-        if (abs && abs.type === ytext) position = abs.index;
-      }
-      if (entry.head) {
-        const abs = Y.createAbsolutePositionFromRelativePosition(
-          Y.createRelativePositionFromJSON(entry.head), ytext.doc);
-        if (abs && abs.type === ytext) selectionEnd = abs.index;
-      }
-    } catch (error) {
-      console.warn('[useYjsText] Could not resolve relative cursor position:', error);
-      return entry;
-    }
-    if (position === entry.position && selectionEnd === entry.selectionEnd) {
-      return entry;
-    }
-    return { ...entry, position, selectionEnd };
-  };
 
   // Update content when initialContent changes (from parent)
   // But only if we're not in the middle of switching documents
@@ -169,8 +111,6 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
       setServerLoadFailed(false);
       writeRejectedRef.current = false; // so is a refused edit
       setWriteRejected(false);
-      setCursors({});
-      remoteCursorsRef.current = {}; // Clear remote cursor tracking
       currentDocumentIdRef.current = documentId;
       documentContentRef.current = initialContent; // Store THIS document's content
       lastSyncedToYjsRef.current = initialContent; // Reset baseline
@@ -257,7 +197,7 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
       // is a failure placeholder, NOT a new document. Don't take it as
       // content and - critically - don't seed it from our local copy (see
       // the serverLoadFailed comment above for the divergent-reseed hazard).
-      // The textarea keeps showing the local IndexedDB copy; updateContent
+      // The editor keeps showing the local IndexedDB copy; updateContent
       // is blocked while the flag is set, and DocumentEditor renders the
       // read-only failure banner.
       if (provider.serverStateLoadFailed) {
@@ -278,14 +218,14 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
         documentContentRef.current = serverContent; // Update ref with server content
         lastSyncedToYjsRef.current = serverContent; // Set baseline to server content
 
-        // CRITICAL: Update textarea directly with server content
+        // The editor takes the server's content at once (the binding follows when it attaches)
         // This ensures the editor shows content immediately when opening a shared document
         if (textareaRef?.current) {
-          console.log(`[useYjsText] About to update textarea - current: ${textareaRef.current.value.length}, new: ${serverContent.length}`);
+          console.log(`[useYjsText] About to update the editor - current: ${textareaRef.current.value.length}, new: ${serverContent.length}`);
           textareaRef.current.value = serverContent;
-          console.log(`[useYjsText] Updated textarea with server content (${serverContent.length} chars)`);
+          console.log(`[useYjsText] Updated the editor with server content (${serverContent.length} chars)`);
         } else {
-          console.warn(`[useYjsText] No textarea ref available to update!`);
+          console.warn(`[useYjsText] No editor ref available to update!`);
         }
 
         // Sync server content to IndexedDB so offline mode has latest content
@@ -307,25 +247,15 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
         if (currentContent) {
           console.log(`[useYjsText] Server empty, initializing with current content (${currentContent.length} chars)`);
 
-          // Ensure textarea has the content BEFORE we insert into Yjs
+          // Ensure the editor has the content BEFORE we insert into Yjs
           if (textareaRef?.current && textareaRef.current.value !== currentContent) {
-            console.log(`[useYjsText] WARNING: Textarea value mismatch! Fixing - textarea: ${textareaRef.current.value.length}, expected: ${currentContent.length}`);
+            console.log(`[useYjsText] WARNING: editor value mismatch! Fixing - editor: ${textareaRef.current.value.length}, expected: ${currentContent.length}`);
             textareaRef.current.value = currentContent;
           }
 
-          // CRITICAL: Mark as local change so observer doesn't treat our own insert as remote
-          // This prevents duplication when:
-          // 1. We start offline and connect later (server echoes back our content)
-          // 2. Server doesn't persist state (fresh start each time)
-          isLocalChangeRef.current = true;
-          try {
-            ydoc.transact(() => {
-              ytext.insert(0, currentContent);
-            });
-          } finally {
-            // Use finally to ensure flag is reset even if insert fails
-            isLocalChangeRef.current = false;
-          }
+          ydoc.transact(() => {
+            ytext.insert(0, currentContent);
+          });
 
           lastSyncedToYjsRef.current = currentContent; // Set baseline
         } else {
@@ -393,7 +323,7 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
     }, 3000);
 
     // Listen to Yjs text changes
-    const handleYTextChange = async (event) => {
+    const handleYTextChange = async () => {
       // CRITICAL: Ignore changes until initialization is complete FOR THIS DOCUMENT
       // Use REF (not state) for synchronous check to avoid race condition
       if (readyDocumentIdRef.current !== documentId) {
@@ -402,89 +332,13 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
       }
 
       const newContent = ytext.toString();
-      const isLocal = isLocalChangeRef.current;
+      // Remote changes reach the view through the surface's binding
+      // (y-codemirror.next), which also moves the caret and the peers'
+      // carets; before the binding exists the surface takes the text when
+      // it binds (bindYjs). Nothing to write into the DOM here.
 
-      // For REMOTE changes ONLY, update the DOM directly (bypass React)
-      if (!isLocal) {
-        if (!textareaRef?.current) {
-          console.error('[COLLAB] textareaRef unavailable for remote change');
-        } else {
-          const textarea = textareaRef.current;
-          const cursorStart = textarea.selectionStart || 0;
-          const cursorEnd = textarea.selectionEnd || 0;
-
-          // Calculate cursor offset based on delta
-          let position = 0;
-          let offsetStart = 0;
-          let offsetEnd = 0;
-
-          if (event?.delta) {
-            event.delta.forEach(change => {
-              if (change.retain !== undefined) {
-                position += change.retain;
-              }
-              if (change.insert !== undefined) {
-                const insertLength = typeof change.insert === 'string' ? change.insert.length : 1;
-                if (position <= cursorStart) {
-                  offsetStart += insertLength;
-                  offsetEnd += insertLength;
-                } else if (position < cursorEnd) {
-                  offsetEnd += insertLength;
-                }
-                position += insertLength;
-              }
-              if (change.delete !== undefined) {
-                if (position < cursorStart) {
-                  const deleteLength = Math.min(change.delete, cursorStart - position);
-                  offsetStart -= deleteLength;
-                  offsetEnd -= deleteLength;
-                } else if (position < cursorEnd) {
-                  offsetEnd -= Math.min(change.delete, cursorEnd - position);
-                }
-              }
-            });
-          }
-
-          // Update DOM directly (no React re-render)
-          textarea.value = newContent;
-
-          // Restore cursor with adjustment
-          const adjustedStart = Math.max(0, Math.min(newContent.length, cursorStart + offsetStart));
-          const adjustedEnd = Math.max(0, Math.min(newContent.length, cursorEnd + offsetEnd));
-          textarea.setSelectionRange(adjustedStart, adjustedEnd);
-
-          // CRITICAL: Broadcast adjusted cursor position to other users
-          // This ensures that when Alice types, Bob's cursor appears in the correct position on Alice's screen
-          if (awarenessRef.current) {
-            awarenessRef.current.setLocalStateField('cursor', encodeCursorField(adjustedStart, adjustedEnd));
-          }
-
-          // CRITICAL: Update lastSyncedToYjsRef so next local edit diffs against this
-          lastSyncedToYjsRef.current = newContent;
-        }
-      }
-
-      // Re-resolve remote cursors that carry relative positions against the
-      // just-changed document (local AND remote changes). This is what keeps a
-      // peer's cursor pinned to the right spot while text shifts around it,
-      // instead of waiting for that peer to re-broadcast an absolute index.
-      const trackedCursors = remoteCursorsRef.current;
-      if (Object.keys(trackedCursors).length > 0) {
-        let cursorsChanged = false;
-        const resolvedCursors = {};
-        Object.entries(trackedCursors).forEach(([userId, entry]) => {
-          const resolved = resolveCursorEntry(entry);
-          if (resolved !== entry) cursorsChanged = true;
-          resolvedCursors[userId] = resolved;
-        });
-        if (cursorsChanged) {
-          remoteCursorsRef.current = resolvedCursors;
-          setCursors(resolvedCursors);
-        }
-      }
-
-      // DON'T update React state for collaborative documents - we're using uncontrolled textarea
-      // The DOM is already updated directly above, and setContent would trigger a re-render that resets the textarea
+      // DON'T update React state for collaborative documents - the surface is bound to the Y.Text;
+      // setContent would trigger a re-render for nothing
       // Only update the ref for consistency
       documentContentRef.current = newContent;
 
@@ -514,54 +368,9 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
         }, 400);
       }
 
-      // Note: isLocalChangeRef is reset in updateContent() immediately after the transaction
     };
 
     ytext.observe(handleYTextChange);
-
-    // Listen to awareness changes (cursors)
-    const handleAwarenessChange = () => {
-      const states = awareness.getStates();
-      const newCursors = {};
-
-      // console.log(`[useYjsText] Awareness changed - total states: ${states.size}, my clientID: ${awareness.clientID}`);
-
-      states.forEach((state, clientId) => {
-        // console.log(`[useYjsText] State for client ${clientId}:`, state);
-
-        // Skip our own cursor
-        if (clientId === awareness.clientID) {
-          // console.log(`[useYjsText] Skipping own cursor (clientID: ${clientId})`);
-          return;
-        }
-
-        if (state.cursor) {
-          const userId = state.user?.name || clientId;
-          // Resolve relative positions (if the peer sent them) against OUR
-          // current document state - see encodeCursorField for why. The
-          // anchor/head are kept on the entry so later text changes can
-          // re-resolve without waiting for the peer's next broadcast.
-          newCursors[userId] = resolveCursorEntry({
-            position: state.cursor.position,
-            selectionEnd: state.cursor.selectionEnd || state.cursor.position,
-            anchor: state.cursor.anchor,
-            head: state.cursor.head,
-            color: state.user?.color || '#666',
-            name: state.user?.name || `User ${clientId}`
-          });
-          // console.log(`[useYjsText] Added cursor for user: ${userId}, pos: ${state.cursor.position}`);
-        } else {
-          // console.log(`[useYjsText] No cursor data for client ${clientId}`);
-        }
-      });
-
-      console.log('[useYjsText] Awareness change - setting cursors:', newCursors);
-      remoteCursorsRef.current = newCursors; // Store for local adjustment
-      setCursors(newCursors);
-    };
-
-    // console.log(`[useYjsText] Registered awareness change handler for document ${documentId}`);
-    awareness.on('change', handleAwarenessChange);
 
     // Cleanup on unmount or when switching documents
     return () => {
@@ -587,12 +396,10 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
       }
       setIsReady(false); // Mark as not ready during cleanup
       readyDocumentIdRef.current = null; // Clear ready document ID
-      remoteCursorsRef.current = {}; // Clear remote cursor tracking
       unsubscribeLoadFailed();
       unsubscribeReseeded();
       unsubscribeRejected();
       ytext.unobserve(handleYTextChange);
-      awareness.off('change', handleAwarenessChange);
       cleanupYjsProvider(documentId);
     };
     // providerEpoch: bumped on server-side reseed to force teardown + fresh sync.
@@ -603,7 +410,9 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
   }, [documentId, socket, providerEpoch]); // Don't include isReady - would cause infinite loop
 
   /**
-   * Update local content (called from textarea onChange)
+   * Push the whole new text into the Y.Text as one minimal change (what the
+   * editor calls before the surface is bound; a bound surface syncs its own
+   * edits and never calls this)
    */
   const updateContent = (newContent, cursorPosition) => {
     // Read-only while the server can't serve this document's real state:
@@ -630,24 +439,15 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
     // CRITICAL: Get current Yjs state (includes all remote updates)
     const currentYjsContent = ytext.toString();
 
-    // Don't update if textarea content matches Yjs exactly
+    // Don't update if the editor's content matches Yjs exactly
     if (currentYjsContent === newContent) {
       // Update baseline even if skipping (for next time)
       lastSyncedToYjsRef.current = newContent;
       return;
     }
 
-    isLocalChangeRef.current = true;
-
-    // Calculate delta between current Yjs state and textarea
-    // This properly handles remote changes that were applied to the DOM
-    // Declare variables outside transact so we can use them for cursor adjustment
-    let changePosition = 0;
-    let deleteCount = 0;
-    let insertLength = 0;
-
-    try {
-      ytext.doc.transact(() => {
+    // the one change between the Y.Text and the new text
+    ytext.doc.transact(() => {
         // Find what changed using character-level diff
         let i = 0;
         const minLen = Math.min(currentYjsContent.length, newContent.length);
@@ -667,91 +467,19 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
         }
 
         // Apply delta
-        changePosition = i;
-        deleteCount = yjsEnd - i;
+        const deleteCount = yjsEnd - i;
         const insertText = newContent.substring(i, newEnd);
-        insertLength = insertText.length;
-
         if (deleteCount > 0) {
           ytext.delete(i, deleteCount);
         }
-        if (insertLength > 0) {
+        if (insertText.length > 0) {
           ytext.insert(i, insertText);
         }
-      });
+    });
 
-      // Update baseline to new content
-      lastSyncedToYjsRef.current = newContent;
-
-      // CRITICAL: Adjust remote cursors optimistically based on local change
-      // This prevents cursor "lag" on the local screen
-      const netChange = insertLength - deleteCount; // Net change in content length
-      const currentCursors = remoteCursorsRef.current;
-      const adjustedCursors = {};
-
-      console.log('[useYjsText] Adjusting cursors - changePos:', changePosition, 'netChange:', netChange, 'currentCursors:', currentCursors);
-
-      Object.entries(currentCursors).forEach(([userId, cursorData]) => {
-        // Cursors carrying Yjs relative positions were already re-resolved
-        // against the post-edit document by the ytext observer (which runs
-        // synchronously at the end of the transaction above) - shifting them
-        // again here would double-apply the change.
-        if (cursorData.anchor || cursorData.head) {
-          adjustedCursors[userId] = cursorData;
-          return;
-        }
-        const pos = cursorData.position;
-        const selEnd = cursorData.selectionEnd || pos;
-
-        // Adjust cursor position based on change
-        let newPos = pos;
-        let newSelEnd = selEnd;
-
-        if (pos > changePosition) {
-          // Cursor is after the change - shift it
-          newPos = Math.max(changePosition, pos + netChange);
-        } else if (pos === changePosition && insertLength > 0) {
-          // Cursor is at change position and we're inserting - shift it
-          newPos = pos + insertLength;
-        }
-
-        if (selEnd > changePosition) {
-          newSelEnd = Math.max(changePosition, selEnd + netChange);
-        } else if (selEnd === changePosition && insertLength > 0) {
-          newSelEnd = selEnd + insertLength;
-        }
-
-        adjustedCursors[userId] = {
-          ...cursorData,
-          position: newPos,
-          selectionEnd: newSelEnd
-        };
-      });
-
-      // Update cursors state with adjusted positions
-      console.log('[useYjsText] Setting adjusted cursors:', adjustedCursors);
-      remoteCursorsRef.current = adjustedCursors;
-      setCursors(adjustedCursors);
-    } finally {
-      isLocalChangeRef.current = false;
-    }
-
-    // Update awareness with cursor position
-    if (awarenessRef.current && cursorPosition !== undefined) {
-      awarenessRef.current.setLocalStateField('cursor', encodeCursorField(cursorPosition, cursorPosition));
-    }
-  };
-
-  /**
-   * Update cursor position
-   */
-  const updateCursor = (position, selectionEnd) => {
-    if (!awarenessRef.current) {
-      console.log('[useYjsText] Cannot update cursor - awareness not ready');
-      return;
-    }
-
-    awarenessRef.current.setLocalStateField('cursor', encodeCursorField(position, selectionEnd || position));
+    // Update baseline to new content
+    lastSyncedToYjsRef.current = newContent;
+    void cursorPosition;   // the caret is the surface's; the binding publishes it
   };
 
   /**
@@ -781,18 +509,20 @@ export function useYjsText(documentId, socket, textareaRef, initialContent = '',
     });
   };
 
+  // eslint-disable-next-line react-hooks/refs -- see ytext / awareness below
   return {
     content,
-    cursors,
     isConnected,
     updateContent,
-    updateCursor,
     setUserInfo,
-    // Deliberate ref read: consumers (DocumentEditor) address the live CRDT
+    // Deliberate ref reads: consumers (DocumentEditor) address the live CRDT
     // directly and cache-bust with yjsContentVersion; storing ytext in state
-    // would just duplicate the mutable object identity.
-    // eslint-disable-next-line react-hooks/refs
+    // would just duplicate the mutable object identity. The awareness goes
+    // with it, for the CodeMirror surface's binding (remote carets).
+    /* eslint-disable react-hooks/refs */
     ytext: ytextRef.current, // Expose ytext for direct manipulation
+    awareness: awarenessRef.current,
+    /* eslint-enable react-hooks/refs */
     isReady, // Expose ready state (now reactive)
     // True when the server reported it could not load this document's
     // persisted state: DocumentEditor renders the local copy read-only with

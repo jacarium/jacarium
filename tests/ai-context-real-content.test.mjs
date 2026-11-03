@@ -92,7 +92,7 @@ async function goRail(page, label) {
   await page.evaluate((label) => { const b = Array.from(document.querySelectorAll('button')).find((x) => (x.getAttribute('title') || x.getAttribute('aria-label') || x.textContent.trim()) === label); if (b) b.click(); }, label);
   await page.waitForTimeout(900);
 }
-const editor = (page) => page.locator('textarea.sc-editor-textarea').first();
+const editor = (page) => page.locator('.sc-editor-cm .cm-content').first();   // the editor surface (tests/helpers/editor-surface.mjs)
 // the AI chat sidebar's input (the one beside the context chips)
 const chatInput = (page) => page.locator('div:has(> [data-testid="ai-context-chip"]) textarea:visible').first();
 async function ask(page, requests, question) {
