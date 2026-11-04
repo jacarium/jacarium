@@ -155,7 +155,7 @@ await H.initializePlatform();
 report('\n--- 1. the tab and the list (browser, Linux) ---');
 await open('shortcuts');
 const rail = () => $$('[data-testid="settings-modal"] .sc-rail-tab').map((t) => t.textContent.trim());
-check('the rail offers Shortcuts after AI Providers', rail().join() === 'General,Editor,Integrations,AI Providers,Shortcuts,About', rail().join());
+check('the rail offers Shortcuts after AI Providers (General, Editor, Theme, Integrations, AI Providers, Shortcuts, Debug, About)', rail().join() === 'General,Editor,Theme,Integrations,AI Providers,Shortcuts,Debug,About', rail().join());
 const section = await waitFor(() => $('[data-testid="shortcuts-settings"]'));
 check('the Shortcuts section renders, stored on this browser', !!section && /stored on this device \(this browser\)/.test(section.textContent));
 check('the groups App, Pages, Editor, Workflow, JQL, Panels are listed', ['app', 'pages', 'editor', 'workflow', 'jql', 'panels'].every((g) => $(`[data-testid="shortcuts-section-${g}"]`)));

@@ -2358,7 +2358,7 @@ function mount(root, adapter) {
     alertModalMessage.textContent = message;
 
     // the icon by type, in the role colours
-    alertModalIcon.className = 'fas ui-modal-icon ' + ({ error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle', success: 'fa-check-circle' }[type] || 'fa-info-circle');
+    alertModalIcon.className = 'fas ui-modal-icon ' + ({ error: 'fa-circle-exclamation', warning: 'fa-triangle-exclamation', success: 'fa-circle-check' }[type] || 'fa-circle-info');
     alertModalIcon.style.color = ({ error: 'var(--chart-bad)', warning: 'var(--chart-warn)', success: 'var(--chart-good)' })[type] || 'var(--os-blue)';
 
     alertModal.classList.remove('hidden');

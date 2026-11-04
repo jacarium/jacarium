@@ -29,6 +29,7 @@ const https = require('https');
 const os = require('os');
 const path = require('path');
 const tls = require('tls');
+const net = require('net');
 const { updateCertificatePin } = require('./central-cert-pins.cjs');
 const { distrustReason, chainFromNodeCertificate } = require('./cert-distrust.cjs');
 const { chainFromSocket, parseCertificates, fingerprintOf, decideTrust, verifyChain, pinRoot, pinEntry } = require('./tls-trust.cjs');
@@ -89,12 +90,19 @@ function writeLink(storePath, record) {
 // them - is written. The agent's createConnection does exactly that.
 // ---------------------------------------------------------------------------
 
+// SNI carries a host name only (RFC 6066): a server addressed by IP gets
+// none - Node 26 refuses an IP as servername, older Node only warned.
+function sniFor(hostname) {
+  const host = String(hostname || '').replace(/^\[|\]$/g, '');
+  return host && !net.isIP(host) ? { servername: host } : {};
+}
+
 /** GET /api/tls/root.crt over a connection that accepts exactly the leaf being decided about; '' on 404 or any failure. */
 function fetchRootCertificate(url, leafFingerprint, timeoutMs = 8000) {
   return new Promise((resolve) => {
     const agent = new https.Agent({ keepAlive: false, rejectUnauthorized: false });
     agent.createConnection = (options, cb) => {
-      const socket = tls.connect({ host: url.hostname, port: Number(url.port) || 443, servername: url.hostname, rejectUnauthorized: false });
+      const socket = tls.connect({ host: url.hostname, port: Number(url.port) || 443, ...sniFor(url.hostname), rejectUnauthorized: false });
       socket.once('secureConnect', () => {
         const chain = chainFromSocket(socket);
         let leaf = null;
@@ -130,7 +138,7 @@ function fetchRootCertificate(url, leafFingerprint, timeoutMs = 8000) {
 function trustedAgent(url, { pinsPath, onPinMismatch }) {
   const agent = new https.Agent({ keepAlive: false, rejectUnauthorized: false });
   agent.createConnection = (options, cb) => {
-    const socket = tls.connect({ host: url.hostname, port: Number(url.port) || 443, servername: url.hostname, rejectUnauthorized: false });
+    const socket = tls.connect({ host: url.hostname, port: Number(url.port) || 443, ...sniFor(url.hostname), rejectUnauthorized: false });
     let settled = false;
     const done = (err) => { if (settled) return; settled = true; if (err) { socket.destroy(); cb(err); } else cb(null, socket); };
     socket.once('error', (e) => done(e));
@@ -343,7 +351,13 @@ async function homeServerVersion({ url, storePath, pinsPath, onPinMismatch } = {
     if (response.status !== 200 || !body || typeof body.app !== 'string') {
       return { reachable: true, linked: true, url: base, app: null, protocol: null, legacy: false, error: `Unexpected answer (HTTP ${response.status})` };
     }
-    return { reachable: true, linked: true, url: base, app: body.app, protocol: Number(body.protocol) || 1, legacy: false, error: null, capabilities: body.capabilities || null };
+    // the server's runtimes (Settings > About): version strings only, each checked - an older server has none
+    const runtimes = {};
+    for (const key of ['python', 'node']) {
+      const value = body.runtimes && body.runtimes[key];
+      if (typeof value === 'string' && /^\d+\.\d+(\.\d+)?([a-z0-9.+-]{0,20})?$/.test(value)) runtimes[key] = value;
+    }
+    return { reachable: true, linked: true, url: base, app: body.app, protocol: Number(body.protocol) || 1, legacy: false, error: null, capabilities: body.capabilities || null, runtimes };
   } catch (error) {
     return { reachable: false, linked: true, url: base, app: null, protocol: null, legacy: false, error: error.message };
   }

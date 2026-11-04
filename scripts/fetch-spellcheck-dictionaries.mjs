@@ -165,6 +165,12 @@ async function main() {
     writeAtomic(opt.dir, entry.file, content);
     console.log(`   ${entry.file}: written, sha256 ok`);
   }
+  // a dictionary left from an earlier pin (a re-pin moved en-US-10-1 to 10-2) is not in the manifest and
+  // must not ship: the directory is packaged whole (extraResources), so it holds the manifest's files alone
+  const wanted = new Set(files.map((e) => e.file));
+  for (const name of fs.readdirSync(opt.dir)) {
+    if (/\.bdic$/.test(name) && !wanted.has(name)) { fs.rmSync(path.join(opt.dir, name)); console.log(`   ${name}: removed (not in the manifest)`); }
+  }
   const again = verifyDir(opt.dir, files);
   if (again.bad.length) flag(`after fetching, ${again.bad.map((b) => `${b.file} (${b.reason})`).join(', ')} still do not verify`);
   return finish();

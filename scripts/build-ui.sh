@@ -62,6 +62,11 @@ need_cmd node "install Node.js (see .nvmrc)"
 log_info "vendoring third-party assets for the backend's own pages (no CDN)"
 node scripts/vendor-assets.mjs --strict
 
+# every package that ships, with its licence text, for Settings > About
+# (public/licences.json, generated from the lock files - never by hand)
+log_info "the open-source licence list"
+node scripts/generate-licences.mjs --strict
+
 write_build_mode "$BUILD_MODE"
 log_info "build mode: $BUILD_MODE"
 [ "$BUILD_MODE" = production ] || log_warning "build-mode.cjs now says '$BUILD_MODE' - ./rebuild.sh --testing restores it; by hand: scripts/build-ui.sh --production, or git checkout build-mode.cjs"

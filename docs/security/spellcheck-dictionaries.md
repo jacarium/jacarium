@@ -41,12 +41,12 @@ script red-flags a manifest whose Electron version is not the installed one, and
 
 | | |
 |---|---|
-| Electron release | [v42.11.17](https://github.com/electron/electron/releases/tag/v42.11.17), asset `hunspell_dictionaries.zip` uploaded 2026-10-20 16:23 UTC (13.5 days old when pinned on 2026-11-03: past the 7-day rule) |
-| Asset sha256 | `5ce6e2a2e3d3faee770ce460c7eaaa3ede93ecfe29d4f46eaf3b88cbb423db28`, 34,144,908 bytes - the digest GitHub reports for the asset (`digest` in the release API) and the sha256 of the download agree |
+| Electron release | [v45.1.0](https://github.com/electron/electron/releases/tag/v45.1.0), asset `hunspell_dictionaries.zip` uploaded 2026-10-27 16:53 UTC (7.5 days old when pinned on 2026-11-04: past the 7-day rule). Before, [v42.11.17](https://github.com/electron/electron/releases/tag/v42.11.17)'s asset of 2026-10-20 (the history below) |
+| Asset sha256 | `9fe45fc5b34e9887d09dcfca73c7f75f5c849e84faa9322e823ed8c7a9a955d3`, 34,144,925 bytes - the digest GitHub reports for the asset (`digest` in the release API) and the sha256 of the download agree |
 | Uploader | the Electron release bot (`sudowoodo-release-uploader[bot]`), like every asset of the release |
-| `en-US-10-1.bdic` | `a075b01d9b015c616511a9e87da77da3d9881621db32f584e4606ddabf1c1100`, 451,968 bytes - SCOWL (Kevin Atkinson), permissive |
-| `en-GB-10-1.bdic` | `eaed4a709abdbd2f14aa143f25fe9c4c1b44591c7cb1942f75f968fb2fcd3cf8`, 451,994 bytes - SCOWL, permissive |
-| `en-AU-10-1.bdic` | `9e045c63b05e5435cd2045c8db9e2e15239a896d3363298fcbba2a3890d74eb1`, 453,787 bytes - SCOWL, permissive |
+| `en-US-10-2.bdic` | `b0d80e6b6c5491879365e176ecbd98074602a663429bcfcfb0a5a8375c051f13`, 451,982 bytes - SCOWL (Kevin Atkinson), permissive (Chromium 156 carries the 10-2 revision of the three English word lists; 42's were 10-1) |
+| `en-GB-10-2.bdic` | `e014c23d2215f093205343b9b8805e17c8d8e115d314d93fd5ba51eadf05cff2`, 452,008 bytes - SCOWL, permissive |
+| `en-AU-10-2.bdic` | `13427b9828773291cde00ba266a58fd5110ba6f1d4b29ed86b49f4b3afdf0a39`, 453,801 bytes - SCOWL, permissive |
 | `cs-CZ-3-0.bdic` | `fd31ba12d939c43cc71d5a00441df9bace5edcdeca735ade0e84e5f10cd410d6`, 3,108,527 bytes - GPL-2.0 |
 | `sk-SK-3-0.bdic` | `c4ef7e950bda27505c9103cd72abc01cd8d3f1a36d85708b9cc6d8e7dd230547`, 1,668,425 bytes - GPL-2.0 / LGPL-2.1 / MPL-1.1 |
 | Licence texts | `LICENSE` `d63c6240d6f6330a025aade63d317d7ff04f95fc3325fe6aea3848ca452f64ea`, `COPYING` `cde91164e09e33e94e1db4529aa77f89bc0c392b1ed138d689c66dfbd11d9701`, and `COPYING.MIT`, `COPYING.MPL`, `COPYING.GPL3`, `COPYING.LGPL`, `COPYING.LESSER`, `COPYING.Apache` as the zip carries them (every hash in the manifest) |
@@ -96,3 +96,9 @@ and add a row to the table above with the new release, its date and the hashes.
 
 - 2026-11-03: first pinned, to Electron v42.11.17 (the release in use), four languages: en-US, en-GB, cs-CZ, sk-SK.
 - 2026-11-03: en-AU added from the same pinned asset (the maintainer's request), five languages.
+- 2026-11-04: re-pinned to Electron v45.1.0's asset with the move to Electron 45 (42 left Electron's support window
+  when 45.0.0 was released on 2026-10-21: only the latest three majors get security fixes). `--repin` after
+  `npm install electron@^45.1.0`: the zip's digest as GitHub reports it, 7.5 days old; the three English
+  dictionaries moved from the 10-1 to the 10-2 revision (new hashes above), Czech and Slovak and every licence
+  text are byte for byte the files of the previous pin. The stale 10-1 files are removed from build/dictionaries
+  by the fetch (files not in the manifest), so a packaged app carries the manifest's files alone.

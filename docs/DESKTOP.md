@@ -2,6 +2,24 @@
 
 Profiles, the Google Calendar integration and the connection indicator.
 
+## The runtime
+
+The desktop app runs on Electron (`electron` in package.json, pinned by its
+lock file); Settings > About > Version shows the Electron, Chromium and
+Node.js versions the running app has. Electron supports only its latest
+three major versions, so a major that has fallen out of that window gets no
+more security fixes: since 3.9.0 the app is built on **Electron 45**
+(45.1.0: Chromium 156, Node.js 24.22.1), because 42 left the window when
+45.0.0 was released on 2026-10-21. The desktop build stays on Electron's own
+Node 24 (no Electron ships Node 26 yet). What that means for the platforms:
+macOS 13 (Ventura) or later (Electron 44 dropped macOS 12), 64-bit Windows
+and Linux only (Electron 44 dropped Windows 32-bit and Linux armv7l; the
+builds here were x64 and arm64 already). A new Electron major is taken once
+its release is seven days old, like every other dependency (the security
+lane applies when it fixes a published advisory); the spell-checking
+dictionaries are re-pinned to the same release's asset
+([docs/security/spellcheck-dictionaries.md](security/spellcheck-dictionaries.md)).
+
 ## Profiles (desktop)
 
 The desktop app can keep several separate sets of data - documents, tasks,
@@ -204,6 +222,13 @@ the suggestions and "Add to dictionary"; Settings > Editor turns
 the checking off and on, lists the custom words and, on Windows and Linux,
 chooses the languages. (In a browser the browser's own checker does the
 underlining; Shift + right-click opens its menu with the suggestions.)
+The custom words are part of the database export (Settings > General >
+Export database: a `customWords` field; importing a file merges them into
+the dictionary, keeping what is there, and an older export without the field
+imports as before), and Settings > Editor exports them on their own as
+`jacarium-custom-words.txt` (one word per line, UTF-8) and imports such a
+file (or a JSON array) - merged, with the count of words added, already
+there and skipped (anything that is not a single word of 1-64 characters).
 
 The desktop app uses Electron's spell checker (Chromium's). On macOS that is
 the system's own checker, which follows the languages in System Settings. On

@@ -64,6 +64,27 @@ const searchMatches = StateField.define({
   provide: (field) => EditorView.decorations.from(field),
 });
 
+/**
+ * CodeMirror draws the document at its real height up to 7,000,000 px
+ * (@codemirror/view's VP.MaxDOMHeight); taller than that, it scales the
+ * height map down to fit the browser's maximum element height and works
+ * from estimates. In that regime drawSelection()'s cursor layer breaks
+ * scrolling (@codemirror/view 6.43.15, the newest: measured in
+ * tests/editor-huge-document-scroll.test.mjs - the view goes empty and the
+ * scroll position jumps back towards the end, with the bare editor too):
+ * its measure of the cursor with coordsAtPos() runs on every view update
+ * whether or not the cursor is in the viewport, unlike the selection
+ * layer, which stays inside the viewport. So the drawn selection is off
+ * for a document that tall - the browser's own caret and selection colour
+ * show instead - and on for everything else. The estimate uses the lines
+ * and the default line height with room for wrapped lines, which are
+ * taller than estimated.
+ */
+export const HUGE_DOCUMENT_HEIGHT = 5000000;
+export function isHugeDocument(doc, lineHeight) {
+  return doc.lines * (lineHeight > 0 ? lineHeight : 24) > HUGE_DOCUMENT_HEIGHT;
+}
+
 /** The common-prefix / common-suffix diff of two strings as one CodeMirror change, or null when equal. */
 export function diffChange(oldText, newText) {
   if (oldText === newText) return null;
@@ -94,6 +115,9 @@ export class CodeMirrorSurface {
     this._placeholder = new Compartment();
     this._spellcheck = new Compartment();
     this._collab = new Compartment();
+    // drawSelection(), off for a document too tall for CodeMirror's real-height rendering (isHugeDocument)
+    this._selectionDrawing = new Compartment();
+    this._hugeDocument = false;
     this._placeholderText = placeholder;
     this._readOnlyValue = !!readOnly;
     this._spellcheckValue = !!spellcheck;
@@ -136,16 +160,23 @@ export class CodeMirrorSurface {
         // which the textarea took through `.value`, silently - not typing)
         const typed = update.transactions.some((tr) => !tr.annotation(externalChange) && !tr.annotation(ySyncAnnotation));
         if (typed) this.handlers.onChange?.({ target: this, type: 'input' });
+        // the document crossed the height where the drawn selection must go (or come back): switch it after this update
+        const huge = isHugeDocument(update.state.doc, update.view.defaultLineHeight);
+        if (huge !== this._hugeDocument) {
+          this._hugeDocument = huge;
+          queueMicrotask(() => { if (this.view === update.view) this.view.dispatch({ effects: this._selectionDrawing.reconfigure(huge ? [] : drawSelection()) }); });
+        }
       }
       if (update.selectionSet || update.docChanged) this.handlers.onSelect?.();
     });
-    // (kept to build a fresh state for the next document: replaceDocument)
-    this._extensions = () => [
+    // (kept to build a fresh state for the next document: replaceDocument;
+    // `text` is that document, for the drawn-selection decision)
+    this._extensions = (text = doc) => [
       Prec.highest(domHandlers),
       listener,
       showLineNumbers ? lineNumbers() : [],
       highlightSpecialChars(),
-      drawSelection(),
+      this._selectionDrawing.of(this._selectionDrawingFor(text)),
       markdownLanguage,
       spellcheckSkip,
       searchMatches,
@@ -167,10 +198,19 @@ export class CodeMirrorSurface {
    * previous one, no selection, no find marks, no binding (a live document
    * binds again through bindYjs), the scroll at the top.
    */
+  /** drawSelection() for a document (a string: the one a state is built with), or nothing for a huge one (isHugeDocument). */
+  _selectionDrawingFor(text) {
+    const s = String(text ?? '');
+    let lines = 1;
+    for (let i = s.indexOf('\n'); i !== -1; i = s.indexOf('\n', i + 1)) lines += 1;
+    this._hugeDocument = isHugeDocument({ lines }, this.view ? this.view.defaultLineHeight : 0);
+    return this._hugeDocument ? [] : drawSelection();
+  }
+
   replaceDocument(text) {
     this._yjs = null;
     this._valueCache = { doc: null, text: '' };
-    this.view.setState(EditorState.create({ doc: String(text ?? ''), extensions: this._extensions() }));
+    this.view.setState(EditorState.create({ doc: String(text ?? ''), extensions: this._extensions(String(text ?? '')) }));
     this.view.scrollDOM.scrollTop = 0;
   }
 

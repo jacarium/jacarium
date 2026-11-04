@@ -17,7 +17,7 @@
 
  <div class="panel rounded-lg shadow-sm">
  <h3 class="text-lg font-medium mb-2">
- <i class="fas fa-tachometer-alt mr-2"></i> Memory Accounting
+ <i class="fas fa-gauge-high mr-2"></i> Memory Accounting
  </h3>
  {% call ui.filter_bar() %}
     <label class="ui-field">{{ ui.icon('search') }}<input autocomplete="off" aria-label="Filter processes" type="search" id="processFilter" data-ui-search oninput="window.diagBusy ? window.diagBusy.filter(this, function () { filterCgroups(); }) : filterCgroups()" placeholder="Filter processes..."

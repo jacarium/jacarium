@@ -213,7 +213,9 @@ function performRequest(url, address, family, options, maxBytes, timeoutMs) {
       headers,
       // SNI + certificate hostname check still use the real hostname; the
       // chain goes through the distrust list too (electron/cert-distrust.cjs).
-      ...(isHttps ? { servername: url.hostname.replace(/^\[|\]$/g, ''), checkServerIdentity } : {}),
+      // (no SNI for a URL that is itself an IP address - RFC 6066, and Node 26
+      // refuses it; the certificate is then checked against that IP)
+      ...(isHttps ? { ...(net.isIP(url.hostname.replace(/^\[|\]$/g, '')) ? {} : { servername: url.hostname.replace(/^\[|\]$/g, '') }), checkServerIdentity } : {}),
       // Never reuse pooled sockets bound to another (pinned) address.
       agent: false
     };

@@ -286,4 +286,21 @@ The fonts (Red Hat Text, Red Hat Mono, Sora) are under the
 [SIL Open Font License](https://openfontlicense.org); the workflow canvas is
 [React Flow](https://reactflow.dev) (MIT); the document editor is
 [CodeMirror](https://codemirror.net) (MIT), bound to live documents with
-[y-codemirror.next](https://github.com/yjs/y-codemirror.next) (MIT).
+[y-codemirror.next](https://github.com/yjs/y-codemirror.next) (MIT) on
+[Yjs](https://yjs.dev) (MIT). The interface is built with
+[React](https://react.dev) (MIT) and its icons are
+[Lucide](https://lucide.dev) (ISC); the desktop app runs on
+[Electron](https://www.electronjs.org) (MIT) and the central server on
+[Node.js](https://nodejs.org) (MIT). The Diagnostics pages' icons are
+[Font Awesome Free](https://fontawesome.com) (icons CC BY 4.0, fonts SIL OFL
+1.1, code MIT - [its licence](https://fontawesome.com/license/free)).
+The Windows and Linux builds ship Chromium's Hunspell spell-checking
+dictionaries unchanged: English (US, UK, Australia) from SCOWL (its
+permissive notice, with the affix rules under the BSD licence and parts
+under the WordNet notice), Czech (GPL-2.0) and Slovak (GPL-2.0, LGPL-2.1 or
+MPL-1.1, at your option) - the notice and the texts are in
+[electron/spellcheck-dictionaries-NOTICE.txt](electron/spellcheck-dictionaries-NOTICE.txt)
+and [docs/security/spellcheck-dictionaries.md](docs/security/spellcheck-dictionaries.md).
+Every package that ships, with its licence text, is listed in the app under
+Settings > About > "All open-source licences" (generated from the lock files
+at build time).

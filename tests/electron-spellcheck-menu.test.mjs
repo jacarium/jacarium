@@ -89,6 +89,11 @@ wc.emit('context-menu', {}, { isEditable: true, misspelledWord: '', dictionarySu
 check('after a menu with nothing flagged, add-word refuses the earlier word', (await call('spellcheck:add-word', wc, 'wrold')).ok === false && wc.sent.length === 1);
 check('list-words is sorted and keeps valid words only', (await call('spellcheck:list-words', wc)).join(',') === 'alpha,wrold,zebra');
 check('remove-word only removes a listed word', (await call('spellcheck:remove-word', wc, 'nope')).ok === false && (await call('spellcheck:remove-word', wc, 'zebra')).ok === true && !customWords.includes('zebra'));
+// import-words (Settings > Editor's Import custom words, the database import): a list, merged, each word checked
+sessionCalls.length = 0;
+const imported = await call('spellcheck:import-words', wc, ['alpha', 'gamma', 'two words', 'x'.repeat(65), 7, 'gamma', 'ctrl\u0001']);
+check('import-words merges a list: the new word added once (its repeat counted as present), the present one counted, the four invalid entries (two words, too long, a number, a control character) skipped and counted, the added words returned', imported.ok === true && imported.added === 1 && imported.existing === 2 && imported.skipped === 4 && imported.words.join() === 'gamma' && spellcheck.isDictionaryWord('gamma') && !spellcheck.isDictionaryWord('two words') && spellcheck.isWord('two words') && sessionCalls.filter((c) => c[0] === 'add').map((c) => c[1]).join() === 'gamma', JSON.stringify(imported));
+check('import-words refuses what is not a list and a list beyond MAX_IMPORT_WORDS', (await call('spellcheck:import-words', wc, 'alpha')).ok === false && (await call('spellcheck:import-words', wc, Array.from({ length: spellcheck.MAX_IMPORT_WORDS + 1 }, () => 'w'))).ok === false && handlers.has('spellcheck:import-words'));
 const langs = await call('spellcheck:languages', wc);
 check('languages: the shipped choices with their labels and the selected ones (Linux)', langs.native === false && langs.available.length === manifest.dictionaries.length && langs.available.some((l) => l.code === 'cs-CZ' && /Czech/.test(l.label)) && langs.selected.join(',') === 'en-US', JSON.stringify(langs));
 check('set-languages accepts shipped codes only, at least one', (await call('spellcheck:set-languages', wc, ['cs-CZ', 'de-DE', 'en-GB', 'cs-CZ'])).selected.join(',') === 'cs-CZ,en-GB' && languages.join(',') === 'cs-CZ,en-GB' && (await call('spellcheck:set-languages', wc, ['de-DE'])).ok === false && (await call('spellcheck:set-languages', wc, 'en-US')).ok === false);
@@ -101,7 +106,7 @@ check('languageChoices lists the shipped languages on Windows / Linux and none o
 // ---------------------------------------------------------------- the bridge and the wiring
 const preload = read('electron/preload.cjs');
 check('preload exposes onEditorContextMenu on the editor-context-menu channel with an unsubscribe', /onEditorContextMenu: \(callback\) => \{\n\s*const listener = \(event, payload\) => callback\(payload\);\n\s*ipcRenderer\.on\('editor-context-menu', listener\);\n\s*return \(\) => ipcRenderer\.removeListener\('editor-context-menu', listener\);/.test(preload));
-check('preload exposes the five spellcheck calls on their channels', ['add-word', 'remove-word', 'list-words', 'languages', 'set-languages'].every((c) => preload.includes(`ipcRenderer.invoke('spellcheck:${c}'`)));
+check('preload exposes the six spellcheck calls on their channels', ['add-word', 'remove-word', 'list-words', 'import-words', 'languages', 'set-languages'].every((c) => preload.includes(`ipcRenderer.invoke('spellcheck:${c}'`)));
 const main = read('electron/main.cjs');
 check('main.cjs watches the main window and the standalone windows, and installs the IPC once', (main.match(/spellcheck\.watchContextMenu\(/g) || []).length === 2 && /spellcheck\.installIpc\(\{ ipcMain, session: require\('electron'\)\.session/.test(main) && (main.match(/spellcheck\.installIpc\(/g) || []).length === 1);
 const editor = read('src/components/features/documents/DocumentEditor.jsx');

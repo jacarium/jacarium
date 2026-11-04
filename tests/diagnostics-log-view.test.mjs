@@ -49,7 +49,7 @@ const read = (p) => fs.readFileSync(path.join(REPO, p), 'utf8');
   const diag = read('src/components/DiagnosticsPage.jsx');
   check('the frame allow-lists the must-gather search, cancel and date range (plain requests) beside the sosreport stream', /'\/mustgather_log_search', '\/mustgather_log_cancel', '\/mustgather_log_date_range'\]/.test(diag) && /DIAGNOSTICS_API_STREAM_ALLOWLIST = new Set\(\['\/parse_log_viewer_stream'\]\)/.test(diag));
   const reg = read('backend/log_viewer.py');
-  check('the must-gather registry has the Log Viewer under Log Collection (parsers.mustgather.log_viewer), as the sosreport does', /'log_collection': \{\s*'module': 'parsers\.mustgather\.log_collection',[\s\S]{0,300}'sub_tabs': \{\s*'log_viewer': \{\s*'module': 'parsers\.mustgather\.log_viewer',\s*'icon': 'fas fa-file-alt',\s*'label': 'Log Viewer'/.test(reg));
+  check('the must-gather registry has the Log Viewer under Log Collection (parsers.mustgather.log_viewer), as the sosreport does', /'log_collection': \{\s*'module': 'parsers\.mustgather\.log_collection',[\s\S]{0,300}'sub_tabs': \{\s*'log_viewer': \{\s*'module': 'parsers\.mustgather\.log_viewer',\s*'icon': 'fas fa-file-lines',\s*'label': 'Log Viewer'/.test(reg));
 }
 if (process.env.SKIP_BROWSER_TESTS) { console.log(failed ? `\n${failed} check(s) failed` : '\nAll static checks passed (browser part skipped)'); process.exit(failed ? 1 : 0); }
 let pw; try { pw = req('playwright-core'); } catch { console.log('SKIP: playwright-core is not installed'); process.exit(failed ? 1 : 0); }

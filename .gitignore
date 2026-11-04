@@ -5,6 +5,8 @@ jacarium-central/node_modules/
 # Build output
 # Third-party assets copied from node_modules by scripts/vendor-assets.mjs
 backend/static/vendor/
+# The open-source licence list Settings > About shows, generated from the lock files by scripts/generate-licences.mjs
+public/licences.json
 dist/
 dist-ssr/
 dist-electron/

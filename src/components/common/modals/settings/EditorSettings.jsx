@@ -1,12 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isDesktopApp } from '../../../../utils/platform';
 import { isSpellcheckEnabled, setSpellcheckEnabled } from '../../../../utils/editorSurface';
-import { Button, Checkbox, Field, Note, Section, Toggle } from './ui';
+import { downloadBlob } from '../../../../utils/exportHelpers';
+import { CUSTOM_WORDS_FILENAME, customWordsText, formatCustomWordsResult, mergeCustomWords, parseCustomWordsText } from '../../../../utils/customWords';
+import { Button, ButtonRow, Checkbox, Field, Note, Section, Toggle } from './ui';
 
 /**
  * Settings > Editor: the Documents editor's spell checking
  * (src/utils/editorSurface.js; applies to open editors at once) and, in the
- * desktop app, the languages and the custom words of the checker.
+ * desktop app, the languages and the custom words of the checker - listed,
+ * removable, exported as a plain text file (one word per line) and imported
+ * from one (merged: src/utils/customWords.js validates every word and skips
+ * what is already there). The file is read here, in the renderer, from the
+ * File the user picked: no path crosses the bridge, only the words, which
+ * electron/spellcheck.cjs checks again.
  */
 export default function EditorSettings() {
   const [spellcheck, setSpellcheck] = useState(() => isSpellcheckEnabled());
@@ -16,6 +23,8 @@ export default function EditorSettings() {
   const [languages, setLanguages] = useState(null);
   const [words, setWords] = useState(null);
   const [languageError, setLanguageError] = useState(null);
+  const [wordsResult, setWordsResult] = useState(null);   // { tone, text } after an import or export
+  const fileInput = useRef(null);
   useEffect(() => {
     if (!api) return undefined;
     let cancelled = false;
@@ -32,6 +41,24 @@ export default function EditorSettings() {
   const removeWord = async (word) => {
     const result = await api.removeWord(word).catch(() => ({ ok: false }));
     if (result?.ok) setWords((list) => list.filter((w) => w !== word));
+  };
+  const exportWords = () => {
+    const text = customWordsText(words || []);
+    downloadBlob(new Blob([text], { type: 'text/plain;charset=utf-8' }), CUSTOM_WORDS_FILENAME);
+    setWordsResult({ tone: 'neutral', text: `Saved ${CUSTOM_WORDS_FILENAME} (${(words || []).length} ${(words || []).length === 1 ? 'word' : 'words'}).` });
+  };
+  const importWords = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const result = await mergeCustomWords(parseCustomWordsText(await file.text()), api);
+      const list = await api.listWords().catch(() => null);
+      if (Array.isArray(list)) setWords(list);
+      setWordsResult({ tone: result.skipped && !result.added ? 'warning' : 'success', text: formatCustomWordsResult(result) });
+    } catch (e) {
+      setWordsResult({ tone: 'danger', text: `Could not read ${file.name}: ${e?.message || e}` });
+    }
   };
   return (
     <Section title="Editor" testId="editor-section">
@@ -54,7 +81,7 @@ export default function EditorSettings() {
         </Field>
       )}
       {words && (
-        <Field label="Custom words" hint="Words added from the editor's right-click menu (Add to dictionary); the spell checker no longer flags them.">
+        <Field label="Custom words" hint="Words added from the editor's right-click menu (Add to dictionary); the spell checker no longer flags them. They are part of the database export too (Settings > General), and travel on their own as a text file, one word per line.">
           {words.length === 0 ? (
             <p className="text-xs text-os-text-muted" data-testid="spellcheck-words-empty">None yet. Right-click a flagged word in a document and choose Add to dictionary.</p>
           ) : (
@@ -67,6 +94,12 @@ export default function EditorSettings() {
               ))}
             </ul>
           )}
+          <ButtonRow align="start" className="mt-2">
+            <Button size="sm" onClick={exportWords} disabled={words.length === 0} data-testid="spellcheck-words-export">Export custom words</Button>
+            <Button size="sm" onClick={() => fileInput.current?.click()} data-testid="spellcheck-words-import">Import custom words</Button>
+            <input ref={fileInput} type="file" accept=".txt,.json,text/plain,application/json" className="hidden" onChange={importWords} data-testid="spellcheck-words-file" />
+          </ButtonRow>
+          {wordsResult && <Note tone={wordsResult.tone} className="mt-3" testId="spellcheck-words-result">{wordsResult.text}</Note>}
         </Field>
       )}
     </Section>

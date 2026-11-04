@@ -82,6 +82,7 @@ const TYPE_LABELS = {
   customQuizzes: 'Custom quizzes',
   media: 'Media files',
   localStorage: 'UI settings (localStorage)',
+  customWords: 'Custom spelling words',
 };
 
 // [summary key, column header]

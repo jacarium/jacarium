@@ -4,6 +4,54 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.0.0
+
+_2026-11-04_
+
+### [DESKTOP]
+
+Requires macOS 13 Ventura or newer: the desktop app moves from Electron 42, which no longer gets security fixes, to Electron 45.1.0 (Chromium 156, Node.js 24.22.1), and Electron 44 dropped macOS 12
+
+Connecting to a home server addressed by IP no longer sends an IP as the TLS server name (refused by newer Node.js)
+
+### [DOCUMENTS]
+
+Very large documents: scrolling a document of millions of lines no longer goes blank or jumps back to the end
+
+The preview of a large document draws only what is near the screen (a 2,000,000-line preview in about half the time), and above 500,000 lines shows Rendering preview of N lines first instead of freezing
+
+A collaborator's edits to a very large shared document refresh the preview with a short, size-based delay
+
+### [SETTINGS]
+
+Theme and Debug are categories of their own: Color Scheme and UI Scale under Theme, the debug status bar under Debug
+
+Settings > Editor: Export custom words and Import custom words (a text file, one word per line, merged with the words already there)
+
+About: the versions actually running (Electron, Chromium and Node.js on the desktop; Python and Node.js on the home server), Copy version info for bug reports, the security policy, private vulnerability reporting, the OpenSSF Best Practices badge, how to verify a release, and Show data folder on the desktop
+
+About: credits for React, Electron, Node.js, Lucide, Yjs, Font Awesome and the spell-check dictionaries, and View all licences, the generated list of every shipped package with its licence text
+
+### [SYNC]
+
+The database export carries the custom spelling words, and Import Database merges them back (shown in the preview and the import summary)
+
+### [DIAGNOSTICS]
+
+Font Awesome 7.3.1 for the Diagnostics pages, with every icon on its new name and the bundled icon fonts down from 3.4 MB to 400 KB
+
+### [DEPLOY]
+
+The container's central server runs on Node.js 26.13.0 LTS
+
+### [SECURITY]
+
+Electron 45.1.0 includes Chromium's eMudhra certificate mitigation (GHSA-jr5w-w6x2-84p9); the app's own distrust list for its other HTTPS connections stays
+
+The spell-check dictionaries are re-pinned to Electron 45.1.0's verified set
+
+Dependency policy note: after an update through the security lane, Dependabot may fail for that package's dependents until it is 7 days old
+
 ## What's New in v3.8.0
 
 _2026-11-03_

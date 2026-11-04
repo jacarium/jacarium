@@ -27,9 +27,10 @@
 # .npmrc applies to npm packages).
 
 # ---------------------------------------------------------------------------
-# UI build (Vite) - node 24.22.1 (2026-10-20, a security release: CVE-2026-111497 in the bundled brotli; image 2026-10-28, approved cooldown exception)
+# UI build (Vite) - node 26.13.0, the LTS "Lithium" release (2026-10-28; the image built 2026-10-28 20:55 UTC,
+# pinned 2026-11-04 under the maintainer's explicit cooldown exception, docs/security/urgent-updates.md)
 # ---------------------------------------------------------------------------
-FROM docker.io/library/node:24.22.1-bookworm-slim@sha256:be8204d4bd327363357f532187b752ff62759c31bedf98e9e18fc08c9cbd605c AS ui
+FROM docker.io/library/node:26.13.0-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9 AS ui
 WORKDIR /src
 # bash: scripts/build-ui.sh; git: optional for the What's New page
 RUN apt-get update \
@@ -40,10 +41,12 @@ COPY scripts ./scripts
 # postinstall copies the vendored assets into backend/static/vendor
 RUN mkdir -p backend/static && npm ci --no-audit --no-fund
 COPY . .
-RUN npm run build
 # The central server's production dependencies, exactly the locked versions
-# (its own lock file; .npmrc's release-age rule applies here too).
+# (its own lock file; .npmrc's release-age rule applies here too) - before
+# the UI build, whose licence list (scripts/generate-licences.mjs --strict)
+# reads every shipped package's licence text, the central server's included.
 RUN cd jacarium-central && npm ci --omit=dev --no-audit --no-fund
+RUN npm run build
 # Project label (last, so it costs no cached layer): the untagged image a
 # stage leaves behind carries only its own labels, and deploy/prune-images.sh
 # removes superseded ones by this label - never anything else on the machine.
@@ -142,7 +145,9 @@ LABEL org.opencontainers.image.title="Jacarium" \
 # then differs between two builds of the same commit only by the rpm
 # database's install times (docs/security/reproducible-builds.md). The last line makes sure none of
 # the packages this base was chosen to be rid of came back as a dependency.
-RUN microdnf -y --setopt=install_weak_deps=0 --nodocs install python3.14 python3.14-pip-wheel openssh-clients sshpass openssl \
+# libatomic: the nodejs.org Node 26 binary copied below links it
+# (libatomic.so.1; the 24 binary did not), and minimal does not carry it.
+RUN microdnf -y --setopt=install_weak_deps=0 --nodocs install python3.14 python3.14-pip-wheel openssh-clients sshpass openssl libatomic \
  && microdnf -y --setopt=install_weak_deps=0 --nodocs upgrade xz-libs curl-minimal libcurl-minimal \
  && rpm -q xz-libs-5.2.5-8.el9_8.1 curl-minimal-7.76.1-40.el9_8.9 libcurl-minimal-7.76.1-40.el9_8.9 \
  && test "$(rpm -q python3 python3-libs python3-urllib3 python3-pip libbrotli brotli brotli-devel dnf nodejs npm 2>&1 | grep -vc 'is not installed')" = 0 \
@@ -171,8 +176,15 @@ COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy
 COPY --from=taskwarrior /opt/taskwarrior/bin/task /usr/local/bin/task
 # Node for the central server: the official binary the UI build stage runs
 # (nodejs.org builds depend on glibc >= 2.28 and libstdc++ only, both in
-# UBI 9), the same Node 24 the desktop build uses.
+# UBI 9), the same Node 26 the desktop UI build uses (.nvmrc; Electron
+# runs its own Node).
 COPY --from=ui /usr/local/bin/node /usr/local/bin/node
+# the Node.js version the central server runs on, recorded for /api/version
+# (backend/version_info.py; Settings > About) - the build asks the binary,
+# nothing probes it at runtime; a binary that cannot load fails the build here
+RUN mkdir -p /app && /usr/local/bin/node --version > /app/node-version
+# the binary loads here (its shared libraries are in this image: a missing one fails the build, not the first start)
+RUN /usr/local/bin/node --version
 
 WORKDIR /app
 # requirements.lock pins every package to the versions the desktop venv and

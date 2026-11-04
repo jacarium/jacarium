@@ -1201,6 +1201,13 @@ ipcMain.handle('home-server:version', async (event, url) => {
   return { desktop, server };
 });
 ipcMain.handle('get-app-version', () => app.getVersion());
+// Settings > About's "Show data folder": the app's own userData directory in
+// the file manager. The renderer sends nothing and learns nothing - the
+// path never crosses the bridge, the answer is only whether it opened.
+ipcMain.handle('app:open-data-folder', async () => {
+  const error = await shell.openPath(app.getPath('userData'));
+  return { ok: !error };
+});
 
 // Release check (electron/update-check.cjs): OFF unless the user turns it on
 // in Settings > About, then one request a day; "Check now" (About, Help

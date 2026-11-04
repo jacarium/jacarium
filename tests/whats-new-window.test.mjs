@@ -179,7 +179,10 @@ console.log('\n--- 2. closing records the version; show once per version; "new" 
   check('the header x closes it', !win());
   unmountWhatsNew();
   // seen an older version: it opens again and the newer ones are marked
-  const seen = ofLine(currentLine)[ofLine(currentLine).length - 1].version;
+  // (the oldest of the current line; a line's first release, e.g. 4.0.0, has no older one in
+  // its line: then the newest of the line before it)
+  const olderInLine = ofLine(currentLine).map((e) => e.version).filter((v) => v !== latestVersion);
+  const seen = olderInLine.length ? olderInLine[olderInLine.length - 1] : ofLine(older[0])[0].version;
   window.localStorage.setItem(WHATS_NEW_SEEN_KEY, seen);
   await opened(() => renderWhatsNew());
   check(`a different seen version (${seen}) opens it again (once per version)`, !!win());

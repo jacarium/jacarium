@@ -20,6 +20,14 @@ publisher, the digests, the sdist / wheel diff, the dependencies, the project's 
 data, the RPM upgraded inside the base image and its signature) and `scripts/verify-go-module.sh MODULE VERSION`
 (the checksum database record, the proxy's time and origin). Each exits non-zero on a red flag.
 
+After an npm package comes in through the lane, Dependabot's update runs for anything that depends on it fail
+until that version is 7 days old: Dependabot reads `.npmrc`, so `min-release-age` refuses the version the lock
+file (or an override) pins as soon as the lock is regenerated (`npm error notarget No matching version found for
+<name>@<version> with a date before ...`). `npm ci` from the lock is unaffected. This is expected and resolves on
+its own; npm has no per-package exemption, and the 7 days stay. Once the version is past 7 days, "Check for
+updates" on the Dependabot page re-runs it without waiting for the weekly schedule (first seen 2026-11-03:
+electron-builder blocked by minimatch 11.0.3 until 2026-11-04 20:00 UTC).
+
 ## 2026-10-26 - certifi==2026.10.19, brotli==1.2.1, pillow==13.0.0, fastembed==0.9.1
 
 Reason: Quay's scan of the published image (critical): pillow GHSA-8g5g-8vmr-9782, GHSA-w889-685w-c8fh,
@@ -396,3 +404,28 @@ upstream releases that would carry the fix (eslint 10.14.0 of 2026-10-30, electr
    are not in them (checked in node_modules: neither has firstPhasePreProcess, secondPhasePreProcess or
    optimizationLevel). vex/decisions.yaml: the 2026-10-31 statement now covers 3.7.1 and 3.7.2 (the releases
    with all four copies), a new one from 3.7.3 names the two remaining copies as `vulnerable_code_not_present`.
+
+
+## 2026-11-04 - the container's Node.js 24.22.1 -> 26.13.0 (the maintainer's explicit exception, not the lane)
+
+Node.js 26.13.0 is the first LTS release of the 26 line ("Lithium", released 2026-10-28, npm 11.20.0;
+Dependabot #1). **This is not a security fix**, so the security lane does not apply; the maintainer granted an
+explicit exception to the seven-day rule for the image on 2026-11-04 (the image was 6.6 days old), and that
+is why it is logged here. The image: `docker.io/library/node:26.13.0-bookworm-slim`, pinned by its
+manifest-list digest `sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9` in
+deploy/Containerfile's UI build stage - the stage whose `node` binary is copied into the runtime image for the
+central server - with its two platform manifests `sha256:cd820d60a7f3ae057389f3e1bcf1a0ac09dd57c428fe14f191dcbc5c56ac5fe2`
+(amd64, built 2026-10-28 20:55:51 UTC) and `sha256:29b974c22ff1c2508ca4c62da1414429b484a3d2a8f8f32520114c6975991eed`
+(arm64, 2026-10-28 20:55:56 UTC), read from Docker Hub's registry (the manifest list and each image's config).
+`.nvmrc` moves to 26.13.0 with it: the release workflow's UI build (build.yml, `node-version-file`) and
+rebuild.sh read it, so the desktop UI is built with the same Node; Electron runs its own Node and is not
+affected. The checks are in the commit that pins it: the arm64 image built with `--timestamp` as build.yml
+does and scanned with the Grype gate as build.yml runs it, the container-deploy test, the central server's
+(Express 5, Yjs, socket.io) tests on Node 26, `npm ci` / `npm run build` / the electron-builder `--dir`
+packaging under Node 26, the reproducible-build, build-platform and workflow tests. `.npmrc` stays at 7.
+
+One thing the first build found: the nodejs.org Node 26 binary links `libatomic.so.1` (the 24 binary did not),
+which ubi9-minimal does not carry - the copied `node` failed to load in the runtime image. The runtime stage
+now installs `libatomic` (11.5.0-14.el9, ubi-9-baseos-rpms, 26 kB) in its one microdnf step and runs
+`node --version` right after the copy, so a binary whose libraries are missing fails the build rather than
+the central server's first start.

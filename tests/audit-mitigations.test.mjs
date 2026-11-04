@@ -65,6 +65,16 @@ check("Node's own hostname check still runs first", wrongHost instanceof Error &
 // where it is installed (static)
 const main = read('electron/main.cjs');
 check("main.cjs installs no session verify proc (Chromium's own list covers the renderer sessions since 42.11.16)", !/setCertificateVerifyProc/.test(main));
+// the installed Electron carries the fix: the advisory's patched version of its own major (a downgrade inside a major cannot slip through)
+{
+  const PATCHED = { 42: '42.11.16', 43: '43.8.1', 44: '44.9.1', 45: '45.0.0' };
+  const installed = JSON.parse(read('node_modules/electron/package.json')).version;
+  const locked = (JSON.parse(read('package-lock.json')).packages['node_modules/electron'] || {}).version;
+  const major = Number(installed.split('.')[0]);
+  const atLeast = (v, w) => { const a = v.split('.').map(Number), b = w.split('.').map(Number); for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return a[i] > b[i]; } return true; };
+  const floor = PATCHED[major];
+  check(`the installed Electron (${installed}, lock ${locked}) is at or past the GHSA-jr5w-w6x2-84p9 fix of its major (${floor || 'a major newer than 45: every release has it'})`, installed === locked && (floor ? atLeast(installed, floor) : major > 45), `${installed} vs ${floor}`);
+}
 check('cert-distrust.cjs says why it stays after the Electron update (Node TLS is not covered by Chromium\'s fix)', /stays after the Electron 42\.11\.16 update/.test(read('electron/cert-distrust.cjs')) && /Node's TLS/.test(read('electron/cert-distrust.cjs')));
 check('the Jira request in main.cjs verifies through the distrust list', /checkServerIdentity: certDistrust\.checkServerIdentity/.test(main));
 check('safe-url.cjs (workflow URL fetches) verifies through the distrust list', /checkServerIdentity \} = require\('\.\/cert-distrust\.cjs'\)/.test(read('electron/safe-url.cjs')) && /servername: url\.hostname[^\n]*checkServerIdentity/.test(read('electron/safe-url.cjs')));

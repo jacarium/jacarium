@@ -338,7 +338,7 @@ podman run -d --name jacarium --restart unless-stopped \
   jacarium:latest
 ```
 
-The image is built from pinned base images (UBI 9 minimal with Red Hat's Python 3.14, Node 24,
+The image is built from pinned base images (UBI 9 minimal with Red Hat's Python 3.14, Node 26,
 Caddy 2.11, all by digest), installs the Python dependencies from
 `backend/requirements.txt` at the versions pinned in
 `backend/requirements.lock` (the same versions the desktop venv and the

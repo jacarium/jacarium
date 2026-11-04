@@ -8,6 +8,8 @@ import { getMachineId } from '../../../utils/cloudDocuments';
 
 // Import category components
 import GeneralSettings from './settings/GeneralSettings';
+import ThemeSettings from './settings/ThemeSettings';
+import DebugSettings from './settings/DebugSettings';
 import EditorSettings from './settings/EditorSettings';
 import IntegrationsSettings from './settings/IntegrationsSettings';
 import AIProvidersSettings from './settings/AIProvidersSettings';
@@ -480,10 +482,12 @@ export default function SettingsModal({
             {[
               { id: 'general', label: 'General' },
               { id: 'editor', label: 'Editor' },
+              { id: 'theme', label: 'Theme' },
               { id: 'integrations', label: SETTINGS_FIELDS.integrations.tab },
               { id: 'ai', label: SETTINGS_FIELDS.ai.tab },
               ...(isMobile ? [] : [{ id: 'shortcuts', label: 'Shortcuts' }]),
               ...(accounts && admin ? [{ id: 'users', label: access.remote ? `Users on ${access.server}` : 'Users' }, { id: 'audit', label: 'Audit' }] : []),
+              { id: 'debug', label: 'Debug' },
               { id: 'about', label: 'About' },
             ].map(category => (
               <button
@@ -520,18 +524,18 @@ export default function SettingsModal({
           ) : (
             <>
               {activeTab === 'editor' && <EditorSettings />}
+              {activeTab === 'theme' && (
+                <ThemeSettings theme={theme} setTheme={setTheme} zoomFactor={zoomFactor} setZoomFactor={handleZoomChange} />
+              )}
+              {activeTab === 'debug' && (
+                <DebugSettings debugBarEnabled={debugBarEnabled} setDebugBarEnabled={handleDebugBarChange} />
+              )}
 
               {activeTab === 'general' && (
                 <GeneralSettings
                   settings={settings}
                   handleChange={handleChange}
-                  theme={theme}
-                  setTheme={setTheme}
                   machineId={machineId}
-                  zoomFactor={zoomFactor}
-                  setZoomFactor={handleZoomChange}
-                  debugBarEnabled={debugBarEnabled}
-                  setDebugBarEnabled={handleDebugBarChange}
                   account={accounts ? (access.remote ? { id: remote.userId, username: remote.username, displayName: remote.displayName, role: remote.role } : currentUser()) : null}
                   remoteServer={access.remote ? access.server : null}
                   runScope={runScope}

@@ -153,7 +153,7 @@
             class="ui-popover-foot-note"
             title="{% for log in unavailable %}{{ log.name }}{% if not loop.last %}&#10;{% endif %}{% endfor %}"
           >
-            <i class="fas fa-exclamation-triangle mr-1"></i>
+            <i class="fas fa-triangle-exclamation mr-1"></i>
             {{ unavailable | length }} {{ source_noun }}{{ 's' if unavailable | length != 1 else '' }} unavailable (not captured in this report)
           </div>
           {% endif %}
@@ -305,7 +305,7 @@
   </div>
 {% else %}
   <div class="text-center py-12 opacity-70">
-    <i class="fas fa-exclamation-triangle text-2xl mb-2"></i>
+    <i class="fas fa-triangle-exclamation text-2xl mb-2"></i>
     <div class="text-sm font-medium">{{ empty_title }}</div>
     {% if empty_text %}<div class="text-xs mt-1">{{ empty_text | safe }}</div>{% endif %}
     {% if unavailable %}
@@ -323,7 +323,7 @@
 {% macro alert_modal() -%}
   <div id="alert-modal" class="hidden ui-modal" role="dialog" aria-modal="true" aria-labelledby="alert-modal-title">
     <div class="ui-modal-card">
-      <i id="alert-modal-icon" class="fas fa-info-circle ui-modal-icon"></i>
+      <i id="alert-modal-icon" class="fas fa-circle-info ui-modal-icon"></i>
       <h3 id="alert-modal-title"></h3>
       <p id="alert-modal-message"></p>
       <button type="button" id="alert-modal-ok" class="btn btn-primary">OK</button>

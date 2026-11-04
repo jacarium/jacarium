@@ -33,6 +33,7 @@
 import { stringifyToParts } from './incrementalJson';
 import { createYielder } from './yieldToUI';
 import { formatBytes, downloadBlob, dateStamp } from './exportHelpers';
+import { customWordsExportSection, spellcheckApi } from './customWords';
 
 const STEPS = 4;
 
@@ -85,7 +86,22 @@ const SECTION_LABELS = {
   gtfobinsExecutables: 'gtfobins executables',
   gtfobinsContexts: 'gtfobins contexts',
   media: 'media files',
+  customWords: 'custom spelling words',
 };
+
+/**
+ * The desktop app's custom spelling words as the export's `customWords`
+ * section ({ formatVersion, words }), or undefined where there is no
+ * spell-checker bridge (the browser deployment: the browser owns its
+ * dictionary, so the file has no such field - importDatabase.js treats a
+ * missing field exactly like an export from before it existed).
+ */
+export async function collectCustomWords() {
+  const api = spellcheckApi();
+  if (!api) return undefined;
+  const words = await api.listWords().catch(() => []);
+  return customWordsExportSection(Array.isArray(words) ? words : []);
+}
 
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
@@ -334,10 +350,16 @@ export async function collectExportData(report = () => {}, { maybeYield = create
     }
   });
 
+  // The desktop app's custom spelling words (none of the field in a browser)
+  const customWords = await collectCustomWords();
+  if (customWords) report({ log: `Read ${customWords.words.length} custom spelling words` });
+
   // Key order here IS the file's key order - keep it stable.
   // formatVersion 2: tasks travel as TaskWarrior JSON per instance
   // (taskwarriorTasks) instead of a flat `tasks` array of app rows; the
   // importer reads both (see importDatabase.js / taskwarriorBackup.js).
+  // customWords ({ formatVersion: 1, words }) since 3.8.1, desktop only; the
+  // importer merges it into the dictionary and ignores its absence.
   const exportData = {
     version: '1.0',
     formatVersion: BACKUP_FORMAT_VERSION,
@@ -366,6 +388,7 @@ export async function collectExportData(report = () => {}, { maybeYield = create
     gtfobinsContexts,
     media,
     localStorage: localStorageData,
+    ...(customWords ? { customWords } : {}),
   };
 
   return exportData;

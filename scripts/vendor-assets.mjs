@@ -133,6 +133,10 @@ async function run() {
     if (!fs.existsSync(fromDir)) {
       throw new Error(`Missing ${path.relative(REPO, fromDir)} - run "npm install" (devDependencies) first`);
     }
+    // the directory is replaced, not merged: a package update that drops
+    // files (Font Awesome 7 ships woff2 alone, 5 shipped eot / svg / ttf /
+    // woff too) must not leave the old ones behind to be packaged
+    fs.rmSync(path.join(VENDOR, dest), { recursive: true, force: true });
     for (const name of fs.readdirSync(fromDir)) {
       const from = path.join(fromDir, name);
       if (!fs.statSync(from).isFile()) continue;

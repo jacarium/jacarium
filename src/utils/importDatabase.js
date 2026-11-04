@@ -96,6 +96,30 @@
 // The identity / "newer" / gap-filling rules live in mergeCore.js, shared
 // with synchronisation (src/sync/syncEngine.js) so import and sync agree.
 export { toMillis, importedIsNewer, isBlank, missingFieldFills } from './mergeCore';
+import { readCustomWordsSection, mergeCustomWords, spellcheckApi } from './customWords';
+
+/**
+ * The export's `customWords` section into the desktop app's spelling
+ * dictionary, merged (nothing is ever removed from the dictionary; the
+ * words already there are "skipped"), in both import modes - the
+ * dictionary is the user's, not the database's. A file without the field
+ * (an older export, a browser export) and a browser importing (no
+ * spell-checker bridge) leave the dictionary alone and add no summary.
+ * @returns {Promise<object | null>} a newSummary() with created = added words,
+ *   skipped = already present, invalid = entries that are not a single word
+ */
+export async function importCustomWords(importData, { dryRun = false } = {}) {
+  const candidates = readCustomWordsSection(importData);
+  const api = spellcheckApi();
+  if (!candidates || !api) return null;
+  const summary = newSummary();
+  const result = await mergeCustomWords(candidates, api, { dryRun });
+  for (const word of result.words) tally(summary, 'created', word);
+  summary.skipped = result.existing;
+  if (result.skipped) tallyInvalid(summary, `${result.skipped} ${result.skipped === 1 ? 'entry' : 'entries'}`, 'not a single word of 1-64 characters (or beyond the 10,000-word limit)');
+  summary.invalid = result.skipped;
+  return summary;
+}
 import { normaliseInstancePaths } from './taskwarriorPaths';
 import { importedIsNewer, keyPart, joinKey, missingFieldFills, withCreateDefaults, indexableTimestamp } from './mergeCore';
 
@@ -1042,6 +1066,10 @@ export async function mergeImportDatabase(importData, { dryRun = false } = {}) {
     summary.localStorage = ls;
   }
 
+  // --- the custom spelling words: merged into the dictionary, never removed ---
+  const customWords = await importCustomWords(importData, { dryRun });
+  if (customWords) summary.customWords = customWords;
+
   return summary;
 }
 
@@ -1306,6 +1334,11 @@ export async function replaceImportDatabase(importData) {
     });
   }
 
+  // the custom spelling words are merged in replace mode too: the dictionary
+  // is the user's, not the database's, so nothing is removed from it
+  const customWords = await importCustomWords(importData);
+  if (customWords) summary.customWords = customWords;
+
   return summary;
 }
 
@@ -1482,7 +1515,10 @@ function replacePlan(existing, importData) {
  * delete and recreate right now. Reads only.
  */
 export async function planReplaceImport(importData) {
-  return replacePlan(await loadExistingForReplace(), importData);
+  const plan = replacePlan(await loadExistingForReplace(), importData);
+  const customWords = await importCustomWords(importData, { dryRun: true });
+  if (customWords) plan.customWords = customWords;
+  return plan;
 }
 
 /* ------------------------------------------------------------------ */

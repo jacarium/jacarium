@@ -17,7 +17,7 @@ PARSERS = {
             'sub_tabs': {
                 'processes': {
                     'module': 'parsers.sosreport.processes',
-                    'icon': 'fas fa-tasks',
+                    'icon': 'fas fa-list-check',
                     'label': 'Processes'
                 },
                 'pci_devices': {
@@ -32,12 +32,12 @@ PARSERS = {
                 },
                 'sched_debug': {
                     'module': 'parsers.sosreport.sched_debug',
-                    'icon': 'fas fa-tachometer-alt',
+                    'icon': 'fas fa-gauge-high',
                     'label': 'Scheduler Debug'
                 },
                 'services': {
                     'module': 'parsers.sosreport.services',
-                    'icon': 'fas fa-cogs',
+                    'icon': 'fas fa-gears',
                     'label': 'Services'
                 },
                 'cstates': {
@@ -59,19 +59,19 @@ PARSERS = {
                 },
                 'haproxy': {
                     'module': 'parsers.sosreport.haproxy',
-                    'icon': 'fas fa-balance-scale',
+                    'icon': 'fas fa-scale-balanced',
                     'label': 'HAProxy'
                 },
                 'pacemaker': {
                     'module': 'parsers.sosreport.pacemaker',
-                    'icon': 'fas fa-heartbeat',
+                    'icon': 'fas fa-heart-pulse',
                     'label': 'Pacemaker'
                 },
             },
         },
         'disk': {
             'module': 'parsers.sosreport.disk',
-            'icon': 'fas fa-hdd',
+            'icon': 'fas fa-hard-drive',
             'label': 'Disk',
             'sub_tabs': {
                 'disk_lvm': {
@@ -98,7 +98,7 @@ PARSERS = {
                 },
                 'cgroups_memory': {
                     'module': 'parsers.sosreport.cgroups_memory',
-                    'icon': 'fas fa-tachometer-alt',
+                    'icon': 'fas fa-gauge-high',
                     'label': 'Memory Accounting'
                 },
             }
@@ -115,7 +115,7 @@ PARSERS = {
                 },
                 'network_flow': {
                     'module': 'parsers.sosreport.network_flow',
-                    'icon': 'fas fa-project-diagram',
+                    'icon': 'fas fa-diagram-project',
                     'label': 'Flow Visualization'
                 },
             }
@@ -142,7 +142,7 @@ PARSERS = {
                 },
                 'sar_disk': {
                     'module': 'parsers.sosreport.sar_disk',
-                    'icon': 'fas fa-hdd',
+                    'icon': 'fas fa-hard-drive',
                     'label': 'Disk Usage'
                 },
             }
@@ -154,7 +154,7 @@ PARSERS = {
             'sub_tabs': {
                 'kernel_stack_traces': {
                     'module': 'parsers.sosreport.kernel_stack_traces',
-                    'icon': 'fas fa-exclamation-triangle',
+                    'icon': 'fas fa-triangle-exclamation',
                     'label': 'Stack Traces'
                 },
                 'kernel_hung_task': {
@@ -171,14 +171,14 @@ PARSERS = {
         },
         'log_collection': {
             'module': 'parsers.sosreport.log_collection',
-            'icon': 'fas fa-stream',
+            'icon': 'fas fa-bars-staggered',
             'label': 'Log Collection',
             'sub_tabs': {
                 # The Log Viewer keeps its id: /load_tab and /get_tab_data
                 # accept {"tab": "log_viewer"} as before (see _resolve_tab)
                 'log_viewer': {
                     'module': 'parsers.sosreport.log_viewer',
-                    'icon': 'fas fa-file-alt',
+                    'icon': 'fas fa-file-lines',
                     'label': 'Log Viewer'
                 },
             }
@@ -199,7 +199,7 @@ PARSERS = {
     'mustgather': {
         'system': {
             'module': 'parsers.mustgather.system',
-            'icon': 'fas fa-info-circle',
+            'icon': 'fas fa-circle-info',
             'label': 'Cluster',
             'sub_tabs': {
                 'events': {
@@ -233,7 +233,7 @@ PARSERS = {
         },
         'workloads': {
             'module': 'parsers.mustgather.workloads',
-            'icon': 'fas fa-cogs',
+            'icon': 'fas fa-gears',
             'label': 'Workloads',
             'sub_tabs': {
                 'pod': {
@@ -263,14 +263,14 @@ PARSERS = {
                 },
                 'pdb': {
                     'module': 'parsers.mustgather.pdb',
-                    'icon': 'fas fa-shield-alt',
+                    'icon': 'fas fa-shield-halved',
                     'label': 'Pod Disruption Budget'
                 },
             }
         },
         'security': {
             'module': 'parsers.mustgather.security',
-            'icon': 'fas fa-shield-alt',
+            'icon': 'fas fa-shield-halved',
             'label': 'Security & Certificates',
             'sub_tabs': {
                 'csr': {
@@ -288,7 +288,7 @@ PARSERS = {
         # The API audit logs (audit_logs/): one page, an explorer over every event
         'audit': {
             'module': 'parsers.mustgather.audit',
-            'icon': 'fas fa-shield-alt',
+            'icon': 'fas fa-shield-halved',
             'label': 'Audit'
         },
         # Last on purpose: the sizes of what the must-gather holds; the Log Viewer under it as in a sosreport (the
@@ -296,12 +296,12 @@ PARSERS = {
         # {"tab": "log_viewer"} resolves to the group (_resolve_tab); {"tab": "log_collection"} opens the group page.
         'log_collection': {
             'module': 'parsers.mustgather.log_collection',
-            'icon': 'fas fa-stream',
+            'icon': 'fas fa-bars-staggered',
             'label': 'Log Collection',
             'sub_tabs': {
                 'log_viewer': {
                     'module': 'parsers.mustgather.log_viewer',
-                    'icon': 'fas fa-file-alt',
+                    'icon': 'fas fa-file-lines',
                     'label': 'Log Viewer'
                 },
             }

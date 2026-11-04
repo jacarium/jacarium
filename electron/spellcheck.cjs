@@ -277,13 +277,20 @@ function status() {
 // ---------------------------------------------------------------------------
 const MAX_WORD_LENGTH = 64;
 const MAX_SUGGESTIONS = 6;
+/** The most words one spellcheck:import-words call takes (src/utils/customWords.js caps at the same). */
+const MAX_IMPORT_WORDS = 10000;
 const CONTEXT_MENU_CHANNEL = 'editor-context-menu';
 // the last menu's word per webContents (what addWord may be asked for)
 const lastMenuWord = new WeakMap();
 
-/** A string of 1..MAX_WORD_LENGTH characters without line breaks or control characters. */
+/** A string of 1..MAX_WORD_LENGTH characters without line breaks or control characters (a suggestion may be two words, "sen tense"). */
 function isWord(value) {
   return typeof value === 'string' && value.length > 0 && value.length <= MAX_WORD_LENGTH && !/[\u0000-\u001f\u007f]/.test(value) && value.trim() === value;
+}
+
+/** What goes INTO the dictionary: a word with no whitespace inside either (Chromium's custom dictionary takes single words). */
+function isDictionaryWord(value) {
+  return isWord(value) && !/[\s\u0080-\u009f]/.test(value);
 }
 
 /**
@@ -335,7 +342,7 @@ function languageChoices(manifest = null, platform = process.platform) {
 function installIpc({ ipcMain, session, log = console.log, platform = process.platform, manifest = null }) {
   const ses = () => session.defaultSession;
   ipcMain.handle('spellcheck:add-word', (event, word) => {
-    if (!isWord(word)) return { ok: false, reason: 'not a word' };
+    if (!isDictionaryWord(word)) return { ok: false, reason: 'not a word' };
     if (lastMenuWord.get(event.sender) !== word) return { ok: false, reason: 'not the word of the last menu' };
     const ok = ses().addWordToSpellCheckerDictionary(word);
     log(`[Spellcheck] "${word}" ${ok ? 'added to' : 'not added to'} the custom dictionary`);
@@ -344,6 +351,25 @@ function installIpc({ ipcMain, session, log = console.log, platform = process.pl
   ipcMain.handle('spellcheck:list-words', async () => {
     const words = await ses().listWordsInSpellCheckerDictionary();
     return (Array.isArray(words) ? words : []).filter(isWord).sort((a, b) => a.localeCompare(b));
+  });
+  // Settings > Editor's "Import custom words" and the database import: a
+  // list of words (the renderer read the file; only words arrive), merged
+  // into the dictionary - each checked with isWord, the ones already there
+  // left alone, nothing removed; at most MAX_IMPORT_WORDS per call.
+  ipcMain.handle('spellcheck:import-words', async (_event, words) => {
+    if (!Array.isArray(words)) return { ok: false, reason: 'not a list of words' };
+    if (words.length > MAX_IMPORT_WORDS) return { ok: false, reason: `more than ${MAX_IMPORT_WORDS} words` };
+    const current = await ses().listWordsInSpellCheckerDictionary();
+    const have = new Set(Array.isArray(current) ? current : []);
+    const taken = [];
+    let existing = 0, skipped = 0;
+    for (const word of words) {
+      if (!isDictionaryWord(word)) { skipped += 1; continue; }
+      if (have.has(word)) { existing += 1; continue; }
+      if (ses().addWordToSpellCheckerDictionary(word)) { taken.push(word); have.add(word); } else skipped += 1;
+    }
+    log(`[Spellcheck] import: ${taken.length} added, ${existing} already there, ${skipped} skipped`);
+    return { ok: true, added: taken.length, existing, skipped, words: taken };
   });
   ipcMain.handle('spellcheck:remove-word', async (_event, word) => {
     if (!isWord(word)) return { ok: false, reason: 'not a word' };
@@ -377,6 +403,8 @@ function installIpc({ ipcMain, session, log = console.log, platform = process.pl
 module.exports = {
   MAX_WORD_LENGTH,
   MAX_SUGGESTIONS,
+  MAX_IMPORT_WORDS,
+  isDictionaryWord,
   CONTEXT_MENU_CHANNEL,
   isWord,
   sanitizeMenuParams,

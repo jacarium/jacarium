@@ -11,6 +11,8 @@ packaged backend carries them as PyInstaller data files
 """
 import json
 import os
+import platform
+import re
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -33,8 +35,31 @@ def _read_json(name):
     return None
 
 
+_VERSION_STRING = re.compile(r'^\d+\.\d+(\.\d+)?([a-z0-9.+-]{0,20})?$')
+
+
+def _runtimes():
+    """The runtimes this server runs on, as version strings only (Settings > About): the Python
+    that runs the backend (read live) and, in the container, the Node.js the central server runs
+    on - recorded by the image build (deploy/Containerfile writes `node --version` to
+    /app/node-version next to this file's parent) rather than probed at runtime. Nothing about
+    the host, the user or any path; a value that is not a version string is left out."""
+    out = {'python': platform.python_version()}
+    for base in [os.path.dirname(_HERE), _HERE]:
+        try:
+            with open(os.path.join(base, 'node-version'), 'r', encoding='utf-8') as fh:
+                node = fh.read().strip().lstrip('v')
+        except OSError:
+            continue
+        if _VERSION_STRING.match(node):
+            out['node'] = node
+        break
+    return out
+
+
 def version_info():
-    """{'app': 'X.Y.Z' | 'unknown', 'protocol': int, 'name': 'Jacarium', 'tagline': str, 'homepage': str}."""
+    """{'app': 'X.Y.Z' | 'unknown', 'protocol': int, 'name': 'Jacarium', 'tagline': str, 'homepage': str,
+    'runtimes': {'python': str, 'node'?: str}}."""
     global _cache
     if _cache is None:
         pkg = _read_json('package.json') or {}
@@ -50,5 +75,6 @@ def version_info():
             # the brand's words come from package.json (the UI reads the same file)
             'tagline': str(pkg.get('description') or ''),
             'homepage': str(pkg.get('homepage') or ''),
+            'runtimes': _runtimes(),
         }
-    return dict(_cache)
+    return {**_cache, 'runtimes': dict(_cache['runtimes'])}

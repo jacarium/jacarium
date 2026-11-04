@@ -1,6 +1,6 @@
-import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
+import { useRef, useEffect, useLayoutEffect, useState, useMemo, useCallback } from 'react';
 import { homeEndSelection } from '../../../utils/lineCaret';
-import { Bold, Italic, Info, Lightbulb, MessageSquareWarning, TriangleAlert, OctagonAlert, Code, List, ListOrdered, ListTodo, Link, Quote, Pilcrow, Heading1, Heading2, Heading3, Table, TableOfContents, Image as ImageIcon, Strikethrough, IndentDecrease, IndentIncrease, Minus, SeparatorHorizontal, File, AlignCenter, PanelTop, PanelBottom, Ellipsis, Plus, Eye, Edit3, BookTemplate, Bot, X, RefreshCw, Check, Trash2, FileCode, Search, Replace, ChevronDown, ChevronUp, Square, Type, Download } from 'lucide-react';
+import { Loader2, Bold, Italic,Info, Lightbulb, MessageSquareWarning, TriangleAlert, OctagonAlert, Code, List, ListOrdered, ListTodo, Link, Quote, Pilcrow, Heading1, Heading2, Heading3, Table, TableOfContents, Image as ImageIcon, Strikethrough, IndentDecrease, IndentIncrease, Minus, SeparatorHorizontal, File, AlignCenter, PanelTop, PanelBottom, Ellipsis, Plus, Eye, Edit3, BookTemplate, Bot, X, RefreshCw, Check, Trash2, FileCode, Search, Replace, ChevronDown, ChevronUp, Square, Type, Download } from 'lucide-react';
 import { CALLOUT_TYPES } from '../../../utils/callouts';
 import ToolbarMenu from './ToolbarMenu';
 import { useToolbarMenu, useRovingToolbar } from '../../../hooks/toolbarMenu';
@@ -79,6 +79,14 @@ import {
   findMermaidTargets, renderMermaidDiagrams, mermaidThemeForApp, MERMAID_PENDING_SELECTOR,
   serializeDiagramSvg, diagramExportFilename,
 } from '../../../utils/mermaidDiagrams';
+import { chunkPreviewBlocks, previewRenderDelay, hugePreview } from '../../../utils/previewChunks';
+import { useDeferredPreview } from '../../../hooks/useDeferredPreview';
+import { Note } from '../../ui/primitives';
+
+/** The preview HTML of a document's text (module-level: a stable `render` for useDeferredPreview). */
+function renderPreviewHtml(text) {
+  return text ? processInteractiveMarkdown(text) : '<p class="text-os-text-muted">No content to preview</p>';
+}
 import { downloadBlob } from '../../../utils/exportHelpers';
 import { useContextMenu } from '../../../hooks/useContextMenu';
 import ContextMenu, { ContextMenuItem } from '../../common/menus/ContextMenu';
@@ -2412,19 +2420,36 @@ export default function DocumentEditor({
   // always-on yjsContentVersion observer declared above lineLayoutData, which also serves the gutter.
   // Memoized and skipped entirely while the preview pane is hidden, so typing doesn't pay for
   // an O(doc) toString + full markdown parse on every keystroke.
-  const previewHtml = useMemo(() => {
+  // A collaborator's edits re-render the preview through yjsContentVersion;
+  // on a big document that is the whole pipeline per keystroke, so the
+  // version the preview follows lags the live one by a delay that grows
+  // with the document (src/utils/previewChunks.js previewRenderDelay: none
+  // for an ordinary document). The first render of a preview, and the
+  // user's own switch into it, are not delayed: they go through `content`.
+  const previewDelay = isPreviewActive && yjsEnabled && yjs.ytext ? previewRenderDelay(yjs.ytext.length) : 0;
+  const [laggedVersion, setLaggedVersion] = useState(yjsContentVersion);
+  useEffect(() => {
+    if (!previewDelay) return undefined;
+    const timer = setTimeout(() => setLaggedVersion(yjsContentVersion), previewDelay);
+    return () => clearTimeout(timer);
+  }, [previewDelay, yjsContentVersion]);
+  const previewVersion = previewDelay ? laggedVersion : yjsContentVersion;
+
+  const previewSource = useMemo(() => {
     if (!isPreviewActive) return '';
-    let previewContent;
-    if (yjsEnabled && yjs.ytext) {
-      // If yjs has content, use it; otherwise fall back to content prop
-      previewContent = yjs.ytext.toString() || content;
-    } else {
-      previewContent = content;
-    }
-    return previewContent ? processInteractiveMarkdown(previewContent) : '<p class="text-os-text-muted">No content to preview</p>';
-    // yjsContentVersion is a deliberate cache-buster for Yjs CRDT changes (ytext is mutable)
+    // If yjs has content, use it; otherwise fall back to content prop
+    return yjsEnabled && yjs.ytext ? (yjs.ytext.toString() || content) : content;
+    // previewVersion is a deliberate cache-buster for Yjs CRDT changes (ytext is mutable)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPreviewActive, yjsEnabled, yjs.ytext, content, yjsContentVersion]);
+  }, [isPreviewActive, yjsEnabled, yjs.ytext, content, previewVersion]);
+  // A huge document (src/utils/previewChunks.js HUGE_PREVIEW_LINES / _CHARS) renders after the
+  // "Rendering preview of N lines..." state below has been painted (src/hooks/useDeferredPreview.js);
+  // every other document renders here, synchronously, as it always did.
+  const previewSize = useMemo(() => (isPreviewActive ? hugePreview(previewSource) : { huge: false, lines: 0 }), [isPreviewActive, previewSource]);
+  const { html: deferredPreviewHtml, pending: previewPending } = useDeferredPreview({
+    active: isPreviewActive, source: previewSource, huge: previewSize.huge, documentKey: documentId, render: renderPreviewHtml, version: previewVersion,
+  });
+  const previewHtml = deferredPreviewHtml ?? '';
 
   // React re-applies dangerouslySetInnerHTML whenever the {__html} OBJECT
   // changes identity, not when the string inside it changes (react-dom
@@ -2440,6 +2465,16 @@ export default function DocumentEditor({
   // .mermaid-diagram-output svg { max-width: 100% }) and never needed a
   // rebuild.
   const previewInnerHtml = useMemo(() => ({ __html: previewHtml }), [previewHtml]);
+
+  // A big document's preview: its top-level blocks grouped into chunks the
+  // browser lays out and paints only near the viewport
+  // (src/utils/previewChunks.js, index.css .md-chunk) - after React has set
+  // the HTML and before the first paint, so the layout of the whole
+  // document is never done. Nothing happens below the size where it pays.
+  useLayoutEffect(() => {
+    if (!isPreviewActive || !previewRef.current) return;
+    chunkPreviewBlocks(previewRef.current);
+  }, [isPreviewActive, previewInnerHtml]);
 
   // Mermaid theme follows the app's light/dark state. ThemeContext toggles a
   // `dark` class on <html>; watch it (only while the preview is open) so a
@@ -2727,7 +2762,17 @@ export default function DocumentEditor({
 
       {/* Content Area */}
       <div className="flex-1 overflow-hidden">
-        {isPreviewActive ? (
+        {isPreviewActive && previewPending ? (
+          // a huge document: painted first, the render follows (useDeferredPreview)
+          <div className="markdown-preview h-full px-6 py-4 overflow-y-auto bg-os-card" data-testid="preview-rendering" aria-busy="true">
+            <Note tone="info" icon={null} testId="preview-rendering-note">
+              <span className="inline-flex items-center gap-2">
+                <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                Rendering preview of {previewSize.lines.toLocaleString()} lines&hellip;
+              </span>
+            </Note>
+          </div>
+        ) : isPreviewActive ? (
           <div
             ref={previewRef}
             onClick={handlePreviewClick}

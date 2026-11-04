@@ -40,6 +40,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   platform: process.platform,
   isElectron: true,
+  // The versions actually running (Settings > About): three strings from
+  // process.versions, read once, frozen - nothing else of the process.
+  runtimeVersions: Object.freeze({ electron: String(process.versions.electron || ''), chrome: String(process.versions.chrome || ''), node: String(process.versions.node || '') }),
+  // Settings > About's "Show data folder": the main process opens its own
+  // userData directory in the file manager; no path crosses the bridge
+  openDataFolder: () => ipcRenderer.invoke('app:open-data-folder'),
   getBackendPort: () => ipcRenderer.invoke('get-backend-port'),
   getAppToken: () => ipcRenderer.invoke('get-app-token'),
   // Documents PDF export through Chromium's print engine in the main
@@ -68,6 +74,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     addWord: (word) => ipcRenderer.invoke('spellcheck:add-word', word),
     removeWord: (word) => ipcRenderer.invoke('spellcheck:remove-word', word),
     listWords: () => ipcRenderer.invoke('spellcheck:list-words'),
+    // a list of words read from a file in the renderer (Settings > Editor's
+    // Import custom words, the database import), merged: never a path
+    importWords: (words) => ipcRenderer.invoke('spellcheck:import-words', words),
     getLanguages: () => ipcRenderer.invoke('spellcheck:languages'),
     setLanguages: (codes) => ipcRenderer.invoke('spellcheck:set-languages', codes),
   },

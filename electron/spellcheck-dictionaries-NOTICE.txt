@@ -12,9 +12,9 @@ README_<language>.txt next to its source .dic / .aff files.
 Jacarium does not change these dictionaries and does not download any: the
 copies here are the only ones the app uses (electron/spellcheck.cjs).
 
-  en-US-10-1.bdic   English (United States)
-  en-GB-10-1.bdic   English (United Kingdom)
-  en-AU-10-1.bdic   English (Australia)
+  en-US-10-2.bdic   English (United States)
+  en-GB-10-2.bdic   English (United Kingdom)
+  en-AU-10-2.bdic   English (Australia)
       From SCOWL (Spell Checker Oriented Word Lists), Copyright 2000-2018
       Kevin Atkinson and the contributors named in README_en_US.txt /
       README_en_GB.txt: permission to use, copy, modify, distribute and

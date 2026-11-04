@@ -66,7 +66,8 @@ const ctx = read('src/contexts/ThemeContext.jsx');
 check("ThemeContext exports DARK_THEMES with 'dark' = Jacaranda (dark) and 'dark-neutral' = Dark (neutral)", /dark: \{ name: 'Jacaranda \(dark\)' \}/.test(ctx) && /'dark-neutral': \{ name: 'Dark \(neutral\)' \}/.test(ctx));
 check("'dark-neutral' adds the .dark class", /if \(themeMode === 'dark-neutral'\) actualTheme = 'dark';/.test(ctx));
 check('the neutral dark and the gradient themes set data-dark-variant="neutral"; Jacaranda and Auto remove it', /themeMode === 'dark-neutral' \|\| isGradientTheme\)\) \{\s*document\.documentElement\.setAttribute\('data-dark-variant', 'neutral'\);\s*\} else \{\s*document\.documentElement\.removeAttribute\('data-dark-variant'\);/.test(ctx));
-const general = read('src/components/common/modals/settings/GeneralSettings.jsx');
+// the Color Scheme control lives in Settings > Theme (ThemeSettings.jsx) since it moved out of General
+const general = read('src/components/common/modals/settings/ThemeSettings.jsx');
 check('the Color Scheme setting offers Auto, Light, the dark themes and the gradient themes', /<option value="auto">Auto \(System\)<\/option>/.test(general) && /<option value="light">Light<\/option>/.test(general) && /Object\.entries\(DARK_THEMES\)\.map/.test(general) && /Object\.entries\(GRADIENT_THEMES\)\.map/.test(general));
 
 // ---- the rail ----

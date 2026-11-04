@@ -4,13 +4,15 @@
 // the home-server client in electron/home-server.cjs) go through
 // checkServerIdentity() here.
 //
-// Why it stays after the Electron 42.11.16 update: GHSA-jr5w-w6x2-84p9 is
-// Chromium's mitigation for the compromised eMudhra intermediate
-// certificates, and it covers Chromium's verification only - the renderer
-// sessions and Electron's net module. Node's TLS (what https.request and
-// tls.connect use in the main process) verifies against Node's own root
-// store with no such list, so a chain through one of those intermediates
-// would still pass there. This list refuses any chain that carries an
+// Why it stays after the Electron 42.11.16 update, and after the move to
+// Electron 45.1.0 (the fix line of GHSA-jr5w-w6x2-84p9 is 42.11.16 /
+// 43.8.1 / 44.9.1 / 45.0.0-beta.6, so every 45 release carries it):
+// GHSA-jr5w-w6x2-84p9 is Chromium's mitigation for the compromised eMudhra
+// intermediate certificates, and it covers Chromium's verification - the
+// renderer sessions and Electron's net module. Node's TLS (what
+// https.request and tls.connect use in the main process) verifies against
+// Node's own root store with no such list of its own, so this list stays,
+// whatever the Electron version: it refuses any chain that carries an
 // eMudhra / emSign certificate as an issuer or an intermediate. That is
 // broader than Chromium's list (which names the compromised intermediates
 // by key): nothing this app talks to (the user's home server, Jira, GitHub,
