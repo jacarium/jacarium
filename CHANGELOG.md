@@ -4,6 +4,18 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.0.1
+
+_2026-11-04_
+
+### [DESKTOP]
+
+The macOS, Windows and Linux installers build again: the open-source licence list of an installer covers what it ships (the app and its backend) and no longer expects the central server, which only the container carries
+
+### [DEPLOY]
+
+The container's licence list still includes the central server's packages; local tool folders stay out of the image build
+
 ## What's New in v4.0.0
 
 _2026-11-04_

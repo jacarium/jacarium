@@ -8,7 +8,10 @@
 //     lock does not mark `dev`), i.e. what the Vite bundle and the desktop
 //     app's node_modules carry;
 //   - jacarium-central/package-lock.json: the central server's whole tree
-//     (it has no devDependencies; it ships in the container);
+//     (it has no devDependencies) - only for a build that ships it, i.e. the
+//     container (--with-central, or JACARIUM_LICENCES_CENTRAL=1, which
+//     deploy/Containerfile sets); the desktop installers do not carry the
+//     central server, so their list leaves it out;
 //   - the Python packages of the backend: from the installed site-packages
 //     the build has at hand (backend/venv in a checkout, /opt/app-root in the
 //     container), their METADATA's licence and the licence files in the
@@ -31,6 +34,7 @@
 //                                                 lock alone, with a warning
 //   node scripts/generate-licences.mjs --strict   (the build) the same, but a missing production package is an
 //                                                 error: a build must not ship a list with holes
+//   ... --with-central                            also the central server's tree (the container build)
 //   node scripts/generate-licences.mjs --check    prints what it would write (count, size) without writing
 import fs from 'node:fs';
 import path from 'node:path';
@@ -40,6 +44,7 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(REPO, 'public', 'licences.json');
 const CHECK = process.argv.includes('--check');
 const STRICT = process.argv.includes('--strict');
+const WITH_CENTRAL = process.argv.includes('--with-central') || process.env.JACARIUM_LICENCES_CENTRAL === '1';
 const LICENCE_FILE = /^(licen[sc]e|copying|notice)([-._].*)?$/i;
 const MAX_TEXT = 60000;   // one file's text kept at most (the odd 300 KB notice is cut, and says so)
 
@@ -131,7 +136,9 @@ function pythonPackages() {
 }
 
 const rootNpm = npmPackages(REPO, 'package-lock.json', { productionOnly: true });
-const centralNpm = npmPackages(path.join(REPO, 'jacarium-central'), 'package-lock.json', { productionOnly: false });
+const centralNpm = WITH_CENTRAL
+  ? npmPackages(path.join(REPO, 'jacarium-central'), 'package-lock.json', { productionOnly: false })
+  : { packages: [], missing: [] };
 const python = pythonPackages();
 const seen = new Map();
 for (const p of [...rootNpm.packages, ...centralNpm.packages.map((p) => ({ ...p, ecosystem: 'npm', where: 'central' })), ...python]) {
@@ -140,7 +147,7 @@ for (const p of [...rootNpm.packages, ...centralNpm.packages.map((p) => ({ ...p,
 }
 const packages = [...seen.values()].sort((a, b) => a.ecosystem.localeCompare(b.ecosystem) || a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
 const doc = {
-  generatedFrom: { rootLock: 'package-lock.json (production tree)', centralLock: 'jacarium-central/package-lock.json', python: python.length ? 'the installed backend packages (site-packages)' : 'none found at build time' },
+  generatedFrom: { rootLock: 'package-lock.json (production tree)', centralLock: WITH_CENTRAL ? 'jacarium-central/package-lock.json' : 'not part of this build (the desktop installers do not ship the central server)', python: python.length ? 'the installed backend packages (site-packages)' : 'none found at build time' },
   counts: { npm: packages.filter((p) => p.ecosystem === 'npm').length, pypi: python.length, withText: packages.filter((p) => p.texts.length).length },
   packages,
 };
@@ -148,7 +155,7 @@ const json = JSON.stringify(doc);
 const missing = [...rootNpm.missing, ...centralNpm.missing.map((k) => `jacarium-central/${k}`)];
 if (missing.length) {
   const note = `[licences] ${missing.length} production entries of the lock files are not installed here, listed without their licence text: ${missing.slice(0, 4).join(', ')}${missing.length > 4 ? ', ...' : ''}`;
-  if (STRICT) { console.error(`${note}\n[licences] ERROR: a build must not ship a list with holes - run npm ci in the root and in jacarium-central first`); process.exit(1); }
+  if (STRICT) { console.error(`${note}\n[licences] ERROR: a build must not ship a list with holes - run npm ci in the root${WITH_CENTRAL ? ' and in jacarium-central' : ''} first`); process.exit(1); }
   console.warn(note);
 }
 if (CHECK) {

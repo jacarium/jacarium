@@ -56,13 +56,23 @@ const readme = read('README.md');
 const licenceSection = readme.slice(readme.indexOf('## Licence'));
 check('the README\'s Licence section names the same things (React, Lucide, Electron, Node.js, Yjs, Font Awesome Free with the three licences, the dictionaries with the NOTICE, the generated list)', ['React', 'Lucide', 'Electron', 'Node.js', 'Yjs', 'Font Awesome Free', 'CC BY 4.0', 'SIL OFL', 'SCOWL', 'GPL-2.0', 'MPL-1.1', 'spellcheck-dictionaries-NOTICE.txt', 'All open-source licences'].every((w) => licenceSection.includes(w)));
 check('the build generates the list (--strict) and npm\'s postinstall generates it; the file is git-ignored', /node scripts\/generate-licences\.mjs --strict/.test(read('scripts/build-ui.sh')) && /"postinstall": "node scripts\/vendor-assets\.mjs && node scripts\/generate-licences\.mjs"/.test(read('package.json')) && /^public\/licences\.json$/m.test(read('.gitignore')));
-check('the container installs the central server\'s packages before the UI build, so the list has them', (() => { const c = read('deploy/Containerfile'); return c.indexOf('cd jacarium-central && npm ci --omit=dev') < c.indexOf('RUN npm run build'); })());
+check('the container installs the central server\'s packages before the UI build, so the list has them', (() => { const c = read('deploy/Containerfile'); return c.indexOf('RUN JACARIUM_LICENCES_CENTRAL=1 npm run build') > 0 && c.indexOf('cd jacarium-central && npm ci --omit=dev') < c.indexOf('RUN JACARIUM_LICENCES_CENTRAL=1 npm run build'); })());
 check('the About view loads the list from the app\'s own origin on demand (no network, nothing hard-coded) with the shared Button, TextInput and Note', /fetch\('licences\.json', \{ cache: 'no-cache' \}\)/.test(about) && /data-testid="about-licences-open"/.test(about) && /<TextInput value=\{filter\}/.test(about) && /<Note tone="warning" testId="about-licences-error">/.test(about));
 
 // ---------------------------------------------------------------------------
 // the generator
 // ---------------------------------------------------------------------------
-const gen = spawnSync(process.execPath, [path.join(REPO, 'scripts', 'generate-licences.mjs')], { cwd: REPO, encoding: 'utf8' });
+// the desktop installers' list (the default): no central server, which they do not ship
+const desktopGen = spawnSync(process.execPath, [path.join(REPO, 'scripts', 'generate-licences.mjs'), '--check'], { cwd: REPO, encoding: 'utf8', env: { ...process.env, JACARIUM_LICENCES_CENTRAL: '' } });
+check('the default (desktop installers) list leaves the central server out and needs only the root install', desktopGen.status === 0 && !/jacarium-central/.test(desktopGen.stderr), (desktopGen.stderr || desktopGen.stdout).slice(-300));
+{
+  const d = spawnSync(process.execPath, [path.join(REPO, 'scripts', 'generate-licences.mjs')], { cwd: REPO, encoding: 'utf8', env: { ...process.env, JACARIUM_LICENCES_CENTRAL: '' } });
+  const doc = d.status === 0 ? JSON.parse(read('public/licences.json')) : null;
+  check('...no entry of the default list is marked as the central server\'s', !!doc && !doc.packages.some((p) => p.where === 'central') && /not part of this build/.test(doc.generatedFrom.centralLock), d.stderr.slice(-200));
+}
+check('the container build opts in to the central server\'s packages (JACARIUM_LICENCES_CENTRAL=1 npm run build)', /RUN JACARIUM_LICENCES_CENTRAL=1 npm run build/.test(read('deploy/Containerfile')));
+// the container's list: with the central server
+const gen = spawnSync(process.execPath, [path.join(REPO, 'scripts', 'generate-licences.mjs'), '--with-central'], { cwd: REPO, encoding: 'utf8' });
 check('the generator runs and writes public/licences.json', gen.status === 0 && fs.existsSync(path.join(REPO, 'public', 'licences.json')), (gen.stderr || gen.stdout).slice(-300));
 if (gen.status === 0) {
   const doc = JSON.parse(read('public/licences.json'));
@@ -96,8 +106,12 @@ if (gen.status === 0) {
   fs.mkdirSync(path.join(stage, 'scripts'));
   fs.copyFileSync(path.join(REPO, 'scripts', 'generate-licences.mjs'), path.join(stage, 'scripts', 'generate-licences.mjs'));
   fs.symlinkSync(path.join(REPO, 'node_modules'), path.join(stage, 'node_modules'));
-  const plain = spawnSync(process.execPath, [path.join(stage, 'scripts', 'generate-licences.mjs')], { cwd: stage, encoding: 'utf8' });
-  const strict = spawnSync(process.execPath, [path.join(stage, 'scripts', 'generate-licences.mjs'), '--strict'], { cwd: stage, encoding: 'utf8' });
+  const env = { ...process.env, JACARIUM_LICENCES_CENTRAL: '1' };
+  const plain = spawnSync(process.execPath, [path.join(stage, 'scripts', 'generate-licences.mjs')], { cwd: stage, encoding: 'utf8', env });
+  const strict = spawnSync(process.execPath, [path.join(stage, 'scripts', 'generate-licences.mjs'), '--strict'], { cwd: stage, encoding: 'utf8', env });
+  // the installer build: the root's npm ci only, no central server - --strict passes
+  const installer = spawnSync(process.execPath, [path.join(stage, 'scripts', 'generate-licences.mjs'), '--strict', '--check'], { cwd: stage, encoding: 'utf8', env: { ...process.env, JACARIUM_LICENCES_CENTRAL: '' } });
+  check('the installer build (no jacarium-central installed) passes --strict: its list does not include the central server', installer.status === 0, (installer.stderr || installer.stdout).slice(-300));
   check('without jacarium-central\'s lock (the UI build stage before COPY . .) the postinstall run warns and still writes the list', plain.status === 0 && /not present/.test(plain.stderr) && fs.existsSync(path.join(stage, 'public', 'licences.json')), (plain.stderr + plain.stdout).slice(-300));
   check('...and --strict (the build itself) refuses that state', strict.status === 1 && /must not ship a list with holes/.test(strict.stderr), strict.stderr.slice(-200));
   fs.rmSync(stage, { recursive: true, force: true });

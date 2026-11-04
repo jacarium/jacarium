@@ -1,5 +1,23 @@
 [
   {
+    "version": "4.0.1",
+    "date": "2026-11-04",
+    "features": [
+      {
+        "category": "DESKTOP",
+        "description": [
+          "The macOS, Windows and Linux installers build again: the open-source licence list of an installer covers what it ships (the app and its backend) and no longer expects the central server, which only the container carries"
+        ]
+      },
+      {
+        "category": "DEPLOY",
+        "description": [
+          "The container's licence list still includes the central server's packages; local tool folders stay out of the image build"
+        ]
+      }
+    ]
+  },
+  {
     "version": "4.0.0",
     "date": "2026-11-04",
     "features": [

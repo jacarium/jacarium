@@ -46,7 +46,9 @@ COPY . .
 # the UI build, whose licence list (scripts/generate-licences.mjs --strict)
 # reads every shipped package's licence text, the central server's included.
 RUN cd jacarium-central && npm ci --omit=dev --no-audit --no-fund
-RUN npm run build
+# (the container ships the central server, so its packages are in this build's list; the desktop
+# installers' list leaves them out)
+RUN JACARIUM_LICENCES_CENTRAL=1 npm run build
 # Project label (last, so it costs no cached layer): the untagged image a
 # stage leaves behind carries only its own labels, and deploy/prune-images.sh
 # removes superseded ones by this label - never anything else on the machine.
