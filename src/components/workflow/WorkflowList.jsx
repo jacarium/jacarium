@@ -58,7 +58,6 @@ export default function WorkflowList({
   const [draggedWorkflow, setDraggedWorkflow] = useState(null);
   const [dragOverCategory, setDragOverCategory] = useState(null);
   const [currentMachineId, setCurrentMachineId] = useState(null);
-  const clickTimerRef = useRef(null);
   const menuRef = useRef(null);
 
   const sharing = useWorkflowSharing({ currentMachineId, onWorkflowsChanged });
@@ -79,15 +78,6 @@ export default function WorkflowList({
   useEffect(() => {
     localStorage.setItem('expandedWorkflowCategories', JSON.stringify(expandedCategories));
   }, [expandedCategories]);
-
-  // Cleanup click timer on unmount
-  useEffect(() => {
-    return () => {
-      if (clickTimerRef.current) {
-        clearTimeout(clickTimerRef.current);
-      }
-    };
-  }, []);
 
   // Close the dropdown on outside click. The wrapper (button + menu) is the
   // inside, so a click on the button toggles rather than closes-then-reopens.
@@ -142,28 +132,23 @@ export default function WorkflowList({
     setContextMenu({ x: e.clientX, y: e.clientY, type: 'category', category });
   }
 
+  // A click opens the workflow at once, like every other sidebar list selects
+  // on click: the row shows as the open one in the same render. (It used to
+  // wait 250 ms to tell a single click from a double click, so the row looked
+  // unselected for a quarter of a second after the click - and longer on a
+  // loaded machine.) A double click renames; its first click has opened the
+  // workflow by then, which the rename handles (the open workflow is renamed
+  // from the canvas state).
   function handleWorkflowRowClick(workflow) {
     if (selectionMode) {
       onToggleWorkflowSelection(workflow.id);
-    } else if (readOnly) {
-      // no double-click to tell apart (renaming is off), and the phone
-      // drawer closes on the tap: open straight away, not after a delay
-      onWorkflowClick(workflow);
     } else {
-      // Delay onClick to distinguish from double-click
-      clickTimerRef.current = setTimeout(() => {
-        onWorkflowClick(workflow);
-      }, 250);
+      onWorkflowClick(workflow);
     }
   }
 
   function handleWorkflowRowDoubleClick(e, workflow) {
     e.stopPropagation();
-    // Clear the single click timer
-    if (clickTimerRef.current) {
-      clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = null;
-    }
     // Only allow rename if not in selection mode and the workflow is ours (unshared, or shared by us)
     if (!selectionMode && isMineOrUnshared(workflow, currentMachineId)) {
       setEditingWorkflowId(workflow.id);

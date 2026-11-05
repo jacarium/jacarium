@@ -4,6 +4,18 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.0.3
+
+_2026-11-05_
+
+### [WORKFLOWS]
+
+A click on a workflow in the list opens it at once (it used to wait a quarter of a second); a double click still renames it
+
+### [SETTINGS]
+
+About: the Show data folder button is a plain text button like the others
+
 ## What's New in v4.0.2
 
 _2026-11-05_

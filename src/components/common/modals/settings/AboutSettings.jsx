@@ -9,7 +9,7 @@
  * the project (a tip on Ko-fi), where to report an issue, the licence, and the credits for the fonts and libraries it ships.
  */
 import { useEffect, useState } from 'react';
-import { Globe, Scale, User, Github, Bug, Coffee, ShieldCheck, ShieldAlert, Award, BadgeCheck, FolderOpen } from 'lucide-react';
+import { Globe, Scale, User, Github, Bug, Coffee, ShieldCheck, ShieldAlert, Award, BadgeCheck } from 'lucide-react';
 import { copyToClipboard } from '../../../../utils/markdownToJira';
 import { SECURITY_LINKS, BEST_PRACTICES_PROJECT, desktopRuntimes, serverRuntimes, runtimeLine, platformLabel, versionInfoText } from '../../../../utils/aboutInfo';
 import BrandMark, { BrandWordmark } from '../../../../brand/BrandMark';
@@ -240,9 +240,7 @@ export default function AboutSettings({ onShowWhatsNew }) {
         </InfoRows>
         {isDesktopApp() && typeof window !== 'undefined' && typeof window.electronAPI?.openDataFolder === 'function' && (
           <ButtonRow align="start">
-            <Button size="sm" onClick={() => window.electronAPI.openDataFolder().catch(() => {})} data-testid="about-open-data-folder">
-              <span className="inline-flex items-center gap-2"><FolderOpen size={14} aria-hidden="true" />Show data folder</span>
-            </Button>
+            <Button size="sm" onClick={() => window.electronAPI.openDataFolder().catch(() => {})} data-testid="about-open-data-folder">Show data folder</Button>
           </ButtonRow>
         )}
       </Section>

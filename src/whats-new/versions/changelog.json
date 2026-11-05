@@ -1,5 +1,23 @@
 [
   {
+    "version": "4.0.3",
+    "date": "2026-11-05",
+    "features": [
+      {
+        "category": "WORKFLOWS",
+        "description": [
+          "A click on a workflow in the list opens it at once (it used to wait a quarter of a second); a double click still renames it"
+        ]
+      },
+      {
+        "category": "SETTINGS",
+        "description": [
+          "About: the Show data folder button is a plain text button like the others"
+        ]
+      }
+    ]
+  },
+  {
     "version": "4.0.2",
     "date": "2026-11-05",
     "features": [
