@@ -76,6 +76,9 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
+    env:
+      # the CPython the installers bundle (actions/setup-python, every platform): exact, see the step below
+      PYTHON_VERSION: '3.14.10'
     outputs:
       version: ${{ steps.version.outputs.version }}
     strategy:
@@ -96,10 +99,14 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Set up Python 3.14 (requirements.lock is resolved for it)
+      # An exact version: a range ('3.14') takes whichever 3.14.x the runner image already carries in its
+      # tool cache, so the platforms can end up with different Pythons - the 4.0.1 Linux installers shipped
+      # 3.14.9 (CVE-2026-115557) while the macOS runner downloaded 3.14.10. The frozen backend's own Python
+      # is checked against this pin after the build.
+      - name: Set up Python ${{ env.PYTHON_VERSION }} (requirements.lock is resolved for 3.14)
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.14'
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Linux packaging tools (rpmbuild, from Ubuntu's own archive)
         if: matrix.platform == 'linux'
@@ -122,6 +129,18 @@ jobs:
           # no Apple signing identity yet: build unsigned instead of searching for one
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: ./rebuild.sh --no-container --platform "${{ matrix.platform }}" --format "${{ matrix.format }}"
+
+      # The Python inside the installers is the pinned one: the frozen backend prints the version it
+      # carries (backend/app_standalone.py --runtime-version). Syft does not see the macOS build's Python,
+      # so this is the only check there.
+      - name: The bundled Python is ${{ env.PYTHON_VERSION }}
+        run: |
+          got="$(backend/dist/flask-backend/flask-backend --runtime-version)"
+          echo "frozen backend: Python $got"
+          if [ "$got" != "$PYTHON_VERSION" ]; then
+            echo "::error::the frozen backend carries Python $got, the workflow pins $PYTHON_VERSION"
+            exit 1
+          fi
 
       - name: SBOMs of the application (Syft, pinned and verified by .github/scripts/fetch-tool.sh)
         env:

@@ -6,6 +6,14 @@ Entry point for PyInstaller packaging
 import sys
 import os
 
+# `flask-backend --runtime-version` prints the Python frozen into the build
+# (X.Y.Z) and exits: the build's check that the installers carry the pinned
+# CPython (rebuild.sh, build.yml). Before the app import so nothing else runs.
+if len(sys.argv) == 2 and sys.argv[1] == '--runtime-version':
+    import platform
+    print(platform.python_version())
+    sys.exit(0)
+
 # Add backend directory to Python path
 backend_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, backend_dir)

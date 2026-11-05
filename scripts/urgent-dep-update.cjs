@@ -355,19 +355,22 @@ function installSpecs(specs, assessments, { repoDir, exec }) {
   const pkg = readJson(pkgPath, {});
   const direct = [];
   let overridesChanged = false;
+  // Exact pins, not carets: the install runs with --min-release-age=0, under which a caret range resolves to
+  // the newest release of the line - a release younger than the lane's two days that nobody checked (electron
+  // ^45.2.1 came out as 45.2.3, one day old). The version the checks above assessed is the one that goes in.
   for (const s of specs) {
     const field = assessments[s.raw].facts.direct;
     if (field) direct.push({ spec: s, field });
     else {
       pkg.overrides = pkg.overrides || {};
-      pkg.overrides[s.name] = `^${s.version}`;
+      pkg.overrides[s.name] = s.version;
       overridesChanged = true;
     }
   }
   if (overridesChanged) fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
   for (const field of ['dependencies', 'devDependencies']) {
-    const names = direct.filter((d) => d.field === field).map((d) => `${d.spec.name}@^${d.spec.version}`);
-    if (names.length) run(exec, 'npm', ['install', ...names, field === 'devDependencies' ? '--save-dev' : '--save', '--min-release-age=0']);
+    const names = direct.filter((d) => d.field === field).map((d) => `${d.spec.name}@${d.spec.version}`);
+    if (names.length) run(exec, 'npm', ['install', ...names, field === 'devDependencies' ? '--save-dev' : '--save', '--save-exact', '--min-release-age=0']);
   }
   if (overridesChanged) run(exec, 'npm', ['install', '--min-release-age=0']);
 }

@@ -91,7 +91,10 @@ LABEL com.jacarium.image=deploy com.jacarium.stage=taskwarrior
 # build: the binary is reproducible from these inputs. `caddy build-info`
 # in the image shows the toolchain and x/net versions.
 # ---------------------------------------------------------------------------
-FROM docker.io/library/golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS caddy
+# Go 1.27.3 (2026-10-20): GO-2026-6809 / CVE-2026-111943, crypto/x509 distrusts the compromised eMudhra
+# intermediates (not reached by this Caddy, which verifies no peer certificate - vex/decisions.yaml); the
+# image is golang:1.27.3-alpine of 2026-10-21, moved to on 2026-11-05 under the seven-day rule.
+FROM docker.io/library/golang:1.27.3-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS caddy
 ARG CADDY_VERSION=v2.11.7
 ARG XNET_VERSION=v0.62.0
 # go-chi/chi v5.4.0 (2026-10-12): GHSA-j6qf-3m9c-vwj3, reported against the v5.3.2 Caddy 2.11.7 pulls in

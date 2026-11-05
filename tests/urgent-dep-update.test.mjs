@@ -197,7 +197,7 @@ function world(newTarball, { newDoc = {}, prevAttest = true, newAttest = true, p
     if (args[0] === 'install' && !args.includes('--no-save')) {
       const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
       lock.packages['node_modules/pkg'] = { version: '1.0.1', resolved: 'https://registry.npmjs.org/pkg/-/pkg-1.0.1.tgz', integrity: 'sha512-pkg-1.0.1' };
-      lock.packages[''].overrides = { pkg: '^1.0.1' };
+      lock.packages[''].overrides = { pkg: '1.0.1' };
       fs.writeFileSync(lockPath, JSON.stringify(lock, null, 2));
     }
     if (args[0] === 'install' && args.includes('--no-save')) fs.appendFileSync(lockPath, '\n');   // a --no-save install that dirtied the lock: restored
@@ -207,7 +207,7 @@ function world(newTarball, { newDoc = {}, prevAttest = true, newAttest = true, p
   const r = await udu.main(w.args(), { repoDir: w.repo, registry: w.registry, exec: fakeNpm, log: w.log, now: NOW });
   check('the clean update installs and ends ok', r.ok && r.installed && r.vulns === 0 && r.signatures, JSON.stringify({ ok: r.ok, results: r.results }));
   const pkg = JSON.parse(fs.readFileSync(path.join(w.repo, 'package.json'), 'utf8'));
-  check('a transitive package gets an override ^version', pkg.overrides.pkg === '^1.0.1', JSON.stringify(pkg.overrides));
+  check('a transitive package gets an exact override (a caret under --min-release-age=0 would float to the newest, unchecked release)', pkg.overrides.pkg === '1.0.1', JSON.stringify(pkg.overrides));
   const installs = w.calls.filter((c) => c[1] === 'install');
   check('npm install runs with --min-release-age=0 once, for the override, and never edits .npmrc', installs.filter((c) => c.includes('--min-release-age=0')).length === 1 && fs.readFileSync(path.join(w.repo, '.npmrc'), 'utf8') === NPMRC, JSON.stringify(installs));
   check('then npm audit --json and npm audit signatures run', w.calls.some((c) => c[1] === 'audit' && c[2] === '--json') && w.calls.some((c) => c[1] === 'audit' && c[2] === 'signatures'));
@@ -218,7 +218,7 @@ function world(newTarball, { newDoc = {}, prevAttest = true, newAttest = true, p
   check('the suggested commit message names the specs and the reason', w.lines.some((l) => /^Security: pkg@1\.0\.1 \(GHSA-2345-cfgh-jmpq\)/.test(l)));
 }
 {
-  // a direct devDependency goes to --save-dev with the caret, nothing in overrides; a lockfile change outside the spec is an error
+  // a direct devDependency goes to --save-dev --save-exact at the exact version, nothing in overrides; a lockfile change outside the spec is an error
   const w = world(goodNew);
   const pkgPath = path.join(w.repo, 'package.json');
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); pkg.devDependencies.pkg = '^1.0.0'; fs.writeFileSync(pkgPath, JSON.stringify(pkg));
@@ -235,7 +235,7 @@ function world(newTarball, { newDoc = {}, prevAttest = true, newAttest = true, p
   };
   let error = null;
   try { await udu.main(w.args(), { repoDir: w.repo, registry: w.registry, exec: fakeNpm, log: w.log, now: NOW }); } catch (e) { error = e; }
-  check('a direct devDependency is installed into devDependencies (--save-dev, ^version, --min-release-age=0) with no override', w.calls.some((c) => c[1] === 'install' && c[2] === 'pkg@^1.0.1' && c.includes('--save-dev') && c.includes('--min-release-age=0')) && JSON.parse(fs.readFileSync(pkgPath, 'utf8')).overrides.pkg === undefined, JSON.stringify(w.calls));
+  check('a direct devDependency is installed into devDependencies (--save-dev --save-exact, the exact version, --min-release-age=0) with no override', w.calls.some((c) => c[1] === 'install' && c[2] === 'pkg@1.0.1' && c.includes('--save-dev') && c.includes('--save-exact') && c.includes('--min-release-age=0')) && JSON.parse(fs.readFileSync(pkgPath, 'utf8')).overrides.pkg === undefined, JSON.stringify(w.calls));
   check('a lockfile entry outside the named packages fails the run', error && /lockfile changed outside the named packages: node_modules\/sneaky/.test(error.message), String(error && error.message));
 }
 {

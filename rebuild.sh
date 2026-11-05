@@ -318,6 +318,14 @@ build_backend() {
 
         # onedir build: dist/flask-backend/ holds the launcher plus _internal/
         [ -f dist/flask-backend/flask-backend ] || die "backend build failed"
+        # The Python frozen into the backend is the venv's (what PyInstaller ran under): the frozen
+        # binary prints its own version (app_standalone.py --runtime-version), build.yml compares it
+        # to the workflow's pin, the installers' SBOM gets it from the bundled libpython on Linux only.
+        local frozen_python venv_python
+        frozen_python="$(dist/flask-backend/flask-backend --runtime-version)" || die "the frozen backend cannot report its Python version"
+        venv_python="$("$python_bin" -c 'import platform; print(platform.python_version())')"
+        [ "$frozen_python" = "$venv_python" ] || die "the frozen backend carries Python $frozen_python, the venv has $venv_python"
+        log_info "frozen backend: Python $frozen_python"
         log_success "backend built ($(du -sh dist/flask-backend | cut -f1)) - backend/dist/flask-backend/flask-backend"
     )
 }

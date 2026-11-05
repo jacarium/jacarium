@@ -41,8 +41,8 @@ script red-flags a manifest whose Electron version is not the installed one, and
 
 | | |
 |---|---|
-| Electron release | [v45.1.0](https://github.com/electron/electron/releases/tag/v45.1.0), asset `hunspell_dictionaries.zip` uploaded 2026-10-27 16:53 UTC (7.5 days old when pinned on 2026-11-04: past the 7-day rule). Before, [v42.11.17](https://github.com/electron/electron/releases/tag/v42.11.17)'s asset of 2026-10-20 (the history below) |
-| Asset sha256 | `9fe45fc5b34e9887d09dcfca73c7f75f5c849e84faa9322e823ed8c7a9a955d3`, 34,144,925 bytes - the digest GitHub reports for the asset (`digest` in the release API) and the sha256 of the download agree |
+| Electron release | [v45.2.1](https://github.com/electron/electron/releases/tag/v45.2.1), asset `hunspell_dictionaries.zip` uploaded 2026-10-30 21:34 UTC (5.1 days old when pinned on 2026-11-05: the Electron update came through the security lane, so the pin follows it with `--min-age-days 2`). Before, [v45.1.0](https://github.com/electron/electron/releases/tag/v45.1.0)'s asset of 2026-10-27 and [v42.11.17](https://github.com/electron/electron/releases/tag/v42.11.17)'s of 2026-10-20 (the history below) |
+| Asset sha256 | `edaeccd0fd7d1e10c89e8757785dd63695bcfca73076842dc540ddaff71f7fac`, 34,144,925 bytes - the digest GitHub reports for the asset (`digest` in the release API) and the sha256 of the download agree |
 | Uploader | the Electron release bot (`sudowoodo-release-uploader[bot]`), like every asset of the release |
 | `en-US-10-2.bdic` | `b0d80e6b6c5491879365e176ecbd98074602a663429bcfcfb0a5a8375c051f13`, 451,982 bytes - SCOWL (Kevin Atkinson), permissive (Chromium 156 carries the 10-2 revision of the three English word lists; 42's were 10-1) |
 | `en-GB-10-2.bdic` | `e014c23d2215f093205343b9b8805e17c8d8e115d314d93fd5ba51eadf05cff2`, 452,008 bytes - SCOWL, permissive |
@@ -102,3 +102,7 @@ and add a row to the table above with the new release, its date and the hashes.
   dictionaries moved from the 10-1 to the 10-2 revision (new hashes above), Czech and Slovak and every licence
   text are byte for byte the files of the previous pin. The stale 10-1 files are removed from build/dictionaries
   by the fetch (files not in the manifest), so a packaged app carries the manifest's files alone.
+- 2026-11-05: re-pinned to Electron v45.2.1's asset with the security-lane move to 45.2.1 (Chromium
+  156.0.8078.75; docs/security/urgent-updates.md). `--repin --min-age-days 2` (the lane's floor; the asset was
+  5.1 days old): the zip's digest as GitHub reports it changed (a new zip, `edaeccd0…`), every file inside is
+  byte for byte the file of the 45.1.0 pin - the five dictionaries and the licence texts keep their hashes.

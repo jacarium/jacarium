@@ -81,7 +81,11 @@ check('every dictionary file is <language>-<major>-<minor>.bdic with a 64-hex sh
 check('the licence files of the zip are pinned too (LICENSE, COPYING, COPYING.*)', manifest.licences.some((l) => l.file === 'LICENSE') && manifest.licences.some((l) => l.file === 'COPYING') && manifest.licences.every((l) => /^(LICENSE|COPYING(\.[A-Za-z0-9]+)?)$/.test(l.file) && HEX64.test(l.sha256) && Number.isInteger(l.size)), manifest.licences.map((l) => l.file).join(', '));
 check('no two entries share a file name or a hash', new Set([...manifest.dictionaries, ...manifest.licences].map((e) => e.file)).size === manifest.dictionaries.length + manifest.licences.length && new Set([...manifest.dictionaries, ...manifest.licences].map((e) => e.sha256)).size === manifest.dictionaries.length + manifest.licences.length);
 const ageDays = (Date.now() - Date.parse(manifest.asset.createdAt)) / 86400000;
-check('the pinned release is at least 7 days old (the dependency policy)', ageDays >= 7, `${ageDays.toFixed(1)} days`);
+// 7 days in general; from 2 days when that Electron release came in through the security lane
+// (docs/security/urgent-updates.md names it as electron@<version>, the lane's own record)
+const pinnedTag = (manifest.asset.release.match(/\/tag\/v([^/]+)$/) || [])[1] || '';
+const viaLane = !!pinnedTag && fs.readFileSync(path.join(REPO, 'docs', 'security', 'urgent-updates.md'), 'utf8').includes(`electron@${pinnedTag}`);
+check(`the pinned release is at least 7 days old (the dependency policy)${viaLane ? ', or 2 through the security lane' : ''}`, ageDays >= 7 || (viaLane && ageDays >= 2), `${ageDays.toFixed(1)} days${viaLane ? ` (electron@${pinnedTag} through the lane)` : ''}`);
 check('the notice shipped beside the dictionaries names each of them and its licence', (() => { const n = read('electron/spellcheck-dictionaries-NOTICE.txt'); return manifest.dictionaries.every((d) => n.includes(d.file)) && /GNU General Public License, version 2/.test(n) && /SCOWL/.test(n) && /Mozilla Public License 1\.1/.test(n); })());
 
 // ---------------------------------------------------------------- git and packaging

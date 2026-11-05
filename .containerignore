@@ -23,10 +23,14 @@ backend/static/vendor
 backend/uploads
 tests
 docs
-*.log
-.env
-.env.*
+**/*.log
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/.env
+**/.env.*
 .jacarium.env
 .vite
 .DS_Store
 .claude
+.publish-hooks

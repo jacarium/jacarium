@@ -429,3 +429,98 @@ which ubi9-minimal does not carry - the copied `node` failed to load in the runt
 now installs `libatomic` (11.5.0-14.el9, ubi-9-baseos-rpms, 26 kB) in its one microdnf step and runs
 `node --version` right after the copy, so a binary whose libraries are missing fails the build rather than
 the central server's first start.
+
+## 2026-11-05 - the sweep after CVE-2026-115557: Python 3.14.10 in the installers, Electron 45.2.1 (the lane), Go 1.27.3, brotlicffi
+
+The trigger: CVE-2026-115557 (GHSA-x547-2835-q547, Critical, published 2026-10-24) - CPython's `ssl` module gained a
+denylist of the compromised eMudhra intermediate certificates, so a chain through one of them is refused whatever
+the SSLContext says; fixed in 3.14.10 (and 3.11.18 / 3.12.16 / 3.13.18 / 3.15.2 / 3.16.0). The 4.0.1 **Linux**
+installers (x64 and arm64) bundle CPython 3.14.9 in the PyInstaller-built backend; the backend makes outbound TLS
+connections with `requests` (the update check against api.github.com, the AI endpoints, Jira, the workflow URL
+fetches, Google Calendar), so the denylist matters there.
+
+1. **The installers: `actions/setup-python` pinned to exactly `3.14.10`** (build.yml, one `PYTHON_VERSION` for the
+   installers job, every platform). Not a lane update: the release is 10 days old (python.org 2026-10-25, the
+   actions/python-versions build `3.14.10-40336797752` of 2026-10-26, with darwin-arm64, linux-x64 and linux-arm64
+   builds in the manifest). What went wrong was the range: `python-version: '3.14'` lets setup-python take the
+   3.14.x the runner image carries in its tool cache before it downloads anything, and the release run of 4.0.1
+   (2026-11-04) shows it - "Successfully set up CPython (3.14.9)" on ubuntu-24.04 and ubuntu-24.04-arm,
+   "(3.14.10)" on macos-26, whose image had no 3.14 to reuse. So **the macOS installer was not flagged because it
+   really has 3.14.10**; but the macOS SBOM would not have shown it either way - Syft's binary cataloguer sees the
+   Linux build's `libpython3.14.so` and lists `pkg:generic/python@3.14.9`, and it does not classify the macOS
+   build's Python (the 4.0.1 macOS SBOM has no python package at all). **Windows: no Windows installer is built**
+   (build.yml's matrix is linux-x64, linux-arm64, macos-arm64; the Windows targets in the packaging config are
+   not built or published), so nothing to fix and nothing to assume. The build now proves the bundle: the frozen
+   backend answers `flask-backend --runtime-version` (backend/app_standalone.py, before the app import),
+   rebuild.sh compares it with the venv's Python after every PyInstaller build, build.yml fails the installers job
+   when it is not the pin, and tests/bundled_python_version.test.py keeps the pin exact, at least 3.14.10, on the
+   lock's minor, with the check step in place.
+2. **The container: pending at Red Hat.** The runtime image's `python3.14` is 3.14.8-1.el9_8 (RHSA-2026:77021,
+   2026-10-08). Red Hat's security data has no record of CVE-2026-115557 at all (the CVE endpoint answers "Not
+   Found"; no python3.14 erratum since mentions it), so scripts/verify-rpm-update.sh has nothing to verify and
+   no upgrade line is added. Not a VEX candidate: the container's backend makes the same outbound TLS
+   connections, and `requests` verifies against certifi's bundle (2026.10.19, the emSign roots still in it), not
+   the system store - so the base image's ca-certificates 2026.2.92_v9.0.319-90.3.el9_8 (RHSA-2026:88459,
+   CVE-2026-114406, "distrust eMudhra intermediate CA certificates", already in the pinned base) does not reach
+   it. Re-check Red Hat's data for a python3.14 erratum before each release; when one appears it goes through
+   verify-rpm-update.sh and the microdnf upgrade line like curl did.
+3. **Electron 45.1.0 -> 45.2.1, the security lane** (`npm run deps:urgent -- electron@45.2.1 --reason ...`):
+   45.2.1 (2026-10-31, 4.9 days old) updates Chromium from 156.0.8078.49 to 156.0.8078.75, which carries the
+   Chrome stable fixes of 2026-10-27 (52 CVEs, four Critical: CVE-2026-118306 FileSystem, CVE-2026-118331
+   FileAPI, CVE-2026-118348 Skia, CVE-2026-118344 Layout; Electron names no CVE of its own for it). Publisher
+   electron-nightly (the same as 45.1.0), 2 registry signatures, no provenance (Electron publishes none; as
+   before), the tarball diff is checksums.json, electron.d.ts and package.json (the 275 "removed" files are the
+   downloaded binary under node_modules/electron/dist, not part of the tarball). After: .npmrc still
+   min-release-age=7; lockfile: 2 entries changed, all the named packages' own, integrity = registry; npm audit:
+   0 vulnerabilities; npm audit signatures: ok; test-only packages reinstalled (playwright-core@1.64.1).
+   The spell-check dictionaries follow (`--repin --min-age-days 2`, docs/security/spellcheck-dictionaries.md):
+   a new zip digest, every file byte for byte the 45.1.0 pin's.
+
+   **A script fix found on the way:** the lane installed `electron@^45.2.1` with `--min-release-age=0`, and npm
+   resolved the caret to 45.2.3 - one day old, never assessed (the script then stopped at "electron@45.2.1 is
+   not what the lockfile holds (45.2.3)", so nothing unchecked was kept). scripts/urgent-dep-update.cjs now
+   installs the exact version (`--save-exact`; an `overrides` entry is exact too), which is what the checks
+   assessed; package.json therefore pins `"electron": "45.2.1"`. tests/urgent-dep-update.test.mjs expects the
+   exact form.
+
+   Still pending on the Electron line: 45.2.2 (2026-11-03 19:31 UTC; Chromium 156.0.8078.80 with Chrome's
+   2026-10-29 fixes - 21 CVEs, one Critical, CVE-2026-76024 MediaStream - and Node 24.22.2, not a security
+   release) is lane-eligible from **2026-11-05 19:31 UTC**; 45.2.3 (2026-11-04, backported upstream fixes, no
+   advisory named) from 2026-11-06 21:21 UTC.
+4. **Go 1.27.2 -> 1.27.3 for the Caddy build** (deploy/Containerfile, golang:1.27.3-alpine of 2026-10-21 pinned by
+   digest `sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb`, Alpine 3.24.3): not the
+   lane, the toolchain is 16 days old. It is the fix of GO-2026-6809 / CVE-2026-111943 (crypto/x509 distrusts the
+   compromised eMudhra intermediates), which vex/decisions.yaml has as not_affected (Caddy here verifies no
+   peer certificate); the statement stays for the releases built with 1.27.2 and now says the toolchain moved.
+   Verified in the built image: `caddy build-info` shows go1.27.3 and Grype reports nothing against the stdlib
+   without the VEX.
+5. **brotlicffi 1.2.0.2 -> 1.2.1.0 in backend/requirements.lock** (`backend/lock-requirements.sh
+   --upgrade-package brotlicffi`, the regular rule: uploaded 2026-10-22, 14 days old): GHSA-9v8h-qqgm-4m35 /
+   PYSEC-2026-4323, the Brotli decoder out-of-bounds write (CVE-2026-111497, "Node2Shell"). OSV flags the lock
+   line; nothing of Jacarium's ever installs it - the pin carries the marker `platform_python_implementation ==
+   'PyPy'` and every build is CPython (`brotli` 1.2.1, the CPython wheel, was fixed on 2026-10-26). Only the pin
+   moved; the rest of the lock is unchanged.
+
+**Looked at and left (eligibility dates):**
+
+- **Caddy 2.11.7 -> 2.11.8** (2026-11-04 01:16 UTC): fixes five repository advisories - GHSA-r766-rf9f-588h (High:
+  a `{host}`-based root escaped through dot segments in Host / :authority), GHSA-jf74-f69g-hcj9 (file_server
+  serves the data directory when it falls back to ./caddy), GHSA-69hv-5jfc-mvmv (rewrite re-decodes
+  `{http.matchers.file.remainder}`), GHSA-25cw-38mq-q7m6 (the file matcher resolves `/file/./` past suffix path
+  rules), GHSA-f278-mgc7-46j3 (php_fastcgi authorization bypass). deploy/Caddyfile uses fixed roots (`/app/ui`,
+  `/data/ui-assets`), HOME=/data, no rewrite, no php_fastcgi, and its path rules are prefixes over a public UI
+  tree, so none of the five reaches this image; no CVE ids yet, nothing in OSV or Grype. **Lane-eligible from
+  2026-11-06 01:16 UTC**; the release notes carry breaking changes (idle timeouts, config rejections) to read
+  before the bump.
+- **ubi9-minimal 9.8-1793578971** (2026-11-02, `sha256:dfa0eb04abc59221544e74862432496add1f491f915c9b531880f91affc0e12c`):
+  against the pinned 9.8-1792742033 it carries exactly the xz-libs, curl-minimal and libcurl-minimal builds the
+  microdnf upgrade line already installs, plus krb5-libs 1.21.1-10.el9_8.1 (no security erratum names it; Grype
+  reports nothing against the pinned base's krb5-libs). Grype on the new base: no findings; on the pinned base:
+  the three the upgrade line fixes. A clean-up bump, **from 2026-11-09 under the seven-day rule** - then the
+  upgrade line and its `rpm -q` assertions can go.
+- **Node.js**: the container's 26.13.0 is the newest 26 (no 26.13.x since 2026-10-28); 24.22.2 (2026-10-27) is not a
+  security release and is Electron's concern (45.2.2 carries it); no November security release announced.
+- **npm**: both tiers clean in both lockfiles (root and jacarium-central: `--omit=dev` at moderate, full at high);
+  no open Dependabot alert.
+- **Python**: OSV over the 111 pins of backend/requirements.lock finds only the brotlicffi line above.
+

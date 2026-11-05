@@ -4,6 +4,24 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.0.2
+
+_2026-11-05_
+
+### [SECURITY]
+
+Python 3.14.10 in the Linux installers' backend (CVE-2026-115557, Critical: the eMudhra certificate distrust in Python's ssl); the installers now pin the exact Python version and the build checks the bundled one
+
+Electron 45.2.1: Chromium 156.0.8078.75 with Chrome's 27 October security fixes, through the security lane
+
+Caddy is built with Go 1.27.3 (GO-2026-6809); brotlicffi 1.2.1.0 in the Python lock (GHSA-9v8h-qqgm-4m35)
+
+The urgent-update script installs exactly the reviewed version
+
+### [DEPLOY]
+
+Local logs, databases and .env files in any folder, and local tool folders, stay out of the container build
+
 ## What's New in v4.0.1
 
 _2026-11-04_

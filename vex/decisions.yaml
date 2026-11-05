@@ -155,7 +155,9 @@ decisions:
       certificate as a TLS client. Caddy in this image never does: deploy/Caddyfile sets auto_https off (no
       ACME), serves its own certificate from /data/certs, and proxies to plain-http upstreams on localhost
       (reverse_proxy to the Flask backend and the central server); it verifies no certificate. Fixed upstream in
-      Go 1.26.10 / 1.27.3, which the Caddy build moves to once those are a week old.
+      Go 1.26.10 / 1.27.3; the Caddy build moved to golang:1.27.3-alpine on 2026-11-05 (the release after 4.0.1,
+      docs/security/urgent-updates.md), so the flawed stdlib is no longer in the image and this statement covers
+      the releases built with 1.27.2.
     decided_by: maintainer
     decided_on: 2026-10-26
 
