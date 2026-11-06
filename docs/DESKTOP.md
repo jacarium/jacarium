@@ -9,7 +9,7 @@ lock file); Settings > About > Version shows the Electron, Chromium and
 Node.js versions the running app has. Electron supports only its latest
 three major versions, so a major that has fallen out of that window gets no
 more security fixes: since 3.9.0 the app is built on **Electron 45**
-(45.2.1: Chromium 156, Node.js 24.22.1), because 42 left the window when
+(45.2.2: Chromium 156, Node.js 24.22.2), because 42 left the window when
 45.0.0 was released on 2026-10-21. The desktop build stays on Electron's own
 Node 24 (no Electron ships Node 26 yet). What that means for the platforms:
 macOS 13 (Ventura) or later (Electron 44 dropped macOS 12), 64-bit Windows

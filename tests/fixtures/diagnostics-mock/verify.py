@@ -163,10 +163,22 @@ def verify_sosreport(client, directory):
           96 < mem_worker.get("memory.usage_percent", 0) < 98, str(mem_worker.get("memory.usage_percent")))
 
     net = (d["network_stats"] or {}).get("ip_info", {})
-    check("Network Interface Statistics: lo, eth0, eth1, eth2 parsed", set(net) == {"lo", "eth0", "eth1", "eth2"}, str(list(net)))
+    check("Network Interface Statistics: lo, eth0, eth1, eth2 parsed (and the bond / bridge interfaces of Network Configuration)", {"lo", "eth0", "eth1", "eth2", "bond0", "bond1", "br-ex"} <= set(net), str(list(net)))
     check("Network Interface Statistics: eth1 RX errors 48213 / dropped 1203456, MTU 9000 (planted)",
           net.get("eth1", {}).get("RX", {}).get("errors") == 48213 and net.get("eth1", {}).get("RX", {}).get("dropped") == 1203456 and net.get("eth1", {}).get("MTU") == 9000)
     check("Network Interface Statistics: eth2 state DOWN", net.get("eth2", {}).get("State") == "DOWN")
+
+    nc = d.get("network_config") or {}
+    nc_bonds = nc.get("bonds") or {}
+    nc_titles = {(f["severity"], f["title"]) for f in nc.get("findings") or []}
+    check("Network Configuration: bond0 active-backup, primary eth3 down and eth4 active (planted failover); bond1 802.3ad aggregator 2",
+          nc_bonds.get("bond0", {}).get("primary") == "eth3" and nc_bonds.get("bond0", {}).get("active") == "eth4" and (nc_bonds.get("bond1", {}).get("lacp") or {}).get("aggregator_id") == "2", str({k: (b.get("primary"), b.get("active")) for k, b in nc_bonds.items()}))
+    check("Network Configuration: the planted markers (eth7 no slave, primary not active, eth5 MTU, eth2 not under br-ex) and the masked profile",
+          ("bad", "bond1: the configured port eth7 is not a slave at runtime") in nc_titles and ("warn", "bond0: the primary eth3 is not the active slave") in nc_titles
+          and ("warn", "eth5: profile MTU 9000, running 1500") in nc_titles and ("warn", "eth2: profile says port of br-ex, running standalone") in nc_titles
+          and [p["name"] for p in nc.get("profiles") or [] if p.get("secrets_masked")] == ["Wi-Fi lab"], str(sorted(nc_titles)))
+    check("Network Configuration: br-ex (OVS) over bond0 and br0 (Linux) with bond0.100; the PSK never in the data",
+          {(b["name"], b["kind"]) for b in nc.get("bridges") or []} >= {("br-ex", "OVS"), ("br0", "Linux")} and "must-never-show" not in json.dumps(nc), str([(b["name"], b["kind"]) for b in nc.get("bridges") or []]))
 
     for sub, inner in (("sar_cpu", "all"), ("sar_memory", None), ("sar_network", "eth1"), ("sar_disk", "vdb")):
         sar = d[sub] or {}
@@ -345,6 +357,11 @@ def verify_mustgather(client, directory):
     def ready(n):
         return next((c["status"] for c in nodes.get(n, {}).get("status", {}).get("conditions", []) if c["type"] == "Ready"), None)
     check("Nodes: 5 nodes (3 control-plane, 2 workers)", len(nodes) == 5 and sum(1 for n in nodes.values() if "node-role.kubernetes.io/worker" in n["metadata"]["labels"]) == 2, str(sorted(nodes)))
+    nm = d.get("nmstate") or {}
+    nm_titles = [(f["severity"], f["title"]) for f in nm.get("findings") or []]
+    check("Node Network Config (NNCP): worker-br-ex Degraded, worker-1's enactment Failing, worker-1 mismatching both policies (planted), worker-0 as desired",
+          ("bad", "Policy worker-br-ex is Degraded") in nm_titles and ("bad", "worker-1: enactment of worker-br-ex is Failing") in nm_titles
+          and [n["node"] for n in nm.get("nodes") or [] if n["mismatches"]] == ["worker-1"], str(nm_titles))
     check("Nodes: worker-1 Ready=Unknown with unreachable taints (planted), others Ready=True",
           ready("worker-1") == "Unknown" and all(ready(n) == "True" for n in nodes if n != "worker-1") and nodes["worker-1"]["spec"].get("taints"))
     check("Nodes: InternalIP 10.0.0.x, kubelet v1.29.8, RHCOS osImage",

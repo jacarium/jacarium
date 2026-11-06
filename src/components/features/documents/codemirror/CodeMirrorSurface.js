@@ -38,6 +38,9 @@ import { yCollab, yUndoManagerKeymap, ySyncAnnotation } from 'y-codemirror.next'
 import { UndoManager } from 'yjs';
 import { markdownLanguage } from './markdownLanguage';
 import { spellcheckSkip } from './spellcheckSkip';
+import { docLinkChips } from './docLinkChips';
+import { codeBlocks } from './codeBlocks';
+import { codeColours } from './codeColours';
 
 /** A change made through `.value =` (a document switch, a toolbar insert): not typed, so no onChange. */
 export const externalChange = Annotation.define();
@@ -107,14 +110,20 @@ export class CodeMirrorSurface {
    * @param {boolean} [options.spellcheck]
    * @param {boolean} [options.lineNumbers]
    * @param {object} [options.handlers]   { onChange, onKeyDown, onKeyUp, onContextMenu, onSelect, onClick, onMouseUp, onFocus, onBlur }
+   * @param {Function} [options.docLinkResolver]  the [[doc:...]] chips' title resolver (src/utils/docLinks.js createDocLinkResolver)
    */
-  constructor({ parent, doc = '', readOnly = false, placeholder = '', spellcheck = true, lineNumbers: showLineNumbers = true, handlers = {} }) {
+  constructor({ parent, doc = '', readOnly = false, placeholder = '', spellcheck = true, lineNumbers: showLineNumbers = true, handlers = {}, docLinkResolver = null, codeColours: withCodeColours = true }) {
     this.isCodeMirror = true;
+    // the syntax colours of fenced code (codeColours.js); off only for the measurements in the tests
+    this._codeColours = withCodeColours !== false;
     this.handlers = handlers;
     this._readOnly = new Compartment();
     this._placeholder = new Compartment();
     this._spellcheck = new Compartment();
     this._collab = new Compartment();
+    // the document links' chips (docLinkChips.js) with the resolver of the moment
+    this._docLinks = new Compartment();
+    this._docLinkResolver = typeof docLinkResolver === 'function' ? docLinkResolver : null;
     // drawSelection(), off for a document too tall for CodeMirror's real-height rendering (isHugeDocument)
     this._selectionDrawing = new Compartment();
     this._hugeDocument = false;
@@ -179,6 +188,8 @@ export class CodeMirrorSurface {
       this._selectionDrawing.of(this._selectionDrawingFor(text)),
       markdownLanguage,
       spellcheckSkip,
+      codeBlocks,
+      this._codeColours ? codeColours : [],
       searchMatches,
       EditorView.lineWrapping,
       EditorView.editorAttributes.of({ class: 'sc-editor-surface sc-editor-cm' }),
@@ -186,6 +197,7 @@ export class CodeMirrorSurface {
       this._placeholder.of(this._placeholderText ? placeholderExtension(this._placeholderText) : []),
       this._readOnly.of(readOnlyExtension(this._readOnlyValue)),
       this._collab.of(localHistory()),
+      this._docLinks.of(docLinkChips(this._docLinkResolver)),
       keymap.of(defaultKeymap),
     ];
     this.view = new EditorView({ parent, state: EditorState.create({ doc, extensions: this._extensions() }) });
@@ -245,12 +257,39 @@ export class CodeMirrorSurface {
     const { anchor, head } = this.view.state.selection.main;
     return anchor === head ? 'none' : (head < anchor ? 'backward' : 'forward');
   }
-  setSelectionRange(start, end, direction = 'none') {
+  setSelectionRange(start, end, direction = 'none', { scrollIntoView = true } = {}) {
     const length = this.view.state.doc.length;
     const from = Math.max(0, Math.min(length, Number(start) || 0));
     const to = Math.max(from, Math.min(length, Number(end) || 0));
     const selection = direction === 'backward' ? EditorSelection.single(to, from) : EditorSelection.single(from, to);
-    this.view.dispatch({ selection, scrollIntoView: true });
+    this.view.dispatch({ selection, scrollIntoView });
+  }
+
+  // ---- the reader's place (DocumentEditor keeps it across Editor <-> Preview)
+  /** The 1-based number of the line at the top of the scroller. */
+  topVisibleLine() {
+    const view = this.view;
+    // (+1 px: a line scrolled exactly to the top edge is that line, not the one above it)
+    const height = view.scrollDOM.scrollTop - view.documentPadding.top + 1;
+    const block = view.lineBlockAtHeight(Math.max(0, height));
+    return view.state.doc.lineAt(Math.min(block.from, view.state.doc.length)).number;
+  }
+  /** Scroll so that line `n` (1-based, clamped) is at the top; the selection stays where it is. */
+  scrollToLine(n) {
+    const doc = this.view.state.doc;
+    const line = doc.line(Math.max(1, Math.min(doc.lines, Math.round(Number(n) || 1))));
+    this.view.dispatch({ effects: EditorView.scrollIntoView(line.from, { y: 'start' }) });
+  }
+  /** Is the caret (the main selection's head) inside the scroller's visible area? */
+  isCursorVisible() {
+    const coords = this.view.coordsAtPos(this.view.state.selection.main.head);
+    if (!coords) return false;
+    const rect = this.view.scrollDOM.getBoundingClientRect();
+    return coords.bottom > rect.top && coords.top < rect.bottom;
+  }
+  /** Bring the caret into view with the least scrolling. */
+  scrollCursorIntoView() {
+    this.view.dispatch({ effects: EditorView.scrollIntoView(this.view.state.selection.main.head, { y: 'nearest' }) });
   }
   select() { this.setSelectionRange(0, this.view.state.doc.length); }
   /** Type `text` over the selection, as input would (onChange fires; one undo step with the typing around it). */
@@ -284,6 +323,15 @@ export class CodeMirrorSurface {
     if (this._spellcheckValue === !!on) return;
     this._spellcheckValue = !!on;
     this.view.dispatch({ effects: this._spellcheck.reconfigure(spellcheckAttributes(this._spellcheckValue)) });
+  }
+
+  // ---- the document links' chips: the titles they show (a rename, a delete, a sync: a new resolver)
+  get docLinkResolver() { return this._docLinkResolver; }
+  setDocLinkResolver(resolve) {
+    const next = typeof resolve === 'function' ? resolve : null;
+    if (this._docLinkResolver === next) return;
+    this._docLinkResolver = next;
+    this.view.dispatch({ effects: this._docLinks.reconfigure(docLinkChips(next)) });
   }
 
   // ---- scrolling and geometry (the scroller is what scrolls)

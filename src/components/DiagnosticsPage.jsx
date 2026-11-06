@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { FileText, FolderOpen, Loader, AlertCircle, X, ChevronRight, Monitor, ListChecks, Cpu, Server, Gauge, Settings, Cloud, HardDrive, Layers, PieChart, Network, TrendingUp, GitFork, BarChart, MemoryStick, AlertTriangle, Hourglass, Skull, Bell, Box, Briefcase, Boxes } from 'lucide-react';
+import { FileText, FolderOpen, SlidersHorizontal, EthernetPort, Loader, AlertCircle, X, ChevronRight, Monitor, ListChecks, Cpu, Server, Gauge, Settings, Cloud, HardDrive, Layers, PieChart, Network, TrendingUp, GitFork, BarChart, MemoryStick, AlertTriangle, Hourglass, Skull, Bell, Box, Briefcase, Boxes } from 'lucide-react';
 // import Breadcrumbs from './Breadcrumbs'; // Commented out - can be restored later
 import ResizableSidebar from './ResizableSidebar';
 import { useMobile } from '../contexts/MobileContext';
@@ -512,6 +512,8 @@ export default function DiagnosticsPage() {
       'fas fa-briefcase': Briefcase,
       'fas fa-cubes': Boxes,
       'fas fa-cube': Box,
+      'fas fa-sliders': SlidersHorizontal,
+      'fas fa-ethernet': EthernetPort,
     };
     return iconMap[iconName] || FileText;
   };

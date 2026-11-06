@@ -170,7 +170,7 @@ check('tagName / disabled / ownerDocument / closest / contains answer like an el
 a.value = 'prose `code` and https://x.y/z [[toc]]\n```\nfenced\n```';
 await sleep(30);
 const marks = Array.from(document.querySelectorAll('#a .cm-nospell')).map((m) => [m.textContent, m.getAttribute('spellcheck')]);
-check('the skipped ranges are spellcheck="false" marks in the DOM', marks.length >= 4 && marks.every((m) => m[1] === 'false') && marks.some((m) => m[0] === '`code`') && marks.some((m) => m[0] === '[[toc]]'), JSON.stringify(marks));
+check('the skipped ranges are spellcheck="false" marks in the DOM (the inline code split by the code-block marks, all of them false)', marks.length >= 4 && marks.every((m) => m[1] === 'false') && marks.map((m) => m[0]).join('').includes('`code`') && marks.some((m) => m[0] === '[[toc]]'), JSON.stringify(marks));
 a.setSearchMatches([{ start: 0, end: 5 }, { start: 6, end: 12 }], 1);
 await sleep(10);
 check('the find bar\'s matches are decorations, the current one marked', document.querySelectorAll('#a .cm-searchMatch').length === 2 && document.querySelectorAll('#a .cm-searchMatch-current').length === 1 && document.querySelector('#a .cm-searchMatch-current').textContent === '`code`');

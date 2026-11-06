@@ -1,13 +1,13 @@
 {
   "_comment": "The Hunspell dictionaries the desktop app ships for its spell checker on Windows and Linux (electron/spellcheck.cjs), pinned to the exact Electron release in package-lock.json: they come from that release's hunspell_dictionaries.zip, which scripts/fetch-spellcheck-dictionaries.mjs downloads at build time and checks against the sha256 recorded here (the zip, then every file taken out of it); the app checks the files again before it copies them into the profile. macOS uses the system spell checker and ships none of this. `node scripts/fetch-spellcheck-dictionaries.mjs --repin` rewrites this file for a new Electron release (after the 7-day cooldown of the dependency policy). Provenance: docs/security/spellcheck-dictionaries.md.",
-  "electron": "45.2.1",
+  "electron": "45.2.2",
   "asset": {
     "name": "hunspell_dictionaries.zip",
-    "url": "https://github.com/electron/electron/releases/download/v45.2.1/hunspell_dictionaries.zip",
-    "release": "https://github.com/electron/electron/releases/tag/v45.2.1",
-    "sha256": "edaeccd0fd7d1e10c89e8757785dd63695bcfca73076842dc540ddaff71f7fac",
+    "url": "https://github.com/electron/electron/releases/download/v45.2.2/hunspell_dictionaries.zip",
+    "release": "https://github.com/electron/electron/releases/tag/v45.2.2",
+    "sha256": "1b0a3ce8a28090e550625ff0bd1d7db136005104cd6ae39b29e35593376ca78b",
     "size": 34144925,
-    "createdAt": "2026-10-30T21:34:43Z"
+    "createdAt": "2026-11-03T17:44:44Z"
   },
   "dictionaries": [
     {

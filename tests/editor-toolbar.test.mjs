@@ -338,8 +338,8 @@ report('\n--- 6. Insert ---');
 /* ================================================================== */
 await setContent(ta, 'Intro', 5);
 m = await openMenu('insert-menu-button', 'insert-menu');
-check('the Insert menu lists Table, Image, Table of contents, [Callouts] Note..Caution, [Blocks] Quote, Horizontal rule, Code block, [PDF] Page break, Blank page, Centered page, Page header, Page footer',
-  items('insert-menu').map((i) => i.getAttribute('data-menu-item')).join() === 'table,image,toc,callout-note,callout-tip,callout-important,callout-warning,callout-caution,quote,rule,code-block,pagebreak,blankpage,centerpage,pdf-header,pdf-footer' && headings('insert-menu').join() === 'Callouts,Blocks,PDF',
+check('the Insert menu lists Table, Image, Table of contents, Link to document, [Callouts] Note..Caution, [Blocks] Quote, Horizontal rule, Code block, [PDF] Page break, Blank page, Centered page, Page header, Page footer',
+  items('insert-menu').map((i) => i.getAttribute('data-menu-item')).join() === 'table,image,toc,doc-link,callout-note,callout-tip,callout-important,callout-warning,callout-caution,quote,rule,code-block,pagebreak,blankpage,centerpage,pdf-header,pdf-footer' && headings('insert-menu').join() === 'Callouts,Blocks,PDF',
   `${items('insert-menu').map((i) => i.getAttribute('data-menu-item')).join()} | ${headings('insert-menu').join()}`);
 check('its items are role="menuitem" and the first is focused', items('insert-menu').every((i) => i.getAttribute('role') === 'menuitem') && await waitFor(() => (document.activeElement?.getAttribute('data-menu-item') === 'table' ? true : null)));
 key(document.activeElement, 'Escape');
@@ -408,7 +408,7 @@ check('/code inserts a fenced code block', popup.some((t) => /\/code/.test(t)) &
 popup = await slash('/toc', '# One\n\n## Two\n\n');
 check('/toc inserts the table of contents (inside its [[toc]] markers) in place of the typed command', popup.some((t) => /\/toc/.test(t)) && /# Table of Contents/.test(await content((c) => /Table of Contents/.test(c))) && !H.getContent().includes('\n\n/toc'), JSON.stringify(H.getContent()));
 const commands = await import(path.join(REPO, 'src', 'utils', 'slashCommands.js'));
-check('BUILTIN_COMMANDS lists the callouts, /hr /quote /toc /code, the PDF directives (/pagebreak /blankpage /centerpage /header /footer, each described "PDF: ..."), then the Quick commands', commands.BUILTIN_COMMANDS.map((c) => c.name).join() === '/note,/tip,/important,/warning,/caution,/hr,/quote,/toc,/code,/pagebreak,/blankpage,/centerpage,/header,/footer,/wf,/ai,/task' && commands.PDF_COMMANDS.every((c) => /^PDF: /.test(c.description)), commands.BUILTIN_COMMANDS.map((c) => c.name).join());
+check('BUILTIN_COMMANDS lists the callouts, /hr /quote /toc /code /link, the PDF directives (/pagebreak /blankpage /centerpage /header /footer, each described "PDF: ..."), then the Quick commands', commands.BUILTIN_COMMANDS.map((c) => c.name).join() === '/note,/tip,/important,/warning,/caution,/hr,/quote,/toc,/code,/link,/pagebreak,/blankpage,/centerpage,/header,/footer,/wf,/ai,/task' && commands.PDF_COMMANDS.every((c) => /^PDF: /.test(c.description)), commands.BUILTIN_COMMANDS.map((c) => c.name).join());
 popup = await slash('/pagebreak', 'Intro\n\n');
 check('/pagebreak is offered with its PDF hint and Enter inserts [[pagebreak]] in place of the command', popup.some((t) => /\/pagebreak/.test(t)) && (await content('Intro\n\n[[pagebreak]]')) === 'Intro\n\n[[pagebreak]]', JSON.stringify(H.getContent()));
 popup = await slash('/header', 'Intro\n\n');

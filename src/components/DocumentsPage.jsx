@@ -3093,6 +3093,7 @@ export default function DocumentsPage({
                     syncNotice={syncNotice && syncNotice.docId === currentDocument?.id ? syncNotice : null}
                     onDismissSyncNotice={dismissSyncNotice}
                     onOpenDocumentById={openDocumentById}
+                    linkableDocuments={documents}
                   />
                 </div>
               </div>
@@ -3145,6 +3146,8 @@ export default function DocumentsPage({
                   isOnline={isOnline}
                   engineTemplates={engineTemplates}
                   onSearchInEngine={handleSearchInEngine}
+                  onOpenDocumentById={openDocumentById}
+                  linkableDocuments={documents}
                 />
               </div>
             </div>

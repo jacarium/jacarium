@@ -1,6 +1,7 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { highlightCode, resolveHighlightLanguage } from './codeHighlight';
+import { renderDocLinks } from './docLinks';
 
 function escapeHtml(str) {
   return String(str)
@@ -191,6 +192,13 @@ marked.setOptions({ renderer });
  * - [[toc]] ... [[/toc]] - marks a generated Table of Contents block so
  *   the PDF export can add right-aligned target page numbers to its
  *   entries (emitted by the editor's Insert Table of Contents button).
+ * - [[doc:<stableId>]], [[doc:<stableId>|custom text]], [[doc:Some title]] -
+ *   a link to another document (src/utils/docLinks.js): the document's
+ *   permanent stable id (or a title, resolved by exact match) rendered as a
+ *   link carrying the document's CURRENT title; a document not on this
+ *   device renders as a muted "Document not found". The titles come from
+ *   `options.resolveDocLink` (createDocLinkResolver over the documents'
+ *   metadata); without one every link is "not found".
  * - ```mermaid fenced code blocks - emitted as .mermaid-diagram
  *   placeholders (see renderer.code above) that
  *   src/utils/mermaidDiagrams.js turns into diagrams after the parse.
@@ -198,10 +206,16 @@ marked.setOptions({ renderer });
  *   syntax-highlighted synchronously (see renderer.code above and
  *   src/utils/codeHighlight.js); any other fence stays plain text.
  */
-export function processInteractiveMarkdown(markdownText) {
+export function processInteractiveMarkdown(markdownText, { resolveDocLink = null, sourceLines = false } = {}) {
   if (!markdownText) return markdownText;
 
   let processedText = markdownText;
+
+  // Replace [[doc:...]] with links to other documents (src/utils/docLinks.js:
+  // the ref and the custom text are user data, escaped there; the inline
+  // <a> / <span> survives marked and DOMPurify keeps class, href="#", title,
+  // role and the data-* attributes the preview's click handler reads)
+  processedText = renderDocLinks(processedText, resolveDocLink);
 
   // Replace [[input:id:placeholder]] with HTML input fields
   processedText = processedText.replace(/\[\[input:([^:]+):([^\]]+)\]\]/g, (match, id, placeholder) => {
@@ -277,10 +291,46 @@ export function processInteractiveMarkdown(markdownText) {
   // singleton, so stale counters would otherwise leak between documents).
   usedHeadingSlugs = new Map();
 
-  // Now parse markdown
-  const html = marked(processedText);
+  // Now parse markdown - with the source line of every top-level block on
+  // its element when asked (the preview: it keeps the reader's place when
+  // switching with the editor); the PDF export and everything else get the
+  // same HTML as before, without the attribute.
+  const html = sourceLines ? renderWithSourceLines(processedText) : marked(processedText);
 
   return wrapDirectiveBlocks(DOMPurify.sanitize(html));
+}
+
+/**
+ * marked's own rendering, token by token, with `data-source-line` (the
+ * 1-based line of the block in the document as written) on the first
+ * element of every top-level block. The tokens come from marked's lexer
+ * over the processed text, whose line count differs from the document's
+ * only by the two newlines each PDF / wrapping directive marker injects
+ * (processInteractiveMarkdown above: "\n<div ... data-pdf-directive=...>\n"),
+ * so the line is the processed line less two per marker before the block.
+ * The output is marked's: the parser renders each token exactly as it does
+ * in one pass (the link definitions travel with every token), and only an
+ * attribute is added to an opening tag.
+ */
+export function renderWithSourceLines(processedText) {
+  const tokens = marked.lexer(processedText);
+  let html = '';
+  let line = 1;
+  let markers = 0;
+  for (const token of tokens) {
+    if (token.type !== 'space') {
+      const one = [token];
+      one.links = tokens.links;
+      let out = marked.parser(one);
+      const sourceLine = Math.max(1, line - 2 * markers);
+      out = out.replace(/^(\s*<[a-zA-Z][\w-]*)/, `$1 data-source-line="${sourceLine}"`);
+      html += out;
+    }
+    const raw = token.raw || '';
+    for (let i = raw.indexOf('\n'); i !== -1; i = raw.indexOf('\n', i + 1)) line += 1;
+    for (let i = raw.indexOf('data-pdf-directive='); i !== -1; i = raw.indexOf('data-pdf-directive=', i + 1)) markers += 1;
+  }
+  return html;
 }
 
 // The wrapping directive kinds and the wrapper element each pair produces.

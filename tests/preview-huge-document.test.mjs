@@ -45,7 +45,7 @@ const WORK = fs.mkdtempSync(path.join(os.tmpdir(), 'preview-huge-'));
 // static
 // ---------------------------------------------------------------------------
 const editor = read('src/components/features/documents/DocumentEditor.jsx');
-check('DocumentEditor chunks the preview in a layout effect keyed on the preview HTML, and keys the preview memo on the lagged version', /useLayoutEffect\(\(\) => \{\s*if \(!isPreviewActive \|\| !previewRef\.current\) return;\s*chunkPreviewBlocks\(previewRef\.current\);\s*\}, \[isPreviewActive, previewInnerHtml\]\);/.test(editor) && /const previewVersion = previewDelay \? laggedVersion : yjsContentVersion;/.test(editor) && /\}, \[isPreviewActive, yjsEnabled, yjs\.ytext, content, previewVersion\]\);/.test(editor));
+check('DocumentEditor chunks the preview in a layout effect keyed on the preview HTML (the reader\'s place is applied there, after the chunking), and keys the preview memo on the lagged version', /useLayoutEffect\(\(\) => \{\s*if \(!isPreviewActive \|\| !previewRef\.current\) return;\s*chunkPreviewBlocks\(previewRef\.current\);[\s\S]*?\}, \[isPreviewActive, previewInnerHtml\]\);/.test(editor) && /const previewVersion = previewDelay \? laggedVersion : yjsContentVersion;/.test(editor) && /\}, \[isPreviewActive, yjsEnabled, yjs\.ytext, content, previewVersion\]\);/.test(editor));
 check('index.css gives .markdown-preview .md-chunk content-visibility: auto with an intrinsic size', /\.markdown-preview \.md-chunk \{\s*content-visibility: auto;\s*contain-intrinsic-size: auto \d+px;\s*\}/.test(read('src/index.css')));
 
 // ---------------------------------------------------------------------------

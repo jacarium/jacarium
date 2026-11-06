@@ -1,6 +1,6 @@
 import { useRef, useEffect, useLayoutEffect, useState, useMemo, useCallback } from 'react';
 import { homeEndSelection } from '../../../utils/lineCaret';
-import { Loader2, Bold, Italic,Info, Lightbulb, MessageSquareWarning, TriangleAlert, OctagonAlert, Code, List, ListOrdered, ListTodo, Link, Quote, Pilcrow, Heading1, Heading2, Heading3, Table, TableOfContents, Image as ImageIcon, Strikethrough, IndentDecrease, IndentIncrease, Minus, SeparatorHorizontal, File, AlignCenter, PanelTop, PanelBottom, Ellipsis, Plus, Eye, Edit3, BookTemplate, Bot, X, RefreshCw, Check, Trash2, FileCode, Search, Replace, ChevronDown, ChevronUp, Square, Type, Download } from 'lucide-react';
+import { Loader2, Bold, Italic,Info, Lightbulb, MessageSquareWarning, TriangleAlert, OctagonAlert, Code, List, ListOrdered, ListTodo, Link, Quote, Pilcrow, Heading1, Heading2, Heading3, Table, TableOfContents, FileSymlink, Image as ImageIcon, Strikethrough, IndentDecrease, IndentIncrease, Minus, SeparatorHorizontal, File, AlignCenter, PanelTop, PanelBottom, Ellipsis, Plus, Eye, Edit3, BookTemplate, Bot, X, RefreshCw, Check, Trash2, FileCode, Search, Replace, ChevronDown, ChevronUp, Square, Type, Download } from 'lucide-react';
 import { CALLOUT_TYPES } from '../../../utils/callouts';
 import ToolbarMenu from './ToolbarMenu';
 import { useToolbarMenu, useRovingToolbar } from '../../../hooks/toolbarMenu';
@@ -8,7 +8,10 @@ import { useMobile } from '../../../contexts/MobileContext';
 import { formatShortcut } from '../../../utils/shortcuts';
 import { useShortcut, useShortcutHint, useShortcutLabel } from '../../../shortcuts/useShortcut';
 import { hasChordModifier } from '../../../shortcuts/registry';
-import { BUILTIN_COMMANDS, matchesSlashQuery, slashQueryAt } from '../../../utils/slashCommands';
+import { BUILTIN_COMMANDS, matchesSlashQuery, slashQueryAt, isInsideCode } from '../../../utils/slashCommands';
+import { createDocLinkResolver, docLinkContextAt, searchDocuments, docLinkDirective } from '../../../utils/docLinks';
+import { useCaretPopupPosition } from './useCaretPopup.js';
+import { previewBlockForLine, previewTopVisibleLine, scrollPreviewToBlock } from '../../../utils/previewPlace';
 
 // The GitHub-style callouts the preview renders (src/utils/interactiveMarkdown.js),
 // each with its lucide icon (the same drawings the preview paints), for the
@@ -83,10 +86,13 @@ import { chunkPreviewBlocks, previewRenderDelay, hugePreview } from '../../../ut
 import { useDeferredPreview } from '../../../hooks/useDeferredPreview';
 import { Note } from '../../ui/primitives';
 
-/** The preview HTML of a document's text (module-level: a stable `render` for useDeferredPreview). */
-function renderPreviewHtml(text) {
-  return text ? processInteractiveMarkdown(text) : '<p class="text-os-text-muted">No content to preview</p>';
+/** The preview HTML of a document's text (module-level; the editor binds the [[doc:...]] resolver with useCallback for useDeferredPreview). */
+function renderPreviewHtml(text, resolveDocLink = null) {
+  // sourceLines: every top-level block carries its source line, for the reader's place across Editor <-> Preview
+  return text ? processInteractiveMarkdown(text, { resolveDocLink, sourceLines: true }) : '<p class="text-os-text-muted">No content to preview</p>';
 }
+
+const CLOSED_DOC_LINK_MENU = Object.freeze({ visible: false, position: { x: 0, y: 0 }, query: '', start: 0, end: 0, closed: false, selectedIndex: 0 });
 import { downloadBlob } from '../../../utils/exportHelpers';
 import { useContextMenu } from '../../../hooks/useContextMenu';
 import ContextMenu, { ContextMenuItem } from '../../common/menus/ContextMenu';
@@ -150,6 +156,10 @@ export default function DocumentEditor({
   syncNotice = null,
   onDismissSyncNotice,
   onOpenDocumentById,
+  // the documents a [[doc:...]] link can point at (the page's metadata list:
+  // id, stableId, title, category) - the preview's link titles, the editor's
+  // chips and the "Link to document" picker read it (src/utils/docLinks.js)
+  linkableDocuments = [],
 }) {
   // console.log('=== DocumentEditor component rendered ===');
   // console.log('DocumentEditor props - documentId:', documentId, 'document.inCloud:', document?.inCloud, 'content.length:', content.length);
@@ -174,6 +184,45 @@ export default function DocumentEditor({
   const selectionMenuRef = useRef(null);
   const previousDocumentIdRef = useRef(documentId);
   const [previewMode, setPreviewMode] = useState(false);
+  // The reader's place across Editor <-> Preview, per document: what was at
+  // the top of the view being left (its source line), the view's own scroll
+  // offset as the fallback, and the editor's selection (the editor is
+  // remounted after a preview, so the caret would otherwise land at the top).
+  // Applied by the preview's layout effect once its HTML is in (after the
+  // deferred render of a huge document lands) and by onSurface when the
+  // editor mounts again; a document switch clears it (a fresh document
+  // opens at the top).
+  const viewPlaceRef = useRef({ toPreview: null, toEditor: null, editorScrollTop: 0, previewScrollTop: 0 });
+  // Leaving the editor for the preview: remember what is at the top (the
+  // source line, from CodeMirror's line blocks), the scroll offset, the
+  // selection and whether the caret was on screen
+  const captureEditorPlace = useCallback(() => {
+    const surface = textareaRef.current;
+    const place = viewPlaceRef.current;
+    if (!surface || !surface.isCodeMirror) return;
+    try {
+      place.editorScrollTop = surface.scrollTop;
+      place.toPreview = surface.topVisibleLine();
+      place.toEditor = {
+        line: null,
+        leftAt: place.toPreview,
+        selection: { start: surface.selectionStart, end: surface.selectionEnd, direction: surface.selectionDirection },
+        cursorVisible: surface.isCursorVisible(),
+      };
+    } catch { /* no place to keep */ }
+  }, []);
+  // Leaving the preview for the editor: the top visible block's source line
+  // (the editor scrolls there, the selection untouched), the scroll offset
+  const capturePreviewPlace = useCallback(() => {
+    const container = previewRef.current;
+    const place = viewPlaceRef.current;
+    if (!container) return;
+    try {
+      place.previewScrollTop = container.scrollTop;
+      const line = previewTopVisibleLine(container);
+      place.toEditor = { ...(place.toEditor || { selection: null, cursorVisible: false }), line };
+    } catch { /* no place to keep */ }
+  }, []);
   // Global override: when on, every document renders in preview mode regardless
   // of its own per-document sessionStorage entry (cycled via the preview button).
   const [previewAllDocuments, setPreviewAllDocuments] = useLocalStorage('previewAllDocuments', false);
@@ -187,6 +236,24 @@ export default function DocumentEditor({
     slashPosition: 0,
     selectedIndex: 0,
   });
+
+  // The "Link to document" picker ([[doc:...]], src/utils/docLinks.js): opens
+  // while "[[doc:" is being typed (the text after it searches the titles)
+  // or inside a title-form directive (to convert it to the id form), from
+  // the slash command /link and from Insert > Link to document. Enter or a
+  // click inserts [[doc:<stableId>]] over start..end; Escape leaves the text.
+  const [docLinkMenu, setDocLinkMenu] = useState(CLOSED_DOC_LINK_MENU);
+  const docLinkMenuRef = useRef(null);
+  const docLinkResolver = useMemo(() => createDocLinkResolver(linkableDocuments), [linkableDocuments]);
+  const docLinkResults = useMemo(
+    () => (docLinkMenu.visible ? searchDocuments(linkableDocuments, docLinkMenu.query, { excludeId: documentId ?? null }) : []),
+    [docLinkMenu.visible, docLinkMenu.query, linkableDocuments, documentId],
+  );
+  useEffect(() => {
+    if (!docLinkMenu.visible || !docLinkMenuRef.current) return;
+    docLinkMenuRef.current.querySelector(`[data-doc-link-entry]:nth-child(${docLinkMenu.selectedIndex + 1})`)?.scrollIntoView({ block: 'nearest' });
+  }, [docLinkMenu.selectedIndex, docLinkMenu.visible]);
+  const renderPreview = useCallback((text) => renderPreviewHtml(text, docLinkResolver), [docLinkResolver]);
 
   // Quick AI state
   const [showQuickAI, setShowQuickAI] = useState(false);
@@ -355,6 +422,7 @@ export default function DocumentEditor({
   useEffect(() => {
     // Check if we actually switched documents (not just a re-render)
     const documentChanged = previousDocumentIdRef.current !== documentId;
+    if (documentChanged) viewPlaceRef.current = { toPreview: null, toEditor: null, editorScrollTop: 0, previewScrollTop: 0 };
 
     if (documentChanged && textareaRef.current) {
       // Sync the editor's text when switching documents (not during typing!)
@@ -575,6 +643,8 @@ export default function DocumentEditor({
     function handleTogglePreviewMode(event) {
       if (event.detail.documentId === documentId) {
         const newPreviewMode = event.detail.enable !== undefined ? event.detail.enable : !previewMode;
+        if (newPreviewMode && !isPreviewActive) captureEditorPlace();
+        else if (!newPreviewMode && isPreviewActive) capturePreviewPlace();
         setPreviewMode(newPreviewMode);
         // Save to sessionStorage
         if (documentId) {
@@ -592,7 +662,7 @@ export default function DocumentEditor({
 
     window.addEventListener('togglePreviewMode', handleTogglePreviewMode);
     return () => window.removeEventListener('togglePreviewMode', handleTogglePreviewMode);
-  }, [documentId, previewMode]);
+  }, [documentId, previewMode, isPreviewActive, captureEditorPlace, capturePreviewPlace]);
 
   // Auto-focus content on mount
   const caretToEndAfterFocusRef = useRef(false);
@@ -620,6 +690,7 @@ export default function DocumentEditor({
     if (isPreviewActive) {
       // Same as the toolbar's PREVIEW-ALL -> OFF / PREVIEW -> OFF clicks the
       // user would otherwise have to make before typing.
+      capturePreviewPlace();
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPreviewMode(false);
       if (previewAllDocuments) setPreviewAllDocuments(false);
@@ -680,6 +751,7 @@ export default function DocumentEditor({
     if (isPreviewActive) {
       // Leave preview mode first; this effect re-runs once the editor is
       // mounted (isPreviewActive flips) and applies the jump then.
+      capturePreviewPlace();
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPreviewMode(false);
       if (previewAllDocuments) setPreviewAllDocuments(false);
@@ -775,6 +847,21 @@ export default function DocumentEditor({
     // also when the list changes (the query typed): the selection resets to the first entry, which may sit above
     // a popup the user had scrolled - bring it back into view
   }, [slashMenu.selectedIndex, slashMenu.visible, filteredTemplates]);
+
+  // The caret popups' placement (useCaretPopup.js): the caret's rect from the
+  // surface, the editor's corner when the caret is scrolled out of view
+  const caretRect = () => {
+    const surface = textareaRef.current;
+    if (!surface) return null;
+    const coords = surface.coordsAtPos(surface.selectionStart);
+    if (coords) return coords;
+    const rect = surface.getBoundingClientRect();
+    return { left: rect.left + 20, top: rect.top + 20, bottom: rect.top + 20 };
+  };
+  const slashMenuOpen = slashMenu.visible && !locked && !isPreviewActive;
+  const docLinkMenuOpen = docLinkMenu.visible && !locked && !isPreviewActive;
+  useCaretPopupPosition(slashMenuRef, { open: slashMenuOpen, caretRect, deps: [slashMenu.query, filteredTemplates.length] });
+  useCaretPopupPosition(docLinkMenuRef, { open: docLinkMenuOpen, caretRect, deps: [docLinkMenu.query, docLinkMenu.closed, docLinkResults.length] });
 
   // Handle Quick AI popup dragging
   useEffect(() => {
@@ -1158,10 +1245,12 @@ export default function DocumentEditor({
   // 1s of entering PREVIEW escalates to the global override; a later click
   // just toggles back to code view (OFF).
   const previewEnteredAtRef = useRef(0);
+
   const togglePreview = () => {
     if (previewAllDocuments) {
       // PREVIEW-ALL -> OFF: disable the global override and explicitly reset
       // the current document to code view so it doesn't re-enable on switch
+      capturePreviewPlace();
       setPreviewAllDocuments(false);
       setPreviewMode(false);
       savePreviewModeForDocument(false);
@@ -1171,11 +1260,13 @@ export default function DocumentEditor({
         setPreviewAllDocuments(true);
       } else {
         // PREVIEW -> OFF: too late for the escalation, act as a plain toggle
+        capturePreviewPlace();
         setPreviewMode(false);
         savePreviewModeForDocument(false);
       }
     } else {
       // OFF -> PREVIEW: per-document preview, persisted per document
+      captureEditorPlace();
       previewEnteredAtRef.current = Date.now();
       setPreviewMode(true);
       savePreviewModeForDocument(true);
@@ -1192,14 +1283,55 @@ export default function DocumentEditor({
   // Escape closes it and leaves the text as typed. The old immediate
   // triggers (typing "/wf", "/ai" or "/task" opened their panel at once, so
   // a path containing them could not be typed) are gone.
-  // Where a popup opened from the caret goes: below the caret's line (the
-  // surface knows the caret's screen position; the editor's corner when the
-  // caret is scrolled out of view)
+  // Where a popup opened from the caret anchors (the surface knows the
+  // caret's screen position; the editor's corner when the caret is scrolled
+  // out of view). useCaretPopupPosition places the popup from the live
+  // caret: below its line, above it near the bottom of the window, capped
+  // and scrolling when neither side has the room.
   const caretPopupAnchor = (surface, cursorPos) => {
     const coords = surface.coordsAtPos(cursorPos);
     if (coords) return { x: coords.left, y: coords.bottom + 10 };
     const rect = surface.getBoundingClientRect();
     return { x: rect.left + 20, y: rect.top + 30 };
+  };
+
+  // The document picker at the caret, over the directive at start..end
+  // (closed: a title-form directive to convert; open: "[[doc:" plus what is typed after it)
+  const openDocLinkMenu = (surface, cursorPos, { start, end, query, closed }) => {
+    setDocLinkMenu((prev) => ({
+      visible: true,
+      position: caretPopupAnchor(surface, cursorPos),
+      query, start, end, closed,
+      selectedIndex: prev.visible && prev.query === query ? prev.selectedIndex : 0,
+    }));
+  };
+
+  // Insert the id-form directive of `doc` over the picker's range (the typed
+  // "[[doc:query", or the whole title-form directive it converts); the caret
+  // lands after the link, which the editor then shows as a chip
+  const insertDocLink = (doc) => {
+    if (!doc || !docLinkMenu.visible) return;
+    const directive = docLinkDirective(doc.stableId);
+    const { start, end } = docLinkMenu;
+    setDocLinkMenu(CLOSED_DOC_LINK_MENU);
+    replaceRange(start, end, directive, start + directive.length);
+  };
+
+  // Insert > Link to document and the /link command: "[[doc:" goes in at the
+  // caret (over the selection) and the picker opens with every document listed
+  const insertDocLinkPrompt = () => {
+    if (locked || isPreviewActive) return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const opener = '[[doc:';
+    replaceRange(start, end, opener, start + opener.length);
+    setTimeout(() => {
+      const surface = textareaRef.current;
+      if (!surface) return;
+      openDocLinkMenu(surface, start + opener.length, { start, end: start + opener.length, query: '', closed: false });
+    }, 1);
   };
 
   const handleContentInput = (e) => {
@@ -1210,6 +1342,15 @@ export default function DocumentEditor({
 
     const cursorPos = textarea.selectionStart;
     const value = e.target.value;
+    // a document link being typed ("[[doc:" on the caret's line, unclosed, or
+    // a title-form directive around the caret): the picker, not the slash popup
+    const docLinkContext = docLinkContextAt(value, cursorPos, { isInsideCode });
+    if (docLinkContext) {
+      if (slashMenu.visible) setSlashMenu(prev => ({ ...prev, visible: false }));
+      openDocLinkMenu(textarea, cursorPos, docLinkContext);
+      return;
+    }
+    if (docLinkMenu.visible) setDocLinkMenu(CLOSED_DOC_LINK_MENU);
     // the caret's line first (cheap on any document); the whole text before
     // the caret only when a command is being typed (slashQueryAt looks for
     // an open code fence above)
@@ -1226,21 +1367,9 @@ export default function DocumentEditor({
       return;
     }
 
-    // Calculate popup position near cursor
-    const { x, y } = caretPopupAnchor(textarea, cursorPos);
-
-    // Adjust position to keep popup within window bounds
-    const popupWidth = 400;
-    const popupHeight = 300;
-    const adjustedX = Math.min(x, window.innerWidth - popupWidth - 20);
-    const adjustedY = Math.min(y, window.innerHeight - popupHeight - 20);
-
     setSlashMenu({
       visible: true,
-      position: {
-        x: Math.max(20, adjustedX),
-        y: Math.max(20, adjustedY),
-      },
+      position: caretPopupAnchor(textarea, cursorPos),
       query,
       slashPosition: textBeforeCursor.lastIndexOf('/'),
       selectedIndex: 0,
@@ -1289,7 +1418,7 @@ export default function DocumentEditor({
     // list Tab keeps moving the focus, as it did in the textarea). A fixed
     // shortcut (editor.indent / editor.outdent in the registry): not a
     // chord a user can move, so it stays here rather than in the dispatcher.
-    if (e.key === 'Tab' && !hasChordModifier(e) && !e.altKey && !slashMenu.visible && textareaRef.current) {
+    if (e.key === 'Tab' && !hasChordModifier(e) && !e.altKey && !slashMenu.visible && !docLinkMenu.visible && textareaRef.current) {
       const textarea = textareaRef.current;
       const [lineStart, lineEnd] = lineBounds(textarea.value, textarea.selectionStart, textarea.selectionEnd);
       const lines = textarea.value.substring(lineStart, lineEnd).split('\n');
@@ -1305,7 +1434,7 @@ export default function DocumentEditor({
     // whole document, as a macOS textarea would; Cmd/Ctrl+Home/End keep the
     // document start / end (src/utils/lineCaret.js). The right-click menu
     // routes its own Home/End before this handler sees them.
-    if ((e.key === 'Home' || e.key === 'End') && !hasChordModifier(e) && !e.altKey && !slashMenu.visible && textareaRef.current) {
+    if ((e.key === 'Home' || e.key === 'End') && !hasChordModifier(e) && !e.altKey && !slashMenu.visible && !docLinkMenu.visible && textareaRef.current) {
       const textarea = textareaRef.current;
       const next = homeEndSelection(textarea.value, e.key, e.shiftKey, {
         start: textarea.selectionStart, end: textarea.selectionEnd, direction: textarea.selectionDirection,
@@ -1313,6 +1442,32 @@ export default function DocumentEditor({
       e.preventDefault();
       textarea.setSelectionRange(next.start, next.end, next.direction);
       return;
+    }
+
+    // the document picker's keys (the same model as the slash popup below)
+    if (docLinkMenu.visible) {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setDocLinkMenu(prev => ({ ...prev, selectedIndex: Math.min(prev.selectedIndex + 1, Math.max(0, docLinkResults.length - 1)) }));
+          return;
+        case 'ArrowUp':
+          e.preventDefault();
+          setDocLinkMenu(prev => ({ ...prev, selectedIndex: Math.max(prev.selectedIndex - 1, 0) }));
+          return;
+        case 'Enter':
+        case 'Tab':
+          if (docLinkResults.length === 0) return;
+          e.preventDefault();
+          insertDocLink(docLinkResults[docLinkMenu.selectedIndex] || docLinkResults[0]);
+          return;
+        case 'Escape':
+          e.preventDefault();
+          setDocLinkMenu(CLOSED_DOC_LINK_MENU);
+          return;
+        default:
+          return;
+      }
     }
 
     if (!slashMenu.visible) return;
@@ -1360,6 +1515,8 @@ export default function DocumentEditor({
     quote: () => insertMarkdown('> ', '', 'quote'),
     toc: insertTableOfContents,
     codeblock: insertCodeBlock,
+    // /link: "[[doc:" at the caret and the document picker (src/utils/docLinks.js)
+    doclink: insertDocLinkPrompt,
     // the PDF directives (/pagebreak, /blankpage, /centerpage, /header, /footer)
     pagebreak: () => insertPdfDirective('[[pagebreak]]'),
     blankpage: () => insertPdfDirective('[[blankpage]]'),
@@ -1671,6 +1828,18 @@ export default function DocumentEditor({
   };
 
   const handlePreviewClick = (e) => {
+    // a link to another document ([[doc:...]]): open it in a tab through the
+    // page's own open-document path (what the tabs and the search use); a
+    // "not found" / ambiguous link is an inert span and never gets here
+    const docLink = e.target.closest('a[data-doc-link]');
+    if (docLink) {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = Number(docLink.getAttribute('data-doc-id'));
+      if (Number.isFinite(id) && onOpenDocumentById) onOpenDocumentById(id);
+      return;
+    }
+
     const openUrlBtn = e.target.closest('button[data-action="open-url"]');
     if (openUrlBtn) {
       e.preventDefault();
@@ -2197,7 +2366,28 @@ export default function DocumentEditor({
     () => (yjsEnabled && yjs.ytext && yjs.isReady && !serverCopyUnavailable ? { ytext: yjs.ytext, awareness: yjs.awareness || null } : null),
     [yjsEnabled, yjs.ytext, yjs.awareness, yjs.isReady, serverCopyUnavailable],
   );
-  const onSurface = useCallback((surface) => { textareaRef.current = surface; }, []);
+  const onSurface = useCallback((surface) => {
+    textareaRef.current = surface;
+    // the editor mounted again after a preview: the selection back where it
+    // was (without scrolling to it), the view at the preview's top block -
+    // or, without a mapping, at the editor's own last offset - and the caret
+    // kept on screen when it was on screen before
+    const place = viewPlaceRef.current;
+    if (!surface || !surface.isCodeMirror || !place.toEditor) return;
+    const { line, selection, cursorVisible, leftAt } = place.toEditor;
+    // cleared after this tick, not now: React's StrictMode (the dev build) mounts the editor twice in
+    // one commit, and the second, surviving surface must get the place too
+    setTimeout(() => { if (viewPlaceRef.current.toEditor === place.toEditor) viewPlaceRef.current.toEditor = null; }, 0);
+    try {
+      if (selection) surface.setSelectionRange(selection.start, selection.end, selection.direction, { scrollIntoView: false });
+      if (line != null) surface.scrollToLine(line);
+      else if (place.editorScrollTop > 0) surface.scrollTop = place.editorScrollTop;
+      // the caret was on screen and the preview was not scrolled elsewhere
+      // (its top is still where the editor was left): keep the caret on screen
+      const navigated = line != null && leftAt != null && Math.abs(line - leftAt) > 3;
+      if (cursorVisible && selection && !navigated) surface.scrollCursorIntoView();
+    } catch { /* a place that no longer fits the document */ }
+  }, []);
 
   // When the editor takes no typing: a locked or foreign cloud document, offline for a cloud document, the
   // server copy unavailable, auto-typing in progress - the editor is read-only and the menu's Cut / Paste are off
@@ -2447,7 +2637,7 @@ export default function DocumentEditor({
   // every other document renders here, synchronously, as it always did.
   const previewSize = useMemo(() => (isPreviewActive ? hugePreview(previewSource) : { huge: false, lines: 0 }), [isPreviewActive, previewSource]);
   const { html: deferredPreviewHtml, pending: previewPending } = useDeferredPreview({
-    active: isPreviewActive, source: previewSource, huge: previewSize.huge, documentKey: documentId, render: renderPreviewHtml, version: previewVersion,
+    active: isPreviewActive, source: previewSource, huge: previewSize.huge, documentKey: documentId, render: renderPreview, version: previewVersion,
   });
   const previewHtml = deferredPreviewHtml ?? '';
 
@@ -2474,6 +2664,19 @@ export default function DocumentEditor({
   useLayoutEffect(() => {
     if (!isPreviewActive || !previewRef.current) return;
     chunkPreviewBlocks(previewRef.current);
+    // the reader's place: the block of the line that was at the top of the
+    // editor (the nearest preceding one), else the preview's own last offset
+    const place = viewPlaceRef.current;
+    if (place.toPreview != null) {
+      const container = previewRef.current;
+      const block = previewBlockForLine(container, place.toPreview);
+      place.toPreview = null;
+      if (block) {
+        scrollPreviewToBlock(container, block);
+      } else if (place.previewScrollTop > 0) {
+        container.scrollTop = place.previewScrollTop;
+      }
+    }
   }, [isPreviewActive, previewInnerHtml]);
 
   // Mermaid theme follows the app's light/dark state. ThemeContext toggles a
@@ -2563,6 +2766,7 @@ export default function DocumentEditor({
   // (the library gives the focus back to the toolbar button whose menu listed the item)
   const imageItem = { id: 'image', Icon: ImageIcon, label: 'Image', onSelect: () => { mediaOpener.current = (isMobile ? moreMenu : insertMenu).anchor.current; setShowMediaLibrary(true); } };
   const tocItem = { id: 'toc', Icon: TableOfContents, label: 'Table of contents', onSelect: insertTableOfContents };
+  const docLinkItem = { id: 'doc-link', Icon: FileSymlink, label: 'Link to document', onSelect: insertDocLinkPrompt };
   const calloutItems = CALLOUT_TYPES.map((c) => ({ id: `callout-${c.type}`, Icon: CALLOUT_ICONS[c.type], label: c.label, onSelect: () => insertCallout(c.type) }));
   const quoteItem = { id: 'quote', Icon: Quote, label: 'Quote', onSelect: () => insertMarkdown('> ', '', 'quote') };
   const ruleItem = { id: 'rule', Icon: Minus, label: 'Horizontal rule', onSelect: insertHorizontalRule };
@@ -2576,7 +2780,7 @@ export default function DocumentEditor({
     { id: 'pdf-footer', Icon: PanelBottom, label: 'Page footer', onSelect: () => wrapPdfDirective('footer', 'Example Footer') },
   ];
   const insertItems = [
-    tableItem, imageItem, tocItem,
+    tableItem, imageItem, tocItem, docLinkItem,
     { heading: 'Callouts' }, ...calloutItems,
     { heading: 'Blocks' }, quoteItem, ruleItem, codeBlockItem,
     { heading: 'PDF' }, ...pdfItems,
@@ -2803,6 +3007,7 @@ export default function DocumentEditor({
               onKeyDown={(e) => { if (isAutoTyping) { e.preventDefault(); return; } handleKeyDown(e); }}
               readOnly={editorReadOnly}
               spellcheck={spellcheckOn}
+              docLinkResolver={docLinkResolver}
               placeholder={
                 locked
                   ? 'This document is locked'
@@ -2985,6 +3190,55 @@ export default function DocumentEditor({
         />
       )}
 
+      {/* Link to document - the picker ([[doc:...]]) */}
+      {docLinkMenu.visible && !locked && !isPreviewActive && (
+        <>
+          <div className="fixed inset-0" onClick={() => setDocLinkMenu(CLOSED_DOC_LINK_MENU)} style={{ zIndex: 2147483646 }} />
+          <div
+            ref={docLinkMenuRef}
+            role="listbox"
+            aria-label="Link to document"
+            data-testid="doc-link-menu"
+            className="fixed w-96 flex flex-col bg-os-card border border-os-border rounded-lg shadow-2xl overflow-hidden"
+            style={{ zIndex: 2147483647 }}
+          >
+            <div className="px-3 py-2 bg-os-card-secondary">
+              <div className="flex items-center gap-2">
+                <FileSymlink size={14} className="text-os-blue" />
+                <span className="text-xs font-medium text-os-text-primary">
+                  {docLinkMenu.closed ? 'Convert to a permanent link' : 'Link to document'}{docLinkMenu.query && ` - "${docLinkMenu.query}"`}
+                </span>
+              </div>
+            </div>
+            <div className="overflow-y-auto max-h-80 min-h-0" data-caret-popup-list>
+              {docLinkResults.length === 0 ? (
+                <div className="p-6 text-center">
+                  <FileSymlink size={32} className="text-os-text-muted mx-auto mb-2" />
+                  <p className="text-sm text-os-text-secondary">{docLinkMenu.query ? `No document titled "${docLinkMenu.query}"` : 'No other documents to link to'}</p>
+                  <p className="text-xs text-os-text-muted mt-1">Keep typing a title, or Escape to leave the text as it is</p>
+                </div>
+              ) : (
+                docLinkResults.map((doc, idx) => (
+                  <div
+                    key={doc.stableId}
+                    role="option"
+                    aria-selected={idx === docLinkMenu.selectedIndex}
+                    data-doc-link-entry={doc.stableId}
+                    onMouseEnter={() => setDocLinkMenu(prev => ({ ...prev, selectedIndex: idx }))}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => insertDocLink(doc)}
+                    className={`w-full px-3 py-2 text-left transition-colors border-b border-os-border last:border-b-0 cursor-pointer ${idx === docLinkMenu.selectedIndex ? 'bg-os-card-secondary' : 'hover:bg-os-card-secondary'}`}
+                  >
+                    <div className="text-sm font-medium text-os-text-primary truncate">{doc.title}</div>
+                    <div className="text-xs text-os-text-muted mt-0.5 truncate">{doc.category}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Slash Command Menu - Template Picker */}
       {slashMenu.visible && !locked && !isPreviewActive && (
         <>
@@ -2995,13 +3249,9 @@ export default function DocumentEditor({
           />
           <div
             ref={slashMenuRef}
-            className="fixed w-96 bg-os-card border border-os-border rounded-lg shadow-2xl overflow-hidden"
-            style={{
-              left: `${slashMenu.position.x}px`,
-              top: `${slashMenu.position.y}px`,
-              maxHeight: '400px',
-              zIndex: 2147483647,
-            }}
+            data-testid="slash-menu"
+            className="fixed w-96 flex flex-col bg-os-card border border-os-border rounded-lg shadow-2xl overflow-hidden"
+            style={{ zIndex: 2147483647 }}
           >
             <div className="px-3 py-2 bg-purple-50 dark:bg-purple-900/20">
               <div className="flex items-center gap-2">
@@ -3011,7 +3261,7 @@ export default function DocumentEditor({
                 </span>
               </div>
             </div>
-            <div className="overflow-y-auto max-h-80">
+            <div className="overflow-y-auto max-h-80 min-h-0" data-caret-popup-list>
               {filteredTemplates.length === 0 ? (
                 <div className="p-6 text-center">
                   <BookTemplate size={32} className="text-os-text-muted mx-auto mb-2" />

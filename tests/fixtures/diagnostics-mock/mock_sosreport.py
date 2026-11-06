@@ -601,6 +601,18 @@ IFACES = [
     # Planted finding: RX errors / drops on eth1 (the storage/backup network)
     ("eth1", "02:00:00:aa:00:02", 9000, "UP", "198.51.100.10/24", (765_432_109_876, 654_321_098, 48_213, 1_203_456), (123_456_789_012, 234_567_890, 0, 0)),
     ("eth2", "02:00:00:aa:00:03", 1500, "DOWN", None, (0, 0, 0, 0), (0, 0, 0, 0)),
+    # Network Configuration (write_network_config): bond0 active-backup over eth3 (primary, link down: failed over)
+    # and eth4 (active); bond1 802.3ad over eth5 / eth6; bond0.100 a VLAN on bond0, a port of the Linux bridge
+    # br0; br-ex the OVS bridge with bond0 as its uplink and an internal port carrying the node address
+    ("eth3", "02:00:00:aa:00:04", 9000, "DOWN", None, (12_345_678_901, 23_456_789, 0, 0), (9_876_543_210, 12_345_678, 0, 0)),
+    ("eth4", "02:00:00:aa:00:05", 9000, "UP", None, (45_678_901_234, 56_789_012, 0, 0), (34_567_890_123, 45_678_901, 0, 0)),
+    ("eth5", "02:00:00:aa:00:06", 1500, "UP", None, (23_456_789_012, 34_567_890, 0, 0), (12_345_678_901, 23_456_789, 0, 0)),
+    ("eth6", "02:00:00:aa:00:07", 1500, "UP", None, (23_456_789_013, 34_567_891, 0, 0), (12_345_678_902, 23_456_790, 0, 0)),
+    ("bond0", "02:00:00:aa:00:05", 9000, "UP", None, (58_024_580_135, 80_245_801, 0, 0), (44_444_433_333, 58_024_579, 0, 0)),
+    ("bond1", "02:00:00:aa:00:06", 1500, "UP", "198.51.100.30/24", (46_913_578_025, 69_135_781, 0, 0), (24_691_357_803, 46_913_579, 0, 0)),
+    ("bond0.100", "02:00:00:aa:00:05", 9000, "UP", None, (1_234_567_890, 2_345_678, 0, 0), (987_654_321, 1_234_567, 0, 0)),
+    ("br0", "02:00:00:aa:00:05", 9000, "UP", "203.0.113.30/24", (1_234_567_890, 2_345_678, 0, 0), (987_654_321, 1_234_567, 0, 0)),
+    ("br-ex", "02:00:00:aa:00:05", 9000, "UP", "203.0.113.46/24", (56_789_012_345, 78_901_234, 0, 0), (43_456_789_012, 56_789_012, 0, 0)),
 ]
 
 
@@ -1172,6 +1184,169 @@ def _build(base, rnd_seed, journal_lines, var_log_lines):
     write_hardware(t)
     write_disks(t)
     write_network(t)
+    write_network_config(t)
     write_sar(t, rnd)
     write_journal(t, rnd, journal_lines, var_log_lines)
     return base
+
+
+# --------------------------------------------------------------------------
+# Network > Network Configuration (bonds, bridges, NetworkManager, nmcli, OVS)
+# --------------------------------------------------------------------------
+
+def _bond_proc(mode, slaves, primary=None, active=None, lacp=None, mii=100):
+    """A proc/net/bonding/<bond> file (the kernel's format)."""
+    out = ["Ethernet Channel Bonding Driver: v5.14.0-427.el9.x86_64", "", f"Bonding Mode: {mode}"]
+    if primary is not None:
+        out.append(f"Primary Slave: {primary} (primary_reselect always)")
+        out.append(f"Currently Active Slave: {active}")
+    out += ["MII Status: up", f"MII Polling Interval (ms): {mii}", "Up Delay (ms): 200", "Down Delay (ms): 200", "Peer Notification Delay (ms): 0"]
+    if lacp:
+        out += ["", "802.3ad info", "LACP active: on", "LACP rate: fast", "Min links: 0", "Aggregator selection policy (ad_select): stable",
+                "System priority: 65535", f"System MAC address: {lacp['system_mac']}", "Active Aggregator Info:", f"\tAggregator ID: {lacp['agg']}",
+                f"\tNumber of ports: {len(slaves)}", f"\tActor Key: {lacp['actor_key']}", f"\tPartner Key: {lacp['partner_key']}", f"\tPartner Mac Address: {lacp['partner_mac']}"]
+    for s in slaves:
+        out += ["", f"Slave Interface: {s['name']}", f"MII Status: {s['mii']}", f"Speed: {s['speed']}", f"Duplex: {s['duplex']}",
+                f"Link Failure Count: {s['failures']}", f"Permanent HW addr: {s['mac']}", "Slave queue ID: 0"]
+        if lacp:
+            out += [f"Aggregator ID: {lacp['agg']}", "Actor Churn State: none", "Partner Churn State: none", "Actor Churned Count: 0", "Partner Churned Count: 0"]
+    return "\n".join(out) + "\n"
+
+
+def _nm_uuid(name):
+    """A deterministic, invented UUID per profile name (no hash(): PYTHONHASHSEED would make the fixture differ)."""
+    n = sum((i + 1) * ord(c) for i, c in enumerate(name)) % 10**12
+    return f"0ea1bd55-0000-4000-8000-{n:012d}"
+
+
+NM_PROFILES = [
+    # name, type, iface, controller, port_type, extra settings
+    ("bond0", "bond", "bond0", "", "", {"bond.options": "mode=active-backup,miimon=100,primary=eth3", "802-3-ethernet.mtu": "9000", "ipv4.method": "disabled", "ipv6.method": "disabled"}),
+    ("bond0-port-eth3", "802-3-ethernet", "eth3", "bond0", "bond", {"802-3-ethernet.mtu": "9000"}),
+    ("bond0-port-eth4", "802-3-ethernet", "eth4", "bond0", "bond", {"802-3-ethernet.mtu": "9000"}),
+    ("bond1", "bond", "bond1", "", "", {"bond.options": "mode=802.3ad,miimon=100,lacp_rate=fast,xmit_hash_policy=layer3+4", "ipv4.method": "manual", "ipv4.addresses": "198.51.100.30/24", "ipv4.gateway": "198.51.100.1", "ipv4.dns": "192.0.2.53,192.0.2.54", "ipv6.method": "disabled"}),
+    ("bond1-port-eth5", "802-3-ethernet", "eth5", "bond1", "bond", {"802-3-ethernet.mtu": "9000"}),   # planted: the profile says 9000, the link runs 1500
+    ("bond1-port-eth6", "802-3-ethernet", "eth6", "bond1", "bond", {}),
+    ("bond1-port-eth7", "802-3-ethernet", "eth7", "bond1", "bond", {}),   # planted: a configured port that is not a slave at runtime
+    ("bond0.100", "vlan", "bond0.100", "br0", "bridge", {"vlan.id": "100", "vlan.parent": "bond0", "vlan.mtu": "9000"}),
+    ("br0", "bridge", "br0", "", "", {"bridge.stp": "no", "ipv4.method": "manual", "ipv4.addresses": "203.0.113.30/24", "ipv6.method": "disabled"}),
+    ("br-ex", "ovs-bridge", "br-ex", "", "", {"ovs-bridge.fail-mode": "standalone"}),
+    ("ovs-port-bond0", "ovs-port", "bond0", "br-ex", "ovs-port", {}),
+    ("ovs-port-br-ex", "ovs-port", "br-ex", "br-ex", "ovs-port", {}),
+    ("ovs-if-br-ex", "ovs-interface", "br-ex", "ovs-port-br-ex", "ovs-port", {"ovs-interface.type": "internal", "ovs-interface.mtu": "9000", "ipv4.method": "manual", "ipv4.addresses": "203.0.113.46/24", "ipv4.gateway": "203.0.113.1", "ipv4.dns": "192.0.2.53", "ipv6.method": "disabled"}),
+    ("ovs-port-eth2", "ovs-port", "eth2", "br-ex", "ovs-port", {}),   # planted: the profile puts eth2 under br-ex, the runtime shows it standalone (DOWN)
+    ("System eth0", "802-3-ethernet", "eth0", "", "", {"ipv4.method": "auto", "ipv6.method": "auto"}),
+    ("Wi-Fi lab", "802-11-wireless", "wlan0", "", "", {"802-11-wireless.ssid": "lab-net", "802-11-wireless.mode": "infrastructure", "802-11-wireless-security.key-mgmt": "wpa-psk",
+                                                       "802-11-wireless-security.psk": "example-psk-must-never-show", "802-11-wireless-security.psk-flags": "0 (none)", "ipv4.method": "auto", "ipv6.method": "auto", "connection.autoconnect": "no"}),
+]
+
+
+def _nmcli_con_show(name, ctype, iface, controller, port_type, extra):
+    uuid = _nm_uuid(name)
+    lines = [("connection.id", name), ("connection.uuid", uuid), ("connection.stable-id", "--"), ("connection.type", ctype), ("connection.interface-name", iface or "--"),
+             ("connection.autoconnect", extra.get("connection.autoconnect", "yes")), ("connection.autoconnect-priority", "0"), ("connection.timestamp", "1791849600"),
+             ("connection.controller", controller or "--"), ("connection.master", controller or "--"), ("connection.port-type", port_type or "--"), ("connection.slave-type", port_type or "--")]
+    for k, v in extra.items():
+        if not k.startswith("connection."):
+            lines.append((k, v))
+    for fam in ("ipv4", "ipv6"):
+        if f"{fam}.method" not in extra:
+            lines.append((f"{fam}.method", "disabled" if port_type else "auto"))
+        if f"{fam}.addresses" not in extra:
+            lines.append((f"{fam}.addresses", "--"))
+    lines += [("GENERAL.NAME", name), ("GENERAL.UUID", uuid), ("GENERAL.DEVICES", iface or "--"), ("GENERAL.STATE", "activated" if name != "Wi-Fi lab" else "--")]
+    return "\n".join(f"{k + ':':<42}{v}" for k, v in lines) + "\n"
+
+
+def write_network_config(t):
+    # the bonds (proc/net/bonding); the quiet report: the primary up and active, no planted mismatch anywhere
+    t.write("proc/net/bonding/bond0", _bond_proc("fault-tolerance (active-backup)", [
+        {"name": "eth3", "mii": "up" if QUIET else "down", "speed": "10000 Mbps" if QUIET else "Unknown", "duplex": "full" if QUIET else "Unknown", "failures": 0 if QUIET else 3, "mac": "02:00:00:aa:00:04"},
+        {"name": "eth4", "mii": "up", "speed": "10000 Mbps", "duplex": "full", "failures": 0, "mac": "02:00:00:aa:00:05"},
+    ], primary="eth3", active="eth3" if QUIET else "eth4"))
+    t.write("proc/net/bonding/bond1", _bond_proc("IEEE 802.3ad Dynamic link aggregation", [
+        {"name": "eth5", "mii": "up", "speed": "1000 Mbps", "duplex": "full", "failures": 0, "mac": "02:00:00:aa:00:06"},
+        {"name": "eth6", "mii": "up", "speed": "1000 Mbps", "duplex": "full", "failures": 1, "mac": "02:00:00:aa:00:07"},
+    ], lacp={"system_mac": "02:00:00:aa:00:06", "agg": "2", "actor_key": "9", "partner_key": "33", "partner_mac": "02:00:00:bb:00:01"}))
+    # ip -d link: the kinds (bond, vlan, bridge, openvswitch) and the masters
+    kinds = {"bond0": "bond mode active-backup miimon 100 updelay 200 downdelay 200 primary eth3 primary_reselect always", "bond1": "bond mode 802.3ad miimon 100 lacp_rate fast",
+             "bond0.100": "vlan protocol 802.1Q id 100 <REORDER_HDR>", "br0": "bridge forward_delay 1500 hello_time 200 max_age 2000 stp_state 0", "br-ex": "openvswitch"}
+    masters = {"eth3": ("bond0", "bond_slave state BACKUP mii_status DOWN link_failure_count 3 perm_hwaddr 02:00:00:aa:00:04 queue_id 0"),
+               "eth4": ("bond0", "bond_slave state ACTIVE mii_status UP link_failure_count 0 perm_hwaddr 02:00:00:aa:00:05 queue_id 0"),
+               "eth5": ("bond1", "bond_slave state ACTIVE mii_status UP link_failure_count 0 perm_hwaddr 02:00:00:aa:00:06 queue_id 0 ad_aggregator_id 2 ad_actor_oper_port_state 61 ad_partner_oper_port_state 61"),
+               "eth6": ("bond1", "bond_slave state ACTIVE mii_status UP link_failure_count 1 perm_hwaddr 02:00:00:aa:00:07 queue_id 0 ad_aggregator_id 2 ad_actor_oper_port_state 61 ad_partner_oper_port_state 61"),
+               "bond0.100": ("br0", "bridge_slave state forwarding priority 32 cost 100"),
+               "bond0": ("ovs-system", "openvswitch_slave"), "br-ex": ("ovs-system", "openvswitch_slave")}
+    link = []
+    for i, (name, mac, mtu, state, ip, rx, tx) in enumerate(IFACES, start=1):
+        if QUIET and name == "eth3":
+            state = "UP"
+        if name == "lo":
+            flags = "<LOOPBACK,UP,LOWER_UP>"
+        elif state == "UP":
+            flags = "<BROADCAST,MULTICAST,UP,LOWER_UP>"
+        elif name == "eth3":
+            flags = "<NO-CARRIER,BROADCAST,MULTICAST,SLAVE,UP>"
+        else:
+            flags = "<NO-CARRIER,BROADCAST,MULTICAST,UP>"
+        if name in masters and "SLAVE" not in flags:
+            flags = flags.replace("MULTICAST,", "MULTICAST,SLAVE,")
+        shown = f"{name}@{name.rsplit('.', 1)[0]}" if "." in name else name
+        head = f"{i}: {shown}: {flags} mtu {mtu} qdisc {'noqueue' if name in ('lo', 'bond0', 'bond1', 'bond0.100', 'br0', 'br-ex') else 'mq'}"
+        if name in masters:
+            head += f" master {masters[name][0]}"
+        head += f" state {state} mode DEFAULT group default qlen 1000"
+        lt = "link/loopback" if name == "lo" else "link/ether"
+        detail = f"    {lt} {mac} brd {'00:00:00:00:00:00' if name == 'lo' else 'ff:ff:ff:ff:ff:ff'} promiscuity 0 minmtu 68 maxmtu 65535"
+        block = head + "\n" + detail
+        if name in kinds:
+            block += "\n    " + kinds[name]
+        if name in masters:
+            block += "\n    " + masters[name][1]
+        link.append(block)
+    t.write("sos_commands/networking/ip_-d_link", "\n".join(link) + "\n")
+    t.write("sos_commands/networking/bridge_link", "9: bond0.100@bond0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9000 master br0 state forwarding priority 32 cost 100\n")
+    for iface, speed, link_ok in (("eth3", "Unknown!", "no"), ("eth4", "10000Mb/s", "yes"), ("eth5", "1000Mb/s", "yes"), ("eth6", "1000Mb/s", "yes")):
+        t.write(f"sos_commands/networking/ethtool_{iface}", f"Settings for {iface}:\n\tSupported ports: [ FIBRE ]\n\tSpeed: {speed}\n\tDuplex: {'Unknown! (255)' if link_ok == 'no' else 'Full'}\n\tAuto-negotiation: off\n\tPort: FIBRE\n\tLink detected: {link_ok}\n")
+    # Open vSwitch: br-ex (OVN-Kubernetes) with bond0 as its uplink, the internal port carrying the node address, the patch port to br-int
+    t.write("sos_commands/openvswitch/ovs-vsctl_-t_5_show", "\n".join([
+        "0f1e2d3c-0000-4000-8000-000000000001", "    Bridge br-ex", "        fail_mode: standalone", "        Port br-ex", "            Interface br-ex", "                type: internal",
+        "        Port bond0", "            Interface bond0", "                type: system", "        Port patch-br-ex_to_br-int", "            Interface patch-br-ex_to_br-int",
+        "                type: patch", "                options: {peer=patch-br-int_to_br-ex}", "    Bridge br-int", "        fail_mode: secure", "        datapath_type: system",
+        "        Port br-int", "            Interface br-int", "                type: internal", "        Port patch-br-int_to_br-ex", "            Interface patch-br-int_to_br-ex",
+        "                type: patch", "                options: {peer=patch-br-ex_to_br-int}", '    ovs_version: "3.3.2"', ""]))
+    t.write("sos_commands/openvswitch/ovs-vsctl_-t_5_list-br", "br-ex\nbr-int\n")
+    t.write("sos_commands/openvswitch/ovs-vsctl_-t_5_list_interface", "\n\n".join([
+        'name                : br-ex\ntype                : internal\nadmin_state         : up\nlink_state          : up\nmtu                 : 9000\nmac_in_use          : "02:00:00:aa:00:05"\nofport              : 65534',
+        'name                : bond0\ntype                : system\nadmin_state         : up\nlink_state          : up\nmtu                 : 9000\nmac_in_use          : "02:00:00:aa:00:05"\nofport              : 1',
+        'name                : patch-br-ex_to_br-int\ntype                : patch\nadmin_state         : up\nlink_state          : up\nmtu                 : []\nmac_in_use          : "02:00:00:cc:00:01"\nofport              : 2',
+    ]) + "\n")
+    # NetworkManager: the collected nmcli outputs (as sos names them), a keyfile with a secret, a legacy ifcfg
+    t.write("sos_commands/networkmanager/nmcli_general_status",
+            "STATE      CONNECTIVITY  WIFI-HW  WIFI     WWAN-HW  WWAN    \nconnected  full          enabled  enabled  enabled  enabled \n")
+    devs = [("eth0", "ethernet", "connected", "System eth0"), ("bond0", "bond", "connected", "bond0"), ("eth4", "ethernet", "connected", "bond0-port-eth4"), ("eth3", "ethernet", "unavailable", "--"),
+            ("bond1", "bond", "connected", "bond1"), ("eth5", "ethernet", "connected", "bond1-port-eth5"), ("eth6", "ethernet", "connected", "bond1-port-eth6"), ("bond0.100", "vlan", "connected", "bond0.100"),
+            ("br0", "bridge", "connected", "br0"), ("br-ex", "ovs-interface", "connected", "ovs-if-br-ex"), ("eth1", "ethernet", "connected", "eth1"), ("eth2", "ethernet", "disconnected", "--"), ("lo", "loopback", "connected (externally)", "lo")]
+    macs = {n: m for n, m, *_ in IFACES}
+    mtus = {n: mt for n, _m, mt, *_ in IFACES}
+    t.write("sos_commands/networkmanager/nmcli_dev_status", f"{'DEVICE':<11}{'TYPE':<15}{'STATE':<24}CONNECTION\n" + "".join(f"{d:<11}{ty:<15}{st:<24}{c}\n" for d, ty, st, c in devs))
+    t.write("sos_commands/networkmanager/nmcli_dev_show", "".join(
+        f"GENERAL.DEVICE:                         {d}\nGENERAL.TYPE:                           {ty}\nGENERAL.HWADDR:                         {macs.get(d, '02:00:00:aa:00:ff').upper()}\n"
+        f"GENERAL.MTU:                            {mtus.get(d, 1500)}\nGENERAL.STATE:                          {'100 (connected)' if st.startswith('connected') else '30 (disconnected)' if st == 'disconnected' else '20 (unavailable)'}\n"
+        f"GENERAL.CONNECTION:                     {c}\n\n" for d, ty, st, c in devs))
+    short = {"802-3-ethernet": "ethernet", "802-11-wireless": "wifi"}
+    not_active = ("Wi-Fi lab", "bond1-port-eth7", "ovs-port-eth2")
+    t.write("sos_commands/networkmanager/nmcli_con_show", f"{'NAME':<17}{'UUID':<39}{'TYPE':<16}DEVICE\n" + "".join(
+        f"{name:<17}{_nm_uuid(name):<39}{short.get(ctype, ctype):<16}{iface if name not in not_active else '--'}\n" for name, ctype, iface, _c, _p, _e in NM_PROFILES))
+    planted = ("bond1-port-eth7", "ovs-port-eth2") if QUIET else ()
+    for name, ctype, iface, controller, port_type, extra in NM_PROFILES:
+        if name in planted:
+            continue
+        if QUIET and name == "bond1-port-eth5":
+            extra = {}
+        t.write(f"sos_commands/networkmanager/nmcli_con_show_id_{name.replace(' ', '_')}", _nmcli_con_show(name, ctype, iface, controller, port_type, extra))
+    t.write("etc/NetworkManager/system-connections/Wi-Fi lab.nmconnection",
+            "[connection]\nid=Wi-Fi lab\nuuid=0ea1bd55-0000-4000-8000-000000000099\ntype=wifi\ninterface-name=wlan0\nautoconnect=false\n\n[wifi]\nmode=infrastructure\nssid=lab-net\n\n"
+            "[wifi-security]\nkey-mgmt=wpa-psk\npsk=example-psk-must-never-show\n\n[ipv4]\nmethod=auto\n\n[ipv6]\naddr-gen-mode=default\nmethod=auto\n")
+    t.write("etc/sysconfig/network-scripts/ifcfg-eth1",
+            "TYPE=Ethernet\nBOOTPROTO=none\nNAME=eth1\nDEVICE=eth1\nONBOOT=yes\nIPADDR=198.51.100.10\nPREFIX=24\nMTU=9000\nDNS1=192.0.2.53\nUUID=0ea1bd55-0000-4000-8000-000000000011\n")

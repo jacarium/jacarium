@@ -391,7 +391,10 @@ export const exerciseXrows = (frame) => frame.evaluate(async () => {
     r2.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true })); await sleep(60);
     if (!r2.nextElementSibling.hidden) out.push(t.id + ': Space did not close it');
     // expand all / collapse all
-    const open = document.querySelector('[data-xrow-all="open"]'), close = document.querySelector('[data-xrow-all="close"]');
+    // the table's own Expand all / Collapse all (their data-table selector matches it), else the page's first pair
+    const owns = (b) => { const sel = b.getAttribute('data-table'); try { return !!sel && t.matches(sel); } catch { return false; } };
+    const open = Array.from(document.querySelectorAll('[data-xrow-all="open"]')).find(owns) || document.querySelector('[data-xrow-all="open"]');
+    const close = Array.from(document.querySelectorAll('[data-xrow-all="close"]')).find(owns) || document.querySelector('[data-xrow-all="close"]');
     if (open && close) {
       open.click(); await sleep(150);
       const openCount = rows.filter((r) => !r.nextElementSibling.hidden).length;
@@ -415,11 +418,13 @@ export const exerciseSort = (frame) => frame.evaluate(async () => {
     if (!marked || !other) continue;
     tried++;
     const col = Array.from(t.querySelectorAll('thead th')).indexOf(other);
-    const before = Array.from(t.querySelectorAll('tbody > tr')).filter((r) => !r.classList.contains('ui-xrow-panel') && !r.hidden && r.style.display !== 'none').slice(0, 20).map((r) => (r.children[col] || r).textContent.trim());
+    // the table's own rows (a nested table in an open row's details has rows of its own, left out)
+    const ownRows = () => Array.from(t.tBodies[0] ? t.tBodies[0].rows : []).filter((r) => !r.classList.contains('ui-xrow-panel') && !r.hidden && r.style.display !== 'none').slice(0, 20);
+    const before = ownRows().map((r) => (r.children[col] || r).textContent.trim());
     (other.querySelector('.lc-sort, button') || other).click(); await sleep(250);
     if (other.getAttribute('aria-sort') === null) { out.push(t.id + ': clicking "' + other.textContent.trim() + '" did not move the marker'); continue; }
     if (marked.hasAttribute('aria-sort')) out.push(t.id + ': the old marker stayed on "' + marked.textContent.trim() + '"');
-    const after = Array.from(t.querySelectorAll('tbody > tr')).filter((r) => !r.classList.contains('ui-xrow-panel') && !r.hidden && r.style.display !== 'none').slice(0, 20).map((r) => (r.children[col] || r).textContent.trim());
+    const after = ownRows().map((r) => (r.children[col] || r).textContent.trim());
     const distinct = new Set(before).size > 1;
     const sortedAsc = after.every((v, i) => i === 0 || String(after[i - 1]).localeCompare(String(v), undefined, { numeric: true }) <= 0);
     const sortedDesc = after.every((v, i) => i === 0 || String(after[i - 1]).localeCompare(String(v), undefined, { numeric: true }) >= 0);
@@ -622,7 +627,9 @@ export const tablesFit = (frame) => frame.evaluate(() => {
       wide.push(id);
       const th = table.querySelector('thead th'); const cs = th ? getComputedStyle(th) : null;
       if (!cs || cs.position !== 'sticky') problems.push(id + ': a wide table without a sticky first column');
-      if (!wrap.querySelector('.ui-scroll-hint')) problems.push(id + ': a wide table without the scroll hint');
+      const ws = getComputedStyle(wrap);
+      if (!/^(auto|scroll)$/.test(ws.overflowX) || ws.scrollbarWidth === 'none') problems.push(id + ': a wide table whose box shows no scrollbar (overflow-x ' + ws.overflowX + ', scrollbar-width ' + ws.scrollbarWidth + ')');
+      if (wrap.querySelector('.ui-scroll-hint')) problems.push(id + ': the old scroll hint is back');
     } else if (over) problems.push(id + ' scrolls sideways: ' + wrap.scrollWidth + ' > ' + wrap.clientWidth);
     if (document.documentElement.clientWidth > 640) {
       let wrapped = 0;

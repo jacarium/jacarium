@@ -76,10 +76,10 @@ RUN curl -fsSL -o task.tar.gz "https://github.com/GothenburgBitFactory/taskwarri
 LABEL com.jacarium.image=deploy com.jacarium.stage=taskwarrior
 
 # ---------------------------------------------------------------------------
-# Caddy 2.11.7, built here: the published Caddy binary carries Go 1.26.8 and
+# Caddy (CADDY_VERSION below), built here: the published Caddy binary carries Go 1.26.8 and
 # golang.org/x/net 0.59.0, with eleven open Go advisories against the
 # HTTP/2 server (GO-2026-6603..6617, see vex/decisions.yaml), and no upstream
-# release built with a fixed toolchain exists yet. So the same Caddy 2.11.7
+# release built with a fixed toolchain exists yet. So the same Caddy release's
 # source and module set (what xcaddy would assemble: caddy/v2's cmd and
 # modules/standard) is compiled on the official golang image, Go 1.27.2
 # (2026-10-02; the image 2026-10-10), with golang.org/x/net raised to 0.62.0
@@ -95,7 +95,9 @@ LABEL com.jacarium.image=deploy com.jacarium.stage=taskwarrior
 # intermediates (not reached by this Caddy, which verifies no peer certificate - vex/decisions.yaml); the
 # image is golang:1.27.3-alpine of 2026-10-21, moved to on 2026-11-05 under the seven-day rule.
 FROM docker.io/library/golang:1.27.3-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS caddy
-ARG CADDY_VERSION=v2.11.7
+# Caddy 2.11.8 (2026-11-04, the security lane at 2.1 days: GHSA-r766-rf9f-588h and four more; none reaches
+# deploy/Caddyfile - docs/security/urgent-updates.md, 2026-11-06)
+ARG CADDY_VERSION=v2.11.8
 ARG XNET_VERSION=v0.62.0
 # go-chi/chi v5.4.0 (2026-10-12): GHSA-j6qf-3m9c-vwj3, reported against the v5.3.2 Caddy 2.11.7 pulls in
 ARG CHI_VERSION=v5.4.0
@@ -113,6 +115,7 @@ RUN printf '%s\n' 'package main' '' 'import (' '	caddycmd "github.com/caddyserve
  && go mod tidy \
  && go build -trimpath -buildvcs=false -ldflags '-s -w' -o /usr/bin/caddy . \
  && /usr/bin/caddy version \
+ && /usr/bin/caddy version | grep -q "^${CADDY_VERSION} " \
  && /usr/bin/caddy build-info | grep -E "^(go|dep\s+golang.org/x/net|dep\s+github.com/go-chi/chi/v5|dep\s+github.com/go-jose/go-jose/v4)\s" \
  && /usr/bin/caddy build-info | grep -qE "^dep\s+golang.org/x/net\s+${XNET_VERSION}\s" \
  && /usr/bin/caddy build-info | grep -qE "^dep\s+github.com/go-chi/chi/v5\s+${CHI_VERSION}\s" \
@@ -149,13 +152,16 @@ LABEL org.opencontainers.image.title="Jacarium" \
 # inode numbers and times in it; the loader does not need it): the layer
 # then differs between two builds of the same commit only by the rpm
 # database's install times (docs/security/reproducible-builds.md). The last line makes sure none of
-# the packages this base was chosen to be rid of came back as a dependency.
+# the packages this base was chosen to be rid of came back as a dependency, and that the sqlite3
+# command-line shell (the `sqlite` RPM) is not in the image - only sqlite-libs is, which is what the
+# not_affected statement for CVE-2026-119586 in vex/decisions.yaml rests on.
 # libatomic: the nodejs.org Node 26 binary copied below links it
 # (libatomic.so.1; the 24 binary did not), and minimal does not carry it.
 RUN microdnf -y --setopt=install_weak_deps=0 --nodocs install python3.14 python3.14-pip-wheel openssh-clients sshpass openssl libatomic \
  && microdnf -y --setopt=install_weak_deps=0 --nodocs upgrade xz-libs curl-minimal libcurl-minimal \
  && rpm -q xz-libs-5.2.5-8.el9_8.1 curl-minimal-7.76.1-40.el9_8.9 libcurl-minimal-7.76.1-40.el9_8.9 \
  && test "$(rpm -q python3 python3-libs python3-urllib3 python3-pip libbrotli brotli brotli-devel dnf nodejs npm 2>&1 | grep -vc 'is not installed')" = 0 \
+ && ! command -v sqlite3 >/dev/null 2>&1 && ! rpm -q sqlite >/dev/null 2>&1 \
  && microdnf clean all \
  && rm -rf /var/cache/yum /var/cache/dnf /var/log/dnf* /var/log/hawkey.log /var/lib/dnf/history.sqlite* /var/log/rhsm /var/lib/dnf/repos/*/countme /var/cache/ldconfig/aux-cache
 

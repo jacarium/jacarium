@@ -4,6 +4,36 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.1.0
+
+_2026-11-06_
+
+### [DOCUMENTS]
+
+Links between documents: [[doc:...]] links to another document by its permanent id and always shows its current title, also after a rename or a move; the editor shows it as a chip, typing [[doc: or /link (or Insert > Link to document) opens a title search, [[doc:Some title]] is resolved by title and can be converted to a permanent link, and a deleted document or one not on this device shows as Document not found
+
+Code blocks in the editor are drawn as blocks: a tinted, square-cornered background, the fence lines dimmed with the language as a small label, inline code marked, and syntax colours from the preview's highlighter for the code on screen
+
+Switching between Editor and Preview keeps your place, in both directions, also on very large documents
+
+The / command menu and the document-link picker open above the cursor when there is no room below, and scroll inside when neither side fits
+
+### [DIAGNOSTICS]
+
+sosreport: a new Network Configuration page - bonds (mode, primary and active port, failover, LACP, per-port link and failures), bridges including OVS br-ex and its uplink, every interface with the bridge or bond it belongs to, the NetworkManager connection profiles with secrets masked, routes and DNS, the nmcli output as collected, and markers where the configuration and the running state differ
+
+must-gather: a new Node Network Config (NNCP) page - the NodeNetworkConfigurationPolicies with their desired interfaces and conditions, the enactments per node, and the actual NodeNetworkState per node compared with the desired state
+
+Wide tables show a plain scrollbar instead of a scroll button, and nested key/value tables show their headers in full
+
+### [SECURITY]
+
+Electron 45.2.2: Chromium 156.0.8078.80 with Chrome's 29 October security fixes (CVE-2026-76024 and five more), through the security lane
+
+Caddy 2.11.8 in the container (GHSA-r766-rf9f-588h and four more advisories; none reached this configuration), and the build checks the Caddy version
+
+sqlite CVE-2026-119586 recorded as not affected: it is in the sqlite3 command-line shell, which the image does not carry, and the build fails if it ever does
+
 ## What's New in v4.0.3
 
 _2026-11-05_

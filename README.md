@@ -134,8 +134,9 @@ Jacarium keeps your notes, cases and tools for technical work in one place,
 and works offline by default.
 
 - **Documents**: Markdown notes and runbooks with real-time collaboration,
-  templates, diagrams, GitHub-style callouts (`> [!NOTE]`, `> [!WARNING]`)
-  and export to Markdown, ZIP, JSON or PDF (PDF in the desktop app).
+  templates, diagrams, GitHub-style callouts (`> [!NOTE]`, `> [!WARNING]`),
+  links between documents that survive renames (`[[doc:...]]`, picked by
+  title) and export to Markdown, ZIP, JSON or PDF (PDF in the desktop app).
 - **Diagnostics**: open an sosreport and read processes, CPU and memory as
   charts, plus Kubernetes diagnostics.
 - **Tasks**: Taskwarrior tasks with projects, priorities, due dates and

@@ -1,0 +1,436 @@
+{#
+  Network > Network Configuration (parsers/sosreport/network_config.py): the Findings strip, one search over the
+  page, then five tables on the shared expandable-row component, each with its own Expand all / Collapse all and
+  sortable headers (diagTables.sortable): the bonds (mode, the primary and the active slave marked, a failover, the
+  ports - the panel: the port table and the bond's key/value block with MII polling, delays, the 802.3ad details, the
+  profile's configured primary / ports), the bridges (Open vSwitch and Linux, the uplink, the members - the panel: the
+  member table), the interfaces (kind, state, MTU, addresses, member of, the profile, the configured-vs-runtime
+  markers - the panel: the runtime details, the profile's settings, the device's nmcli block), the connection
+  profiles (the panel: the settings as collected, secrets masked) and the nmcli captures as collected (one row per
+  file - the panel: the output as a table or a key/value table, secrets masked). Nothing here runs nmcli.
+#}
+{% import "tabs/_ui.html" as ui %}
+{{ ui.findings(findings) }}
+{% set d = data %}
+{% macro member_of(m) -%}
+{%- if m %}<span class="ui-mono">{{ m.name }}</span> <span class="ui-muted">({{ m.kind }}{% if m.type and m.type != 'system' %}, {{ m.type }}{% endif %}{% if m.via %}, port {{ m.via }}{% endif %})</span>{% else %}<span class="ui-muted">-</span>{% endif -%}
+{%- endmacro %}
+{# a key/value table inside a row's details: the shared nested table (table.ui-nested without a box, as the Blame
+   page's command table: the fit leaves it alone), the key column at its own width #}
+{% macro kv_table(pairs) -%}
+<table class="ui-nested"><thead><tr><th class="ui-status">Key</th><th class="ui-text">Value</th></tr></thead><tbody>{% for k, v in pairs %}<tr><td class="ui-mono ui-status">{{ k }}</td><td class="ui-mono ui-text">{{ v }}</td></tr>{% endfor %}</tbody></table>
+{%- endmacro %}
+{# a tabular nmcli output inside a row's details: the columns as collected, the last one the flexing text column #}
+{% macro nm_table(rows) -%}
+<table class="ui-nested"><thead><tr>{% for k in rows[0].keys() %}<th class="{{ 'ui-text' if loop.last else 'ui-status' }}">{{ k }}</th>{% endfor %}</tr></thead><tbody>{% for row in rows %}<tr>{% for v in row.values() %}<td class="ui-mono {{ 'ui-text' if loop.last else 'ui-status' }}">{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+{%- endmacro %}
+{# a link to another row of this page (data-nc-jump: the script opens that row's panel and scrolls to it) #}
+{% macro jump(table, key, text=None) -%}
+<button type="button" class="ui-link ui-mono" data-nc-jump="{{ table }}" data-nc-key="{{ key }}">{{ text if text is not none else key }}</button>
+{%- endmacro %}
+{% set bond_names = d.bonds.keys() | list %}
+{% set iface_names = d.interfaces | map(attribute='name') | list %}
+{% set profile_names = d.profiles | map(attribute='name') | list %}
+{% set has_any = d.bonds or d.bridges or d.interfaces or d.profiles or (d.nm and d.nm.captures) %}
+
+{% if has_any %}
+<div class="panel rounded-lg shadow-sm">
+  {% call ui.filter_bar() %}
+    {{ ui.search('nc-filter', 'Search bonds, bridges, interfaces, profiles, nmcli') }}
+    {{ ui.check('nc-only-markers', 'Only with markers') }}
+    {% call ui.end() %}<span class="ui-status" id="nc-count" aria-live="polite"></span>{% endcall %}
+  {% endcall %}
+</div>
+{% endif %}
+
+{% if d.bonds %}
+<div class="panel rounded-lg shadow-sm">
+  {% call ui.filter_bar() %}
+    {{ ui.card_title('Bonds', d.bonds | length) }}
+    {% call ui.end() %}{{ ui.xrow_all('#nc-bonds') }}{% endcall %}
+  {% endcall %}
+  <div class="ui-table-wrap">
+    <table id="nc-bonds" class="ui-table">
+      <thead>
+        <tr>
+          {{ ui.xrow_th() }}
+          <th data-key="bond" data-sorted="ascending" data-w="flex">Bond</th>
+          <th data-key="mode" data-w="text">Mode</th>
+          <th data-key="primary" data-w="narrow" data-p="2">Primary</th>
+          <th data-key="active" data-w="status">Active</th>
+          <th data-key="ports" class="ui-num" data-w="num">Ports</th>
+          <th data-key="mii" data-w="status">MII</th>
+          <th data-key="failed" data-w="status" data-p="2">Failed over</th>
+          <th data-key="member" data-w="text" data-p="3">Member of</th>
+          <th data-key="markers" data-w="status" data-p="2">Markers</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for name, b in d.bonds.items() %}
+        {% set failed_over = b.primary and b.active and b.primary != b.active %}
+        {% set down = b.slaves | rejectattr('mii_status', 'equalto', 'up') | list %}
+        {% set missing = (b.configured_ports or []) | reject('in', b.slaves | map(attribute='name') | list) | list %}
+        {% set marks = [] %}
+        {% if failed_over %}{% set _ = marks.append('the primary ' ~ b.primary ~ ' is not the active slave') %}{% endif %}
+        {% for m in missing %}{% set _ = marks.append('the configured port ' ~ m ~ ' is not a slave at runtime') %}{% endfor %}
+        {% if b.configured_primary and b.configured_primary not in (b.slaves | map(attribute='name') | list) %}{% set _ = marks.append('the configured primary ' ~ b.configured_primary ~ ' is not a slave') %}{% endif %}
+        <tr class="ui-xrow nc-row{% if missing or (b.configured_primary and b.configured_primary not in (b.slaves | map(attribute='name') | list)) %} ui-row-bad{% elif marks or down %} ui-row-warn{% endif %}" data-nc-table="nc-bonds" data-nc-key="{{ name }}" data-markers="{{ (marks | length) + (down | length) }}" data-text="{{ (name ~ ' ' ~ b.mode ~ ' ' ~ (b.slaves | map(attribute='name') | join(' ')) ~ ' ' ~ (b.member_of.name if b.member_of else '') ~ ' ' ~ b.profile) | lower }}">
+          {{ ui.xrow_cell() }}
+          <td class="ui-mono">{{ name }}</td>
+          <td>{{ b.mode or '-' }}</td>
+          <td class="ui-mono">{{ b.primary or b.configured_primary or '-' }}</td>
+          <td>{% if b.active %}{{ ui.badge('warn' if failed_over else 'good', b.active, 'Currently Active Slave') }}{% else %}<span class="ui-muted">-</span>{% endif %}</td>
+          <td class="ui-num" data-sort="{{ b.slaves | length }}">{{ b.slaves | length }}{% if down %} <span class="ui-muted">({{ down | length }} down)</span>{% endif %}</td>
+          <td>{{ ui.badge('good' if b.mii_status | lower == 'up' else 'bad', b.mii_status or '?') }}</td>
+          <td>{% if failed_over %}{{ ui.badge('warn', 'failed over', 'the primary is not the active slave') }}{% elif b.primary %}{{ ui.badge('muted', 'no') }}{% else %}<span class="ui-muted">-</span>{% endif %}</td>
+          <td>{{ member_of(b.member_of) }}</td>
+          <td><span class="ui-chips">{% for m in marks %}{{ ui.badge('bad' if 'not a slave' in m else 'warn', 'port' if 'port' in m else 'primary', m) }}{% endfor %}{% for s in down %}{{ ui.badge('bad', s.name ~ ' down') }}{% endfor %}{% if not marks and not down %}{{ ui.badge('good', 'ok') }}{% endif %}</span></td>
+        </tr>
+        {% call ui.xrow_panel(10) %}
+          {% if marks %}<ul class="ui-files">{% for m in marks %}<li>{{ ui.badge('bad' if 'not a slave' in m else 'warn', 'mismatch') }}<span>{{ m }}</span></li>{% endfor %}</ul>{% endif %}
+          {{ ui.kv_title('Ports') }}
+          <table class="ui-nested">
+            <thead><tr><th class="ui-status">Port</th><th class="ui-status">Role</th><th class="ui-status">MII</th><th class="ui-status">Speed</th><th class="ui-num">Failures</th><th class="ui-status">HW addr</th>{% if b.lacp %}<th class="ui-num">Aggregator</th>{% endif %}<th class="ui-text">Interface</th></tr></thead>
+            <tbody>
+            {% for s in b.slaves %}
+              <tr>
+                <td class="ui-mono ui-status">{{ s.name }}</td>
+                <td class="ui-status">{{ ui.badge('info' if s.role == 'primary' else 'muted', s.role) }}{% if s.is_active %} {{ ui.badge('good', 'active') }}{% endif %}</td>
+                <td class="ui-status">{{ ui.badge('good' if s.mii_status | lower == 'up' else 'bad', s.mii_status or '?') }}</td>
+                <td class="ui-status">{{ s.speed or '-' }}{% if s.duplex and s.duplex != 'Unknown' %} {{ s.duplex }}{% endif %}</td>
+                <td class="ui-num">{{ s.failures }}</td>
+                <td class="ui-mono ui-status">{{ s.hw_addr or '-' }}</td>
+                {% if b.lacp %}<td class="ui-num">{{ s.aggregator_id or '-' }}</td>{% endif %}
+                <td class="ui-text">{% if s.name in iface_names %}{{ jump('nc-table', s.name, 'interface row') }}{% else %}-{% endif %}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {{ ui.kv([
+            ('MII polling', (b.mii_polling_ms ~ ' ms') if b.mii_polling_ms is not none else ''),
+            ('Up / down delay', ((b.up_delay_ms ~ ' / ' ~ b.down_delay_ms ~ ' ms') if b.up_delay_ms is not none else '')),
+            ('LACP', (b.lacp.rate ~ ' rate' ~ (', active' if b.lacp.active == 'on' else '')) if b.lacp else ''),
+            ('Aggregator', b.lacp.aggregator_id if b.lacp else '', 'mono'),
+            ('Ports in aggregator', b.lacp.number_of_ports if b.lacp else ''),
+            ('Actor / partner key', (b.lacp.actor_key ~ ' / ' ~ b.lacp.partner_key) if b.lacp and b.lacp.actor_key else ''),
+            ('Partner MAC', b.lacp.partner_mac_address if b.lacp else '', 'mono'),
+            ('Driver', b.driver_version),
+            ('Profile', b.profile),
+            ('Configured primary', b.configured_primary, 'mono'),
+            ('Configured ports', b.configured_ports | join(', '), 'mono'),
+          ]) }}
+        {% endcall %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if d.bridges %}
+<div class="panel rounded-lg shadow-sm">
+  {% call ui.filter_bar() %}
+    {{ ui.card_title('Bridges', d.bridges | length) }}
+    {% call ui.end() %}{{ ui.xrow_all('#nc-bridges') }}{% endcall %}
+  {% endcall %}
+  <div class="ui-table-wrap">
+    <table id="nc-bridges" class="ui-table">
+      <thead>
+        <tr>
+          {{ ui.xrow_th() }}
+          <th data-key="bridge" data-sorted="ascending" data-w="flex">Bridge</th>
+          <th data-key="type" data-w="narrow">Type</th>
+          <th data-key="uplink" data-w="narrow">Uplink</th>
+          <th data-key="members" class="ui-num" data-w="num">Members</th>
+          <th data-key="addresses" data-w="text" data-p="2">Addresses</th>
+          <th data-key="failmode" data-w="narrow" data-p="3">Fail mode</th>
+          <th data-key="markers" data-w="status" data-p="2">Markers</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for br in d.bridges %}
+        {% set uplinks = br.members | selectattr('uplink') | map(attribute='name') | list %}
+        {% set br_marks = [] %}
+        {% for r in d.interfaces %}{% for m in r.markers %}{% if ('port of ' ~ br.name) in m or (r.name == br.name) %}{% set _ = br_marks.append(r.name ~ ': ' ~ m) %}{% endif %}{% endfor %}{% endfor %}
+        <tr class="ui-xrow nc-row{% if br_marks %} ui-row-warn{% endif %}" data-nc-table="nc-bridges" data-nc-key="{{ br.name }}" data-markers="{{ br_marks | length }}" data-text="{{ (br.name ~ ' ' ~ br.kind ~ ' ' ~ (br.members | map(attribute='name') | join(' ')) ~ ' ' ~ (br.addresses | join(' ')) ~ ' ' ~ br.profile) | lower }}">
+          {{ ui.xrow_cell() }}
+          <td class="ui-mono">{{ br.name }}</td>
+          <td>{{ br.kind }}</td>
+          <td class="ui-mono">{{ uplinks | join(', ') or '-' }}</td>
+          <td class="ui-num">{{ br.members | length }}</td>
+          <td class="ui-mono">{{ br.addresses | join(', ') if br.addresses else '-' }}</td>
+          <td>{{ br.fail_mode or '-' }}</td>
+          <td><span class="ui-chips">{% for m in br_marks %}{{ ui.badge('warn', 'membership', m) }}{% endfor %}{% if not br_marks %}{{ ui.badge('good', 'ok') }}{% endif %}</span></td>
+        </tr>
+        {% call ui.xrow_panel(8) %}
+          {% if br_marks %}<ul class="ui-files">{% for m in br_marks %}<li>{{ ui.badge('warn', 'mismatch') }}<span>{{ m }}</span></li>{% endfor %}</ul>{% endif %}
+          {{ ui.kv_title('Members') }}
+          <table class="ui-nested">
+            <thead><tr><th class="ui-status">Port</th><th class="ui-status">Role</th><th class="ui-status">State</th><th class="ui-num">MTU</th><th class="ui-status">Addresses</th><th class="ui-text">Interface</th></tr></thead>
+            <tbody>
+            {% for m in br.members %}
+              {% set li = (d.interfaces | selectattr('name', 'equalto', m.name) | list | first) %}
+              <tr>
+                <td class="ui-mono ui-status">{{ m.port }}{% if m.name != m.port %} <span class="ui-muted">{{ m.name }}</span>{% endif %}{% if m.tag %} <span class="ui-muted">tag {{ m.tag }}</span>{% endif %}</td>
+                <td class="ui-status">{{ ui.badge('info' if m.uplink else 'muted', ('system (uplink)' if m.type == 'system' and m.uplink else ('Linux port' if m.type == 'linux' else m.type))) }}{% if m.bond %} {{ ui.badge('muted', 'OVS bond') }}{% endif %}</td>
+                <td class="ui-status">{% if li %}{{ ui.badge('good' if li.state == 'UP' else ('bad' if li.state == 'DOWN' else 'muted'), li.state or '?') }}{% else %}<span class="ui-muted">-</span>{% endif %}</td>
+                <td class="ui-num">{{ li.mtu if li and li.mtu else '-' }}</td>
+                <td class="ui-mono ui-status">{{ m.address | join(', ') if m.address else '-' }}</td>
+                <td class="ui-text">{% if m.name in bond_names %}{{ jump('nc-bonds', m.name, 'bond row') }}{% elif m.name in iface_names %}{{ jump('nc-table', m.name, 'interface row') }}{% else %}-{% endif %}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {{ ui.kv([('Fail mode', br.fail_mode), ('Profile', br.profile)]) }}
+        {% endcall %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if d.interfaces %}
+<div class="panel rounded-lg shadow-sm">
+  {% call ui.filter_bar() %}
+    {{ ui.card_title('Interfaces', d.interfaces | length) }}
+    {% call ui.select() %}<select id="nc-kind" class="ui-select" aria-label="Kind"><option value="">All kinds</option>{% for k in d.interfaces | map(attribute='kind') | unique | sort %}<option value="{{ k }}">{{ k }}</option>{% endfor %}</select>{% endcall %}
+    {% call ui.end() %}{{ ui.xrow_all('#nc-table') }}{% endcall %}
+  {% endcall %}
+  <div class="ui-table-wrap">
+    <table id="nc-table" class="ui-table">
+      <thead>
+        <tr>
+          {{ ui.xrow_th() }}
+          <th data-key="interface" data-sorted="ascending" data-w="flex">Interface</th>
+          <th data-key="kind" data-w="narrow">Kind</th>
+          <th data-key="state" data-w="status">State</th>
+          <th data-key="mtu" class="ui-num" data-w="num">MTU</th>
+          <th data-key="addresses" data-w="text" data-p="2">Addresses</th>
+          <th data-key="member" data-w="text" data-p="2">Member of</th>
+          <th data-key="profile" data-w="text" data-p="3">Profile</th>
+          <th data-key="markers" data-w="status">Configured vs running</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in d.interfaces %}
+        <tr class="ui-xrow nc-row{% if r.markers %} ui-row-warn{% endif %}" data-nc-table="nc-table" data-nc-key="{{ r.name }}" data-kind="{{ r.kind }}" data-markers="{{ r.markers | length }}" data-text="{{ (r.name ~ ' ' ~ r.kind ~ ' ' ~ (r.addresses | join(' ')) ~ ' ' ~ (r.member_of.name if r.member_of else '') ~ ' ' ~ r.profile ~ ' ' ~ r.master) | lower }}">
+          {{ ui.xrow_cell() }}
+          <td class="ui-mono">{{ r.name }}{% if r.vlan_id is not none %} <span class="ui-muted">vlan {{ r.vlan_id }}{% if r.parent %} on {{ r.parent }}{% endif %}</span>{% endif %}</td>
+          <td>{{ r.kind or '-' }}{% if r.bond_mode %} <span class="ui-muted">{{ r.bond_mode }}</span>{% endif %}</td>
+          <td>{{ ui.badge('good' if r.state == 'UP' else ('bad' if r.state == 'DOWN' else 'muted'), r.state or '?') }}</td>
+          <td class="ui-num">{{ r.mtu or '-' }}</td>
+          <td class="ui-mono">{{ r.addresses | join(', ') if r.addresses else '-' }}</td>
+          <td>{{ member_of(r.member_of) }}</td>
+          <td>{% if r.profile %}{{ jump('nc-profiles', r.profile) }}{% else %}<span class="ui-muted">-</span>{% endif %}</td>
+          <td><span class="ui-chips">{% if r.markers %}{% for m in r.markers %}{{ ui.badge('warn', 'MTU' if 'MTU' in m else 'bridge' if 'port of' in m else 'differs', m) }}{% endfor %}{% elif r.profile %}{{ ui.badge('good', 'matches') }}{% else %}{{ ui.badge('muted', 'no profile') }}{% endif %}</span></td>
+        </tr>
+        {% call ui.xrow_panel(9) %}
+          {% if r.markers %}<ul class="ui-files">{% for m in r.markers %}<li>{{ ui.badge('warn', 'mismatch') }}<span>{{ m }}</span></li>{% endfor %}</ul>{% endif %}
+          {{ ui.kv([
+            ('MAC', r.mac, 'mono'),
+            ('Flags', r.flags, 'mono'),
+            ('Master', r.master, 'mono'),
+            ('Link', r.ethtool.link if r.ethtool else ''),
+            ('Speed', (r.ethtool.speed ~ (' ' ~ r.ethtool.duplex if r.ethtool.duplex else '')) if r.ethtool and r.ethtool.speed else ''),
+            ('Port', r.ethtool.port if r.ethtool else ''),
+            ('OVS interface type', r.ovs_type),
+            ('Bond', (r.bond.mode ~ '; primary ' ~ (r.bond.primary or '-') ~ '; active ' ~ (r.bond.active or '-') ~ '; slaves ' ~ (r.bond.slaves | join(', '))) if r.bond else ''),
+          ]) }}
+          {% set pr = (d.profiles | selectattr('name', 'equalto', r.profile) | list | first) if r.profile else none %}
+          {% if pr %}
+            {{ ui.kv_title('Profile ' ~ pr.name ~ ' (' ~ pr.source ~ ')') }}
+            {{ ui.kv([
+              ('Type', pr.type), ('Controller', pr.controller, 'mono'), ('Port type', pr.port_type),
+              ('Bond options', pr.bond_options.items() | map('join', '=') | join(', ') if pr.bond_options else '', 'mono'),
+              ('VLAN', (pr.vlan.id ~ ' on ' ~ pr.vlan.parent) if pr.vlan and pr.vlan.id else ''),
+              ('IPv4', (pr.ipv4.method ~ (' ' ~ pr.ipv4.addresses | join(', ') if pr.ipv4.addresses else '') ~ (' via ' ~ pr.ipv4.gateway if pr.ipv4.gateway else '') ~ (' dns ' ~ pr.ipv4.dns | join(', ') if pr.ipv4.dns else '')) if pr.ipv4 and pr.ipv4.method else ''),
+              ('IPv6', (pr.ipv6.method ~ (' ' ~ pr.ipv6.addresses | join(', ') if pr.ipv6.addresses else '')) if pr.ipv6 and pr.ipv6.method else ''),
+              ('MTU', pr.mtu), ('Autoconnect', pr.autoconnect),
+            ]) }}
+          {% endif %}
+          {% if d.nm and d.nm.device_show.get(r.name) %}
+            {{ ui.kv_title('nmcli device show ' ~ r.name ~ ' (as collected)') }}
+            {{ kv_table(d.nm.device_show[r.name]) }}
+          {% endif %}
+        {% endcall %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if d.profiles %}
+<div class="panel rounded-lg shadow-sm">
+  {% call ui.filter_bar() %}
+    {{ ui.card_title('Connection profiles', d.profiles | length) }}
+    {% call ui.end() %}{{ ui.xrow_all('#nc-profiles') }}{% endcall %}
+  {% endcall %}
+  <div class="ui-table-wrap">
+    <table id="nc-profiles" class="ui-table">
+      <thead>
+        <tr>
+          {{ ui.xrow_th() }}
+          <th data-key="name" data-sorted="ascending" data-w="flex">Name</th>
+          <th data-key="type" data-w="narrow">Type</th>
+          <th data-key="interface" data-w="narrow">Interface</th>
+          <th data-key="controller" data-w="narrow" data-p="2">Controller</th>
+          <th data-key="ipv4" data-w="text" data-p="2">IPv4</th>
+          <th data-key="mtu" class="ui-num" data-w="num">MTU</th>
+          <th data-key="autoconnect" data-w="status" data-p="3">Autoconnect</th>
+          <th data-key="source" data-w="text" data-p="3">Source</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in d.profiles | sort(attribute='name') %}
+        <tr class="ui-xrow nc-row" data-nc-table="nc-profiles" data-nc-key="{{ p.name }}" data-markers="0" data-text="{{ (p.name ~ ' ' ~ p.type ~ ' ' ~ p.interface ~ ' ' ~ p.controller) | lower }}">
+          {{ ui.xrow_cell() }}
+          <td class="ui-mono">{{ p.name }}{% if p.secrets_masked %} {{ ui.badge('muted', 'secrets masked') }}{% endif %}</td>
+          <td>{{ p.type or '-' }}{% if p.port_type %} <span class="ui-muted">port of {{ p.port_type }}</span>{% endif %}</td>
+          <td class="ui-mono">{% if p.interface and p.interface in iface_names %}{{ jump('nc-table', p.interface) }}{% else %}{{ p.interface or '-' }}{% endif %}</td>
+          <td class="ui-mono">{{ p.controller or '-' }}</td>
+          <td>{% if p.ipv4 and p.ipv4.method %}{{ p.ipv4.method }}{% if p.ipv4.addresses %} <span class="ui-mono">{{ p.ipv4.addresses | join(', ') }}</span>{% endif %}{% else %}-{% endif %}</td>
+          <td class="ui-num">{{ p.mtu or '-' }}</td>
+          <td>{{ ui.badge('muted' if p.autoconnect | lower in ('no', 'false') else 'good', p.autoconnect) }}</td>
+          <td class="ui-muted">{{ p.source }}</td>
+        </tr>
+        {% call ui.xrow_panel(9) %}
+          {{ ui.kv([
+            ('UUID', p.uuid, 'mono'),
+            ('Bond options', p.bond_options.items() | map('join', '=') | join(', ') if p.bond_options else '', 'mono'),
+            ('VLAN', (p.vlan.id ~ ' on ' ~ p.vlan.parent) if p.vlan and p.vlan.id else ''),
+            ('Bridge', ('STP ' ~ p.bridge.stp) if p.bridge and p.bridge.stp else ''),
+            ('Wi-Fi', (p.wifi.ssid ~ ' (' ~ (p.wifi.key_mgmt or 'open') ~ ')') if p.wifi and p.wifi.ssid else ''),
+            ('IPv4 gateway', p.ipv4.gateway if p.ipv4 else '', 'mono'),
+            ('IPv4 DNS', p.ipv4.dns | join(', ') if p.ipv4 and p.ipv4.dns else '', 'mono'),
+            ('IPv6', (p.ipv6.method ~ (' ' ~ p.ipv6.addresses | join(', ') if p.ipv6.addresses else '')) if p.ipv6 and p.ipv6.method else ''),
+          ]) }}
+          {% if p.raw %}
+            {{ ui.kv_title('Settings as collected (' ~ p.source ~ ', secrets masked)') }}
+            {{ kv_table(p.raw) }}
+          {% endif %}
+        {% endcall %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if d.routes or d.dns %}
+<div class="panel rounded-lg shadow-sm">
+  {{ ui.card_title('Routes and DNS') }}
+  {% if d.routes %}
+  <div class="ui-table-wrap">
+    <table class="ui-table" id="nc-routes">
+      <thead><tr><th data-w="flex">Destination</th><th data-w="text">Via</th><th data-w="narrow">Device</th><th data-w="narrow">Protocol</th><th class="ui-num" data-w="num">Metric</th><th data-w="text">Source</th></tr></thead>
+      <tbody>{% for r in d.routes %}<tr><td class="ui-mono">{{ r.dst }}</td><td class="ui-mono">{{ r.via or '-' }}</td><td class="ui-mono">{{ r.dev or '-' }}</td><td>{{ r.proto or '-' }}</td><td class="ui-num">{{ r.metric or '-' }}</td><td class="ui-mono">{{ r.src or '-' }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  {% endif %}
+  {{ ui.kv([('Nameservers', d.dns | join(', '), 'mono')]) }}
+</div>
+{% endif %}
+
+{% if d.nm and d.nm.captures %}
+<div class="panel rounded-lg shadow-sm">
+  {% call ui.filter_bar() %}
+    {{ ui.card_title('nmcli as collected', d.nm.captures | length) }}
+    {% call ui.end() %}{{ ui.xrow_all('#nc-nmcli') }}{% endcall %}
+  {% endcall %}
+  <div class="ui-table-wrap">
+    <table id="nc-nmcli" class="ui-table">
+      <thead>
+        <tr>
+          {{ ui.xrow_th() }}
+          <th data-key="command" data-sorted="ascending" data-w="flex">Command</th>
+          <th data-key="kind" data-w="narrow">Kind</th>
+          <th data-key="target" data-w="text" data-p="2">Target</th>
+          <th data-key="entries" class="ui-num" data-w="num">Entries</th>
+          <th data-key="file" data-w="text" data-p="3">File</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in d.nm.captures %}
+        {% set kind_label = {'general': 'general', 'devices': 'device list', 'connections': 'connection list', 'device': 'device', 'connection': 'connection'}.get(c.kind, c.kind) %}
+        <tr class="ui-xrow nc-row" data-nc-table="nc-nmcli" data-nc-key="{{ c.file }}" data-markers="0" data-text="{{ (c.command ~ ' ' ~ kind_label ~ ' ' ~ c.target ~ ' ' ~ c.file) | lower }}">
+          {{ ui.xrow_cell() }}
+          <td class="ui-mono">{{ c.command }}{% if c.secrets_masked %} {{ ui.badge('muted', 'secrets masked') }}{% endif %}</td>
+          <td>{{ kind_label }}</td>
+          <td class="ui-mono">{% if c.target and c.kind == 'connection' and c.target in profile_names %}{{ jump('nc-profiles', c.target) }}{% elif c.target and c.kind == 'device' and c.target in iface_names %}{{ jump('nc-table', c.target) }}{% elif c.target %}{{ c.target }}{% else %}<span class="ui-muted">-</span>{% endif %}</td>
+          <td class="ui-num">{{ c.entries }}</td>
+          <td class="ui-muted">sos_commands/networkmanager/{{ c.file }}</td>
+        </tr>
+        {% call ui.xrow_panel(6) %}
+          {% if c.rows %}{{ nm_table(c.rows) }}{% elif c.pairs %}{{ kv_table(c.pairs) }}{% else %}<div class="ui-muted">Empty capture</div>{% endif %}
+        {% endcall %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<script>
+(function () {
+  var filter = document.getElementById('nc-filter');
+  var kind = document.getElementById('nc-kind');
+  var only = document.getElementById('nc-only-markers');
+  var count = document.getElementById('nc-count');
+  var tables = ['nc-bonds', 'nc-bridges', 'nc-table', 'nc-profiles', 'nc-nmcli'].map(function (id) { return document.getElementById(id); }).filter(Boolean);
+  tables.forEach(function (t) { if (window.diagTables && window.diagTables.sortable) window.diagTables.sortable(t); });
+  var rows = Array.prototype.slice.call(document.querySelectorAll('tr.nc-row'));
+  function hide(row, ok) {
+    row.hidden = !ok;
+    var panel = row.nextElementSibling;
+    if (panel && panel.classList.contains('ui-xrow-panel') && !ok) panel.hidden = true;
+  }
+  function apply() {
+    var q = (filter && filter.value || '').toLowerCase().trim();
+    var k = kind ? kind.value : '';
+    var shown = {}, total = {};
+    rows.forEach(function (row) {
+      var t = row.getAttribute('data-nc-table');
+      var ok = (!q || row.getAttribute('data-text').indexOf(q) !== -1) && (!k || t !== 'nc-table' || row.getAttribute('data-kind') === k) && (!(only && only.checked) || Number(row.getAttribute('data-markers')) > 0);
+      hide(row, ok);
+      total[t] = (total[t] || 0) + 1;
+      if (ok) shown[t] = (shown[t] || 0) + 1;
+    });
+    if (count) {
+      var names = { 'nc-bonds': 'bonds', 'nc-bridges': 'bridges', 'nc-table': 'interfaces', 'nc-profiles': 'profiles', 'nc-nmcli': 'nmcli captures' };
+      var parts = Object.keys(names).filter(function (t) { return total[t]; }).map(function (t) { return ((shown[t] || 0) === total[t] ? 'all ' : (shown[t] || 0) + ' of ') + total[t] + ' ' + names[t]; });
+      count.textContent = 'Showing ' + parts.join(', ');
+    }
+  }
+  // a link to another row (the profile of an interface, the interface of a port...): open it and scroll there
+  function openRow(row) {
+    if (!row) return;
+    var btn = row.querySelector('.ui-xrow-btn');
+    if (btn && btn.getAttribute('aria-expanded') !== 'true') btn.click();
+    row.scrollIntoView({ block: 'center' });
+  }
+  function findRow(table, key) {
+    return Array.prototype.filter.call(document.querySelectorAll('#' + table + ' tr.nc-row'), function (tr) { return tr.getAttribute('data-nc-key') === key; })[0] || null;
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('[data-nc-jump]') : null;
+    if (!a) return;
+    openRow(findRow(a.getAttribute('data-nc-jump'), a.getAttribute('data-nc-key')));
+  });
+  // a Finding's Open link applies its query (a bond's or an interface's name) to the search: when exactly that
+  // row exists, open its panel too
+  var queried = '';
+  function landed() {
+    var q = (filter && filter.value || '').trim();
+    if (!q || q === queried) return;
+    queried = q;
+    var hit = rows.filter(function (r) { return !r.hidden && r.getAttribute('data-nc-key') === q; })[0];
+    if (hit) openRow(hit);
+  }
+  if (filter) filter.addEventListener('input', function () { apply(); landed(); });
+  if (kind) kind.addEventListener('change', apply);
+  if (only) only.addEventListener('change', apply);
+  apply();
+})();
+</script>

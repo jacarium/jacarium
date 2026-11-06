@@ -235,7 +235,25 @@ function extractBand(container, selector) {
  * @param {boolean} [options.landscape] - orientation (default portrait)
  * @returns {Promise<{ pages: number, bytes: number }>}
  */
-export async function exportDocumentToPDFNative(doc, { report, filename, signal = null, pageSize, landscape } = {}) {
+/**
+ * The [[doc:...]] links in a PDF: the linked document's current title as
+ * plain text (a PDF has nowhere to open another document; the export is one
+ * document per file, so there is no in-file target either). The "not found"
+ * / ambiguous spans keep their text. Exported for the tests.
+ */
+export function flattenDocLinksForPdf(container) {
+  let count = 0;
+  for (const link of container.querySelectorAll('a[data-doc-link]')) {
+    const span = container.ownerDocument.createElement('span');
+    span.className = 'doc-link doc-link-pdf';
+    span.textContent = link.textContent;
+    link.replaceWith(span);
+    count += 1;
+  }
+  return count;
+}
+
+export async function exportDocumentToPDFNative(doc, { report, filename, signal = null, pageSize, landscape, resolveDocLink = null } = {}) {
   const STEPS = 5;
   const page = normalizePdfOptions({ pageSize, landscape });
   // Lay the document out at the exact width the print page gives the text
@@ -259,9 +277,11 @@ export async function exportDocumentToPDFNative(doc, { report, filename, signal 
   const container = document.createElement('div');
   container.className = 'markdown-preview pdf-export-root';
   container.style.cssText = `box-sizing: border-box; width: ${contentWidthPx}px; background-color: #ffffff;`;
-  container.innerHTML = processInteractiveMarkdown(doc.content || '');
+  container.innerHTML = processInteractiveMarkdown(doc.content || '', { resolveDocLink });
   // a folded callout (> [!NOTE]-) prints open: nothing of the document is hidden on paper
   for (const folded of container.querySelectorAll('details.md-callout')) folded.open = true;
+  // a link to another document: its current title, as text
+  flattenDocLinksForPdf(container);
   shell.appendChild(container);
   document.body.appendChild(shell);
 

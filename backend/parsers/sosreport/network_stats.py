@@ -80,7 +80,11 @@ def parse_ip_address(raw):
 
 
 def parse_bonding(root):
-    """{bond: {'mode', 'mii_status', 'slaves': [{'name', 'mii_status', 'speed', 'failures'}]}} from proc/net/bonding."""
+    """{bond: {...}} from proc/net/bonding - the summary this page shows ('mode', 'mii_status', 'slaves': [{'name',
+    'mii_status', 'speed', 'failures'}]) plus what Network Configuration reads from the same capture (one parser for
+    both pages): the bond's 'primary', 'active' (Currently Active Slave), 'mii_polling_ms', 'up_delay_ms',
+    'down_delay_ms', 'lacp' (802.3ad: rate, aggregator id, number of ports, actor / partner keys, partner MAC) and
+    per slave 'duplex', 'hw_addr' (Permanent HW addr), 'aggregator_id', 'queue_id'."""
     bonds = {}
     d = os.path.join(root, 'proc', 'net', 'bonding')
     if not os.path.isdir(d):
@@ -89,29 +93,74 @@ def parse_bonding(root):
         txt = read_text(os.path.join(d, name), 200000)
         if not txt:
             continue
-        bond = {'mode': '', 'mii_status': '', 'slaves': []}
+        bond = {'mode': '', 'mii_status': '', 'slaves': [], 'primary': '', 'active': '', 'mii_polling_ms': None,
+                'up_delay_ms': None, 'down_delay_ms': None, 'lacp': {}, 'driver_version': ''}
         slave = None
+        in_ad_info = False
         for line in txt.splitlines():
             s = line.strip()
-            if s.startswith('Bonding Mode:'):
-                bond['mode'] = s.split(':', 1)[1].strip()
-            elif s.startswith('Slave Interface:'):
-                slave = {'name': s.split(':', 1)[1].strip(), 'mii_status': '', 'speed': '', 'failures': 0}
+            if not s:
+                continue
+            key, _, value = s.partition(':')
+            key, value = key.strip(), value.strip()
+            if s.startswith('Ethernet Channel Bonding Driver:'):
+                bond['driver_version'] = value
+            elif key == 'Bonding Mode':
+                bond['mode'] = value
+            elif key == '802.3ad info':
+                in_ad_info = True
+            elif key == 'Slave Interface':
+                slave = {'name': value, 'mii_status': '', 'speed': '', 'failures': 0, 'duplex': '', 'hw_addr': '', 'aggregator_id': '', 'queue_id': ''}
                 bond['slaves'].append(slave)
-            elif s.startswith('MII Status:'):
+                in_ad_info = False
+            elif key == 'MII Status':
                 if slave:
-                    slave['mii_status'] = s.split(':', 1)[1].strip()
+                    slave['mii_status'] = value
                 else:
-                    bond['mii_status'] = s.split(':', 1)[1].strip()
-            elif s.startswith('Speed:') and slave:
-                slave['speed'] = s.split(':', 1)[1].strip()
-            elif s.startswith('Link Failure Count:') and slave:
+                    bond['mii_status'] = value
+            elif key == 'Speed' and slave:
+                slave['speed'] = value
+            elif key == 'Duplex' and slave:
+                slave['duplex'] = value
+            elif key == 'Permanent HW addr' and slave:
+                slave['hw_addr'] = value
+            elif key == 'Queue ID' and slave:
+                slave['queue_id'] = value
+            elif key == 'Link Failure Count' and slave:
                 try:
-                    slave['failures'] = int(s.split(':', 1)[1].strip())
+                    slave['failures'] = int(value)
                 except ValueError:
                     pass
+            elif key == 'Primary Slave':
+                bond['primary'] = value.split(' ')[0] if value and value != 'None' else ''
+            elif key == 'Currently Active Slave':
+                bond['active'] = value if value and value != 'None' else ''
+            elif key == 'MII Polling Interval (ms)':
+                bond['mii_polling_ms'] = _int(value)
+            elif key == 'Up Delay (ms)':
+                bond['up_delay_ms'] = _int(value)
+            elif key == 'Down Delay (ms)':
+                bond['down_delay_ms'] = _int(value)
+            elif key == 'LACP active':
+                bond['lacp']['active'] = value
+            elif key == 'LACP rate':
+                bond['lacp']['rate'] = value
+            elif key == 'Aggregator ID':
+                if slave:
+                    slave['aggregator_id'] = value
+                elif in_ad_info:
+                    bond['lacp']['aggregator_id'] = value
+            elif in_ad_info and not slave and key in ('Number of ports', 'Actor Key', 'Partner Key', 'Partner Mac Address', 'System MAC address', 'Active Aggregator Info'):
+                bond['lacp'][key.lower().replace(' ', '_')] = value
         bonds[name] = bond
     return bonds
+
+
+def _int(value):
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
 
 
 def parse_ethtool_i(root, iface):

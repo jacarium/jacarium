@@ -1402,74 +1402,111 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
    the --os-code-* variables (:root light, .dark dark, all >= 4.5:1 on the
    block background) so the block keeps its existing background, font,
    padding and wrapping in both themes and in the PDF export (which
-   renders with the light variables). Any other fence stays plain text. */
+   renders with the light variables). Any other fence stays plain text. The editor's fenced code
+   (codemirror/codeColours.js: the same tokens as mark decorations) takes the same rules. */
 .markdown-preview .hljs-keyword,
+.sc-editor-cm .hljs-keyword,
 .markdown-preview .hljs-selector-tag,
+.sc-editor-cm .hljs-selector-tag,
 .markdown-preview .hljs-doctag,
+.sc-editor-cm .hljs-doctag,
 .markdown-preview .hljs-template-tag,
-.markdown-preview .hljs-meta .hljs-keyword {
+.sc-editor-cm .hljs-template-tag,
+.markdown-preview .hljs-meta .hljs-keyword,
+.sc-editor-cm .hljs-meta .hljs-keyword {
   color: var(--os-code-keyword);
 }
 
 .markdown-preview .hljs-string,
+.sc-editor-cm .hljs-string,
 .markdown-preview .hljs-regexp,
+.sc-editor-cm .hljs-regexp,
 .markdown-preview .hljs-meta .hljs-string,
-.markdown-preview .hljs-addition {
+.sc-editor-cm .hljs-meta .hljs-string,
+.markdown-preview .hljs-addition,
+.sc-editor-cm .hljs-addition {
   color: var(--os-code-string);
 }
 
 .markdown-preview .hljs-number,
+.sc-editor-cm .hljs-number,
 .markdown-preview .hljs-literal,
+.sc-editor-cm .hljs-literal,
 .markdown-preview .hljs-symbol,
-.markdown-preview .hljs-bullet {
+.sc-editor-cm .hljs-symbol,
+.markdown-preview .hljs-bullet,
+.sc-editor-cm .hljs-bullet {
   color: var(--os-code-number);
 }
 
 .markdown-preview .hljs-comment,
-.markdown-preview .hljs-quote {
+.sc-editor-cm .hljs-comment,
+.markdown-preview .hljs-quote,
+.sc-editor-cm .hljs-quote {
   color: var(--os-code-comment);
   font-style: italic;
 }
 
 .markdown-preview .hljs-title,
+.sc-editor-cm .hljs-title,
 .markdown-preview .hljs-title.function_,
+.sc-editor-cm .hljs-title.function_,
 .markdown-preview .hljs-title.class_,
-.markdown-preview .hljs-section {
+.sc-editor-cm .hljs-title.class_,
+.markdown-preview .hljs-section,
+.sc-editor-cm .hljs-section {
   color: var(--os-code-title);
 }
 
 .markdown-preview .hljs-attr,
+.sc-editor-cm .hljs-attr,
 .markdown-preview .hljs-attribute,
+.sc-editor-cm .hljs-attribute,
 .markdown-preview .hljs-property,
+.sc-editor-cm .hljs-property,
 .markdown-preview .hljs-name,
-.markdown-preview .hljs-selector-attr {
+.sc-editor-cm .hljs-name,
+.markdown-preview .hljs-selector-attr,
+.sc-editor-cm .hljs-selector-attr {
   color: var(--os-code-attr);
 }
 
 .markdown-preview .hljs-built_in,
+.sc-editor-cm .hljs-built_in,
 .markdown-preview .hljs-type,
-.markdown-preview .hljs-params {
+.sc-editor-cm .hljs-type,
+.markdown-preview .hljs-params,
+.sc-editor-cm .hljs-params {
   color: var(--os-code-builtin);
 }
 
 .markdown-preview .hljs-variable,
+.sc-editor-cm .hljs-variable,
 .markdown-preview .hljs-template-variable,
+.sc-editor-cm .hljs-template-variable,
 .markdown-preview .hljs-variable.language_,
+.sc-editor-cm .hljs-variable.language_,
 .markdown-preview .hljs-variable.constant_,
+.sc-editor-cm .hljs-variable.constant_,
 .markdown-preview .hljs-subst,
-.markdown-preview .hljs-deletion {
+.sc-editor-cm .hljs-subst,
+.markdown-preview .hljs-deletion,
+.sc-editor-cm .hljs-deletion {
   color: var(--os-code-variable);
 }
 
-.markdown-preview .hljs-meta {
+.markdown-preview .hljs-meta,
+.sc-editor-cm .hljs-meta {
   color: var(--os-code-meta);
 }
 
-.markdown-preview .hljs-strong {
+.markdown-preview .hljs-strong,
+.sc-editor-cm .hljs-strong {
   font-weight: 600;
 }
 
-.markdown-preview .hljs-emphasis {
+.markdown-preview .hljs-emphasis,
+.sc-editor-cm .hljs-emphasis {
   font-style: italic;
 }
 
@@ -2721,3 +2758,88 @@ textarea.resize-none.h-full { border-radius: 0; }
 .dark[data-theme="gradient-green-blue"] { --link: #6EE7B7; --link-hover: #A7F3D0; }   /* Vulkan: an emerald tint */
 .dark[data-theme="gradient-orange-red"] { --link: #FDBA74; --link-hover: #FED7AA; }   /* Sunset: an orange tint */
 .dark[data-theme="gradient-pink-purple"] { --link: #F9A8D4; --link-hover: #FBCFE8; }   /* Aurora: a pink tint */
+
+/* Document links ([[doc:...]], src/utils/docLinks.js): the preview's link to another document carries the
+   document's current title; a target that is not on this device is a muted, inert "Document not found";
+   an ambiguous title (several documents) is marked as such. The editor shows the id form as a chip
+   (codemirror/docLinkChips.js) over the theme's tokens; the text underneath stays the directive. */
+.markdown-preview a.doc-link {
+  color: var(--os-blue);
+  text-decoration: none;
+  border-bottom: 1px dotted color-mix(in srgb, var(--os-blue) 60%, transparent);
+  padding-bottom: 1px;
+}
+.markdown-preview a.doc-link:hover,
+.markdown-preview a.doc-link:focus-visible { text-decoration: none; border-bottom-style: solid; outline-offset: 2px; }
+.markdown-preview a.doc-link::before {
+  content: '';
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 0.3em;
+  vertical-align: -0.1em;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z'/%3E%3Cpath d='M14 2v4a2 2 0 0 0 2 2h4'/%3E%3Cpath d='M10 18v-3.5a2.5 2.5 0 0 1 5 0V18'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z'/%3E%3Cpath d='M14 2v4a2 2 0 0 0 2 2h4'/%3E%3Cpath d='M10 18v-3.5a2.5 2.5 0 0 1 5 0V18'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.markdown-preview .doc-link-missing,
+.markdown-preview .doc-link-ambiguous {
+  color: var(--os-text-muted);
+  border-bottom: 1px dashed var(--os-border);
+  cursor: default;
+}
+.markdown-preview .doc-link-ambiguous { color: var(--os-text-secondary); }
+.markdown-preview .doc-link-state { font-style: italic; }
+
+.sc-editor-cm .cm-doc-link-chip {
+  display: inline-block;
+  max-width: 24em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  padding: 0 0.45em;
+  margin: 0 0.05em;
+  border-radius: var(--radius-chip, 6px);
+  font-size: 0.92em;
+  line-height: 1.5;
+  color: var(--os-blue);
+  background: color-mix(in srgb, var(--os-blue) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--os-blue) 35%, transparent);
+  cursor: text;
+}
+.sc-editor-cm .cm-doc-link-chip-missing {
+  color: var(--os-text-muted);
+  background: color-mix(in srgb, var(--os-text-muted) 10%, transparent);
+  border-color: var(--os-border);
+  border-style: dashed;
+}
+
+/* Code blocks in the editor (codemirror/codeBlocks.js): the lines of a fenced or indented block are tinted
+   over the code background token, in the code font, with a left edge; the fence lines are dimmed and the
+   fence's language shows as a small label ; inline code gets the preview's subtle mark background. The
+   text stays plain Markdown - no syntax colours in the editor. Block, label and inline code have square
+   corners. */
+.sc-editor-cm .cm-line.cm-code-block {
+  background: var(--os-code-bg);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--os-text-muted) 45%, transparent);
+  padding-left: 0.6em;
+  margin-left: -0.6em;
+}
+.sc-editor-cm .cm-code-fence { color: var(--os-text-muted); opacity: 0.75; }
+.sc-editor-cm .cm-code-info {
+  color: var(--os-text-secondary);
+  background: color-mix(in srgb, var(--os-text-muted) 18%, transparent);
+  padding: 0 0.4em;
+  font-size: 0.85em;
+  letter-spacing: 0.02em;
+}
+.sc-editor-cm .cm-inline-code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: color-mix(in srgb, var(--os-text-muted) 18%, transparent);
+  padding: 0.05em 0;
+}
+.sc-editor-cm .cm-inline-code-mark { color: var(--os-text-muted); }

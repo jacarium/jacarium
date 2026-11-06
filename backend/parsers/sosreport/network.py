@@ -1,9 +1,9 @@
 """The network group page of a sosreport: its Findings are the sum of its sub-tabs' (worst first, each one
 named after the tab it came from and linked to it), so the group reads as one overview."""
 from parsers.findings import finding, no_data, sort_findings
-from parsers.sosreport import network_stats
+from parsers.sosreport import network_stats, network_config
 
-SUBS = ('network_stats',)
+SUBS = ('network_stats', 'network_config')
 
 
 def parse(directory):

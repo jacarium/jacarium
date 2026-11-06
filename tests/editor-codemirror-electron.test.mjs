@@ -85,7 +85,7 @@ try {
   await sleep(3000);   // the checker's idle pass
   check('the typed text is the document', (await value()) === TEXT, JSON.stringify(await value()));
   const marks = await page.evaluate(() => Array.from(document.querySelectorAll('.sc-editor-cm .cm-nospell')).map((m) => m.textContent));
-  check('the fence and the inline code are spellcheck="false" marks', marks.includes('kubectl get podz -n sentense') && marks.includes('`sentense here`'), JSON.stringify(marks));
+  check('the fence and the inline code are spellcheck="false" marks', marks.includes('kubectl get podz -n sentense') && (marks.includes('`sentense here`') || (marks.includes('sentense here') && marks.filter((m) => m === '`').length >= 2)), JSON.stringify(marks));   // the code-block styling (codeBlocks.js) may split inline code into its backticks and its text, each still a spellcheck="false" mark
 
   // prose: flagged, the menu carries the spelling items
   let r = await rightClickAt(TEXT.indexOf('sentense') + 3);

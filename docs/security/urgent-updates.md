@@ -524,3 +524,43 @@ fetches, Google Calendar), so the denylist matters there.
   no open Dependabot alert.
 - **Python**: OSV over the 111 pins of backend/requirements.lock finds only the brotlicffi line above.
 
+
+## 2026-11-06 - Electron 45.2.2 (the lane), Caddy 2.11.8 (the lane), sqlite CVE-2026-119586 (VEX)
+
+1. **Electron 45.2.1 -> 45.2.2, the security lane** (`npm run deps:urgent -- electron@45.2.2 --reason ...`,
+   the exact-pin form). Reason: CVE-2026-76024 (Critical, use after free in MediaStream), CVE-2026-76025,
+   CVE-2026-76026, CVE-2026-76027, CVE-2026-76028, CVE-2026-76029 (High) - Chrome's stable fixes of
+   2026-10-29 (156.0.8078.79, 21 CVEs), carried by 45.2.2's Chromium 156.0.8078.80; 45.2.2 also takes Node
+   24.22.2 (not a security release). Published 2026-11-03 21:43 UTC, 2.0 days old; publisher electron-nightly
+   (as 45.2.1), 2 registry signatures, no provenance (Electron publishes none), the tarball diff is
+   checksums.json, electron.d.ts and package.json. After: .npmrc still min-release-age=7; lockfile: 2 entries
+   changed, all the named packages' own, integrity = registry; npm audit: 0 vulnerabilities; npm audit
+   signatures: ok; test-only packages reinstalled (playwright-core@1.64.1), lockfile untouched; package.json
+   pins `"electron": "45.2.2"`. The spell-check dictionaries follow (`--repin --min-age-days 2`,
+   docs/security/spellcheck-dictionaries.md): a new zip digest, every file byte for byte the 45.2.1 pin's.
+   **Not 45.2.3** (2026-11-04, backported upstream fixes, no advisory named): the seven-day rule, 2026-11-11.
+2. **sqlite CVE-2026-119586, a VEX statement, no upgrade** (Red Hat: Important, sqlite-libs 3.34.1-11.el9_8
+   "Affected", no fix; Grype reports it as not-fixed, so the gate ignores it). The flaw is a command injection
+   in the sqlite3 command-line shell's `.recover` output (shell.c); the image has only sqlite-libs - no
+   `sqlite` RPM, no `/usr/bin/sqlite3`, `command -v sqlite3` finds nothing - and the backend uses the library
+   through Python's sqlite3 module. vex/decisions.yaml: not_affected, vulnerable_code_not_present, from 4.1.0,
+   for `pkg:rpm/redhat/sqlite-libs@3.34.1-11.el9_8`. deploy/Containerfile's runtime stage now fails the build
+   if `sqlite3` or the `sqlite` RPM appears, the container-deploy test checks the running container, and
+   tests/container_reproducible.test.py keeps the Containerfile check. Red Hat lists its nodejs RPMs as
+   affected too (they bundle SQLite); the image's Node is the nodejs.org 26.13.0 binary, whose `node:sqlite`
+   (SQLite 3.54.0) exposes DatabaseSync / StatementSync / Session / backup and nothing like `.recover` or the
+   shell's dot-commands - library code, the same reading; the central server does not use it anyway.
+
+3. **Caddy 2.11.7 -> 2.11.8, the security lane** (`scripts/verify-go-module.sh github.com/caddyserver/caddy/v2 v2.11.8`,
+   run 2026-11-06 01:17 UTC): checksum database record 70750915, `h1:E2pv1BoZ5bJaWqFkU6QvLa21iGAX8bDzlEQG4dDQ/Vc=`
+   (go.mod `h1:r8BAzVRMkDEgSi6ckDR57rxeGvylYFeGZZZ8ut7N5hQ=`), proxy time 2026-11-03 23:25 UTC (2.1 days old), origin
+   the tag refs/tags/v2.11.8 at 55996dfe05c10bb616ccdcc9bf5b8407a5be75b7 of github.com/caddyserver/caddy; no red flag.
+   The release fixes GHSA-r766-rf9f-588h (High, a `{host}`-based root escaped by dot segments) and
+   GHSA-jf74-f69g-hcj9, GHSA-25cw-38mq-q7m6, GHSA-69hv-5jfc-mvmv, GHSA-f278-mgc7-46j3 (Medium). None reaches the
+   image's configuration: deploy/Caddyfile has fixed roots (/app/ui, /data/ui-assets) with HOME=/data, no `{host}`
+   placeholder, no rewrite and no php_fastcgi, and its only path rules are prefix excludes over the public UI tree;
+   its breaking changes (an invalid Host gets 400, a trailing-slash `file` candidate matches only a directory,
+   `encode` ignores a request's no-transform, stricter validation of options this config does not use) change
+   nothing here. Taken so the image carries no Caddy release with an open advisory. Not 2.11.9 (2026-11-05 01:30
+   UTC: FastCGI hardening and a fix of 2.11.8's PHP-index regression, neither used here): next, from the lane's
+   2026-11-07 01:30 UTC.

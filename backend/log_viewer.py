@@ -118,6 +118,11 @@ PARSERS = {
                     'icon': 'fas fa-diagram-project',
                     'label': 'Flow Visualization'
                 },
+                'network_config': {
+                    'module': 'parsers.sosreport.network_config',
+                    'icon': 'fas fa-sliders',
+                    'label': 'Network Configuration'
+                },
             }
         },
         'sar': {
@@ -282,6 +287,19 @@ PARSERS = {
                     'module': 'parsers.mustgather.tls_secrets',
                     'icon': 'fas fa-lock',
                     'label': 'TLS Secret Expiration'
+                },
+            }
+        },
+        # The node network: the kubernetes-nmstate objects (policies, enactments, node states)
+        'network': {
+            'module': 'parsers.mustgather.network',
+            'icon': 'fas fa-network-wired',
+            'label': 'Network',
+            'sub_tabs': {
+                'nmstate': {
+                    'module': 'parsers.mustgather.nmstate',
+                    'icon': 'fas fa-ethernet',
+                    'label': 'Node Network Config (NNCP)'
                 },
             }
         },

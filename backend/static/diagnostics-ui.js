@@ -235,7 +235,7 @@
   /* chips, short words; the widest text column is the flexible one).   */
   /* Only when even the compact widths do not fit does the table keep  */
   /* its width and scroll sideways (class ui-wide: a sticky first       */
-  /* column and a "scroll" hint under the box) - the last resort.       */
+  /* column, the box's own scrollbar) - the last resort.                */
   /* ------------------------------------------------------------------ */
   var FIT_SAMPLE = 80, FIT_PAD = 20, FIT_FLEX_MIN = 240, FIT_FLOOR = 64;
   var fitCtx = null;
@@ -390,7 +390,6 @@
     wrap.classList.toggle('ui-wide', wide);
     if (!(nested && !wide)) table.style.width = wide ? (need() - flexMin + (flex >= 0 ? Math.max(flexMin, cols[flex].widest + FIT_PAD) : 0)) + 'px' : '';
     noteHidden(table, wrap, cols, hidden);
-    scrollHint(wrap, wide);
     titleTruncated(table);
   }
   // the hidden columns, named under the table (their values are in the row details)
@@ -404,12 +403,6 @@
     var menu = doc.querySelector('details.ui-menu#columns-menu, details.ui-menu[data-columns]');
     if (menu) { note.appendChild(doc.createTextNode('; ')); var b = el('button', 'ui-link', 'the Columns menu'); b.type = 'button'; b.addEventListener('click', function () { menu.open = true; try { menu.scrollIntoView({ block: 'nearest' }); } catch { /* older */ } }); note.appendChild(b); note.appendChild(doc.createTextNode(' shows any of them')); }
     else note.appendChild(doc.createTextNode('; a wider pane shows them'));
-  }
-  function scrollHint(wrap, wide) {
-    var hint = wrap.querySelector(':scope > .ui-scroll-hint');
-    if (!wide) { if (hint) hint.remove(); return; }
-    if (!hint) { hint = el('div', 'ui-scroll-hint', 'scroll →'); hint.setAttribute('aria-hidden', 'true'); wrap.appendChild(hint); }
-    hint.hidden = wrap.scrollLeft > 4;
   }
   // a cell cut by the ellipsis carries its whole value in the title (its own title, when the template set one, stays)
   function titleTruncated(table) {
@@ -492,7 +485,6 @@
     ro.observe(doc.documentElement);
     var refit = function () { Array.prototype.forEach.call(doc.querySelectorAll('table.ui-table'), function (t) { t.$fitSig = null; }); fitAll(); };
     if (doc.fonts) { try { doc.fonts.ready.then(refit); doc.fonts.addEventListener("loadingdone", refit); } catch { /* no FontFaceSet */ } }
-    doc.addEventListener('scroll', function (e) { var w = e.target && e.target.classList && e.target.classList.contains('ui-table-wrap') ? e.target : null; if (w && w.classList.contains('ui-wide')) scrollHint(w, true); }, true);
   }
   /* ---- the page stack: the content root and the templates' plain wrapper divs carry .ui-stack, so the page's
      top-level blocks keep one gap (--ui-stack-gap) between them wherever the template put them ---- */
@@ -567,6 +559,36 @@
     var b = th.querySelector('.lc-sort');
     if (b) { b.classList.add('lc-sorted'); b.classList.toggle('lc-asc', !!ascending); }
   }
+  // the shared column sort for a page without a sorter of its own: a click on th[data-key] orders the body's rows by
+  // that column (a row's details panel moves with it; numbers compare as numbers, the rest by locale), a second
+  // click reverses it; the marker follows (markSort). A cell's data-sort, when set, is the value compared.
+  function sortable(table) {
+    if (!table || table.$sortable || !table.tHead) return;
+    table.$sortable = true;
+    var ths = Array.prototype.slice.call(table.tHead.querySelectorAll('th[data-key]'));
+    ths.forEach(function (th) {
+      th.classList.add('cursor-pointer');
+      th.addEventListener('click', function () {
+        var asc = th.getAttribute('aria-sort') !== 'ascending';
+        var col = Array.prototype.indexOf.call(th.parentNode.children, th);
+        var body = table.tBodies[0]; if (!body) return;
+        var rows = Array.prototype.filter.call(body.rows, function (r) { return !r.classList.contains('ui-xrow-panel'); });
+        var valueOf = function (r) { var c = r.cells[col]; if (!c) return ''; var v = c.getAttribute('data-sort'); return v !== null ? v : c.textContent.replace(/\s+/g, ' ').trim(); };
+        var num = function (v) { var m = /^[-+]?\d[\d,]*(?:\.\d+)?/.exec(v); return m ? parseFloat(m[0].replace(/,/g, '')) : NaN; };
+        var keyed = rows.map(function (r, i) { return { r: r, i: i, v: valueOf(r) }; });
+        var numeric = keyed.every(function (k) { return k.v === '' || k.v === '-' || !isNaN(num(k.v)); });
+        keyed.sort(function (a, b) {
+          var c;
+          if (numeric) { var x = num(a.v), y = num(b.v); c = (isNaN(x) ? -Infinity : x) - (isNaN(y) ? -Infinity : y); }
+          else c = String(a.v).localeCompare(String(b.v), undefined, { numeric: true, sensitivity: 'base' });
+          if (c === 0) c = a.i - b.i;
+          return asc ? c : -c;
+        });
+        keyed.forEach(function (k) { var p = panelOf(k.r); body.appendChild(k.r); if (p) body.appendChild(p); });
+        markSort(th, asc);
+      });
+    });
+  }
   // a table the parser pre-sorted says so on the header cell (data-sorted="descending"): the marker on load
   function defaultSort(root) {
     Array.prototype.forEach.call((root || doc).querySelectorAll('thead tr'), function (row) {
@@ -626,8 +648,10 @@
     var t = e.target;
     var all = t.closest ? t.closest('[data-xrow-all]') : null;
     if (all) {
-      var table = doc.querySelector(all.getAttribute('data-table') || '') || all.closest('.panel, .ui-card, section, body').querySelector('table');
-      if (table) visibleRows(table).forEach(function (r) { setOpen(r, all.getAttribute('data-xrow-all') === 'open'); });
+      // data-table: a selector; every table it matches (a panel with two expandable tables shares one pair of buttons)
+      var tables = Array.prototype.slice.call(doc.querySelectorAll(all.getAttribute('data-table') || ''));
+      if (!tables.length) { var near = all.closest('.panel, .ui-card, section, body').querySelector('table'); if (near) tables = [near]; }
+      tables.forEach(function (table) { visibleRows(table).forEach(function (r) { setOpen(r, all.getAttribute('data-xrow-all') === 'open'); }); });
       return;
     }
     var copy = t.closest ? t.closest('[data-copy]') : null;
@@ -676,7 +700,7 @@
     e.preventDefault();
     setOpen(t);
   });
-  window.diagTables = { setup: setupTables, label: labelCells, wrap: wrapTable, markSort: markSort, defaultSort: defaultSort, xrows: setupXrows, open: setOpen, xrowCell: xrowCell, xrowPanel: xrowPanel, fit: fitTable, fitAll: fitAll, breakable: breakable, codeBlock: codeBlock, copyButton: copyButton };
+  window.diagTables = { setup: setupTables, label: labelCells, wrap: wrapTable, markSort: markSort, sortable: sortable, defaultSort: defaultSort, xrows: setupXrows, open: setOpen, xrowCell: xrowCell, xrowPanel: xrowPanel, fit: fitTable, fitAll: fitAll, breakable: breakable, codeBlock: codeBlock, copyButton: copyButton };
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function () { setupTables(); watchTables(); watchFit(); });
   else { setupTables(); watchTables(); watchFit(); }
 

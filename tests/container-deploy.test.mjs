@@ -322,6 +322,10 @@ try {
   const ssh = run(['exec', NAME, 'ssh', '-V']);
   check('the ssh client is installed in the container', ssh.status === 0 && /OpenSSH/.test(ssh.stderr + ssh.stdout), (ssh.stderr + ssh.stdout).trim());
   check('known_hosts lives on the volume', fs.existsSync(path.join(dataDir, '.ssh', 'known_hosts')));
+  // the sqlite3 shell (CVE-2026-119586's .recover command injection) is not in the image: only the library
+  // is, which is what the not_affected statement in vex/decisions.yaml rests on
+  const sqlite = run(['exec', NAME, 'sh', '-c', 'command -v sqlite3 || echo none; rpm -q sqlite sqlite-libs 2>&1']);
+  check('no sqlite3 command-line shell in the image, only sqlite-libs', /^none$/m.test(sqlite.stdout) && /package sqlite is not installed/.test(sqlite.stdout) && /^sqlite-libs-3\./m.test(sqlite.stdout), (sqlite.stdout + sqlite.stderr).trim());
 
   // ---- the Taskwarrior routes cannot run programs or reach outside /data/.task ------
   r = await request('POST', '/api/taskwarrior/command', { body: { command: 'execute id' } });

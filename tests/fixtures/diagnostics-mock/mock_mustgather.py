@@ -902,6 +902,7 @@ def _build(base, rnd_seed):
                                    "<body><p>Synthetic must-gather for the Jacarium Diagnostics page. Events are under namespaces/*/core/events.yaml.</p></body></html>\n")
     inner = Tree(os.path.join(base, IMAGE_DIR))
     write_cluster_scoped(inner, rnd)
+    write_nmstate(inner, rnd)
     write_workload_namespaces(inner, rnd)
     write_platform_namespaces(inner, rnd)
     write_monitoring(inner)
@@ -915,3 +916,101 @@ def _build(base, rnd_seed):
                 inner.yaml(os.path.relpath(os.path.join(dp, "events.yaml"), inner.base), {"apiVersion": "v1", "kind": "EventList", "metadata": {"resourceVersion": ""}, "items": []})
         inner.write("monitoring/alertmanager/alerts.json", json.dumps({"status": "success", "data": []}, indent=2) + "\n")
     return base
+
+
+# --------------------------------------------------------------------------
+# kubernetes-nmstate: NodeNetworkConfigurationPolicy / Enactment / NodeNetworkState (cluster-scoped-resources/nmstate.io)
+# --------------------------------------------------------------------------
+
+def _iface_bond(name, mode, ports, primary=None, mtu=9000, ipv4=None):
+    la = {"mode": mode, "port": list(ports), "options": {"miimon": "100"}}
+    if primary:
+        la["options"]["primary"] = primary
+    return {"name": name, "type": "bond", "state": "up", "mtu": mtu, "link-aggregation": la,
+            "ipv4": ipv4 or {"enabled": False}, "ipv6": {"enabled": False}}
+
+
+def _iface_eth(name, mtu=9000, state="up"):
+    return {"name": name, "type": "ethernet", "state": state, "mtu": mtu, "ipv4": {"enabled": False}, "ipv6": {"enabled": False}}
+
+
+def _iface_vlan(name, base, vid, ipv4=None):
+    return {"name": name, "type": "vlan", "state": "up", "vlan": {"base-iface": base, "id": vid}, "ipv4": ipv4 or {"enabled": True, "dhcp": True}, "ipv6": {"enabled": False}}
+
+
+def _iface_ovs_bridge(name, ports):
+    return {"name": name, "type": "ovs-bridge", "state": "up", "bridge": {"options": {"stp": False, "mcast-snooping-enable": False}, "port": [{"name": p} for p in ports]}}
+
+
+def _iface_ovs_internal(name, ip, prefix=24, mtu=9000):
+    return {"name": name, "type": "ovs-interface", "state": "up", "mtu": mtu, "copy-mac-from": "bond0",
+            "ipv4": {"enabled": True, "dhcp": False, "address": [{"ip": ip, "prefix-length": prefix}]}, "ipv6": {"enabled": False}}
+
+
+def write_nmstate(t, rnd):
+    csr = "cluster-scoped-resources/nmstate.io"
+    workers = [n for n, role, *_ in NODES if role == "worker"]
+    selector = {"node-role.kubernetes.io/worker": ""}
+    broken_node = None if QUIET else "worker-1"   # the quiet gather: every policy Available, every node as desired
+    # policy 1: bond0 (active-backup eth1 primary, eth2) with a VLAN 100 on it, Available everywhere
+    bond_policy = {
+        "apiVersion": "nmstate.io/v1", "kind": "NodeNetworkConfigurationPolicy",
+        "metadata": meta("worker-bond0", created=ago(days=30), uid_seed=701),
+        "spec": {"nodeSelector": selector, "desiredState": {
+            "interfaces": [_iface_eth("eth1"), _iface_eth("eth2"), _iface_bond("bond0", "active-backup", ["eth1", "eth2"], primary="eth1"),
+                           _iface_vlan("bond0.100", "bond0", 100, ipv4={"enabled": True, "dhcp": False, "address": [{"ip": "198.51.100.121", "prefix-length": 24}]})],
+            "routes": {"config": [{"destination": "0.0.0.0/0", "next-hop-address": "198.51.100.1", "next-hop-interface": "bond0.100", "metric": 150}]},
+            "dns-resolver": {"config": {"server": ["192.0.2.53", "192.0.2.54"], "search": ["example.test"]}},
+        }},
+        "status": {"conditions": [cond("Available", "True", "SuccessfullyConfigured", f"{len(workers)}/{len(workers)} nodes successfully configured", ago(days=29)),
+                                  cond("Degraded", "False", "SuccessfullyConfigured", "", ago(days=29)), cond("Progressing", "False", "SuccessfullyConfigured", "", ago(days=29))],
+                   "lastUnavailableNodeCountUpdate": ago(days=29)},
+    }
+    # policy 2: br-ex (OVN-Kubernetes' external OVS bridge) over bond0 with the node address on the internal port; Degraded: worker-1 failed
+    brex_policy = {
+        "apiVersion": "nmstate.io/v1", "kind": "NodeNetworkConfigurationPolicy",
+        "metadata": meta("worker-br-ex", created=ago(days=10), uid_seed=702),
+        "spec": {"nodeSelector": selector, "desiredState": {
+            "interfaces": [_iface_ovs_bridge("br-ex", ["bond0", "br-ex"]), _iface_ovs_internal("br-ex", "203.0.113.21")],
+            "ovn": {"bridge-mappings": [{"localnet": "physnet", "bridge": "br-ex", "state": "present"}]},
+        }},
+        "status": {"conditions": ([cond("Available", "True", "SuccessfullyConfigured", f"{len(workers)}/{len(workers)} nodes successfully configured", ago(days=9)),
+                                   cond("Degraded", "False", "SuccessfullyConfigured", "", ago(days=9)), cond("Progressing", "False", "SuccessfullyConfigured", "", ago(days=9))] if QUIET else
+                                  [cond("Available", "False", "FailedToConfigure", "1/2 nodes failed to configure", ago(hours=5)),
+                                   cond("Degraded", "True", "FailedToConfigure", "worker-1: ovs port bond0 not found on br-ex (the bond is still enslaved to ovs-system by another profile)", ago(hours=5)),
+                                   cond("Progressing", "False", "FailedToConfigure", "", ago(hours=5))]),
+                   "lastUnavailableNodeCountUpdate": ago(hours=5)},
+    }
+    t.yaml(f"{csr}/nodenetworkconfigurationpolicies/worker-bond0.yaml", bond_policy)
+    t.yaml(f"{csr}/nodenetworkconfigurationpolicies/worker-br-ex.yaml", brex_policy)
+    # the enactments: one per node and policy; worker-1's br-ex enactment is Failing
+    for i, node in enumerate(workers):
+        for policy, spec_ifaces in (("worker-bond0", bond_policy["spec"]["desiredState"]["interfaces"]), ("worker-br-ex", brex_policy["spec"]["desiredState"]["interfaces"])):
+            failing = node == broken_node and policy == "worker-br-ex"
+            conds = [cond("Available", "False" if failing else "True", "FailedToConfigure" if failing else "SuccessfullyConfigured", "" if failing else "successfully reconciled", ago(hours=5 if failing else 29 * 24)),
+                     cond("Failing", "True" if failing else "False", "FailedToConfigure" if failing else "SuccessfullyConfigured",
+                          "error reconciling NodeNetworkConfigurationPolicy at desired state apply: failed to apply: ovs port bond0 not found on br-ex; rolled back to the previous state" if failing else "", ago(hours=5 if failing else 29 * 24)),
+                     cond("Progressing", "False", "", "", ago(hours=5)), cond("Pending", "False", "", "", ago(hours=5)), cond("Aborted", "False", "", "", ago(hours=5)),
+                     cond("Matching", "True", "NodeSelectorAllSelectorsMatching", "All policy selectors are matching the node", ago(days=30))]
+            t.yaml(f"{csr}/nodenetworkconfigurationenactments/{node}.{policy}.yaml", {
+                "apiVersion": "nmstate.io/v1beta1", "kind": "NodeNetworkConfigurationEnactment",
+                "metadata": meta(f"{node}.{policy}", labels={"nmstate.io/node": node, "nmstate.io/policy": policy}, created=ago(days=30), uid_seed=710 + i),
+                "status": {"conditions": conds, "desiredState": {"interfaces": spec_ifaces}, "policyGeneration": 2 if policy == "worker-br-ex" else 1}})
+    # the node states: worker-0 as desired; worker-1 with br-ex missing its bond0 port and bond0 at MTU 1500 (the failed apply rolled back)
+    for i, node in enumerate(workers):
+        broken = node == broken_node
+        bond = _iface_bond("bond0", "active-backup", ["eth1", "eth2"], primary="eth1", mtu=1500 if broken else 9000)
+        bond["link-aggregation"]["active-port"] = "eth2" if broken else "eth1"
+        bond["mac-address"] = "02:00:00:cc:01:0%d" % (i + 1)
+        ifaces = [_iface_eth("eth1", mtu=1500 if broken else 9000), _iface_eth("eth2", mtu=1500 if broken else 9000), bond,
+                  _iface_vlan("bond0.100", "bond0", 100, ipv4={"enabled": True, "dhcp": False, "address": [{"ip": "198.51.100.121" if not broken else "198.51.100.122", "prefix-length": 24}]}),
+                  _iface_ovs_bridge("br-ex", ["br-ex"] if broken else ["bond0", "br-ex"]), _iface_ovs_internal("br-ex", "203.0.113.21" if not broken else "203.0.113.22"),
+                  {"name": "lo", "type": "loopback", "state": "up", "mtu": 65536, "ipv4": {"enabled": True, "address": [{"ip": "127.0.0.1", "prefix-length": 8}]}, "ipv6": {"enabled": True, "address": [{"ip": "::1", "prefix-length": 128}]}}]
+        t.yaml(f"{csr}/nodenetworkstates/{node}.yaml", {
+            "apiVersion": "nmstate.io/v1beta1", "kind": "NodeNetworkState",
+            "metadata": meta(node, created=ago(days=200), uid_seed=720 + i),
+            "status": {"currentState": {"interfaces": ifaces, "routes": {"running": [{"destination": "0.0.0.0/0", "next-hop-address": "198.51.100.1", "next-hop-interface": "bond0.100", "metric": 150, "table-id": 254}]},
+                                        "dns-resolver": {"running": {"server": ["192.0.2.53", "192.0.2.54"], "search": ["example.test"]}},
+                                        "ovn": {"bridge-mappings": [{"localnet": "physnet", "bridge": "br-ex", "state": "present"}]}},
+                       "hostNetworkManagerVersion": "1.46.0-1.el9", "handlerNetworkManagerVersion": "1.46.0", "handlerNmstateVersion": "2.2.30",
+                       "lastSuccessfulUpdateTime": ago(minutes=4)}})

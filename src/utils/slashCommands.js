@@ -28,6 +28,7 @@ export const BLOCK_COMMANDS = Object.freeze([
   Object.freeze({ id: 'block-quote', name: '/quote', label: 'Quote', description: 'Start a block quote', aliases: ['quote', 'blockquote'], action: 'quote', builtin: true }),
   Object.freeze({ id: 'block-toc', name: '/toc', label: 'Table of contents', description: 'Insert a table of contents from the headings', aliases: ['toc', 'contents'], action: 'toc', builtin: true }),
   Object.freeze({ id: 'block-code', name: '/code', label: 'Code block', description: 'Insert a fenced code block', aliases: ['code', 'codeblock', 'fence'], action: 'codeblock', builtin: true }),
+  Object.freeze({ id: 'block-doclink', name: '/link', label: 'Link to document', description: 'Link to another document by its title; the link follows renames ([[doc:...]])', aliases: ['link', 'doc', 'document', 'doclink'], action: 'doclink', builtin: true }),
 ]);
 
 /**

@@ -248,6 +248,13 @@
 /* the table box: one bordered, rounded container (--radius-table) on the card colour; overflow: auto clips the
    header and the last row to the corners and still lets a sticky header stick inside it */
 #diagnostics-content .ui-table-wrap { border: 1px solid var(--os-border); border-radius: var(--radius-table, 10px); overflow: auto; min-width: 0; background: var(--os-card); }
+/* a box that overflows (a wide table sideways, a capped box down) shows a plain thin scrollbar in the theme's colours,
+   always visible - not the overlay kind that only appears while scrolling */
+#diagnostics-content .ui-table-wrap, #diagnostics-content .ui-code-view, #diagnostics-content .ui-xrow-body pre { scrollbar-width: thin; scrollbar-color: var(--os-text-secondary) var(--os-card-secondary); }
+#diagnostics-content .ui-table-wrap::-webkit-scrollbar, #diagnostics-content .ui-code-view::-webkit-scrollbar, #diagnostics-content .ui-xrow-body pre::-webkit-scrollbar { width: 9px; height: 9px; }
+#diagnostics-content .ui-table-wrap::-webkit-scrollbar-track, #diagnostics-content .ui-code-view::-webkit-scrollbar-track, #diagnostics-content .ui-xrow-body pre::-webkit-scrollbar-track { background: var(--os-card-secondary); }
+#diagnostics-content .ui-table-wrap::-webkit-scrollbar-thumb, #diagnostics-content .ui-code-view::-webkit-scrollbar-thumb, #diagnostics-content .ui-xrow-body pre::-webkit-scrollbar-thumb { background: var(--os-text-secondary); border: 2px solid var(--os-card-secondary); border-radius: 999px; }
+#diagnostics-content .ui-table-wrap::-webkit-scrollbar-thumb:hover, #diagnostics-content .ui-code-view::-webkit-scrollbar-thumb:hover, #diagnostics-content .ui-xrow-body pre::-webkit-scrollbar-thumb:hover { background: var(--os-text-primary); }
 #diagnostics-content .ui-table-wrap + .ui-pagebar, #diagnostics-content .ui-table-wrap + .ui-pager { margin-top: 8px; }
 #diagnostics-content table { width: 100%; max-width: 100%; border-collapse: collapse; font-size: 12.5px; table-layout: auto; }
 #diagnostics-content table.ui-table { table-layout: auto; }   /* the marked tables (the migrated templates); the generic rules above style every table the same */
@@ -294,12 +301,11 @@
 #diagnostics-content table.ui-fit td.ui-cmd { max-width: none; min-width: 0; white-space: normal; }
 #diagnostics-content table.ui-fit .ui-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
 #diagnostics-content table.ui-fit .ui-clamp.ui-clamp-open { display: block; -webkit-line-clamp: none; }
-/* the last resort: a genuinely wide table keeps its width and scrolls sideways, its first column sticky, a hint in the box's corner */
+/* the last resort: a genuinely wide table keeps its width and scrolls sideways, its first column sticky, the box's scrollbar visible */
 #diagnostics-content .ui-table-wrap.ui-wide { position: relative; }
 #diagnostics-content .ui-table-wrap.ui-wide > table.ui-fit { width: max-content; min-width: 100%; table-layout: fixed; }
 #diagnostics-content table.ui-fit.ui-wide th:first-child, #diagnostics-content table.ui-fit.ui-wide td:first-child { position: sticky; left: 0; z-index: 1; background: var(--os-card); box-shadow: 1px 0 0 var(--os-border); }
 #diagnostics-content table.ui-fit.ui-wide th:first-child { background: var(--os-card-secondary); }
-#diagnostics-content .ui-scroll-hint { position: sticky; left: calc(100% - 72px); bottom: 6px; display: inline-block; width: 66px; padding: 2px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--os-text-secondary); background: var(--os-card-secondary); border: 1px solid var(--os-border); border-radius: var(--radius-xs, 6px); pointer-events: none; }
 #diagnostics-content .ui-table-note { font-size: 12px; color: var(--os-text-secondary); margin-top: 4px; }
 #diagnostics-content .ui-xrow-btn.ui-xrow-inline { margin-right: 6px; vertical-align: -3px; }
 @media (max-width: 640px) {
@@ -319,7 +325,7 @@
   #diagnostics-content table.ui-fit td, #diagnostics-content table.ui-fit td.ui-col-hidden { display: block; height: auto; white-space: normal; overflow: visible; overflow-wrap: anywhere; text-overflow: clip; }
   #diagnostics-content table.ui-fit td.ui-col-num { text-align: left; }
   #diagnostics-content table.ui-fit td.ui-col-hidden:empty { display: none; }
-  #diagnostics-content .ui-table-note, #diagnostics-content .ui-scroll-hint { display: none; }
+  #diagnostics-content .ui-table-note { display: none; }
   #diagnostics-content table.ui-table.ui-table-flat tr { display: flex; flex-wrap: wrap; gap: 0 10px; }
 }
 /* the count lines (Showing N of N) */
@@ -822,5 +828,11 @@
 #diagnostics-content .ui-xrow-body table.ui-nested td.ui-text { width: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 #diagnostics-content .ui-xrow-body table.ui-nested td.ui-num, #diagnostics-content .ui-xrow-body table.ui-nested th.ui-num, #diagnostics-content .ui-xrow-body table.ui-nested td.ui-status, #diagnostics-content .ui-xrow-body table.ui-nested th.ui-status { width: 1%; white-space: nowrap; overflow-wrap: normal; }
 #diagnostics-content .ui-xrow-body table.ui-nested td.ui-num, #diagnostics-content .ui-xrow-body table.ui-nested th.ui-num { text-align: right; font-variant-numeric: tabular-nums; }
+/* the status cells are table cells: .ui-status is also the filter bar's status line (a flex box), and a flex cell
+   collapses its column to the padding, which clipped the KEY header of a key/value table to "KE" */
+#diagnostics-content .ui-xrow-body table.ui-nested td.ui-status, #diagnostics-content .ui-xrow-body table.ui-nested th.ui-status { display: table-cell; font-size: inherit; color: inherit; gap: 0; }
+#diagnostics-content .ui-xrow-body table.ui-nested th.ui-status { font-size: 11px; color: var(--os-text-secondary); }
+/* a muted note inside a status / number cell stays on the cell's line (the details body lets a muted span wrap anywhere) */
+#diagnostics-content .ui-xrow-body table.ui-nested td.ui-status .ui-muted, #diagnostics-content .ui-xrow-body table.ui-nested td.ui-num .ui-muted { white-space: inherit; overflow-wrap: normal; }
 /* every nested table, managed by the fit or not: a number or status cell stays on one line */
 #diagnostics-content .ui-xrow-body table td.ui-num, #diagnostics-content .ui-xrow-body table td.ui-col-num, #diagnostics-content .ui-xrow-body table td.ui-status, #diagnostics-content .ui-xrow-body table td.ui-col-status { white-space: nowrap; overflow-wrap: normal; }

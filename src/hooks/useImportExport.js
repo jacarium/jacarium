@@ -696,7 +696,11 @@ export function useImportExport() {
 
       if (isNativePdfExportAvailable()) {
         const filename = `${sanitizeZipEntryName(freshDoc.title || 'Untitled')}-${dateStamp()}.pdf`;
-        return await exportDocumentToPDFNative(freshDoc, { report, filename, signal, pageSize, landscape });
+        // the [[doc:...]] links print the linked documents' current titles (src/utils/docLinks.js)
+        const { getDocumentsMetadata } = await import('../utils/documents');
+        const { createDocLinkResolver } = await import('../utils/docLinks');
+        const resolveDocLink = createDocLinkResolver(await getDocumentsMetadata());
+        return await exportDocumentToPDFNative(freshDoc, { report, filename, signal, pageSize, landscape, resolveDocLink });
       }
 
       // Plain browser (dev server, tests): there is no print engine to hand

@@ -3,7 +3,7 @@
  * every code range of the Markdown (fenced ``` / ~~~ blocks, indented code,
  * inline `code`), every URL (link targets, autolinks, bare http(s) links),
  * the HTML tags and blocks and the [[toc]] / [[pagebreak]] / [[header]] ...
- * directives with spellcheck="false". The native checker (Chromium's, the
+ * and [[doc:...]] directives with spellcheck="false". The native checker (Chromium's, the
  * OS's on macOS) honours the attribute on the element it finds a word in,
  * so prose keeps its squiggles and `kubectl get pods` does not.
  *
@@ -23,8 +23,8 @@ export const SKIP_NODES = new Set([
   'CommentBlock', 'ProcessingInstructionBlock',
 ]);
 
-/** Bare http(s) links and the PDF / preview directives ([[toc]], [[/toc]], [[pagebreak]], ...). */
-export const SKIP_TEXT = /\[\[\/?[a-z]+\]\]|https?:\/\/[^\s)>\]]+/g;
+/** Bare http(s) links, the PDF / preview directives ([[toc]], [[/toc]], [[pagebreak]], ...) and the document links ([[doc:...]], src/utils/docLinks.js). */
+export const SKIP_TEXT = /\[\[doc:[^\]\n]*\]\]|\[\[\/?[a-z]+\]\]|https?:\/\/[^\s)>\]]+/g;
 
 const noSpell = Decoration.mark({ attributes: { spellcheck: 'false' }, class: 'cm-nospell' });
 

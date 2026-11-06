@@ -484,3 +484,27 @@ decisions:
     notes: Fixed in github.com/go-jose/go-jose/v4 v4.1.6; Jacarium 3.5.2 builds Caddy with it (deploy/Containerfile, GOJOSE_VERSION).
     decided_by: maintainer
     decided_on: 2026-10-29
+
+  # ---- sqlite-libs 3.34.1-11.el9_8, the base image's SQLite library (python3.14's sqlite3 module links it).
+  # CVE-2026-119586 (Red Hat: Important; sqlite "Affected", no fix at the time of writing) is a command
+  # injection in the sqlite3 command-line SHELL: its .recover command prints dot-commands planted in
+  # sqlite_schema.sql values verbatim, so a crafted database makes the shell run .shell / .system. The flaw
+  # is in shell.c, the CLI program - not in libsqlite3, which the image carries as the only part of SQLite.
+  # Red Hat also lists its nodejs RPMs as affected (they bundle SQLite); the image's Node is the nodejs.org
+  # 26.13.0 binary, whose node:sqlite (SQLite 3.54.0) exposes DatabaseSync / StatementSync / Session / backup
+  # and no .recover or shell commands - the same library-only reading applies, and the central server does
+  # not use node:sqlite anyway.
+  - id: CVE-2026-119586
+    status: not_affected
+    justification: vulnerable_code_not_present
+    versions: ['>=4.1.0']
+    components: [pkg:rpm/redhat/sqlite-libs@3.34.1-11.el9_8]
+    impact: >-
+      The vulnerable code is the sqlite3 command-line shell's .recover command (shell.c), and the shell is not
+      in the image: only sqlite-libs (libsqlite3.so.0) is installed, the `sqlite` RPM that ships /usr/bin/sqlite3
+      is not, and `command -v sqlite3` finds nothing - deploy/Containerfile's runtime stage checks both at build
+      time. The backend uses the library alone (Python's sqlite3 module for its databases), which has no
+      .recover and runs no dot-commands. Node's bundled SQLite (node:sqlite, the nodejs.org binary) is library
+      code too, with no .recover in its API. Nothing in the image can run the shell's recovery output.
+    decided_by: maintainer
+    decided_on: 2026-11-06
