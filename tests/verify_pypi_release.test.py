@@ -193,6 +193,12 @@ cases = [
     ("a changed build backend", dict(sdist_bytes=sdist("1.0.1", NEW_CORE, pyproject=PYPROJECT.replace("setuptools.build_meta", "hatchling.build"))), "RED FLAG: the build backend changed: setuptools.build_meta -> hatchling.build"),
     ("a digest that differs from the index", dict(bad_digest=True), "RED FLAG: pkg-1.0.1.tar.gz: sha256 "),
     ("a yanked release", dict(yanked=True), "RED FLAG: the release is yanked"),
+    # comments and docstrings are prose, not use: only code tokens count (oauthlib 4.0.1's moved comments)
+    ("the words in a new comment and docstring only are not counted", dict(sdist_bytes=sdist("1.0.1", NEW_CORE + "# apply to requests on this endpoint; no subprocess here\ndef f():\n    \"\"\"Uses requests, socket and eval( in prose only.\"\"\"\n    return 1\n"), wheel_bytes=wheel("1.0.1", NEW_CORE + "# requests\n")), None),
+    ("a real import next to a comment is still a red flag", dict(sdist_bytes=sdist("1.0.1", NEW_CORE + "# handles requests\nimport requests\n")), "RED FLAG: sdist: new pkg/core.py: network usage 0 -> 1"),
+    ("exec( in code next to a docstring payload is still a red flag", dict(sdist_bytes=sdist("1.0.1", NEW_CORE + "def g():\n    \"\"\"aW1wb3J0IG9z\"\"\"\n    exec(g.__doc__)\n")), "RED FLAG: sdist: new pkg/core.py: eval usage 0 -> 1"),
+    ("socket in a plain string literal (not a docstring) still counts", dict(sdist_bytes=sdist("1.0.1", NEW_CORE + "X = 'socket'\n")), "RED FLAG: sdist: new pkg/core.py: network usage 0 -> 1"),
+    ("a module that does not parse is counted as written", dict(sdist_bytes=sdist("1.0.1", NEW_CORE + "def broken(:\n    # subprocess\n")), "RED FLAG: sdist: new pkg/core.py: subprocess usage 0 -> 1"),
 ]
 for label, overrides, expected in cases:
     idx = scenario(**overrides)

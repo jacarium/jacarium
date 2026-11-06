@@ -4,6 +4,16 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.1.1
+
+_2026-11-06_
+
+### [SECURITY]
+
+oauthlib GHSA-3jp2-3mrg-2vxc (CVE-2026-49272) recorded as not affected: the flaw is in oauthlib's server-side device-code token endpoint, and the backend uses oauthlib only as a client for the Google Calendar sign-in; oauthlib 4.0.1 follows with the next dependency refresh
+
+The PyPI release verifier counts code only: the same words in comments and docstrings no longer raise a red flag, while real imports and calls still do
+
 ## What's New in v4.1.0
 
 _2026-11-06_

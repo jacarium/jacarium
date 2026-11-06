@@ -29,6 +29,7 @@ Exit 0 with "no red flag", 1 when there is one (each printed as RED FLAG: ...), 
 error. Standard library only; --pypi-url and --now exist for the test, which serves a fake index locally.
 """
 import argparse
+import ast
 import datetime as dt
 import difflib
 import hashlib
@@ -40,6 +41,7 @@ import shutil
 import sys
 import tarfile
 import tempfile
+import tokenize
 import urllib.error
 import urllib.request
 import zipfile
@@ -171,6 +173,32 @@ def is_module(rel):
     return rel.endswith('.py') and not SKIP_DIRS.match(rel) and not re.search(r'/(tests?|testing)/', rel)
 
 
+def code_only(src):
+    """A Python module's code without its comments and docstrings, for the pattern counts: the word "requests"
+    or "subprocess" in prose is not a use (a payload in a docstring is inert until code exec()s, decodes or
+    imports it, and those calls stay counted). A module that does not parse or tokenize is counted as it is."""
+    try:
+        docstrings = set()
+        for node in ast.walk(ast.parse(src)):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
+                first = node.body[0]
+                if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
+                    docstrings.add((first.lineno, first.col_offset))
+        # blank the comments and docstrings in place, so the code keeps its exact spelling (eval( stays eval()
+        lines = src.splitlines(keepends=True)
+        for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+            if tok.type == tokenize.COMMENT or (tok.type == tokenize.STRING and tok.start in docstrings):
+                (sr, sc), (er, ec) = tok.start, tok.end
+                for r in range(sr, er + 1):
+                    line = lines[r - 1]
+                    a = sc if r == sr else 0
+                    z = ec if r == er else len(line.rstrip('\r\n'))
+                    lines[r - 1] = line[:a] + ' ' * (z - a) + line[z:]
+        return ''.join(lines)
+    except (SyntaxError, ValueError, tokenize.TokenError, RecursionError, MemoryError):
+        return src
+
+
 def dangerous_usage(old, new, files):
     out = []
     for f in files:
@@ -178,6 +206,8 @@ def dangerous_usage(old, new, files):
             continue
         after = text(new[f])
         before = text(old[f]) if f in old else ''
+        if f.endswith('.py'):
+            after, before = code_only(after), code_only(before)
         for label, rx in DANGEROUS:
             n, o = len(rx.findall(after)), len(rx.findall(before))
             if n > o:
