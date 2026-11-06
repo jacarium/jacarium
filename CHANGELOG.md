@@ -4,6 +4,24 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.1.3
+
+_2026-11-06_
+
+### [DIAGNOSTICS]
+
+must-gather NNCP: the patch ports ovn-controller adds to OVS bridges (localnet and bridge-mapping ports) no longer count as mismatches - they are listed apart as managed by OVN - and every mismatch is a row with the interface, the setting, whether it differs, is missing or is unexpected on the node, and the desired and actual values side by side; a Show only mismatches toggle
+
+sosreport Network Configuration: the NetworkManager captures are read by what they are - nmcli connection lists such as --active and -f all are lists, not profiles; an Active column on the connection profiles; NetworkManager --print-config and the NetworkManager journal under Other NetworkManager files instead of passing for nmcli commands
+
+sosreport Network Configuration: an interface counts as a bond's port only when its profile is a bond port of that bond, so a bond attached to an OVS bridge through an ovs-port (as on OpenShift nodes) is no longer reported as a missing slave; inactive profiles are marked as such
+
+Coming back to Diagnostics from another page shows the open report with its styles at once (it showed unstyled, with an oversized icon, until the next navigation)
+
+### [SECURITY]
+
+The weekly rescan of the published SBOMs applies the release's VEX itself, so findings recorded as not affected or fixed no longer keep the rescan issue open
+
 ## What's New in v4.1.2
 
 _2026-11-06_

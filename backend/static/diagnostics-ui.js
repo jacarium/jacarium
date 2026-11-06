@@ -599,7 +599,7 @@
   }
 
   /* ---- expandable rows: tr.ui-xrow (the chevron cell is added when missing) followed by tr.ui-xrow-panel ---- */
-  var CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
+  var CHEVRON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
   function xrowButton() { var b = el('button', 'ui-xrow-btn'); b.type = 'button'; b.setAttribute('aria-expanded', 'false'); b.setAttribute('aria-label', 'Details'); b.innerHTML = CHEVRON; return b; }
   function xrowCell() { var td = el('td', 'ui-xrow-cell'); td.setAttribute('data-label', ''); td.appendChild(xrowButton()); return td; }
   function xrowPanel(cols, body) {

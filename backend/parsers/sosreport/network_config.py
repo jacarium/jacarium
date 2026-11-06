@@ -38,6 +38,7 @@ marker on the row and a Finding.
 import glob
 import os
 import re
+import urllib.parse
 
 from parsers.findings import finding, no_data, sort_findings
 
@@ -455,15 +456,154 @@ def _read(root, *rels):
     return read_text(p) if p else ''
 
 
+# sos names a capture after its command line with the spaces turned into "_": the first token is the program.
+# nmcli's options that take a value (the value is never a connection id)
+NMCLI_VALUE_OPTS = {'-f', '--fields', '-m', '--mode', '-c', '--colors', '--order', '-g', '--get-values', '-w', '--wait', '-e', '--escape', '-o', '--overview'}
+NMCLI_OBJECTS = {'con': 'connection', 'connection': 'connection', 'c': 'connection', 'dev': 'device', 'device': 'device', 'd': 'device',
+                 'general': 'general', 'gen': 'general', 'g': 'general', 'networking': 'networking', 'n': 'networking', 'radio': 'radio', 'r': 'radio',
+                 'monitor': 'monitor', 'm': 'monitor', 'agent': 'agent', 'a': 'agent'}
+NMCLI_KINDS = {'connections': 'connection list', 'connection': 'connection', 'devices': 'device list', 'device': 'device', 'general': 'general', 'other': 'other'}
+
+
+def sos_tokens(name):
+    """The tokens of the command line a sos file name encodes (spaces became '_'; an id's own '_' is not told apart)."""
+    return [t for t in (name or '').split('_') if t]
+
+
+def classify_nmcli(tokens):
+    """What an nmcli capture is, from its tokens after 'nmcli': {'kind': connections | connection | devices | device |
+    general | other, 'target': the connection / device the command names ('' for a list), 'flags': the options,
+    'active': the list is the --active one, 'fields': the -f value}. A flag is never an id."""
+    flags, fields = [], ''
+    i = 0
+    def take_flags():
+        nonlocal i, fields
+        while i < len(tokens) and tokens[i].startswith('-'):
+            opt = tokens[i]
+            flags.append(opt)
+            i += 1
+            if opt in NMCLI_VALUE_OPTS and i < len(tokens) and not tokens[i].startswith('-'):
+                if opt in ('-f', '--fields'):
+                    fields = tokens[i]
+                flags.append(tokens[i])
+                i += 1
+    take_flags()
+    obj = NMCLI_OBJECTS.get(tokens[i], '') if i < len(tokens) else ''
+    i += 1
+    out = {'kind': 'other', 'target': '', 'flags': flags, 'active': False, 'fields': fields, 'object': obj}
+    if obj == 'connection':
+        sub = tokens[i] if i < len(tokens) and not tokens[i].startswith('-') else ''
+        if sub in ('show', 's', ''):
+            if sub:
+                i += 1
+            take_flags()
+            rest = tokens[i:]
+            if rest and rest[0] in ('id', 'uuid', 'path', 'apath'):
+                rest = rest[1:]
+            if rest:
+                out.update(kind='connection', target='_'.join(rest))
+            else:
+                out.update(kind='connections', active=any(f in ('--active', '-a') for f in flags))
+    elif obj == 'device':
+        sub = tokens[i] if i < len(tokens) else ''
+        i += 1
+        take_flags()
+        rest = tokens[i:]
+        if sub in ('status', 's', ''):
+            out['kind'] = 'devices'
+        elif sub in ('show',):
+            out.update(kind='device', target='_'.join(rest))
+    elif obj == 'general':
+        out['kind'] = 'general'
+    out['active'] = out['active'] or any(f in ('--active', '-a') for f in flags) and out['kind'] == 'connections'
+    return out
+
+
+def parse_ini_sections(raw, mask=True):
+    """An INI-style text (NetworkManager --print-config) as [(section, [(key, value)])], comments left out, secrets
+    masked."""
+    out, cur = [], None
+    for line in (raw or '').splitlines():
+        t = line.strip()
+        if not t or t.startswith('#') or t.startswith(';'):
+            continue
+        if t.startswith('[') and t.endswith(']'):
+            cur = (t[1:-1], [])
+            out.append(cur)
+            continue
+        if '=' in t:
+            k, v = t.split('=', 1)
+            k, v = k.strip(), v.strip()
+            if cur is None:
+                cur = ('', [])
+                out.append(cur)
+            cur[1].append((k, mask_value(k, v) if mask else v))
+    return out
+
+
+def classify_nm_file(name, txt):
+    """One sos_commands/networkmanager file: {'file', 'program', 'command' (the command line the name encodes),
+    'kind', 'target', 'entries', 'rows' | 'pairs' (nmcli), 'sections' (a config), 'tail' / 'line_count' (a journal
+    or an unknown file), 'secrets_masked', 'active', 'fields'}. Anything unknown is 'file' with its raw name - never
+    a profile, never a crash."""
+    tokens = sos_tokens(name)
+    program = tokens[0] if tokens else name
+    cap = {'file': name, 'program': program, 'command': ' '.join(tokens) or name, 'kind': 'file', 'target': '', 'entries': 0, 'rows': [], 'pairs': [],
+           'sections': [], 'tail': [], 'line_count': 0, 'secrets_masked': False, 'active': False, 'fields': ''}
+    if program == 'nmcli':
+        c = classify_nmcli(tokens[1:])
+        cap.update(kind=c['kind'], target=c['target'], active=c['active'], fields=c['fields'])
+        if c['kind'] in ('connections', 'devices', 'general'):
+            cap['rows'] = parse_nmcli_table(txt)
+        elif c['kind'] in ('connection', 'device'):
+            cap['pairs'] = parse_nmcli_kv(txt)
+            if c['kind'] == 'connection':
+                cap['target'] = kv_dict(cap['pairs']).get('connection.id') or c['target']
+                cap['command'] = f"nmcli connection show {cap['target']}"
+        else:
+            # another nmcli subcommand: a table when the first line reads as a header, key / value otherwise
+            first = (txt or '').splitlines()[0] if (txt or '').strip() else ''
+            if first and re.match(r'^[A-Z][A-Z0-9.\-]*(\s+[A-Z][A-Z0-9.\-]*)+\s*$', first):
+                cap['rows'] = parse_nmcli_table(txt)
+            else:
+                cap['pairs'] = parse_nmcli_kv(txt)
+        cap['entries'] = len(cap['rows']) if cap['rows'] else len(cap['pairs'])
+        cap['secrets_masked'] = any(v == MASK for _, v in cap['pairs'])
+    elif program == 'NetworkManager' and '--print-config' in tokens:
+        cap['kind'] = 'config'
+        cap['sections'] = parse_ini_sections(txt)
+        cap['entries'] = sum(len(kv) for _, kv in cap['sections'])
+        cap['secrets_masked'] = any(v == MASK for _, kv in cap['sections'] for _, v in kv)
+    elif program == 'journalctl':
+        cap['kind'] = 'journal'
+        lines = (txt or '').splitlines()
+        cap['line_count'] = len(lines)
+        cap['tail'] = lines[-25:]
+        cap['entries'] = len(lines)
+        # the Log Viewer lists every sos_commands journalctl capture as "journalctl (<suffix>)" (log_viewer.py): the
+        # cross-link's source name, as it builds it
+        m = re.match(r'^journalctl_+--no-pager', name)
+        suffix = name[m.end():].strip('_-') if m else ''
+        cap['log_source'] = (f'journalctl ({suffix})' if suffix else 'journalctl') if m else ''
+        cap['log_query'] = 'sources=' + urllib.parse.quote(cap['log_source']) if cap['log_source'] else ''
+    else:
+        # an unknown file: listed by its raw name, its first lines shown, never a profile
+        cap['command'] = name
+        lines = (txt or '').splitlines()
+        cap['line_count'] = len(lines)
+        cap['tail'] = lines[:10]
+        cap['entries'] = len(lines)
+    return cap
+
+
 def _nm_captures(root):
-    """{'general': table, 'devices': table, 'device_show': {dev: pairs}, 'connections': table, 'connection_show':
-    {name: pairs}, 'files': [names], 'captures': [one per file]} from sos_commands/networkmanager (every capture
-    masked). A capture: {'file', 'command' (the readable command, e.g. "nmcli connection show bond0"), 'kind'
-    (general / devices / connections / device / connection / other), 'target' (the connection or device the
-    command names, '' for a list), 'entries' (rows or keys), 'rows' (a table) or 'pairs' (key / value),
-    'secrets_masked'}."""
+    """sos_commands/networkmanager classified file by file (classify_nm_file): {'captures': the nmcli ones, 'other':
+    the rest (NetworkManager --print-config, the unit's journal, anything unknown), 'files': every name, and the
+    aggregates the page and the profiles read - 'general', 'devices', 'device_show' {dev: pairs}, 'connections'
+    (the plain list), 'connections_all' (the -f all list), 'connection_show' {id: pairs}, 'active' (the names the
+    --active list carries), 'active_known'}. Every capture masked."""
     d = os.path.join(root, 'sos_commands', 'networkmanager')
-    out = {'general': [], 'devices': [], 'device_show': {}, 'connections': [], 'connection_show': {}, 'files': [], 'captures': []}
+    out = {'general': [], 'devices': [], 'device_show': {}, 'connections': [], 'connections_all': [], 'connection_show': {}, 'files': [], 'captures': [], 'other': [], 'active': set(), 'active_known': False}
     if not os.path.isdir(d):
         return out
     for name in sorted(os.listdir(d)):
@@ -472,41 +612,39 @@ def _nm_captures(root):
             continue
         txt = read_text(p, 400000)
         out['files'].append(name)
-        low = name.lower()
-        cap = {'file': name, 'command': 'nmcli ' + re.sub(r'^nmcli_', '', name).replace('_', ' '), 'kind': 'other', 'target': '', 'entries': 0, 'rows': [], 'pairs': [], 'secrets_masked': False}
-        if re.match(r'^nmcli_(general|gen)_status$', low):
-            out['general'] = parse_nmcli_table(txt)
-            cap.update(command='nmcli general status', kind='general', rows=out['general'])
-        elif re.match(r'^nmcli_(dev|device)_status$', low):
-            out['devices'] = parse_nmcli_table(txt)
-            cap.update(command='nmcli device status', kind='devices', rows=out['devices'])
-        elif re.match(r'^nmcli_(dev|device)_show(_|$)', low):
+        cap = classify_nm_file(name, txt)
+        if cap['program'] != 'nmcli':
+            out['other'].append(cap)
+            continue
+        out['captures'].append(cap)
+        if cap['kind'] == 'general' and not out['general']:
+            out['general'] = cap['rows']
+        elif cap['kind'] == 'devices' and not out['devices']:
+            out['devices'] = cap['rows']
+        elif cap['kind'] == 'device':
             # one capture with every device, or one per device: split on the GENERAL.DEVICE lines
-            pairs = parse_nmcli_kv(txt)
-            current = None
-            devices = []
-            for k, v in pairs:
+            current = cap['target'] or None
+            for k, v in cap['pairs']:
                 if k == 'GENERAL.DEVICE':
                     current = v
-                    devices.append(v)
                     out['device_show'].setdefault(current, [])
                 if current is not None:
-                    out['device_show'][current].append((k, v))
-            one = re.sub(r'^nmcli_(dev|device)_show_?', '', name)
-            cap.update(command='nmcli device show' + (' ' + one if one else ''), kind='device', target=one or (devices[0] if len(devices) == 1 else ''), pairs=pairs)
-        elif re.match(r'^nmcli_(con|connection)_show$', low):
-            out['connections'] = parse_nmcli_table(txt)
-            cap.update(command='nmcli connection show', kind='connections', rows=out['connections'])
-        elif re.match(r'^nmcli_(con|connection)_show_', low):
-            pairs = parse_nmcli_kv(txt)
-            ident = kv_dict(pairs).get('connection.id') or re.sub(r'^nmcli_(con|connection)_show_(id_|uuid_)?', '', name)
-            out['connection_show'][ident] = pairs
-            cap.update(command=f'nmcli connection show {ident}', kind='connection', target=ident, pairs=pairs)
-        else:
-            cap['pairs'] = parse_nmcli_kv(txt)
-        cap['entries'] = len(cap['rows']) if cap['rows'] else len(cap['pairs'])
-        cap['secrets_masked'] = any(v == MASK for _, v in cap['pairs'])
-        out['captures'].append(cap)
+                    out['device_show'].setdefault(current, []).append((k, v))
+        elif cap['kind'] == 'connections':
+            if cap['active']:
+                out['active'].update(r.get('NAME', '') for r in cap['rows'] if r.get('NAME'))
+                out['active_known'] = True
+            elif cap['fields'] == 'all' or 'ACTIVE' in (cap['rows'][0] if cap['rows'] else {}):
+                out['connections_all'] = cap['rows']
+            elif not out['connections']:
+                out['connections'] = cap['rows']
+        elif cap['kind'] == 'connection':
+            out['connection_show'][cap['target']] = cap['pairs']
+    # the -f all list says which profiles are active too (its ACTIVE column), when no --active list was collected
+    if not out['active_known'] and out['connections_all'] and 'ACTIVE' in out['connections_all'][0]:
+        out['active'].update(r['NAME'] for r in out['connections_all'] if r.get('ACTIVE', '').lower() == 'yes' and r.get('NAME'))
+        out['active_known'] = True
+    out['active'] = sorted(out['active'])
     return out
 
 
@@ -542,8 +680,20 @@ def collect_profiles(root, nm):
             continue
         profiles.append(p)
         seen.add(p['name'])
+    by_name_all = {}
+    for r in nm.get('connections_all') or []:
+        if r.get('NAME'):
+            by_name_all.setdefault(r['NAME'], r)
     for p in profiles:
         p['secrets_masked'] = any(is_secret_key(k) and v == MASK for k, v in p.get('raw') or [])
+        # active: the --active list (or the -f all list's ACTIVE column); None when neither was collected
+        p['active'] = (p['name'] in nm['active']) if nm.get('active_known') else None
+        row = by_name_all.get(p['name'])
+        if row:
+            if not p.get('uuid') and row.get('UUID'):
+                p['uuid'] = row['UUID']
+            if not p.get('interface') and row.get('DEVICE') and row['DEVICE'] != '--':
+                p['interface'] = row['DEVICE']
     return profiles
 
 
@@ -571,22 +721,45 @@ def parse(directory):
     membership = ovs_membership(ovs)
     # the profile of an interface: when several name it (an ovs-port and the ovs-interface of br-ex), the one that
     # carries the settings (not the ovs-port) wins
+    # (an inactive profile never beats an active one: several profiles may name bond0 - the OpenShift ovs-configuration
+    # set keeps the original bond0 profile inactive beside ovs-if-phys0 - and only the active one describes the runtime)
+    def rank(p):
+        return ((0 if p.get('active') is False else 1), (0 if p['type'] == 'ovs-port' else 1))
     by_iface = {}
     for p in profiles:
         if not p.get('interface'):
             continue
         cur = by_iface.get(p['interface'])
-        if cur is None or (cur['type'] == 'ovs-port' and p['type'] != 'ovs-port'):
+        if cur is None or rank(p) > rank(cur):
             by_iface[p['interface']] = p
     by_name = {p['name']: p for p in profiles}
+    by_uuid = {p['uuid']: p for p in profiles if p.get('uuid')}
+
+    def is_bond_port_of(p, bname):
+        """Does this profile make its interface a port of the kernel bond bname? Only a bond-type port
+        (connection.port-type / slave-type bond) whose controller resolves - by profile name, UUID or interface
+        name - to the bond's own profile or the bond itself; an ovs-port / ovs-interface chain never does, a bond is
+        never a port of itself, and an inactive profile does not count."""
+        if (p.get('port_type') or '') != 'bond' or not p.get('interface') or p['interface'] == bname or p.get('active') is False:
+            return False
+        c = p.get('controller') or ''
+        if not c:
+            return False
+        target = by_name.get(c) or by_uuid.get(c)
+        if target is not None:
+            return target.get('interface') == bname or (target.get('type') == 'bond' and target['name'] == bname)
+        return c == bname
 
     def expected_bridge(p):
-        """The bridge a profile puts its interface under: its controller, or - for an ovs-interface whose controller is
-        an ovs-port profile - that port's controller."""
+        """The master a profile puts its interface under, as the runtime names it: for an OVS child (port-type
+        ovs-port) whose controller is an ovs-port profile, the bridge that port hangs off; otherwise the interface
+        of the controller's profile (a controller may be a profile name or UUID), or the controller itself."""
         c = p.get('controller') or ''
-        via = by_name.get(c)
-        if via and via.get('type') == 'ovs-port' and via.get('controller'):
+        via = by_name.get(c) or by_uuid.get(c)
+        if (p.get('port_type') or '') == 'ovs-port' and via and via.get('type') == 'ovs-port' and via.get('controller'):
             return via['controller']
+        if via and via.get('interface'):
+            return via['interface']
         return c
 
     # the bonds' slave roles (primary / secondary / active) and their profile
@@ -596,7 +769,7 @@ def parse(directory):
             s['is_active'] = s['name'] == b.get('active')
         b['profile'] = by_iface.get(bname, {}).get('name', '')
         b['configured_primary'] = (by_iface.get(bname, {}).get('bond_options') or {}).get('primary', '')
-        b['configured_ports'] = sorted(p['interface'] for p in profiles if p.get('controller') == bname and p.get('interface'))
+        b['configured_ports'] = sorted({p['interface'] for p in profiles if is_bond_port_of(p, bname)})
         b['member_of'] = _member_of(bname, links.get(bname, {}), membership, bridge_link)
 
     # the interfaces table: runtime, the profile, the bridge membership, the markers
@@ -607,12 +780,14 @@ def parse(directory):
                'state': d['state'], 'mtu': d['mtu'], 'mac': d['mac'], 'master': d['master'], 'addresses': addresses.get(name, []),
                'vlan_id': d['vlan_id'], 'parent': d['parent'], 'bond_mode': d['bond_mode'], 'flags': d['flags'],
                'ethtool': parse_ethtool(root, name), 'profile': p.get('name', ''), 'profile_type': p.get('type', ''),
-               'member_of': _member_of(name, d, membership, bridge_link), 'markers': [], 'ovs_type': membership.get(name, {}).get('type', '')}
+               'member_of': _member_of(name, d, membership, bridge_link), 'markers': [], 'ovs_type': membership.get(name, {}).get('type', ''),
+               'profile_inactive': p.get('active') is False}
         if name in bonds:
             row['kind'] = 'bond'
             row['bond'] = bname_summary(bonds[name])
-        # the configured vs the running: MTU, the bridge membership, a bond port's controller
-        if p:
+        # the configured vs the running: MTU, the bridge membership, a bond port's controller (an inactive profile
+        # describes nothing that runs: no marker, the row says "inactive profile")
+        if p and p.get('active') is not False:
             if p.get('mtu') and d['mtu'] and str(p['mtu']) != str(d['mtu']):
                 row['markers'].append(f"profile MTU {p['mtu']}, running {d['mtu']}")
             if p.get('controller'):
@@ -691,6 +866,9 @@ def findings_for(data, links):
         out.append(no_data('No interface capture in this report', ['sos_commands/networking/ip_-d_link', 'ip_-s_-d_link']))
     if not bonds:
         out.append(no_data('No bonds in this report', ['proc/net/bonding']))
+    inactive = [p['name'] for p in data['profiles'] if p.get('active') is False]
+    if inactive:
+        out.append(finding('info', f"{len(inactive)} inactive profile{'s' if len(inactive) != 1 else ''}", f"{', '.join(inactive[:6])}: not in nmcli's --active list; nothing is compared against them", count=len(inactive)))
     if not data['profiles']:
         out.append(no_data('No NetworkManager profiles in this report', ['sos_commands/networkmanager/nmcli_con_show_*', 'etc/NetworkManager/system-connections', 'etc/sysconfig/network-scripts/ifcfg-*']))
     if not data['ovs']['present']:

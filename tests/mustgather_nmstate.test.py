@@ -105,34 +105,58 @@ def main():
     s_ok = nmstate.parse_node_state({"kind": "NodeNetworkState", "metadata": {"name": "worker-0"}, "status": {"currentState": {"interfaces": actual_ifaces, "ovn": {"bridge-mappings": [{"localnet": "physnet", "bridge": "br-ex"}]}}}})
     check("3. a node state: the interfaces, the bond's active port eth2, the bridge mapping physnet -> br-ex", len(s_ok["interfaces"]) == 5 and next(i for i in s_ok["interfaces"] if i["type"] == "bond")["bond_active"] == "eth2" and s_ok["bridge_mappings_text"] == "physnet -> br-ex")
     actual = nmstate.actual_index(s_ok["interfaces"])
+    texts = lambda rows: [r["text"] for r in rows]  # noqa: E731
     check("4. a node as desired: no mismatch for any interface (the OVS bridge and its internal interface told apart by type)", all(nmstate.compare(d, actual) == [] for d in p["interfaces"]), json.dumps([nmstate.compare(d, actual) for d in p["interfaces"]]))
     broken = [dict(eth1, mtu=1500), dict(bond, mtu=1500, **{"link-aggregation": {"mode": "balance-rr", "port": ["eth1"], "options": {"miimon": "100", "primary": "eth1"}}}),
               dict(vlan, vlan={"base-iface": "bond0", "id": 200}, ipv4={"enabled": True, "dhcp": False, "address": [{"ip": "198.51.100.122", "prefix-length": 24}]}), {"name": "br-ex", "type": "ovs-bridge", "state": "up", "bridge": {"port": [{"name": "br-ex"}]}}]
     bad_actual = nmstate.actual_index(nmstate.parse_node_state({"kind": "NodeNetworkState", "metadata": {"name": "worker-1"}, "status": {"currentState": {"interfaces": broken}}})["interfaces"])
-    mism = {d["name"] + "/" + d["type"]: nmstate.compare(d, bad_actual) for d in p["interfaces"]}
+    mism = {d["name"] + "/" + d["type"]: texts(nmstate.compare(d, bad_actual)) for d in p["interfaces"]}
+    rows = {d["name"] + "/" + d["type"]: nmstate.compare(d, bad_actual) for d in p["interfaces"]}
     check("4. the mismatches: MTU, bond mode and a missing bond port, VLAN id and a static address, the bridge missing its bond0 port, the internal interface missing",
           mism["eth1/ethernet"] == ["eth1: MTU 9000 desired, 1500 actual"] and "bond0: bond mode active-backup desired, balance-rr actual" in mism["bond0/bond"] and "bond0: bond ports missing eth2" in mism["bond0/bond"]
           and any("VLAN id 100 desired, 200 actual" in m for m in mism["bond0.100/vlan"]) and any("198.51.100.121/24 desired" in m for m in mism["bond0.100/vlan"]) and mism["br-ex/ovs-bridge"] == ["br-ex: bridge ports missing bond0"]
           and mism["br-ex/ovs-interface"] == ["br-ex (ovs-interface) is missing"], json.dumps(mism))
-    check("4. an interface desired absent that exists is a mismatch; one desired absent and gone is not", nmstate.compare({"name": "eth1", "type": "ethernet", "state": "absent"}, actual) == ["eth1 should be absent but exists"] and nmstate.compare({"name": "eth9", "type": "ethernet", "state": "absent"}, actual) == [])
+    check("4. ...as rows: the setting, the kind and the two values side by side (MTU differs 9000 / 1500; the bond port eth2 missing on the node; the bridge port bond0 missing)",
+          rows["eth1/ethernet"][0] == {"iface": "eth1", "setting": "MTU", "kind": "differs", "desired": "9000", "actual": "1500", "text": "eth1: MTU 9000 desired, 1500 actual"}
+          and {"iface": "bond0", "setting": "bond port", "kind": "missing", "desired": "eth2", "actual": "", "text": "bond0: bond ports missing eth2"} in rows["bond0/bond"]
+          and rows["br-ex/ovs-bridge"][0]["kind"] == "missing" and rows["br-ex/ovs-bridge"][0]["desired"] == "bond0" and rows["br-ex/ovs-interface"][0]["kind"] == "missing", json.dumps(rows))
+    check("4. an interface desired absent that exists is a mismatch (unexpected); one desired absent and gone is not", texts(nmstate.compare({"name": "eth1", "type": "ethernet", "state": "absent"}, actual)) == ["eth1 should be absent but exists"]
+          and nmstate.compare({"name": "eth1", "type": "ethernet", "state": "absent"}, actual)[0]["kind"] == "unexpected" and nmstate.compare({"name": "eth9", "type": "ethernet", "state": "absent"}, actual) == [])
+    # OVN-managed ports on an OVS bridge: never a mismatch
+    check("4. OVN classification: by name (patch-*-to-br-int, patch-br-int-to-*, *_ovn_localnet_port*, br-int, genev_sys_*, ovn-k8s-mp*, ovs-system), by type (a patch port with a peer), not an ordinary port",
+          all(nmstate.is_ovn_managed(n) for n in ("patch-br-vm_worker-0-to-br-int", "patch-br-int-to-br-vm_worker-0", "patch-localnet.vlan.br-vm.100.1_ovn_localnet_port-to-br-int", "br-int", "genev_sys_6081", "ovn-k8s-mp0", "ovs-system"))
+          and nmstate.is_ovn_managed("odd-name", {"patch": "patch-br-int-to-odd"}) and nmstate.is_ovn_managed("odd-name", {"type": "patch"}) and not nmstate.is_ovn_managed("eth4") and not nmstate.is_ovn_managed("eth4", {"type": "ethernet", "patch": ""}))
+    localnet = {"name": "br-vm", "type": "ovs-bridge", "state": "up", "bridge": {"port": [{"name": "br-vm"}, {"name": "eth4"}, {"name": "patch-localnet.vlan.br-vm.100.1_ovn_localnet_port-to-br-int"}, {"name": "patch-localnet.vlan.br-vm.704.1_ovn_localnet_port-to-br-int"}, {"name": "patch-br-vm_w0-to-br-int"}, {"name": "typed-patch"}]}}
+    typed_patch = {"name": "typed-patch", "type": "ovs-interface", "state": "up", "patch": {"peer": "patch-br-int-to-typed"}}
+    ln_state = nmstate.parse_node_state({"kind": "NodeNetworkState", "metadata": {"name": "w0"}, "status": {"currentState": {"interfaces": [localnet, typed_patch, {"name": "eth4", "type": "ethernet", "state": "up"}, {"name": "br-int", "type": "ovs-bridge", "state": "up", "bridge": {"port": [{"name": "br-int"}, {"name": "genev_sys_6081"}]}}, {"name": "ovn-k8s-mp0", "type": "ovs-interface", "state": "up", "ipv4": {"enabled": True, "address": [{"ip": "10.128.2.2", "prefix-length": 23}]}}]}}})
+    ln_actual = nmstate.actual_index(ln_state["interfaces"])
+    ln_rows = nmstate.compare({"name": "br-vm", "type": "ovs-bridge", "state": "up", "bridge": {"port": [{"name": "eth3"}, {"name": "br-vm"}]}} | {} if False else nmstate.normalize_interface({"name": "br-vm", "type": "ovs-bridge", "state": "up", "bridge": {"port": [{"name": "eth3"}, {"name": "br-vm"}]}}), ln_actual)
+    check("4. a localnet bridge: the OVN patch ports (three by name, one by its type) are no mismatch; the missing eth3 and the unexpected eth4 are",
+          [(r["setting"], r["kind"], r["desired"], r["actual"]) for r in ln_rows] == [("bridge port", "missing", "eth3", ""), ("bridge port", "unexpected", "", "eth4")], json.dumps(ln_rows))
+    check("4. the node lists its OVN-managed ports apart (bridge, port, peer); br-int / genev_sys / ovn-k8s-mp0, named by no policy, raise nothing",
+          [(o["bridge"], o["port"]) for o in nmstate.ovn_ports(ln_state["interfaces"])] == [("br-vm", "patch-localnet.vlan.br-vm.100.1_ovn_localnet_port-to-br-int"), ("br-vm", "patch-localnet.vlan.br-vm.704.1_ovn_localnet_port-to-br-int"), ("br-vm", "patch-br-vm_w0-to-br-int"), ("br-vm", "typed-patch"), ("br-int", "genev_sys_6081")]
+          and next(o for o in nmstate.ovn_ports(ln_state["interfaces"]) if o["port"] == "typed-patch")["peer"] == "patch-br-int-to-typed", json.dumps(nmstate.ovn_ports(ln_state["interfaces"])))
 
     # 5 + 6. the mock must-gather ------------------------------------------------------------
     mock = os.path.join(WORK, "must-gather.local.1234567890")
     mock_mustgather.build(mock)
     r = nmstate.parse(mock)
     sev_titles = [(f["severity"], f["title"]) for f in r["findings"]]
-    check("5. the mock: two policies for the workers, worker-br-ex Degraded first; worker-1's br-ex enactment Failing; 4 enactments, 2 node states",
-          [p["name"] for p in r["policies"]] == ["worker-br-ex", "worker-bond0"] and r["policies"][0]["degraded"]["status"] == "True" and [(e["node"], e["policy"], e["state"]) for e in r["enactments"]][0] == ("worker-1", "worker-br-ex", "Failing") and len(r["enactments"]) == 4 and len(r["nodes"]) == 2, json.dumps(sev_titles))
+    check("5. the mock: three policies for the workers, worker-br-ex Degraded first; worker-1's br-ex enactment Failing; 6 enactments, 2 node states",
+          [p["name"] for p in r["policies"]] == ["worker-br-ex", "worker-bond0", "worker-br-vm"] and r["policies"][0]["degraded"]["status"] == "True" and [(e["node"], e["policy"], e["state"]) for e in r["enactments"]][0] == ("worker-1", "worker-br-ex", "Failing") and len(r["enactments"]) == 6 and len(r["nodes"]) == 2, json.dumps(sev_titles))
     w1 = next(n for n in r["nodes"] if n["node"] == "worker-1")
     w0 = next(n for n in r["nodes"] if n["node"] == "worker-0")
-    check("5. worker-1 mismatches both policies (MTU 1500 on bond0 / eth1 / eth2, the VLAN address, br-ex missing its bond0 port, the br-ex address); worker-0 matches",
-          [m["policy"] for m in w1["mismatches"]] == ["worker-bond0", "worker-br-ex"] and any("bond0: MTU 9000 desired, 1500 actual" in m["lines"] for m in w1["mismatches"]) and any("br-ex: bridge ports missing bond0" in m["lines"] for m in w1["mismatches"]) and w0["mismatches"] == [], json.dumps(w1["mismatches"]))
-    check("5. the findings: the Degraded policy (bad), the Failing enactment (bad), worker-1's two mismatch lines (warn), nothing for worker-0",
-          sev_titles[:2] == [("bad", "Policy worker-br-ex is Degraded"), ("bad", "worker-1: enactment of worker-br-ex is Failing")] and [t for s, t in sev_titles if s == "warn"] == ["worker-1: the actual state differs from policy worker-bond0", "worker-1: the actual state differs from policy worker-br-ex"], json.dumps(sev_titles))
+    check("5. worker-1 mismatches the three policies (MTU 1500 on bond0 / eth1 / eth2, the VLAN address, br-ex missing its bond0 port, the br-ex address; br-vm missing eth3 with eth4 unexpected); worker-0 matches although its br-vm carries OVN's patch ports",
+          [m["policy"] for m in w1["mismatches"]] == ["worker-bond0", "worker-br-ex", "worker-br-vm"] and any("bond0: MTU 9000 desired, 1500 actual" in m["lines"] for m in w1["mismatches"]) and any("br-ex: bridge ports missing bond0" in m["lines"] for m in w1["mismatches"])
+          and next(m for m in w1["mismatches"] if m["policy"] == "worker-br-vm")["lines"] == ["br-vm: bridge ports missing eth3", "br-vm: bridge ports extra eth4"] and w0["mismatches"] == [] and len(w0["ovn_ports"]) == 7 and len(w1["ovn_ports"]) == 7
+          and r["policies"][1]["mismatch_counts"] == {"worker-1": 4} and r["policies"][2]["mismatch_counts"] == {"worker-1": 2}, json.dumps([(m["policy"], m["lines"]) for m in w1["mismatches"]]))
+    check("5. the findings: the Degraded policy (bad), the Failing enactment (bad), worker-1's three mismatch lines (warn), nothing for worker-0 and nothing about OVN's ports",
+          sev_titles[:2] == [("bad", "Policy worker-br-ex is Degraded"), ("bad", "worker-1: enactment of worker-br-ex is Failing")] and [t for s, t in sev_titles if s == "warn"] == ["worker-1: the actual state differs from policy worker-bond0", "worker-1: the actual state differs from policy worker-br-ex", "worker-1: the actual state differs from policy worker-br-vm"]
+          and not any("ovn_localnet" in f["detail"] or "patch-" in f["detail"] for f in r["findings"]), json.dumps(sev_titles))
     quiet = os.path.join(WORK, "must-gather.local.9876543210")
     mock_mustgather.build(quiet, quiet=True)
     rq = nmstate.parse(quiet)
-    check("5. the quiet gather: one good line, no mismatch", [(f["severity"], f["title"]) for f in rq["findings"]] == [("good", "2 policies Available on 2 nodes, the actual state matches")], json.dumps([(f["severity"], f["title"]) for f in rq["findings"]]))
+    check("5. the quiet gather: one good line, no mismatch (OVN's patch ports on br-vm included)", [(f["severity"], f["title"]) for f in rq["findings"]] == [("good", "3 policies Available on 2 nodes, the actual state matches")], json.dumps([(f["severity"], f["title"]) for f in rq["findings"]]))
     empty = os.path.join(WORK, "must-gather.local.0000000000")
     os.makedirs(os.path.join(empty, "cluster-scoped-resources", "core", "nodes"), exist_ok=True)
     re_ = nmstate.parse(empty)
@@ -145,8 +169,13 @@ def main():
     status, html = render(c, mock, "network", "nmstate")
     check("6. the mock renders (200): the Findings strip first, the policies with their condition badges, the Degraded message, the enactments table with the failing row, the node states as a table with the mismatch badges, the bonds / bridges columns and the bridge mapping in the panel",
           status == 200 and html.index('class="ui-findings"') < html.index("nn-policies") and "worker-br-ex" in html and ">Degraded<" in html and "ovs port bond0 not found" in html and "nn-enactments" in html and "ui-row-bad" in html
-          and html.count('data-nn-table="nn-nodes"') == 2 and ">6 mismatches<" in html and ">matches<" in html and "bond0 <span class=\"ui-muted\">active-backup, active eth2</span>" in html and "br-ex <span class=\"ui-muted\">ovs-bridge</span>" in html
+          and html.count('data-nn-table="nn-nodes"') == 2 and ">8 mismatches<" in html and ">matches<" in html and "bond0 <span class=\"ui-muted\">active-backup, active eth2</span>" in html and "br-ex <span class=\"ui-muted\">ovs-bridge</span>" in html
           and "br-ex: bridge ports missing bond0" in html and "physnet -&gt; br-ex" in html and "active</span> <span class=\"ui-mono\">eth2</span>" in html and "Showing" not in html.split('id="nn-nodes"')[0].split('NodeNetworkState')[-1], html[:300] if status != 200 else "")
+    check("6. the mismatches read as rows: a count badge per node in the policy row, and in the node panel the setting, the kind and the desired / actual values side by side, grouped by policy; the hint; the OVN ports apart and collapsed; the toggle",
+          ">4 mismatches on worker-1<" in html and ">2 mismatches on worker-1<" in html and html.count('class="ui-nested nn-mismatches"') == 3 and ">MTU<" in html and ">bridge port<" in html and ">differs<" in html and ">missing on the node<" in html and ">unexpected on the node<" in html
+          and '<td class="ui-mono ui-text" title="9000">9000</td>' in html and ">1500</span>" in html and ">not desired<" in html and "Desired = the NNCP&#39;s desiredState; Actual = the node&#39;s NodeNetworkState; OVN-managed ports are not counted" in html
+          and html.count("OVN patch ports, managed by ovn-controller") == 2 and "<details class=\"ui-details nn-ovn\">" in html and 'id="nn-only-mismatch"' in html and 'data-mismatches="8"' in html and 'data-mismatches="0"' in html
+          and "patch-localnet.vlan.br-vm.704.1_ovn_localnet_port-to-br-int" in html and "ovn_localnet" not in html.split('class="ui-nested nn-mismatches"')[1].split('</table>')[0], "")
     check("6. the tables sort by their headers (data-key), each with its own Expand all, one search over the page; a Finding's Open query (a node name) lands on the node row (data-nn-key)",
           'data-table="#nn-policies"' in html and 'data-table="#nn-nodes"' in html and html.count('data-ui-search') == 1 and 'data-key="node"' in html and 'data-nn-key="worker-1"' in html and "landed()" in html and all(f["link"]["query"] in ("worker-1", "worker-br-ex") for f in r["findings"] if f.get("link")), "")
     check("6. the desired interfaces show their bridge membership and the bond's ports", "br-ex (ovs-bridge)" in html and "bond0 (bond)" in html and "ports</span> <span class=\"ui-mono\">eth1, eth2</span>" in html)

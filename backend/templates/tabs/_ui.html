@@ -17,7 +17,7 @@
     {{ ui.icon('search') }}            search, chevron, empty, filter, close, refresh, download, play, pause
 #}
 {% macro icon(name) -%}
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 {%- if name == 'search' %}<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
 {%- elif name == 'chevron' or name == 'select' %}<path d="m6 9 6 6 6-6"/>
 {%- elif name == 'empty' %}<path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/>
@@ -148,7 +148,7 @@
 <th class="ui-xrow-th" aria-label="Details"></th>
 {%- endmacro %}
 {% macro xrow_cell() -%}
-<td class="ui-xrow-cell" data-label=""><button type="button" class="ui-xrow-btn" aria-expanded="false" aria-label="Details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></td>
+<td class="ui-xrow-cell" data-label=""><button type="button" class="ui-xrow-btn" aria-expanded="false" aria-label="Details"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></td>
 {%- endmacro %}
 {% macro xrow_panel(cols) -%}
 <tr class="ui-xrow-panel" hidden><td colspan="{{ cols }}" data-label=""><div class="ui-xrow-body">{{ caller() }}</div></td></tr>

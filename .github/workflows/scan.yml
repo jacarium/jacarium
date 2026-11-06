@@ -161,11 +161,14 @@ jobs:
             "$grype" "sbom:$s" $vexarg --ignore-states not-fixed,wont-fix --only-fixed -o json --file "out/$n.json" -q || true
             # shellcheck disable=SC2086
             "$grype" "sbom:$s" $vexarg --ignore-states not-fixed,wont-fix --only-fixed -o sarif --file "out/$n.sarif" -q || true
+            # grype applies --vex only when it knows an image's tags / repo digests, which an SBOM does not carry:
+            # the release's VEX is applied here instead (not_affected / fixed statements, by id or alias and package)
+            python3 .github/scripts/apply-vex.py "out/$n.json" "$VEX" --sarif "out/$n.sarif"
             hc="$(jq '[.matches[] | select(.vulnerability.severity == "High" or .vulnerability.severity == "Critical")] | length' "out/$n.json")"
             echo "$n: $hc High / Critical with a fix"
             found=$((found + hc))
           done
-          { echo "## Grype on the SBOMs of $TAG"; echo; for f in out/*.json; do n="$(basename "$f" .json)"; echo "### $n"; jq -r '.matches[] | select(.vulnerability.severity == "High" or .vulnerability.severity == "Critical") | "- \(.vulnerability.id) \(.artifact.name) \(.artifact.version) -> \(.vulnerability.fix.versions | join(", ")) (\(.vulnerability.severity))"' "$f"; echo; done; } >> "$GITHUB_STEP_SUMMARY"
+          { echo "## Grype on the SBOMs of $TAG"; echo; for f in out/*.json; do n="$(basename "$f" .json)"; echo "### $n"; jq -r '.matches[] | select(.vulnerability.severity == "High" or .vulnerability.severity == "Critical") | "- \(.vulnerability.id) \(.artifact.name) \(.artifact.version) -> \(.vulnerability.fix.versions | join(", ")) (\(.vulnerability.severity))"' "$f"; jq -r '(.vexSuppressed // [])[] | "- covered by the VEX (\(.status)): \(.id) \(.package) \(.version)"' "$f"; echo; done; } >> "$GITHUB_STEP_SUMMARY"
           echo "FOUND=$found" >> "$GITHUB_ENV"
           # one SARIF for Code scanning: the image SBOMs' (the installers' findings are listed in the summary and the issue)
           for f in out/*image-amd64.sarif; do

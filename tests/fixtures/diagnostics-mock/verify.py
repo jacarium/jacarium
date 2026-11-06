@@ -361,7 +361,9 @@ def verify_mustgather(client, directory):
     nm_titles = [(f["severity"], f["title"]) for f in nm.get("findings") or []]
     check("Node Network Config (NNCP): worker-br-ex Degraded, worker-1's enactment Failing, worker-1 mismatching both policies (planted), worker-0 as desired",
           ("bad", "Policy worker-br-ex is Degraded") in nm_titles and ("bad", "worker-1: enactment of worker-br-ex is Failing") in nm_titles
-          and [n["node"] for n in nm.get("nodes") or [] if n["mismatches"]] == ["worker-1"], str(nm_titles))
+          and [n["node"] for n in nm.get("nodes") or [] if n["mismatches"]] == ["worker-1"]
+          and [m["lines"] for m in next(n for n in nm["nodes"] if n["node"] == "worker-1")["mismatches"] if m["policy"] == "worker-br-vm"] == [["br-vm: bridge ports missing eth3", "br-vm: bridge ports extra eth4"]]
+          and all(len(n["ovn_ports"]) == 7 for n in nm["nodes"]), str(nm_titles))
     check("Nodes: worker-1 Ready=Unknown with unreachable taints (planted), others Ready=True",
           ready("worker-1") == "Unknown" and all(ready(n) == "True" for n in nodes if n != "worker-1") and nodes["worker-1"]["spec"].get("taints"))
     check("Nodes: InternalIP 10.0.0.x, kubelet v1.29.8, RHCOS osImage",

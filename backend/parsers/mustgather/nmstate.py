@@ -23,6 +23,7 @@ gather: the page says so (no_data), never an empty table.
 """
 import glob
 import os
+import re
 
 from parsers.findings import finding, no_data, recall, remember, sort_findings
 from parsers.mustgather._common import collection_time, list_items, resolve_data_dir, safe_load_all, unreadable, unreadable_finding
@@ -33,6 +34,21 @@ KINDS = {
     'NodeNetworkState': 'nodenetworkstates',
 }
 LOOKED = ['cluster-scoped-resources/nmstate.io/', 'namespaces/openshift-nmstate/nmstate.io/']
+
+
+# The ports ovn-controller creates at runtime on an OVS bridge and nmstate never owns: the patch ports to br-int
+# (one per localnet VLAN / bridge mapping, "patch-<bridge>_<node>-to-br-int", "patch-br-int-to-...",
+# "...ovn_localnet_port..."). They are never in an NNCP's desired state, so they are no mismatch; the node panel
+# lists them apart. The same for the interfaces OVN-Kubernetes / OVS own on every node (br-int, the Geneve tunnel
+# interface, the management port, the datapath), should a desired state ever name them.
+OVN_PORT_RE = re.compile(r'^patch-.*-to-br-int$|^patch-br-int-to-|_ovn_localnet_port|^ovn-k8s-mp\d+$|^genev_sys_\d+$|^br-int$|^ovs-system$')
+
+
+def is_ovn_managed(name, iface=None):
+    """Is this OVS port / interface one ovn-controller or OVS manages (by its name, or by being a patch port)?"""
+    if iface and (iface.get('patch') or iface.get('type') == 'patch'):
+        return True
+    return bool(OVN_PORT_RE.search(name or ''))
 
 
 def _load_kind(directory, kind, broken):
@@ -90,6 +106,7 @@ def normalize_interface(i):
         'ipv4': _ip(i.get('ipv4')), 'ipv6': _ip(i.get('ipv6')),
         'controller': i.get('controller', '') or '',
         'lldp': bool((i.get('lldp') or {}).get('enabled', False)),
+        'patch': ((i.get('patch') or {}).get('peer', '') or '') if isinstance(i.get('patch'), dict) else '',
     }
     # ovs-interface: the bridge it belongs to, from its controller or from an ovs-bridge's port list later
     return out
@@ -219,49 +236,82 @@ def _lookup(actual, desired):
     return actual.get(desired['name'])
 
 
+def _row(iface, setting, kind, desired, actual, text):
+    return {'iface': iface, 'setting': setting, 'kind': kind, 'desired': desired, 'actual': actual, 'text': text}
+
+
+def _ovn_port(name, actual_by_name):
+    return is_ovn_managed(name, actual_by_name.get(name) if isinstance(actual_by_name, dict) else None)
+
+
 def compare(desired, actual_by_name):
-    """The mismatches of one desired interface against the node's current state: [text]."""
+    """The mismatches of one desired interface against the node's current state: rows {iface, setting, kind, desired,
+    actual, text}. kind: 'differs' (both values), 'missing' (desired, not on the node) or 'unexpected' (on the node,
+    not desired). Only what the policy asks for is compared: an interface, address or route the node has beyond the
+    desired state is not a mismatch, and the OVS ports ovn-controller manages (is_ovn_managed) are not counted
+    among a bridge's extra ports."""
     out = []
+    name = desired['name']
     a = _lookup(actual_by_name, desired)
     if desired.get('state') == 'absent':
         if a:
-            out.append(f"{desired['name']} should be absent but exists")
+            out.append(_row(name, 'interface', 'unexpected', 'absent', a.get('type') or 'present', f"{name} should be absent but exists"))
         return out
     if not a:
-        out.append(f"{desired['name']} ({desired['type']}) is missing")
+        out.append(_row(name, 'interface', 'missing', desired.get('type') or 'present', '', f"{name} ({desired['type']}) is missing"))
         return out
     if desired.get('type') and a.get('type') and desired['type'] != a['type']:
-        out.append(f"{desired['name']}: type {desired['type']} desired, {a['type']} actual")
+        out.append(_row(name, 'type', 'differs', desired['type'], a['type'], f"{name}: type {desired['type']} desired, {a['type']} actual"))
     if desired.get('state') and a.get('state') and desired['state'] != a['state']:
-        out.append(f"{desired['name']}: state {desired['state']} desired, {a['state']} actual")
+        out.append(_row(name, 'state', 'differs', desired['state'], a['state'], f"{name}: state {desired['state']} desired, {a['state']} actual"))
     if desired.get('mtu') and a.get('mtu') and int(desired['mtu']) != int(a['mtu']):
-        out.append(f"{desired['name']}: MTU {desired['mtu']} desired, {a['mtu']} actual")
+        out.append(_row(name, 'MTU', 'differs', str(desired['mtu']), str(a['mtu']), f"{name}: MTU {desired['mtu']} desired, {a['mtu']} actual"))
     if desired.get('bond'):
         db, ab = desired['bond'], a.get('bond') or {}
         if db.get('mode') and ab.get('mode') and db['mode'] != ab['mode']:
-            out.append(f"{desired['name']}: bond mode {db['mode']} desired, {ab['mode']} actual")
+            out.append(_row(name, 'bond mode', 'differs', db['mode'], ab['mode'], f"{name}: bond mode {db['mode']} desired, {ab['mode']} actual"))
         dp, ap = set(db.get('ports') or []), set(ab.get('ports') or [])
-        if dp and ap != dp:
-            missing, extra = sorted(dp - ap), sorted(ap - dp)
-            out.append(f"{desired['name']}: bond ports " + ', '.join(filter(None, [f"missing {', '.join(missing)}" if missing else '', f"extra {', '.join(extra)}" if extra else ''])))
+        if dp:
+            for port in sorted(dp - ap):
+                out.append(_row(name, 'bond port', 'missing', port, '', f"{name}: bond ports missing {port}"))
+            for port in sorted(ap - dp):
+                out.append(_row(name, 'bond port', 'unexpected', '', port, f"{name}: bond ports extra {port}"))
         for k in ('primary', 'miimon'):
             if db.get('options', {}).get(k) and ab.get('options', {}).get(k) and db['options'][k] != ab['options'][k]:
-                out.append(f"{desired['name']}: bond {k} {db['options'][k]} desired, {ab['options'][k]} actual")
+                out.append(_row(name, f'bond {k}', 'differs', db['options'][k], ab['options'][k], f"{name}: bond {k} {db['options'][k]} desired, {ab['options'][k]} actual"))
     if desired.get('bridge'):
         dp, ap = set(desired['bridge'].get('ports') or []), set((a.get('bridge') or {}).get('ports') or [])
-        if dp and ap != dp:
-            missing, extra = sorted(dp - ap), sorted(ap - dp)
-            out.append(f"{desired['name']}: bridge ports " + ', '.join(filter(None, [f"missing {', '.join(missing)}" if missing else '', f"extra {', '.join(extra)}" if extra else ''])))
+        if dp:
+            for port in sorted(dp - ap):
+                out.append(_row(name, 'bridge port', 'missing', port, '', f"{name}: bridge ports missing {port}"))
+            for port in sorted(ap - dp):
+                if _ovn_port(port, actual_by_name):
+                    continue
+                out.append(_row(name, 'bridge port', 'unexpected', '', port, f"{name}: bridge ports extra {port}"))
     if desired.get('vlan') and desired['vlan'].get('id') is not None and a.get('vlan') and a['vlan'].get('id') is not None and int(desired['vlan']['id']) != int(a['vlan']['id']):
-        out.append(f"{desired['name']}: VLAN id {desired['vlan']['id']} desired, {a['vlan']['id']} actual")
+        out.append(_row(name, 'VLAN id', 'differs', str(desired['vlan']['id']), str(a['vlan']['id']), f"{name}: VLAN id {desired['vlan']['id']} desired, {a['vlan']['id']} actual"))
     for fam in ('ipv4', 'ipv6'):
         d, ac = desired.get(fam) or {}, a.get(fam) or {}
         if d.get('enabled') and not d.get('dhcp') and d.get('addresses'):
             missing = [x for x in d['addresses'] if x not in (ac.get('addresses') or [])]
             if missing:
-                out.append(f"{desired['name']}: {fam} address {', '.join(missing)} desired, actual {', '.join(ac.get('addresses') or []) or 'none'}")
+                out.append(_row(name, f'{fam} address', 'differs', ', '.join(missing), ', '.join(ac.get('addresses') or []) or 'none',
+                                f"{name}: {fam} address {', '.join(missing)} desired, actual {', '.join(ac.get('addresses') or []) or 'none'}"))
         if d.get('enabled') and d.get('dhcp') and ac.get('enabled') and not ac.get('dhcp') and not ac.get('addresses'):
-            out.append(f"{desired['name']}: {fam} DHCP desired, no address actual")
+            out.append(_row(name, f'{fam} DHCP', 'differs', 'dhcp', 'no address', f"{name}: {fam} DHCP desired, no address actual"))
+    return out
+
+
+def ovn_ports(interfaces):
+    """The OVN-managed ports on the node's OVS bridges: [{bridge, port, peer}], for the node panel's information."""
+    by_name = {i['name']: i for i in interfaces}
+    out = []
+    for b in interfaces:
+        if b.get('type') != 'ovs-bridge':
+            continue
+        for port in (b.get('bridge') or {}).get('ports') or []:
+            if port != b['name'] and is_ovn_managed(port, by_name.get(port)):
+                out.append({'bridge': b['name'], 'port': port, 'peer': (by_name.get(port) or {}).get('patch', '')})
     return out
 
 
@@ -294,6 +344,8 @@ def parse(directory):
     states = [parse_node_state(o) for o in _load_kind(directory, 'NodeNetworkState', broken)]
     labels = _node_labels(directory)
     by_policy = {p['name']: p for p in policies}
+    for p in policies:
+        p['mismatch_counts'] = {}
     for e in enactments:
         if e['policy'] in by_policy:
             by_policy[e['policy']]['enactments'].append(e)
@@ -305,12 +357,14 @@ def parse(directory):
             selected = _selects(p['selector'], labels.get(s['node'], {})) if s['node'] in labels else any(e['node'] == s['node'] for e in p['enactments'])
             if not selected:
                 continue
-            mismatches = []
+            rows = []
             for d in p['interfaces']:
-                mismatches.extend(compare(d, actual))
-            if mismatches:
-                s['mismatches'].append({'policy': p['name'], 'lines': mismatches})
+                rows.extend(compare(d, actual))
+            if rows:
+                s['mismatches'].append({'policy': p['name'], 'rows': rows, 'lines': [r['text'] for r in rows]})
                 p['mismatched_nodes'].append(s['node'])
+                p['mismatch_counts'][s['node']] = len(rows)
+        s['ovn_ports'] = ovn_ports(s['interfaces'])
     policies.sort(key=lambda p: (0 if p['degraded']['status'] == 'True' else 1 if p['progressing']['status'] == 'True' else 2, p['name']))
     enactments.sort(key=lambda e: (0 if e['kind'] == 'bad' else 1 if e['kind'] == 'warn' else 2, e['node'], e['policy']))
     states.sort(key=lambda s: (0 if s['mismatches'] else 1, s['node']))

@@ -947,6 +947,19 @@ def _iface_ovs_internal(name, ip, prefix=24, mtu=9000):
             "ipv4": {"enabled": True, "dhcp": False, "address": [{"ip": ip, "prefix-length": prefix}]}, "ipv6": {"enabled": False}}
 
 
+def _iface_patch(name, peer):
+    return {"name": name, "type": "ovs-interface", "state": "up", "patch": {"peer": peer}, "ipv4": {"enabled": False}, "ipv6": {"enabled": False}}
+
+
+# the patch ports ovn-controller creates on a localnet bridge (one per VLAN of a localnet network, and the bridge
+# mapping's own): never in a policy, listed by the page as OVN-managed, no mismatch
+def _ovn_patch_ports(bridge, node, vlans=(100, 704)):
+    return ([_iface_patch(f"patch-localnet.vlan.{bridge}.{v}.1_ovn_localnet_port-to-br-int", f"patch-br-int-to-localnet.vlan.{bridge}.{v}.1_ovn_localnet_port") for v in vlans]
+            + [_iface_patch(f"patch-{bridge}_{node}-to-br-int", f"patch-br-int-to-{bridge}_{node}"),
+               # a patch port whose name follows no OVN pattern: still a patch port, classified by its type
+               _iface_patch(f"{bridge}-uplink-patch", f"patch-br-int-to-{bridge}-uplink")])
+
+
 def write_nmstate(t, rnd):
     csr = "cluster-scoped-resources/nmstate.io"
     workers = [n for n, role, *_ in NODES if role == "worker"]
@@ -981,11 +994,28 @@ def write_nmstate(t, rnd):
                                    cond("Progressing", "False", "FailedToConfigure", "", ago(hours=5))]),
                    "lastUnavailableNodeCountUpdate": ago(hours=5)},
     }
+    # policy 3: br-vm, a localnet bridge over eth3 for the VLAN networks (OVN's bridge mapping vlan-net -> br-vm);
+    # Available everywhere - on worker-1 the bridge has lost eth3 and carries eth4 instead (the mock's planted
+    # mismatches), and on every node ovn-controller's patch ports sit on it (no mismatch)
+    brvm_policy = {
+        "apiVersion": "nmstate.io/v1", "kind": "NodeNetworkConfigurationPolicy",
+        "metadata": meta("worker-br-vm", created=ago(days=20), uid_seed=703),
+        "spec": {"nodeSelector": selector, "desiredState": {
+            "interfaces": [_iface_eth("eth3", mtu=1500), _iface_ovs_bridge("br-vm", ["eth3", "br-vm"]),
+                           {"name": "br-vm", "type": "ovs-interface", "state": "up", "mtu": 1500, "ipv4": {"enabled": False}, "ipv6": {"enabled": False}}],
+            "ovn": {"bridge-mappings": [{"localnet": "vlan-net", "bridge": "br-vm", "state": "present"}]},
+        }},
+        "status": {"conditions": [cond("Available", "True", "SuccessfullyConfigured", f"{len(workers)}/{len(workers)} nodes successfully configured", ago(days=19)),
+                                  cond("Degraded", "False", "SuccessfullyConfigured", "", ago(days=19)), cond("Progressing", "False", "SuccessfullyConfigured", "", ago(days=19))],
+                   "lastUnavailableNodeCountUpdate": ago(days=19)},
+    }
     t.yaml(f"{csr}/nodenetworkconfigurationpolicies/worker-bond0.yaml", bond_policy)
     t.yaml(f"{csr}/nodenetworkconfigurationpolicies/worker-br-ex.yaml", brex_policy)
+    t.yaml(f"{csr}/nodenetworkconfigurationpolicies/worker-br-vm.yaml", brvm_policy)
     # the enactments: one per node and policy; worker-1's br-ex enactment is Failing
     for i, node in enumerate(workers):
-        for policy, spec_ifaces in (("worker-bond0", bond_policy["spec"]["desiredState"]["interfaces"]), ("worker-br-ex", brex_policy["spec"]["desiredState"]["interfaces"])):
+        for policy, spec_ifaces in (("worker-bond0", bond_policy["spec"]["desiredState"]["interfaces"]), ("worker-br-ex", brex_policy["spec"]["desiredState"]["interfaces"]),
+                                    ("worker-br-vm", brvm_policy["spec"]["desiredState"]["interfaces"])):
             failing = node == broken_node and policy == "worker-br-ex"
             conds = [cond("Available", "False" if failing else "True", "FailedToConfigure" if failing else "SuccessfullyConfigured", "" if failing else "successfully reconciled", ago(hours=5 if failing else 29 * 24)),
                      cond("Failing", "True" if failing else "False", "FailedToConfigure" if failing else "SuccessfullyConfigured",
@@ -1006,11 +1036,23 @@ def write_nmstate(t, rnd):
                   _iface_vlan("bond0.100", "bond0", 100, ipv4={"enabled": True, "dhcp": False, "address": [{"ip": "198.51.100.121" if not broken else "198.51.100.122", "prefix-length": 24}]}),
                   _iface_ovs_bridge("br-ex", ["br-ex"] if broken else ["bond0", "br-ex"]), _iface_ovs_internal("br-ex", "203.0.113.21" if not broken else "203.0.113.22"),
                   {"name": "lo", "type": "loopback", "state": "up", "mtu": 65536, "ipv4": {"enabled": True, "address": [{"ip": "127.0.0.1", "prefix-length": 8}]}, "ipv6": {"enabled": True, "address": [{"ip": "::1", "prefix-length": 128}]}}]
+        # br-vm, the localnet bridge: eth3 under it (worker-1: eth4 instead - a genuine extra, eth3 missing) and
+        # ovn-controller's patch ports; plus what OVN-Kubernetes owns on every node (br-int, the Geneve tunnel
+        # interface, the management port), which no policy names
+        ovn_ports = _ovn_patch_ports("br-vm", node)
+        ifaces += [_iface_eth("eth3", mtu=1500), _iface_eth("eth4", mtu=1500),
+                   _iface_ovs_bridge("br-vm", (["br-vm", "eth4"] if broken else ["eth3", "br-vm"]) + [o["name"] for o in ovn_ports]),
+                   {"name": "br-vm", "type": "ovs-interface", "state": "up", "mtu": 1500, "ipv4": {"enabled": False}, "ipv6": {"enabled": False}}] + ovn_ports + [
+                   _iface_ovs_bridge("br-int", ["br-int", f"patch-br-int-to-br-vm_{node}", "ovn-k8s-mp0", "genev_sys_6081"]),
+                   {"name": "br-int", "type": "ovs-interface", "state": "up", "mtu": 1400, "ipv4": {"enabled": False}, "ipv6": {"enabled": False}},
+                   _iface_patch(f"patch-br-int-to-br-vm_{node}", f"patch-br-vm_{node}-to-br-int"),
+                   {"name": "ovn-k8s-mp0", "type": "ovs-interface", "state": "up", "mtu": 1400, "ipv4": {"enabled": True, "dhcp": False, "address": [{"ip": "10.128.%d.2" % (2 + i), "prefix-length": 23}]}, "ipv6": {"enabled": False}},
+                   {"name": "genev_sys_6081", "type": "unknown", "state": "up", "mtu": 65000, "ipv4": {"enabled": False}, "ipv6": {"enabled": False}}]
         t.yaml(f"{csr}/nodenetworkstates/{node}.yaml", {
             "apiVersion": "nmstate.io/v1beta1", "kind": "NodeNetworkState",
             "metadata": meta(node, created=ago(days=200), uid_seed=720 + i),
             "status": {"currentState": {"interfaces": ifaces, "routes": {"running": [{"destination": "0.0.0.0/0", "next-hop-address": "198.51.100.1", "next-hop-interface": "bond0.100", "metric": 150, "table-id": 254}]},
                                         "dns-resolver": {"running": {"server": ["192.0.2.53", "192.0.2.54"], "search": ["example.test"]}},
-                                        "ovn": {"bridge-mappings": [{"localnet": "physnet", "bridge": "br-ex", "state": "present"}]}},
+                                        "ovn": {"bridge-mappings": [{"localnet": "physnet", "bridge": "br-ex", "state": "present"}, {"localnet": "vlan-net", "bridge": "br-vm", "state": "present"}]}},
                        "hostNetworkManagerVersion": "1.46.0-1.el9", "handlerNetworkManagerVersion": "1.46.0", "handlerNmstateVersion": "2.2.30",
                        "lastSuccessfulUpdateTime": ago(minutes=4)}})

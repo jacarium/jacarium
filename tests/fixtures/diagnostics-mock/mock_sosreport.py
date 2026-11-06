@@ -1221,7 +1221,12 @@ def _nm_uuid(name):
 
 NM_PROFILES = [
     # name, type, iface, controller, port_type, extra settings
-    ("bond0", "bond", "bond0", "", "", {"bond.options": "mode=active-backup,miimon=100,primary=eth3", "802-3-ethernet.mtu": "9000", "ipv4.method": "disabled", "ipv6.method": "disabled"}),
+    # the OVS pattern of a real OpenShift node: "bond0" is the NAME of the ovs-port profile under br-ex, the bond
+    # itself is the bond-type profile ovs-if-bond0 whose controller / master is that ovs-port (port-type ovs-port),
+    # and the original bond0 profile (bond0-legacy) is still there, inactive - none of this is a kernel-bond port
+    ("bond0", "ovs-port", "bond0", "br-ex", "ovs-bridge", {}),
+    ("ovs-if-bond0", "bond", "bond0", "bond0", "ovs-port", {"bond.options": "mode=active-backup,miimon=100,primary=eth3", "802-3-ethernet.mtu": "9000", "ipv4.method": "disabled", "ipv6.method": "disabled"}),
+    ("bond0-legacy", "bond", "bond0", "", "", {"bond.options": "mode=active-backup,miimon=100,primary=eth4", "802-3-ethernet.mtu": "1500", "ipv4.method": "disabled", "ipv6.method": "disabled", "connection.autoconnect": "no"}),
     ("bond0-port-eth3", "802-3-ethernet", "eth3", "bond0", "bond", {"802-3-ethernet.mtu": "9000"}),
     ("bond0-port-eth4", "802-3-ethernet", "eth4", "bond0", "bond", {"802-3-ethernet.mtu": "9000"}),
     ("bond1", "bond", "bond1", "", "", {"bond.options": "mode=802.3ad,miimon=100,lacp_rate=fast,xmit_hash_policy=layer3+4", "ipv4.method": "manual", "ipv4.addresses": "198.51.100.30/24", "ipv4.gateway": "198.51.100.1", "ipv4.dns": "192.0.2.53,192.0.2.54", "ipv6.method": "disabled"}),
@@ -1231,7 +1236,6 @@ NM_PROFILES = [
     ("bond0.100", "vlan", "bond0.100", "br0", "bridge", {"vlan.id": "100", "vlan.parent": "bond0", "vlan.mtu": "9000"}),
     ("br0", "bridge", "br0", "", "", {"bridge.stp": "no", "ipv4.method": "manual", "ipv4.addresses": "203.0.113.30/24", "ipv6.method": "disabled"}),
     ("br-ex", "ovs-bridge", "br-ex", "", "", {"ovs-bridge.fail-mode": "standalone"}),
-    ("ovs-port-bond0", "ovs-port", "bond0", "br-ex", "ovs-port", {}),
     ("ovs-port-br-ex", "ovs-port", "br-ex", "br-ex", "ovs-port", {}),
     ("ovs-if-br-ex", "ovs-interface", "br-ex", "ovs-port-br-ex", "ovs-port", {"ovs-interface.type": "internal", "ovs-interface.mtu": "9000", "ipv4.method": "manual", "ipv4.addresses": "203.0.113.46/24", "ipv4.gateway": "203.0.113.1", "ipv4.dns": "192.0.2.53", "ipv6.method": "disabled"}),
     ("ovs-port-eth2", "ovs-port", "eth2", "br-ex", "ovs-port", {}),   # planted: the profile puts eth2 under br-ex, the runtime shows it standalone (DOWN)
@@ -1254,7 +1258,7 @@ def _nmcli_con_show(name, ctype, iface, controller, port_type, extra):
             lines.append((f"{fam}.method", "disabled" if port_type else "auto"))
         if f"{fam}.addresses" not in extra:
             lines.append((f"{fam}.addresses", "--"))
-    lines += [("GENERAL.NAME", name), ("GENERAL.UUID", uuid), ("GENERAL.DEVICES", iface or "--"), ("GENERAL.STATE", "activated" if name != "Wi-Fi lab" else "--")]
+    lines += [("GENERAL.NAME", name), ("GENERAL.UUID", uuid), ("GENERAL.DEVICES", iface or "--"), ("GENERAL.STATE", "activated" if name not in ("Wi-Fi lab", "bond0-legacy") else "--")]
     return "\n".join(f"{k + ':':<42}{v}" for k, v in lines) + "\n"
 
 
@@ -1324,7 +1328,7 @@ def write_network_config(t):
     # NetworkManager: the collected nmcli outputs (as sos names them), a keyfile with a secret, a legacy ifcfg
     t.write("sos_commands/networkmanager/nmcli_general_status",
             "STATE      CONNECTIVITY  WIFI-HW  WIFI     WWAN-HW  WWAN    \nconnected  full          enabled  enabled  enabled  enabled \n")
-    devs = [("eth0", "ethernet", "connected", "System eth0"), ("bond0", "bond", "connected", "bond0"), ("eth4", "ethernet", "connected", "bond0-port-eth4"), ("eth3", "ethernet", "unavailable", "--"),
+    devs = [("eth0", "ethernet", "connected", "System eth0"), ("bond0", "bond", "connected", "ovs-if-bond0"), ("eth4", "ethernet", "connected", "bond0-port-eth4"), ("eth3", "ethernet", "unavailable", "--"),
             ("bond1", "bond", "connected", "bond1"), ("eth5", "ethernet", "connected", "bond1-port-eth5"), ("eth6", "ethernet", "connected", "bond1-port-eth6"), ("bond0.100", "vlan", "connected", "bond0.100"),
             ("br0", "bridge", "connected", "br0"), ("br-ex", "ovs-interface", "connected", "ovs-if-br-ex"), ("eth1", "ethernet", "connected", "eth1"), ("eth2", "ethernet", "disconnected", "--"), ("lo", "loopback", "connected (externally)", "lo")]
     macs = {n: m for n, m, *_ in IFACES}
@@ -1338,6 +1342,38 @@ def write_network_config(t):
     not_active = ("Wi-Fi lab", "bond1-port-eth7", "ovs-port-eth2")
     t.write("sos_commands/networkmanager/nmcli_con_show", f"{'NAME':<17}{'UUID':<39}{'TYPE':<16}DEVICE\n" + "".join(
         f"{name:<17}{_nm_uuid(name):<39}{short.get(ctype, ctype):<16}{iface if name not in not_active else '--'}\n" for name, ctype, iface, _c, _p, _e in NM_PROFILES))
+    inactive = ("Wi-Fi lab", "bond0-legacy")
+    plain_rows = [(name, _nm_uuid(name), short.get(ctype, ctype), iface if name not in not_active else '--') for name, ctype, iface, _c, _p, _e in NM_PROFILES]
+    t.write("sos_commands/networkmanager/nmcli_con", f"{'NAME':<17}{'UUID':<39}{'TYPE':<16}DEVICE\n" + "".join(f"{n:<17}{u:<39}{ty:<16}{dev}\n" for n, u, ty, dev in plain_rows))
+    for fname in ("nmcli_con_show_--active", "nmcli_connection_show_--active"):
+        t.write(f"sos_commands/networkmanager/{fname}", f"{'NAME':<17}{'UUID':<39}{'TYPE':<16}DEVICE\n" + "".join(f"{n:<17}{u:<39}{ty:<16}{dev}\n" for n, u, ty, dev in plain_rows if n not in inactive))
+    head = f"{'NAME':<17}{'UUID':<39}{'TYPE':<16}{'TIMESTAMP':<12}{'TIMESTAMP-REAL':<34}{'AUTOCONNECT':<13}{'AUTOCONNECT-PRIORITY':<22}{'READONLY':<10}{'DBUS-PATH':<48}{'ACTIVE':<8}{'DEVICE':<11}{'STATE':<12}{'ACTIVE-PATH':<54}{'SLAVE':<7}FILENAME\n"
+    t.write("sos_commands/networkmanager/nmcli_-f_all_con", head + "".join(
+        f"{n:<17}{u:<39}{ty:<16}{'1791849600':<12}{'Mon 12 Oct 2026 14:00:00 UTC':<34}{('no' if n in ('Wi-Fi lab', 'bond0-legacy') else 'yes'):<13}{'0':<22}{'no':<10}{'/org/freedesktop/NetworkManager/Settings/' + str(i + 1):<48}"
+        f"{('no' if n in inactive else 'yes'):<8}{dev:<11}{('--' if n in inactive else 'activated'):<12}{('--' if n in inactive else '/org/freedesktop/NetworkManager/ActiveConnection/' + str(i + 1)):<54}{'--':<7}"
+        f"/etc/NetworkManager/system-connections/{n.replace(' ', '_')}.nmconnection\n" for i, (n, u, ty, dev) in enumerate(plain_rows)))
+    t.write("sos_commands/networkmanager/NetworkManager_--print-config",
+            "# NetworkManager configuration: /etc/NetworkManager/NetworkManager.conf (lib: 00-server.conf, 20-connectivity-redhat.conf) (etc: 10-ovs-configuration.conf)\n\n"
+            "[main]\n# plugins=keyfile,ifcfg-rh\ndhcp=dhclient\nrc-manager=symlink\n\n[logging]\n# backend=journal\n# audit=false\n\n[connectivity]\nuri=http://connectivity.example.test/check\ninterval=300\n\n"
+            "[keyfile]\nunmanaged-devices=interface-name:genev_sys_6081;interface-name:ovn-k8s-mp0\n\n[device]\nwifi.scan-rand-mac-address=no\n\n[connection-example]\nwifi-sec.psk=example-config-psk-never-show\nethernet.cloned-mac-address=preserve\n")
+    journal = ["Oct 12 14:30:01 web-01.example.test NetworkManager[1234]: <info>  [1791849601.1001] NetworkManager (version 1.46.0-1.el9) is starting... (boot:00000000-0000-4000-8000-0000000000aa)",
+               "Oct 12 14:30:01 web-01.example.test NetworkManager[1234]: <info>  [1791849601.1002] Read config: /etc/NetworkManager/NetworkManager.conf (lib: 00-server.conf, 20-connectivity-redhat.conf)",
+               "Oct 12 14:30:01 web-01.example.test NetworkManager[1234]: <info>  [1791849601.1003] manager[0x55d0]: monitoring kernel firmware directory '/lib/firmware'.",
+               "Oct 12 14:30:02 web-01.example.test NetworkManager[1234]: <info>  [1791849602.2001] settings: Loaded settings plugin: keyfile (internal)",
+               "Oct 12 14:30:02 web-01.example.test NetworkManager[1234]: <info>  [1791849602.2002] settings: Loaded settings plugin: ifcfg-rh (/usr/lib64/NetworkManager/1.46.0-1.el9/libnm-settings-plugin-ifcfg-rh.so)"]
+    for i, dev in enumerate(("eth0", "eth1", "eth2", "eth3", "eth4", "eth5", "eth6")):
+        journal.append(f"Oct 12 14:30:03 web-01.example.test NetworkManager[1234]: <info>  [1791849603.{3001 + i}] manager: (eth{i}): new Ethernet device (/org/freedesktop/NetworkManager/Devices/{i + 2})")
+    for dev, con in (("eth0", "System eth0"), ("bond0", "ovs-if-bond0"), ("eth3", "bond0-port-eth3"), ("eth4", "bond0-port-eth4"), ("bond1", "bond1"), ("eth5", "bond1-port-eth5"), ("eth6", "bond1-port-eth6")):
+        journal += [f"Oct 12 14:30:05 web-01.example.test NetworkManager[1234]: <info>  [1791849605.5001] device ({dev}): Activation: starting connection '{con}' ({_nm_uuid(con)})",
+                    f"Oct 12 14:30:05 web-01.example.test NetworkManager[1234]: <info>  [1791849605.5002] device ({dev}): state change: disconnected -> prepare (reason 'none', managed-type: 'full')",
+                    f"Oct 12 14:30:06 web-01.example.test NetworkManager[1234]: <info>  [1791849606.6001] device ({dev}): state change: ip-config -> activated (reason 'none', managed-type: 'full')"]
+    journal += ["Oct 12 14:30:08 web-01.example.test NetworkManager[1234]: <warn>  [1791849608.8001] device (eth3): link disconnected (calling deferred action)",
+                "Oct 12 14:30:08 web-01.example.test NetworkManager[1234]: <info>  [1791849608.8002] device (bond0): bond: active slave eth4",
+                "Oct 12 14:30:09 web-01.example.test NetworkManager[1234]: <info>  [1791849609.9001] device (eth7): Activation: starting connection 'bond1-port-eth7' (" + _nm_uuid("bond1-port-eth7") + ")",
+                "Oct 12 14:30:09 web-01.example.test NetworkManager[1234]: <warn>  [1791849609.9002] device (eth7): Activation: failed: no such device",
+                "Oct 12 14:30:10 web-01.example.test NetworkManager[1234]: <info>  [1791849610.0001] manager: NetworkManager state is now CONNECTED_GLOBAL",
+                "Oct 12 14:30:10 web-01.example.test NetworkManager[1234]: <info>  [1791849610.0002] policy: set 'System eth0' (eth0) as default for IPv4 routing and DNS"]
+    t.write("sos_commands/networkmanager/journalctl_--no-pager_--unit_NetworkManager", "\n".join(journal) + "\n")
     planted = ("bond1-port-eth7", "ovs-port-eth2") if QUIET else ()
     for name, ctype, iface, controller, port_type, extra in NM_PROFILES:
         if name in planted:

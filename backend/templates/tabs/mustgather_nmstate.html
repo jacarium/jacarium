@@ -4,8 +4,10 @@
   policies (name, selector, the desired interfaces, the Available / Degraded / Progressing conditions, the
   enactments per node - the panel: the desired interfaces, routes, DNS, conditions, enactments), the enactments per
   node (a failing one highlighted with its message), and every node's actual state (NodeNetworkState: interfaces,
-  bonds, bridges, the mismatch count - the panel: the mismatch list, the interfaces with the bond's active port,
-  routes, DNS, the OVN bridge mappings). A Finding's Open link lands on its policy's or node's row.
+  bonds, bridges, the mismatch count - the panel: the mismatches as rows with the setting, the kind and the desired
+  and actual values side by side, grouped by policy; the OVN patch ports ovn-controller manages, apart and collapsed;
+  the interfaces with the bond's active port, routes, DNS, the OVN bridge mappings). "Show only mismatches" keeps
+  the nodes with one. A Finding's Open link lands on its policy's or node's row.
 #}
 {% import "tabs/_ui.html" as ui %}
 {{ ui.findings(findings) }}
@@ -25,7 +27,7 @@
         <td class="ui-num">{{ i.mtu or '-' }}</td>
         <td class="ui-text">{% if i.bond %}<span class="ui-mono">{{ i.bond.mode or 'bond' }}</span>{% if i.bond.options %} <span class="ui-muted">{{ i.bond.options.items() | map('join', '=') | join(', ') }}</span>{% endif %}; <span class="ui-muted">ports</span> <span class="ui-mono">{{ i.bond.ports | join(', ') or '-' }}</span>{% if actual and i.bond_active %} <span class="ui-muted">active</span> <span class="ui-mono">{{ i.bond_active }}</span>{% endif %}
           {% elif i.vlan %}<span class="ui-muted">vlan</span> <span class="ui-mono">{{ i.vlan.id }}</span> <span class="ui-muted">on</span> <span class="ui-mono">{{ i.vlan.base }}</span>
-          {% elif i.bridge %}<span class="ui-muted">ports</span> <span class="ui-mono">{{ i.bridge.ports | join(', ') or '-' }}</span>
+          {% elif i.bridge %}<span class="ui-muted">ports</span> <span class="ui-mono" title="{{ i.bridge.ports | join(', ') }}">{{ i.bridge.ports | join(', ') or '-' }}</span>
           {% else %}-{% endif %}</td>
         <td{% if nested %} class="ui-status"{% endif %}>{% if i.member_of %}<span class="ui-mono">{{ i.member_of }}</span>{% else %}-{% endif %}</td>
         <td class="ui-mono{% if nested %} ui-status{% endif %}">{% if i.ipv4.enabled %}{{ 'dhcp' if i.ipv4.dhcp else (i.ipv4.addresses | join(', ') or 'enabled') }}{% else %}<span class="ui-muted">off</span>{% endif %}</td>
@@ -35,6 +37,29 @@
     </tbody>
   </table>
 {% if not nested %}</div>{% endif %}
+{%- endmacro %}
+{% set HINT = "Desired = the NNCP's desiredState; Actual = the node's NodeNetworkState; OVN-managed ports are not counted" %}
+{# the mismatch rows of one node, grouped by policy: the setting, the kind (differs / missing on the node / unexpected
+   on the node) and the desired and actual values side by side, the one that differs highlighted #}
+{% macro mismatch_rows(mismatches) -%}
+{% for m in mismatches %}
+{{ ui.kv_title('Policy ' ~ m.policy ~ ' - ' ~ (m.rows | length) ~ ' mismatch' ~ ('es' if m.rows | length != 1 else '')) }}
+<table class="ui-nested nn-mismatches" data-policy="{{ m.policy }}">
+  <thead><tr><th class="ui-status">Interface</th><th class="ui-status">Setting</th><th class="ui-status">Kind</th><th class="ui-text">Desired</th><th class="ui-text">Actual</th></tr></thead>
+  <tbody>
+  {% for r in m.rows %}
+    <tr data-kind="{{ r.kind }}">
+      <td class="ui-mono ui-status">{{ r.iface }}</td>
+      <td class="ui-status">{{ r.setting }}</td>
+      <td class="ui-status">{{ ui.badge('warn' if r.kind == 'differs' else 'bad', 'differs' if r.kind == 'differs' else ('missing on the node' if r.kind == 'missing' else 'unexpected on the node')) }}</td>
+      <td class="ui-mono ui-text" title="{{ r.desired }}">{% if r.kind == 'unexpected' %}<span class="ui-muted">not desired</span>{% else %}{{ r.desired }}{% endif %}</td>
+      <td class="ui-mono ui-text" title="{{ r.actual }}">{% if r.kind == 'missing' %}{{ ui.badge('bad', 'missing') }}{% elif r.kind == 'unexpected' %}{{ ui.badge('bad', r.actual) }}{% else %}{{ ui.badge('warn', r.actual) }}{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+<div class="ui-muted text-xs nn-hint">{{ HINT }}</div>
 {%- endmacro %}
 {% macro cond_badge(c, label, bad_when_true=False) -%}
 {%- if c.status == 'True' %}{{ ui.badge('bad' if bad_when_true else 'good', label, c.message or c.reason) }}{% elif c.status == 'False' %}{{ ui.badge('muted' if bad_when_true else 'warn', 'not ' ~ label, c.message or c.reason) }}{% else %}{{ ui.badge('muted', label ~ ' ?') }}{% endif -%}
@@ -69,7 +94,7 @@
           <th data-key="interfaces" data-w="text" data-p="2">Desired interfaces</th>
           <th data-key="conditions" data-w="status">Conditions</th>
           <th data-key="enactments" data-w="status" data-p="3">Enactments</th>
-          <th data-key="actual" data-w="status" data-p="2">Desired vs actual</th>
+          <th data-key="actual" data-w="status" data-p="2" title="{{ HINT }}">Desired vs actual</th>
         </tr>
       </thead>
       <tbody>
@@ -84,7 +109,7 @@
           <td class="ui-mono">{% for i in p.interfaces %}{{ i.name }}{% if (p.interfaces | selectattr('name', 'equalto', i.name) | list | length) > 1 %} <span class="ui-muted">{{ i.type }}</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</td>
           <td data-sort="{{ 'degraded' if degraded else ('available' if p.available.status == 'True' else 'other') }}"><span class="ui-chips">{{ cond_badge(p.available, 'Available') }}{{ cond_badge(p.degraded, 'Degraded', True) }}{% if p.progressing.status == 'True' %}{{ ui.badge('warn', 'Progressing', p.progressing.message) }}{% endif %}</span></td>
           <td data-sort="{{ bad | length }}"><span class="ui-chips">{{ ui.badge('muted', (p.enactments | length) ~ ' node' ~ ('s' if p.enactments | length != 1 else '')) }}{% if bad %}{{ ui.badge('bad', bad | length ~ ' failing') }}{% endif %}{% if warn %}{{ ui.badge('warn', warn | length ~ ' in progress') }}{% endif %}</span></td>
-          <td data-sort="{{ p.mismatched_nodes | length }}">{% if p.mismatched_nodes %}{{ ui.badge('warn', 'mismatch: ' ~ (p.mismatched_nodes | join(', ')), 'the actual state of these nodes differs from the policy') }}{% elif d.nodes %}{{ ui.badge('good', 'matches') }}{% else %}{{ ui.badge('muted', 'no node state') }}{% endif %}</td>
+          <td data-sort="{{ p.mismatched_nodes | length }}"><span class="ui-chips">{% for node, n in p.mismatch_counts.items() %}{{ ui.badge('warn', n ~ ' mismatch' ~ ('es' if n != 1 else '') ~ ' on ' ~ node, 'open the node row below for the rows') }}{% endfor %}{% if not p.mismatched_nodes %}{% if d.nodes %}{{ ui.badge('good', 'matches') }}{% else %}{{ ui.badge('muted', 'no node state') }}{% endif %}{% endif %}</span></td>
         </tr>
         {% call ui.xrow_panel(7) %}
           {{ ui.kv_title('Desired state') }}
@@ -132,6 +157,7 @@
 <div class="panel rounded-lg shadow-sm">
   {% call ui.filter_bar() %}
     {{ ui.card_title('Actual state per node (NodeNetworkState)', d.nodes | length) }}
+    {{ ui.check('nn-only-mismatch', 'Show only mismatches') }}
     {% call ui.end() %}{{ ui.xrow_all('#nn-nodes') }}{% endcall %}
   {% endcall %}
   <div class="ui-table-wrap">
@@ -143,28 +169,30 @@
           <th data-key="interfaces" class="ui-num" data-w="num">Interfaces</th>
           <th data-key="bonds" data-w="text" data-p="2">Bonds</th>
           <th data-key="bridges" data-w="text" data-p="2">Bridges</th>
-          <th data-key="mismatches" data-w="status">Mismatches</th>
+          <th data-key="mismatches" data-w="status" title="{{ HINT }}">Mismatches</th>
           <th data-key="updated" data-w="text" data-p="3">Last update</th>
         </tr>
       </thead>
       <tbody>
       {% for n in d.nodes %}
-        {% set n_mismatch = n.mismatches | map(attribute='lines') | map('length') | sum %}
+        {% set n_mismatch = n.mismatches | map(attribute='rows') | map('length') | sum %}
         {% set bonds = n.interfaces | selectattr('type', 'equalto', 'bond') | list %}
         {% set bridges = n.interfaces | selectattr('bridge') | list %}
-        <tr class="ui-xrow nn-row{% if n_mismatch %} ui-row-warn{% endif %}" data-nn-table="nn-nodes" data-nn-key="{{ n.node }}" data-text="{{ (n.node ~ ' ' ~ (n.interfaces | map(attribute='name') | join(' ')) ~ ' ' ~ (n.mismatches | map(attribute='policy') | join(' '))) | lower }}">
+        <tr class="ui-xrow nn-row{% if n_mismatch %} ui-row-warn{% endif %}" data-nn-table="nn-nodes" data-nn-key="{{ n.node }}" data-mismatches="{{ n_mismatch }}" data-text="{{ (n.node ~ ' ' ~ (n.interfaces | map(attribute='name') | join(' ')) ~ ' ' ~ (n.mismatches | map(attribute='policy') | join(' '))) | lower }}">
           {{ ui.xrow_cell() }}
           <td class="ui-mono">{{ n.node }}</td>
           <td class="ui-num">{{ n.interfaces | length }}</td>
           <td class="ui-mono">{% for b in bonds %}{{ b.name }} <span class="ui-muted">{{ b.bond.mode or 'bond' }}{% if b.bond_active %}, active {{ b.bond_active }}{% endif %}</span>{% if not loop.last %}; {% endif %}{% else %}-{% endfor %}</td>
           <td class="ui-mono">{% for b in bridges %}{{ b.name }} <span class="ui-muted">{{ b.type }}</span>{% if not loop.last %}; {% endif %}{% else %}-{% endfor %}</td>
-          <td data-sort="{{ n_mismatch }}">{% if n_mismatch %}{{ ui.badge('bad' if n_mismatch >= 5 else 'warn', n_mismatch ~ ' mismatch' ~ ('es' if n_mismatch != 1 else ''), 'the actual state differs from policy ' ~ (n.mismatches | map(attribute='policy') | join(', '))) }}{% else %}{{ ui.badge('good', 'matches') }}{% endif %}</td>
+          <td data-sort="{{ n_mismatch }}">{% if n_mismatch %}{{ ui.badge('bad' if n_mismatch >= 5 else 'warn', n_mismatch ~ ' mismatch' ~ ('es' if n_mismatch != 1 else ''), 'against ' ~ (n.mismatches | map(attribute='policy') | join(', ') ~ ' - open the row')) }}{% else %}{{ ui.badge('good', 'matches', HINT) }}{% endif %}</td>
           <td class="ui-muted">{{ n.last_successful_update or '-' }}</td>
         </tr>
         {% call ui.xrow_panel(7) %}
-          {% if n.mismatches %}
-          {{ ui.kv_title('Desired vs actual') }}
-          <ul class="ui-files">{% for m in n.mismatches %}{% for item in m.lines %}<li>{{ ui.badge('warn', 'mismatch', 'policy ' ~ m.policy) }}<span>{{ item }} <span class="ui-muted">(policy {{ m.policy }})</span></span></li>{% endfor %}{% endfor %}</ul>
+          {% if n.mismatches %}{{ mismatch_rows(n.mismatches) }}{% endif %}
+          {% if n.ovn_ports %}
+          {% call ui.fold((n.ovn_ports | length) ~ ' OVN patch port' ~ ('s' if n.ovn_ports | length != 1 else '') ~ ', managed by ovn-controller', extra='nn-ovn') %}
+          <table class="ui-nested"><thead><tr><th class="ui-status">Bridge</th><th class="ui-text">Port</th><th class="ui-text">Peer</th></tr></thead><tbody>{% for o in n.ovn_ports %}<tr><td class="ui-mono ui-status">{{ o.bridge }}</td><td class="ui-mono ui-text" title="{{ o.port }}">{{ o.port }}</td><td class="ui-mono ui-text" title="{{ o.peer }}">{{ o.peer or '-' }}</td></tr>{% endfor %}</tbody></table>
+          {% endcall %}
           {% endif %}
           {{ ui.kv_title('Interfaces') }}
           {{ iface_table(n.interfaces, actual=True, nested=True) }}
@@ -182,6 +210,7 @@
 (function () {
   var filter = document.getElementById('nn-filter');
   var count = document.getElementById('nn-count');
+  var onlyMismatch = document.getElementById('nn-only-mismatch');
   ['nn-policies', 'nn-enactments', 'nn-nodes'].forEach(function (id) { var t = document.getElementById(id); if (t && window.diagTables && window.diagTables.sortable) window.diagTables.sortable(t); });
   var rows = Array.prototype.slice.call(document.querySelectorAll('tr.nn-row, tr.nn-enact'));
   function apply() {
@@ -189,7 +218,7 @@
     var shown = {}, total = {};
     rows.forEach(function (row) {
       var t = row.getAttribute('data-nn-table') || 'nn-enactments';
-      var ok = !q || row.getAttribute('data-text').indexOf(q) !== -1;
+      var ok = (!q || row.getAttribute('data-text').indexOf(q) !== -1) && !(onlyMismatch && onlyMismatch.checked && t === 'nn-nodes' && Number(row.getAttribute('data-mismatches')) === 0);
       row.hidden = !ok;
       var panel = row.nextElementSibling;
       if (panel && panel.classList.contains('ui-xrow-panel') && !ok) panel.hidden = true;
@@ -217,6 +246,7 @@
     hit.scrollIntoView({ block: 'center' });
   }
   if (filter) filter.addEventListener('input', function () { apply(); landed(); });
+  if (onlyMismatch) onlyMismatch.addEventListener('change', apply);
   apply();
 })();
 </script>

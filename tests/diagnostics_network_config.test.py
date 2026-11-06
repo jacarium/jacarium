@@ -235,9 +235,47 @@ def main():
     check("4. the markers: eth7 configured as a bond1 port but no slave (bad), the primary eth3 not active (warn), eth5 profile MTU 9000 vs 1500 (warn), eth2 under br-ex by profile but standalone (warn); bond0 under ovs-system is NOT a mismatch",
           ("bad", "bond1: the configured port eth7 is not a slave at runtime") in sev_titles and ("warn", "bond0: the primary eth3 is not the active slave") in sev_titles and by_name["eth5"]["markers"] == ["profile MTU 9000, running 1500"]
           and by_name["eth2"]["markers"] == ["profile says port of br-ex, running standalone"] and by_name["bond0"]["markers"] == [] and by_name["br-ex"]["markers"] == [], json.dumps(sev_titles))
-    check("4. the profiles: 17 (nmcli dumps, the keyfile only adds its path to the nmcli profile, the ifcfg eth1), one with masked secrets, no PSK anywhere in the parsed data",
-          len(r["profiles"]) == 17 and [p["name"] for p in r["profiles"] if p["secrets_masked"]] == ["Wi-Fi lab"] and "must-never-show" not in json.dumps(r) and any(p["source"].startswith("etc/sysconfig") for p in r["profiles"]), str(len(r["profiles"])))
-    check("4. the collected nmcli: general status, device status, 13 device blocks, the connection table (16 rows) and 16 per-connection dumps", r["nm"]["general"] and r["nm"]["devices"] and len(r["nm"]["device_show"]) == 13 and len(r["nm"]["connections"]) == 16 and len(r["nm"]["connection_show"]) == 16, json.dumps({k: len(v) for k, v in r["nm"].items()}))
+    check("4. the profiles: 18 (the nmcli dumps, the keyfile only adds its path to the nmcli profile, the ifcfg eth1), one with masked secrets, no PSK anywhere in the parsed data; no profile named after a flag (--active)",
+          len(r["profiles"]) == 18 and [p["name"] for p in r["profiles"] if p["secrets_masked"]] == ["Wi-Fi lab"] and "must-never-show" not in json.dumps(r) and any(p["source"].startswith("etc/sysconfig") for p in r["profiles"])
+          and not any(p["name"].startswith("-") for p in r["profiles"]), str([p["name"] for p in r["profiles"]]))
+    by_pname = {p["name"]: p for p in r["profiles"]}
+    check("4. the --active lists mark the profiles: bond0 (the ovs-port), ovs-if-bond0, the port profiles active; Wi-Fi lab, bond0-legacy and the ifcfg eth1 (unknown to NetworkManager) inactive",
+          by_pname["bond0"]["active"] is True and by_pname["ovs-if-bond0"]["active"] is True and by_pname["bond0-port-eth3"]["active"] is True and by_pname["Wi-Fi lab"]["active"] is False and by_pname["bond0-legacy"]["active"] is False and by_pname["eth1"]["active"] is False
+          and r["nm"]["active_known"] and len(r["nm"]["active"]) == 15, json.dumps({k: v["active"] for k, v in by_pname.items()}))
+    check("4. the OpenShift OVS pattern on bond0 (the ovs-port profile named bond0 under br-ex; ovs-if-bond0 a bond-type profile with controller / master bond0, port-type ovs-port; bond0-legacy inactive): no \"bond0 is not a slave\" finding, bond0 a member of br-ex (OVS), its profile ovs-if-bond0, its configured ports eth3 / eth4 only",
+          not any("bond0 is not a slave" in f["title"] or "port bond0 is not" in f["title"] for f in r["findings"]) and r["bonds"]["bond0"]["configured_ports"] == ["eth3", "eth4"] and r["bonds"]["bond0"]["profile"] == "ovs-if-bond0"
+          and by_name["bond0"]["member_of"] == {"name": "br-ex", "kind": "OVS", "via": "", "type": "system"} and by_name["bond0"]["markers"] == [] and by_name["eth3"]["markers"] == [] and by_name["eth4"]["markers"] == [], json.dumps([(f["severity"], f["title"]) for f in r["findings"]]))
+    check("4. ...while the genuine case (bond1-port-eth7: port-type bond, controller bond1, no such slave) is still flagged, and the inactive profiles are an info line",
+          ("bad", "bond1: the configured port eth7 is not a slave at runtime") in sev_titles and ("info", "3 inactive profiles") in sev_titles, json.dumps(sev_titles))
+    check("4. the collected nmcli: general status, device status, 13 device blocks, the plain connection list (17 rows), the -f all list, 17 per-connection dumps; the two non-nmcli files apart",
+          r["nm"]["general"] and r["nm"]["devices"] and len(r["nm"]["device_show"]) == 13 and len(r["nm"]["connections"]) == 17 and len(r["nm"]["connections_all"]) == 17 and len(r["nm"]["connection_show"]) == 17 and len(r["nm"]["captures"]) == 25 and len(r["nm"]["other"]) == 2,
+          json.dumps({k: (len(v) if hasattr(v, "__len__") else v) for k, v in r["nm"].items()}))
+    cmds = {c["command"]: c for c in r["nm"]["captures"]}
+    check("4. the lists read as what they are: nmcli con, nmcli -f all con, nmcli con show --active / nmcli connection show --active (the active lists), never a profile; a dump reads nmcli connection show <id>",
+          cmds["nmcli con"]["kind"] == "connections" and cmds["nmcli -f all con"]["kind"] == "connections" and cmds["nmcli -f all con"]["fields"] == "all" and cmds["nmcli con show --active"]["active"] and cmds["nmcli connection show --active"]["active"]
+          and cmds["nmcli connection show Wi-Fi lab"]["kind"] == "connection" and "--active" not in r["nm"]["connection_show"], json.dumps(sorted(cmds)))
+    other = {c["kind"]: c for c in r["nm"]["other"]}
+    check("4. NetworkManager --print-config: its own command, sectioned key / value with the comments dropped and the psk masked; the journal: its own command, 39 lines, the last 25 kept, a Log Viewer source",
+          other["config"]["command"] == "NetworkManager --print-config" and [sec for sec, _ in other["config"]["sections"]] == ["main", "logging", "connectivity", "keyfile", "device", "connection-example"] and dict(other["config"]["sections"][-1][1])["wifi-sec.psk"] == nc.MASK
+          and other["config"]["secrets_masked"] and "config-psk-never-show" not in json.dumps(r) and other["journal"]["command"] == "journalctl --no-pager --unit NetworkManager" and other["journal"]["line_count"] == 39 and len(other["journal"]["tail"]) == 25
+          and other["journal"]["log_source"] == "journalctl (unit_NetworkManager)" and other["journal"]["log_query"] == "sources=journalctl%20%28unit_NetworkManager%29", json.dumps([(c["command"], c["kind"], c["entries"]) for c in r["nm"]["other"]]))
+    # the classifier on the real file shapes, and an unknown file
+    cls = lambda n, txt="NAME  UUID  TYPE  DEVICE\nx  y  z  w\n": nc.classify_nm_file(n, txt)  # noqa: E731
+    check("4. classify: the program from the first token; nmcli lists vs dumps (a flag is never an id; id / uuid / path dropped; -t --order name a list; -f all recorded); device status / show; general; another subcommand is other",
+          [(cls(n)["kind"], cls(n)["target"], cls(n)["command"]) for n in ("nmcli_con", "nmcli_con_show", "nmcli_con_show_--active", "nmcli_con_show_-t_--order_name", "nmcli_-f_all_con", "nmcli_connection_show_uuid_0ea1bd55-0000-4000-8000-000000000001", "nmcli_con_show_id_Wi-Fi_lab", "nmcli_dev_status", "nmcli_dev_show", "nmcli_dev_show_eth0", "nmcli_general_status", "nmcli_networking_connectivity")]
+          == [("connections", "", "nmcli con"), ("connections", "", "nmcli con show"), ("connections", "", "nmcli con show --active"), ("connections", "", "nmcli con show -t --order name"), ("connections", "", "nmcli -f all con"),
+              ("connection", "0ea1bd55-0000-4000-8000-000000000001", "nmcli connection show 0ea1bd55-0000-4000-8000-000000000001"), ("connection", "Wi-Fi_lab", "nmcli connection show Wi-Fi_lab"), ("devices", "", "nmcli dev status"), ("device", "", "nmcli dev show"), ("device", "eth0", "nmcli dev show eth0"), ("general", "", "nmcli general status"), ("other", "", "nmcli networking connectivity")],
+          json.dumps([(cls(n)["kind"], cls(n)["target"], cls(n)["command"]) for n in ("nmcli_con", "nmcli_con_show_-t_--order_name", "nmcli_connection_show_uuid_0ea1bd55-0000-4000-8000-000000000001", "nmcli_networking_connectivity")]))
+    check("4. classify: a dump's connection.id names the target when the dump has it; NetworkManager --print-config is config, journalctl a journal, anything else a file by its raw name - never prefixed nmcli",
+          cls("nmcli_con_show_id_Wi-Fi_lab", "connection.id:   Wi-Fi lab\nconnection.type:  wifi\n")["target"] == "Wi-Fi lab" and cls("nmcli_con_show_id_Wi-Fi_lab", "connection.id:   Wi-Fi lab\n")["command"] == "nmcli connection show Wi-Fi lab"
+          and cls("NetworkManager_--print-config", "[main]\na=1\n")["kind"] == "config" and cls("journalctl_--no-pager_--unit_NetworkManager", "x\n")["kind"] == "journal" and cls("strange_file", "a\nb\n") == dict(cls("strange_file", "a\nb\n"), kind="file", command="strange_file", program="strange", entries=2)
+          and not cls("NetworkManager_--print-config", "")["command"].startswith("nmcli"))
+    odd = os.path.join(WORK, "sosreport-odd")
+    write(odd, "sos_commands/networkmanager/strange_file", "whatever\n")
+    write(odd, "sos_commands/networkmanager/nmcli_con_show_--active", "NAME  UUID  TYPE  DEVICE\nx     y     z     w\n")
+    ro = nc.parse(odd)
+    check("4. a report with only an unknown file and an --active list: no crash, no profile, the unknown file under other by its name, the active list a capture",
+          ro["profiles"] == [] and [c["command"] for c in ro["nm"]["other"]] == ["strange_file"] and [c["command"] for c in ro["nm"]["captures"]] == ["nmcli con show --active"], json.dumps(ro["nm"]["other"]))
     quiet = os.path.join(WORK, "sosreport-quiet-2026-10-13-nothing")
     mock_sosreport.build(quiet, quiet=True)
     rq = nc.parse(quiet)
@@ -257,17 +295,21 @@ def main():
           status == 200 and html.index('class="ui-findings"') < html.index('id="nc-bonds"') and rows_of("nc-bonds") == 2 and ">failed over<" in html and "Currently Active Slave\">eth4<" in html and "Actor / partner key" in html and ">primary<" in html and ">secondary<" in html, html[:300] if status != 200 else "")
     check("6. the bridges table (br-ex OVS with the bond0 uplink, br-int, br0 Linux) with the member table and its role badges in the panel",
           rows_of("nc-bridges") == 3 and "system (uplink)" in html and ">internal<" in html and ">patch<" in html and ">Linux port<" in html and ">OVS<" in html and ">Linux<" in html, "")
-    check("6. the interfaces table with the member-of column and the markers; the profiles with the masked badge; the PSK value appears nowhere",
-          rows_of("nc-table") == 13 and "Configured vs running" in html and "profile MTU 9000, running 1500" in html and rows_of("nc-profiles") == 17 and "secrets masked" in html
-          and "must-never-show" not in html and "&lt;redacted&gt;" in html, "")
+    check("6. the interfaces table with the member-of column and the markers; the profiles with the masked badge and the Active column (16 active, 3 inactive); the PSK values appear nowhere",
+          rows_of("nc-table") == 13 and "Configured vs running" in html and "profile MTU 9000, running 1500" in html and rows_of("nc-profiles") == 18 and "secrets masked" in html
+          and html.count(">active<") == 16 and html.count(">inactive<") == 3 and "must-never-show" not in html and "config-psk-never-show" not in html and "&lt;redacted&gt;" in html, str((html.count(">active<"), html.count(">inactive<"))))
+    check("6. the other NetworkManager files in their own table (the configuration as sectioned key / value, the journal as a 25-line tail with the Log Viewer link), the nmcli table real nmcli commands only",
+          rows_of("nc-nmfiles") == 2 and "Other NetworkManager files" in html and "NetworkManager --print-config" in html and ">journalctl --no-pager --unit NetworkManager<" in html and ">configuration<" in html and ">journal<" in html and "[connectivity]" in html
+          and 'data-sub-tab="log_viewer" data-query="sources=journalctl%20%28unit_NetworkManager%29"' in html and "The last 25 of 39 lines" in html and "nmcli NetworkManager" not in html and "nmcli journalctl" not in html
+          and "nmcli con show --active" in html and ">nmcli -f all con<" in html and ">active list<" in html, "")
     check("6. the nmcli captures as a table: one row per collected file with the readable command, the kind, the target linked to its profile / interface, the entry count; the output in the panel; no file-name paragraph",
-          rows_of("nc-nmcli") == len(r["nm"]["files"]) and "nmcli general status" in html and "nmcli device status" in html and ">nmcli connection show<" in html and "nmcli connection show Wi-Fi lab" in html and "nmcli device show" in html
+          rows_of("nc-nmcli") == len(r["nm"]["captures"]) and "nmcli general status" in html and "nmcli dev status" in html and ">nmcli con show<" in html and "nmcli connection show Wi-Fi lab" in html and "nmcli device show" in html
           and 'data-nc-jump="nc-profiles" data-nc-key="Wi-Fi lab"' in html and ">connection list<" in html and ">device list<" in html and "sos_commands/networkmanager: nmcli_con_show" not in html, "")
     check("6. the nmcli rows: a connection dump's keys and values, the general status columns, the per-file captures in the parsed data (kinds, targets, entries, the masked one)",
-          [c["kind"] for c in r["nm"]["captures"]][:3] == ["connections", "connection", "connection"] and any(c["command"] == "nmcli connection show Wi-Fi lab" and c["target"] == "Wi-Fi lab" and c["secrets_masked"] and c["entries"] > 5 for c in r["nm"]["captures"])
+          [c["kind"] for c in r["nm"]["captures"]][:3] == ["connections", "connections", "connections"] and any(c["command"] == "nmcli connection show Wi-Fi lab" and c["target"] == "Wi-Fi lab" and c["secrets_masked"] and c["entries"] > 5 for c in r["nm"]["captures"])
           and any(c["kind"] == "general" and c["rows"] for c in r["nm"]["captures"]) and any(c["kind"] == "device" and c["target"] == "" and c["entries"] > 50 for c in r["nm"]["captures"]) and sum(1 for c in r["nm"]["captures"] if c["secrets_masked"]) == 1, json.dumps([(c["command"], c["kind"], c["target"], c["entries"]) for c in r["nm"]["captures"]])[:600])
     check("6. every table of the page sorts by its headers (data-key) and has its own Expand all; one search over the page",
-          html.count('data-xrow-all="open"') == 5 and all(f'data-table="#{t}"' in html for t in ("nc-bonds", "nc-bridges", "nc-table", "nc-profiles", "nc-nmcli")) and html.count('data-ui-search') == 1 and 'data-key="bond"' in html and 'data-key="command"' in html, "")
+          html.count('data-xrow-all="open"') == 6 and all(f'data-table="#{t}"' in html for t in ("nc-bonds", "nc-bridges", "nc-table", "nc-profiles", "nc-nmcli", "nc-nmfiles")) and html.count('data-ui-search') == 1 and 'data-key="bond"' in html and 'data-key="command"' in html, "")
     check("6. no reconstructed nmcli command anywhere (display of the collected output only)", "nmcli connection add" not in html and "nmcli connection modify" not in html)
     status2, html2 = render(c, mock, "network")
     check("6. the network group page lists the tab's findings, linked to it", status2 == 200 and "network_config: bond1: the configured port eth7" in html2 and 'data-sub-tab="network_config"' in html2)

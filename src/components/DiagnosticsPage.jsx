@@ -119,7 +119,15 @@ function normalizeFragmentHtml(html) {
 const DIAGNOSTICS_API_ALLOWLIST = new Set(['/get_log_date_range', '/parse_haproxy_log', '/audit_event_body', '/audit_events_search', '/audit_events_cancel', '/mustgather_log_search', '/mustgather_log_cancel', '/mustgather_log_date_range']);
 const DIAGNOSTICS_API_STREAM_ALLOWLIST = new Set(['/parse_log_viewer_stream']);
 
-function buildDiagnosticsSrcDoc(fragmentHtml, theme, tabKey) {
+// The backend's styles.css, fetched once per app session. The page injects it into the parent document as
+// <style id="diagnostics-styles"> (the loading pill and the frame's serialized styles read it) and removes that
+// element on unmount; coming back to the page re-adds it from this cache synchronously, so a restored tab's
+// document is baked with the stylesheet in it. THE BUG this fixes: the restored session loaded the tab's HTML
+// before the stylesheet's fetch had finished, the frame document was baked without it, and the first paint
+// after Documents -> Diagnostics showed plain text and unsized icons.
+const diagnosticsCss = { text: '', promise: null };
+
+function buildDiagnosticsSrcDoc(fragmentHtml, theme, tabKey, backendCss = '') {
   // Reuse the app's own styling so the frame matches the surrounding UI. We do
   // NOT copy <link>/<style> DOM nodes: in a packaged build the compiled Tailwind
   // is a <link href="file://.../assets/index-*.css">, and copying that into the
@@ -139,6 +147,9 @@ function buildDiagnosticsSrcDoc(fragmentHtml, theme, tabKey) {
   // dropped and replaced with data:-URL @font-face rules - see
   // diagnosticsFrameStyles.js.
   const appStyles = buildDiagnosticsFrameStyles(document);
+  // the backend stylesheet, inlined when the parent's <style id="diagnostics-styles"> is not in the document
+  // (the serialization above would have carried it otherwise): the frame never paints without it
+  const inlineBackendCss = backendCss && !document.getElementById('diagnostics-styles') ? backendCss : '';
 
   // Bake the current theme into the frame's own <html> so first paint is
   // correct (no light-mode flash): the `dark` class plus the theme
@@ -150,7 +161,7 @@ function buildDiagnosticsSrcDoc(fragmentHtml, theme, tabKey) {
 <html${htmlAttrs}>
 <head>
 <meta charset="utf-8">
-<style>${appStyles}</style>
+<style>${appStyles}</style>${inlineBackendCss ? `\n<style id="diagnostics-styles-inline">${inlineBackendCss}</style>` : ''}
 <style>
   /* Keep the frame visually transparent so the parent card shows through,
      matching the previous inline-injected rendering (which had no background
@@ -518,7 +529,7 @@ export default function DiagnosticsPage() {
     return iconMap[iconName] || FileText;
   };
 
-  // Check backend health on mount and load CSS
+  // Check backend health on mount and load CSS (from the session cache at once on a return to the page)
   useEffect(() => {
     checkBackendHealth();
     loadDiagnosticsCSS();
@@ -893,28 +904,42 @@ export default function DiagnosticsPage() {
     }
   }
 
-  async function loadDiagnosticsCSS() {
-    // Check if CSS is already loaded
-    if (document.getElementById('diagnostics-styles')) {
-      return;
+  // The backend stylesheet in the parent document (<style id="diagnostics-styles">): from the session cache at
+  // once when it was fetched before (a return to the page), else fetched once - concurrent callers share the
+  // fetch. Resolves to the CSS text ('' when the backend is unreachable: the content still shows, unstyled,
+  // with a warning in the console) and never throws. loadTab awaits it before it shows a tab.
+  function injectDiagnosticsCSS(cssText) {
+    if (!cssText || document.getElementById('diagnostics-styles')) return;
+    const styleElement = document.createElement('style');
+    styleElement.id = 'diagnostics-styles';
+    styleElement.textContent = cssText;
+    document.head.appendChild(styleElement);
+  }
+  function loadDiagnosticsCSS() {
+    if (diagnosticsCss.text) {
+      injectDiagnosticsCSS(diagnosticsCss.text);
+      return Promise.resolve(diagnosticsCss.text);
     }
-
-    try {
-      // Load CSS from Flask backend
-      const backendUrl = await getBackendUrl();
-      const response = await apiFetch(`${backendUrl}/static/styles.css`);
-      if (response.ok) {
-        const cssText = await response.text();
-
-        // Create style element and inject CSS
-        const styleElement = document.createElement('style');
-        styleElement.id = 'diagnostics-styles';
-        styleElement.textContent = cssText;
-        document.head.appendChild(styleElement);
-      }
-    } catch (err) {
-      console.warn('Failed to load diagnostics CSS:', err);
+    if (!diagnosticsCss.promise) {
+      diagnosticsCss.promise = (async () => {
+        try {
+          const backendUrl = await getBackendUrl();
+          const response = await apiFetch(`${backendUrl}/static/styles.css`);
+          if (response.ok) {
+            diagnosticsCss.text = await response.text();
+            injectDiagnosticsCSS(diagnosticsCss.text);
+          } else {
+            console.warn('Failed to load diagnostics CSS: HTTP', response.status);
+          }
+        } catch (err) {
+          console.warn('Failed to load diagnostics CSS:', err);
+        } finally {
+          diagnosticsCss.promise = null;
+        }
+        return diagnosticsCss.text;
+      })();
     }
+    return diagnosticsCss.promise;
   }
 
   tabsRef.current = tabs;
@@ -924,9 +949,12 @@ export default function DiagnosticsPage() {
     setActiveSubTab(subTabName);
     setLoading(true);
     contentKeyRef.current = '';
-    setContent('<div class="flex items-center justify-center py-10"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-os-blue"></div></div>');
+    setContent('<div class="flex items-center justify-center py-10"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-os-blue" style="max-width: 2rem; max-height: 2rem"></div></div>');
 
     try {
+      // the stylesheet first (cached after the first fetch; a return to the page re-injects it at once), so the
+      // tab's document is never baked without it
+      const cssReady = loadDiagnosticsCSS();
       const backendUrl = await getBackendUrl();
       const response = await apiFetch(`${backendUrl}/load_tab`, {
         method: 'POST',
@@ -949,6 +977,7 @@ export default function DiagnosticsPage() {
       // buildDiagnosticsSrcDoc); its <script> tags execute natively in the
       // frame's opaque origin, so no manual extraction/execution is needed
       // (and none of it runs with renderer/electronAPI privileges anymore).
+      await cssReady;
       contentKeyRef.current = subTabName || tabName;
       setContent(data.html);
 
@@ -1012,7 +1041,7 @@ export default function DiagnosticsPage() {
     // reload/session-restore where ThemeContext applies the class after render.
     // Theme changes AFTER bake are handled via postMessage (see below), not by
     // rebuilding the document, so this depends only on `content`.
-    return buildDiagnosticsSrcDoc(content, appTheme(), contentKeyRef.current);
+    return buildDiagnosticsSrcDoc(content, appTheme(), contentKeyRef.current, diagnosticsCss.text);
   }, [content]);
 
   // The tab-loading pill: the same "Loading <tab>… 2.1 s" pill the plugins show for their own work (diagBusy), here in the

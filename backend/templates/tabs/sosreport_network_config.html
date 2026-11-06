@@ -31,12 +31,12 @@
 {% set bond_names = d.bonds.keys() | list %}
 {% set iface_names = d.interfaces | map(attribute='name') | list %}
 {% set profile_names = d.profiles | map(attribute='name') | list %}
-{% set has_any = d.bonds or d.bridges or d.interfaces or d.profiles or (d.nm and d.nm.captures) %}
+{% set has_any = d.bonds or d.bridges or d.interfaces or d.profiles or (d.nm and (d.nm.captures or d.nm.other)) %}
 
 {% if has_any %}
 <div class="panel rounded-lg shadow-sm">
   {% call ui.filter_bar() %}
-    {{ ui.search('nc-filter', 'Search bonds, bridges, interfaces, profiles, nmcli') }}
+    {{ ui.search('nc-filter', 'Search bonds, bridges, interfaces, profiles, nmcli, files') }}
     {{ ui.check('nc-only-markers', 'Only with markers') }}
     {% call ui.end() %}<span class="ui-status" id="nc-count" aria-live="polite"></span>{% endcall %}
   {% endcall %}
@@ -223,7 +223,7 @@
           <td class="ui-mono">{{ r.addresses | join(', ') if r.addresses else '-' }}</td>
           <td>{{ member_of(r.member_of) }}</td>
           <td>{% if r.profile %}{{ jump('nc-profiles', r.profile) }}{% else %}<span class="ui-muted">-</span>{% endif %}</td>
-          <td><span class="ui-chips">{% if r.markers %}{% for m in r.markers %}{{ ui.badge('warn', 'MTU' if 'MTU' in m else 'bridge' if 'port of' in m else 'differs', m) }}{% endfor %}{% elif r.profile %}{{ ui.badge('good', 'matches') }}{% else %}{{ ui.badge('muted', 'no profile') }}{% endif %}</span></td>
+          <td><span class="ui-chips">{% if r.markers %}{% for m in r.markers %}{{ ui.badge('warn', 'MTU' if 'MTU' in m else 'bridge' if 'port of' in m else 'differs', m) }}{% endfor %}{% elif r.profile and r.profile_inactive %}{{ ui.badge('muted', 'inactive profile', 'the only profile naming this interface is not active: nothing is compared') }}{% elif r.profile %}{{ ui.badge('good', 'matches') }}{% else %}{{ ui.badge('muted', 'no profile') }}{% endif %}</span></td>
         </tr>
         {% call ui.xrow_panel(9) %}
           {% if r.markers %}<ul class="ui-files">{% for m in r.markers %}<li>{{ ui.badge('warn', 'mismatch') }}<span>{{ m }}</span></li>{% endfor %}</ul>{% endif %}
@@ -274,6 +274,7 @@
           {{ ui.xrow_th() }}
           <th data-key="name" data-sorted="ascending" data-w="flex">Name</th>
           <th data-key="type" data-w="narrow">Type</th>
+          <th data-key="active" data-w="status" title="nmcli connection show --active, as collected">Active</th>
           <th data-key="interface" data-w="narrow">Interface</th>
           <th data-key="controller" data-w="narrow" data-p="2">Controller</th>
           <th data-key="ipv4" data-w="text" data-p="2">IPv4</th>
@@ -288,6 +289,7 @@
           {{ ui.xrow_cell() }}
           <td class="ui-mono">{{ p.name }}{% if p.secrets_masked %} {{ ui.badge('muted', 'secrets masked') }}{% endif %}</td>
           <td>{{ p.type or '-' }}{% if p.port_type %} <span class="ui-muted">port of {{ p.port_type }}</span>{% endif %}</td>
+          <td data-sort="{{ 'a' if p.active else ('b' if p.active is none else 'c') }}">{% if p.active %}{{ ui.badge('good', 'active') }}{% elif p.active is none %}<span class="ui-muted" title="no --active list in this report">-</span>{% else %}{{ ui.badge('muted', 'inactive', 'not in the --active list: nothing is compared against this profile') }}{% endif %}</td>
           <td class="ui-mono">{% if p.interface and p.interface in iface_names %}{{ jump('nc-table', p.interface) }}{% else %}{{ p.interface or '-' }}{% endif %}</td>
           <td class="ui-mono">{{ p.controller or '-' }}</td>
           <td>{% if p.ipv4 and p.ipv4.method %}{{ p.ipv4.method }}{% if p.ipv4.addresses %} <span class="ui-mono">{{ p.ipv4.addresses | join(', ') }}</span>{% endif %}{% else %}-{% endif %}</td>
@@ -295,7 +297,7 @@
           <td>{{ ui.badge('muted' if p.autoconnect | lower in ('no', 'false') else 'good', p.autoconnect) }}</td>
           <td class="ui-muted">{{ p.source }}</td>
         </tr>
-        {% call ui.xrow_panel(9) %}
+        {% call ui.xrow_panel(10) %}
           {{ ui.kv([
             ('UUID', p.uuid, 'mono'),
             ('Bond options', p.bond_options.items() | map('join', '=') | join(', ') if p.bond_options else '', 'mono'),
@@ -353,10 +355,10 @@
       </thead>
       <tbody>
       {% for c in d.nm.captures %}
-        {% set kind_label = {'general': 'general', 'devices': 'device list', 'connections': 'connection list', 'device': 'device', 'connection': 'connection'}.get(c.kind, c.kind) %}
+        {% set kind_label = {'general': 'general', 'devices': 'device list', 'connections': 'connection list', 'device': 'device', 'connection': 'connection'}.get(c.kind, 'other') %}
         <tr class="ui-xrow nc-row" data-nc-table="nc-nmcli" data-nc-key="{{ c.file }}" data-markers="0" data-text="{{ (c.command ~ ' ' ~ kind_label ~ ' ' ~ c.target ~ ' ' ~ c.file) | lower }}">
           {{ ui.xrow_cell() }}
-          <td class="ui-mono">{{ c.command }}{% if c.secrets_masked %} {{ ui.badge('muted', 'secrets masked') }}{% endif %}</td>
+          <td class="ui-mono">{{ c.command }}{% if c.secrets_masked %} {{ ui.badge('muted', 'secrets masked') }}{% endif %}{% if c.active %} {{ ui.badge('info', 'active list', 'the profiles this list names are marked active above') }}{% endif %}</td>
           <td>{{ kind_label }}</td>
           <td class="ui-mono">{% if c.target and c.kind == 'connection' and c.target in profile_names %}{{ jump('nc-profiles', c.target) }}{% elif c.target and c.kind == 'device' and c.target in iface_names %}{{ jump('nc-table', c.target) }}{% elif c.target %}{{ c.target }}{% else %}<span class="ui-muted">-</span>{% endif %}</td>
           <td class="ui-num">{{ c.entries }}</td>
@@ -372,13 +374,64 @@
 </div>
 {% endif %}
 
+{% if d.nm and d.nm.other %}
+<div class="panel rounded-lg shadow-sm">
+  {% call ui.filter_bar() %}
+    {{ ui.card_title('Other NetworkManager files', d.nm.other | length) }}
+    {% call ui.end() %}{{ ui.xrow_all('#nc-nmfiles') }}{% endcall %}
+  {% endcall %}
+  <div class="ui-table-wrap">
+    <table id="nc-nmfiles" class="ui-table">
+      <thead>
+        <tr>
+          {{ ui.xrow_th() }}
+          <th data-key="command" data-sorted="ascending" data-w="flex">Command</th>
+          <th data-key="kind" data-w="narrow">Kind</th>
+          <th data-key="entries" class="ui-num" data-w="num">Entries</th>
+          <th data-key="file" data-w="text" data-p="3">File</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in d.nm.other %}
+        {% set kind_label = {'config': 'configuration', 'journal': 'journal'}.get(c.kind, 'file') %}
+        <tr class="ui-xrow nc-row" data-nc-table="nc-nmfiles" data-nc-key="{{ c.file }}" data-markers="0" data-text="{{ (c.command ~ ' ' ~ kind_label ~ ' ' ~ c.file) | lower }}">
+          {{ ui.xrow_cell() }}
+          <td class="ui-mono">{{ c.command }}{% if c.secrets_masked %} {{ ui.badge('muted', 'secrets masked') }}{% endif %}</td>
+          <td>{{ kind_label }}</td>
+          <td class="ui-num">{{ c.entries }}{% if c.kind == 'journal' %} <span class="ui-muted">lines</span>{% endif %}</td>
+          <td class="ui-muted">sos_commands/networkmanager/{{ c.file }}</td>
+        </tr>
+        {% call ui.xrow_panel(5) %}
+          {% if c.kind == 'config' %}
+            {% for section, pairs in c.sections %}
+              {{ ui.kv_title('[' ~ section ~ ']') }}
+              {% if pairs %}{{ kv_table(pairs) }}{% else %}<div class="ui-muted">no settings (comments only)</div>{% endif %}
+            {% else %}
+              <div class="ui-muted">Empty configuration</div>
+            {% endfor %}
+          {% elif c.kind == 'journal' %}
+            {{ ui.kv_title('The last ' ~ (c.tail | length) ~ ' of ' ~ c.line_count ~ ' lines') }}
+            <pre class="ui-code-text">{{ c.tail | join('\n') }}</pre>
+            {% if c.log_query %}<div class="ui-xrow-actions"><button type="button" class="ui-link" data-tab="log_collection" data-sub-tab="log_viewer" data-query="{{ c.log_query }}">Open the whole journal in the Log Viewer</button></div>{% endif %}
+          {% else %}
+            {{ ui.kv_title('The first ' ~ (c.tail | length) ~ ' of ' ~ c.line_count ~ ' lines') }}
+            <pre class="ui-code-text">{{ c.tail | join('\n') }}</pre>
+          {% endif %}
+        {% endcall %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 <script>
 (function () {
   var filter = document.getElementById('nc-filter');
   var kind = document.getElementById('nc-kind');
   var only = document.getElementById('nc-only-markers');
   var count = document.getElementById('nc-count');
-  var tables = ['nc-bonds', 'nc-bridges', 'nc-table', 'nc-profiles', 'nc-nmcli'].map(function (id) { return document.getElementById(id); }).filter(Boolean);
+  var tables = ['nc-bonds', 'nc-bridges', 'nc-table', 'nc-profiles', 'nc-nmcli', 'nc-nmfiles'].map(function (id) { return document.getElementById(id); }).filter(Boolean);
   tables.forEach(function (t) { if (window.diagTables && window.diagTables.sortable) window.diagTables.sortable(t); });
   var rows = Array.prototype.slice.call(document.querySelectorAll('tr.nc-row'));
   function hide(row, ok) {
@@ -398,7 +451,7 @@
       if (ok) shown[t] = (shown[t] || 0) + 1;
     });
     if (count) {
-      var names = { 'nc-bonds': 'bonds', 'nc-bridges': 'bridges', 'nc-table': 'interfaces', 'nc-profiles': 'profiles', 'nc-nmcli': 'nmcli captures' };
+      var names = { 'nc-bonds': 'bonds', 'nc-bridges': 'bridges', 'nc-table': 'interfaces', 'nc-profiles': 'profiles', 'nc-nmcli': 'nmcli captures', 'nc-nmfiles': 'other files' };
       var parts = Object.keys(names).filter(function (t) { return total[t]; }).map(function (t) { return ((shown[t] || 0) === total[t] ? 'all ' : (shown[t] || 0) + ' of ') + total[t] + ' ' + names[t]; });
       count.textContent = 'Showing ' + parts.join(', ');
     }
