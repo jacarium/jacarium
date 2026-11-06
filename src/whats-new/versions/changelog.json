@@ -1,5 +1,17 @@
 [
   {
+    "version": "4.1.2",
+    "date": "2026-11-06",
+    "features": [
+      {
+        "category": "SECURITY",
+        "description": [
+          "The container's Caddy is built with klauspost/compress 1.20.2 (GO-2026-6865 / CVE-2026-116591, a panic on crafted zstd frames, published 5 November), and the build checks the version; this is the container image 4.1.1 could not publish"
+        ]
+      }
+    ]
+  },
+  {
     "version": "4.1.1",
     "date": "2026-11-06",
     "features": [

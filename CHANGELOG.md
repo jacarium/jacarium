@@ -4,6 +4,14 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.1.2
+
+_2026-11-06_
+
+### [SECURITY]
+
+The container's Caddy is built with klauspost/compress 1.20.2 (GO-2026-6865 / CVE-2026-116591, a panic on crafted zstd frames, published 5 November), and the build checks the version; this is the container image 4.1.1 could not publish
+
 ## What's New in v4.1.1
 
 _2026-11-06_

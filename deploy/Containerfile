@@ -104,6 +104,9 @@ ARG CHI_VERSION=v5.4.0
 # go-jose/v4 v4.1.6 (2026-10-14; sum.golang.org record 69076000): GHSA-mgcc-cww5-fp2q (CVE-2026-116587,
 # a denial of service through unbounded RSA JWK sizes), reported against the v4.1.5 Caddy 2.11.7 pulls in
 ARG GOJOSE_VERSION=v4.1.6
+# klauspost/compress v1.20.2 (2026-10-12; sum.golang.org record 68513226): GO-2026-6865 / CVE-2026-116591, a panic
+# on two-block frames in its fse/huff0 (zstd) code, reported against the v1.20.1 Caddy 2.11.8 pulls in
+ARG KCOMPRESS_VERSION=v1.20.2
 WORKDIR /build
 ENV CGO_ENABLED=0 GOFLAGS=-mod=mod GOTOOLCHAIN=local
 RUN printf '%s\n' 'package main' '' 'import (' '	caddycmd "github.com/caddyserver/caddy/v2/cmd"' '' '	_ "github.com/caddyserver/caddy/v2/modules/standard"' ')' '' 'func main() {' '	caddycmd.Main()' '}' > main.go \
@@ -112,14 +115,16 @@ RUN printf '%s\n' 'package main' '' 'import (' '	caddycmd "github.com/caddyserve
  && go get "golang.org/x/net@${XNET_VERSION}" \
  && go get "github.com/go-chi/chi/v5@${CHI_VERSION}" \
  && go get "github.com/go-jose/go-jose/v4@${GOJOSE_VERSION}" \
+ && go get "github.com/klauspost/compress@${KCOMPRESS_VERSION}" \
  && go mod tidy \
  && go build -trimpath -buildvcs=false -ldflags '-s -w' -o /usr/bin/caddy . \
  && /usr/bin/caddy version \
  && /usr/bin/caddy version | grep -q "^${CADDY_VERSION} " \
- && /usr/bin/caddy build-info | grep -E "^(go|dep\s+golang.org/x/net|dep\s+github.com/go-chi/chi/v5|dep\s+github.com/go-jose/go-jose/v4)\s" \
+ && /usr/bin/caddy build-info | grep -E "^(go|dep\s+golang.org/x/net|dep\s+github.com/go-chi/chi/v5|dep\s+github.com/go-jose/go-jose/v4|dep\s+github.com/klauspost/compress)\s" \
  && /usr/bin/caddy build-info | grep -qE "^dep\s+golang.org/x/net\s+${XNET_VERSION}\s" \
  && /usr/bin/caddy build-info | grep -qE "^dep\s+github.com/go-chi/chi/v5\s+${CHI_VERSION}\s" \
- && /usr/bin/caddy build-info | grep -qE "^dep\s+github.com/go-jose/go-jose/v4\s+${GOJOSE_VERSION}\s"
+ && /usr/bin/caddy build-info | grep -qE "^dep\s+github.com/go-jose/go-jose/v4\s+${GOJOSE_VERSION}\s" \
+ && /usr/bin/caddy build-info | grep -qE "^dep\s+github.com/klauspost/compress\s+${KCOMPRESS_VERSION}\s"
 
 # ---------------------------------------------------------------------------
 # Runtime - ubi9-minimal 9.8-1792742033 (2026-10-23, RHEL 9.8, with the
