@@ -2554,6 +2554,14 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 .sc-editor-cm .cm-cursor, .sc-editor-cm .cm-dropCursor { border-left-color: var(--os-text-primary); }
 .sc-editor-cm.cm-editor .cm-selectionLayer .cm-selectionBackground,
 .sc-editor-cm.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground { background: var(--os-terminal-selection); }   /* focused or not: the same highlight (a menu may hold the focus) */
+/* The selection layer over the text, not under it: drawSelection() paints its rectangles in a layer CodeMirror
+   orders below the content (z-index -1 in the scroller's stacking context), and anything with an opaque background
+   in the content - a code block's tinted lines (.cm-code-block), inline code, a doc-link chip, a syntax-colour
+   mark - covered it: the text was selected but the highlight was not to be seen. The selection colour
+   (--os-terminal-selection) is translucent in every theme, so above the content the text reads through it, as a
+   native selection does; the layer takes no pointer events. CodeMirror writes the layer's z-index inline, hence
+   !important. The cursor layer stays where it is (above, z-index 150). */
+.sc-editor-cm.cm-editor > .cm-scroller > .cm-selectionLayer { z-index: 1 !important; pointer-events: none; }
 .sc-editor-cm .cm-placeholder { color: var(--os-text-muted); font-style: normal; }
 .sc-editor-cm .cm-gutters {
   background: var(--os-card-secondary);

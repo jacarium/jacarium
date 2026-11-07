@@ -4,6 +4,14 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.1.4
+
+_2026-11-07_
+
+### [DOCUMENTS]
+
+Selecting text inside a code block, inline code or a document-link chip in the editor shows the selection again (it was drawn under the code block's background)
+
 ## What's New in v4.1.3
 
 _2026-11-06_

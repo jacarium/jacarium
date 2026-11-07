@@ -1,5 +1,17 @@
 [
   {
+    "version": "4.1.4",
+    "date": "2026-11-07",
+    "features": [
+      {
+        "category": "DOCUMENTS",
+        "description": [
+          "Selecting text inside a code block, inline code or a document-link chip in the editor shows the selection again (it was drawn under the code block's background)"
+        ]
+      }
+    ]
+  },
+  {
     "version": "4.1.3",
     "date": "2026-11-06",
     "features": [
