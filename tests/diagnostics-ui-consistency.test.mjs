@@ -305,6 +305,9 @@ const PICK_FILTERS = {
   memChart: { control: '#processFilter', rows: '#processesTable tbody tr.ui-xrow', cell: 2 },
   'audit-events-codes': { chip: 'status' },
   'audit-events-verbs': { chip: 'verbs' },
+  // Log Collection > Histogram: a source lists its messages; a time bucket is the "Window:" chip over the anomalies
+  'lh-groups': { control: '#lh-template-source', rows: '#lh-templates-body tr.ui-xrow', attr: 'data-source' },
+  'lh-timeline': { chip: 'window' },
 };
 async function clickChecks(frame, page) {
   const out = [];
@@ -347,6 +350,15 @@ const LOG_ENTRIES = Array.from({ length: 40 }, (_, i) => {
   return { timestamp: `2026-10-12 14:${String(10 + Math.floor(i / 2)).padStart(2, '0')}:${String((i * 7) % 60).padStart(2, '0')}`, severity, hostname: 'web-01', process: i % 3 ? 'systemd' : 'kernel', pid: 1000 + i, message: `synthetic line ${i} (${severity})` };
 });
 const served = [];
+// a backend route answered for real by the Flask test client (tests/helpers/diagnostics-api.py) over the synthetic
+// reports: the Log Collection Histogram's analysis (a stream: its whole text)
+function backendRoute(route, body) {
+  const tmp = path.join(os.tmpdir(), `ui-req-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  fs.writeFileSync(tmp, JSON.stringify(body));
+  const out = spawnSync(PYTHON, ['-I', path.join(REPO, 'tests', 'helpers', 'diagnostics-api.py'), '--path', route, '--body-file', tmp], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  fs.unlinkSync(tmp);
+  try { return JSON.parse(out.stdout); } catch { return { status: 500, json: { error: (out.stderr || '').slice(-300) } }; }
+}
 async function open(theme) {
   const context = await browser.newContext({ viewport: { width: 1360, height: 900 }, reducedMotion: 'reduce', colorScheme: theme });
   await context.addInitScript(({ theme }) => {
@@ -374,6 +386,9 @@ async function open(theme) {
   await context.route('http://localhost:8080/audit_events_cancel', (r) => r.fulfill({ json: { ok: true } }));
   await context.route('http://localhost:8080/get_log_date_range', answer({ min_date: '2026-10-13', max_date: '2026-10-13', files: [] }));
   await context.route('http://localhost:8080/parse_haproxy_log', answer({ ok: true, entries: [], stats: {} }));
+  // Log Collection > Histogram: the real analysis of the synthetic report, after `delay` ms (the busy check)
+  await context.route('http://localhost:8080/log_histogram_stream', async (r) => { let body = {}; try { body = r.request().postDataJSON() || {}; } catch { /* no body */ } if (delay) await sleep(delay); const a = backendRoute('/log_histogram_stream', body); r.fulfill({ status: a.status, contentType: a.text !== undefined ? 'text/event-stream' : 'application/json', body: a.text !== undefined ? a.text : JSON.stringify(a.json) }); });
+  await context.route('http://localhost:8080/log_histogram_cancel', (r) => r.fulfill({ json: { ok: true } }));
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.message)));
@@ -598,6 +613,13 @@ try {
         check(`${theme}: ${rep.type}/${key} (${where.label}) renders in the frame`, !!frame);
         if (!frame) continue;
         await sleep(900);
+        if (key === 'log_histogram') {
+          // the Histogram draws its charts and tables on Analyze: every check below runs on the analysed page
+          await frame.evaluate(() => { const b = document.getElementById('lh-analyze'); if (b) b.click(); });
+          for (let i = 0; i < 400; i++) { const done = await frame.evaluate(() => { const r = document.getElementById('lh-results'); const b = document.getElementById('lh-analyze'); return !b || (r && !r.hidden && b.textContent.trim() === 'Analyze'); }); if (done) break; await sleep(150); }
+          check(`${theme}: ${rep.type}/log_histogram: Analyze draws the results (the timeline, the anomalies, the messages)`, await frame.evaluate(() => !document.getElementById('lh-analyze') || (!document.getElementById('lh-results').hidden && document.querySelectorAll('#lh-templates-body tr').length > 0 && !!window.Chart.getChart(document.getElementById('lh-timeline')))));
+          await sleep(600);
+        }
         // the controls at rest: the pointer parked outside the frame and nothing focused, so no hover / focus colour
         // is measured (a button under the pointer once read its hover background)
         await page.mouse.move(2, 2);

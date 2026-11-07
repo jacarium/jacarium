@@ -99,6 +99,15 @@ podman run -d --name jacarium ...     # the same command as the first time
 of `:latest`. A server deployed with `deploy/deploy-to-host.sh` is updated
 by running that script again (see below).
 
+*How many cores the server uses.* Diagnostics reads large logs (the Log
+Collection Histogram, the Log Viewer) in several processes at once. By
+default (Auto) the server uses its cores less one, at most 8 - one process on
+a machine with one or two cores. An administrator chooses another number in
+Settings > Performance (from 1, one process, to the server's core count); it
+is stored in `<data>/.jacarium-workers.json` and applies to the next
+analysis. `JACARIUM_WORKERS=<n>` in the container's environment sets it
+instead (the page then shows it and cannot change it).
+
 *Knowing when there is something to update.* The server does not look for
 new releases unless an administrator turns it on: Settings > About >
 Updates > "Check for server updates automatically" (or

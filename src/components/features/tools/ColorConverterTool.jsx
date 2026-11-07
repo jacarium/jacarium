@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
-import { HexColorPicker } from 'react-colorful';
+import ColorPickerInput from '../../ui/ColorPickerInput';
 
 /**
  * ColorConverterTool - Color format converter
@@ -16,8 +16,6 @@ export default function ColorConverterTool() {
   const [lch, setLch] = useState({ l: 55, c: 61, h: 279 });
   const [, setActiveInput] = useState('hex');
   const [copied, setCopied] = useState(null);
-  const [showPicker, setShowPicker] = useState(false);
-  const pickerRef = useRef(null);
 
   // Convert HEX to RGB
   const hexToRgb = (hex) => {
@@ -155,20 +153,6 @@ export default function ColorConverterTool() {
     handleHexChange(newColor.toUpperCase());
   };
 
-  // Close picker when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target)) {
-        setShowPicker(false);
-      }
-    };
-
-    if (showPicker) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showPicker]);
-
   const handleCopy = async (text, id) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -184,19 +168,8 @@ export default function ColorConverterTool() {
       <div className="max-w-4xl mx-auto w-full space-y-6">
         {/* Color Preview */}
         <div className="flex items-center gap-4">
-          <div className="relative" ref={pickerRef}>
-            <div
-              className="w-32 h-32 rounded-lg border-2 border-os-border shadow-lg cursor-pointer hover:border-os-blue transition-colors"
-              style={{ backgroundColor: hex }}
-              onClick={() => setShowPicker(!showPicker)}
-              title="Click to pick a color"
-            />
-            {showPicker && (
-              <div className="absolute top-full mt-2 z-10 p-3 bg-os-card border border-os-border rounded-lg shadow-lg">
-                <HexColorPicker color={hex} onChange={handleColorPickerChange} />
-              </div>
-            )}
-          </div>
+          {/* the shared picker (src/components/ui/ColorPickerInput.jsx): the big swatch opens it */}
+          <ColorPickerInput value={hex} onChange={handleColorPickerChange} size="lg" label="Colour" testId="color-converter-picker" />
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-os-text-primary mb-2 flex items-center gap-2">
               Color Converter

@@ -149,6 +149,7 @@ const b = await runImport(exportedJson, true);
 check('import in a browser (no spell-checker bridge): the field is ignored, no summary', calls.add.length === 0 && !('customWords' in b.summary));
 const browserExport = await collectExportData(quiet);
 check('export in a browser: no customWords field at all', !('customWords' in browserExport));
+check('export with no saved custom themes: the customThemes section is still written, empty (the import preview says "0 custom themes")', JSON.stringify(browserExport.customThemes) === '{"formatVersion":1,"themes":[]}', JSON.stringify(browserExport.customThemes));
 
 fs.rmSync(WORK, { recursive: true, force: true });
 console.log(failed ? `\n${failed} check(s) failed` : '\nAll checks passed');

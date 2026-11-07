@@ -14,7 +14,7 @@ function ArrayTable({ rows }) {
   return (
     <div className="nodrag nowheel select-text cursor-text overflow-auto max-h-64">
       <table className="text-xs w-full border-collapse">
-        <thead className="bg-gray-100 sticky top-0">
+        <thead className="bg-os-card-secondary sticky top-0">
           <tr>
             {keys.map(key => (
               <th key={key} className="border px-2 py-1 text-left font-semibold">
@@ -44,7 +44,7 @@ function ObjectTable({ object }) {
   return (
     <div className="nodrag nowheel select-text cursor-text overflow-auto max-h-64">
       <table className="text-xs w-full border-collapse">
-        <thead className="bg-gray-100">
+        <thead className="bg-os-card-secondary">
           <tr>
             <th className="border px-2 py-1 text-left font-semibold w-1/3">Key</th>
             <th className="border px-2 py-1 text-left font-semibold">Value</th>
@@ -74,13 +74,13 @@ function VisualizerNode({ data, isConnectable }) {
 
   const renderJSON = () => {
     if (displayData === null || displayData === undefined) {
-      return <div className="text-gray-400 text-xs">No data to display</div>;
+      return <div className="text-os-text-muted text-xs">No data to display</div>;
     }
     if (Array.isArray(displayData) && displayData.length === 0) {
-      return <div className="text-gray-400 text-xs">Empty array</div>;
+      return <div className="text-os-text-muted text-xs">Empty array</div>;
     }
     if (typeof displayData === 'object' && Object.keys(displayData).length === 0) {
-      return <div className="text-gray-400 text-xs">Empty object</div>;
+      return <div className="text-os-text-muted text-xs">Empty object</div>;
     }
 
     // A structured-cloned transform result may hold cycles JSON cannot express
@@ -112,11 +112,11 @@ function VisualizerNode({ data, isConnectable }) {
 
   const renderTable = () => {
     if (!displayData) {
-      return <div className="text-gray-400 text-xs">No data to display</div>;
+      return <div className="text-os-text-muted text-xs">No data to display</div>;
     }
     if (Array.isArray(displayData)) {
       if (displayData.length === 0) {
-        return <div className="text-gray-400 text-xs">Empty array</div>;
+        return <div className="text-os-text-muted text-xs">Empty array</div>;
       }
       return <ArrayTable rows={displayData} />;
     }
@@ -172,11 +172,11 @@ function VisualizerNode({ data, isConnectable }) {
         {displayData !== null && displayData !== undefined ? (
           viewMode === 'json' ? renderJSON() : renderTable()
         ) : status === 'processing' ? (
-          <div className="text-xs text-gray-400 italic text-center py-4">
+          <div className="text-xs text-os-text-muted italic text-center py-4">
             Waiting for data...
           </div>
         ) : (
-          <div className="text-xs text-gray-400 italic text-center py-4">
+          <div className="text-xs text-os-text-muted italic text-center py-4">
             Connect data source and execute workflow to visualize data
           </div>
         )}

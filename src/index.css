@@ -270,6 +270,38 @@ body {
   --os-code-builtin: #953800;
   --os-code-variable: #953800;
   --os-code-meta: #6639ba;
+
+  /* ==== The Documents preview (.markdown-preview) ====
+     The reading surface's own colours, so a custom theme (src/utils/
+     customThemes.js deriveTokens) can colour it: the built-in themes keep
+     the GitHub-flavoured values the preview always had (these, and the dark
+     ones in .dark below). The headings and the text share the text colour;
+     the code text is checked against the code background; the syntax
+     colours (--os-code-*) stay the base's palette. */
+  --md-text: #24292f;
+  --md-heading: #24292f;
+  --md-heading-border: #d8dee4;
+  --md-code-text: #24292f;
+  --md-code-bg: #f6f8fa;
+  --md-inline-code-bg: rgba(175, 184, 193, 0.2);
+  --md-link: #0969da;
+  --md-quote-text: #57606a;
+  --md-border: #d0d7de;
+  --md-surface: #ffffff;
+  --md-surface-alt: #f6f8fa;
+
+  /* ==== The AI chat bubbles (src/components/common/AIChatSidebar.jsx) ====
+     The user's bubble sits on the accent and everything in it takes the
+     on-accent colour (the buttons' text colour; links underlined, so they
+     stay links); the reply's links take a colour that reads on the
+     secondary card. A custom theme derives these (src/utils/customThemes.js
+     deriveTokens), nudging the bubble or the link until each pair reaches
+     4.5:1. tests/ai-chat-bubble-contrast-live.test.mjs measures every scheme. */
+  --chat-user-bg: var(--btn-selected-bg);
+  --chat-user-text: var(--btn-selected-fg);
+  --chat-user-tint: rgb(0 0 0 / 0.22);        /* inline code, code blocks and table heads inside the user bubble */
+  --chat-user-line: rgb(255 255 255 / 0.5);   /* rules, quote bars and table borders inside it */
+  --chat-link: var(--md-link);                /* links in the reply bubble */
   /* ==== Buttons: change the button colours here ====
      The one source of the button colours. The .btn-* classes (the Buttons
      section further down) and <Button variant> (src/components/ui/
@@ -453,6 +485,26 @@ body {
   --os-code-builtin: #ffa657;
   --os-code-variable: #ffa657;
   --os-code-meta: #d2a8ff;
+
+  /* the Documents preview's dark values (see :root) */
+  --md-text: var(--os-text-primary);
+  --md-heading: #e6edf3;
+  --md-heading-border: #3a3a3a;
+  --md-code-text: #e6edf3;
+  --md-code-bg: var(--os-code-bg);
+  --md-inline-code-bg: rgba(110, 118, 129, 0.4);
+  --md-link: #4a9eff;
+  --md-quote-text: #b0b0b0;
+  --md-border: #3a3a3a;
+  --md-surface: #1f1f1f;
+  --md-surface-alt: #161b22;
+
+  /* the AI chat bubbles' dark values (see :root) */
+  --chat-user-bg: var(--btn-selected-bg);
+  --chat-user-text: var(--btn-selected-fg);
+  --chat-user-tint: rgb(0 0 0 / 0.22);
+  --chat-user-line: rgb(255 255 255 / 0.5);
+  --chat-link: var(--md-link);
   /* Buttons (see the :root block: "change the button colours here"): the same action blue, the danger
      and ghost surfaces on this theme's tokens, the outlined danger button's tints for a dark card */
   --btn-primary-bg: oklch(0.546 0.245 262.881);
@@ -980,14 +1032,14 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   letter-spacing: 0;
   font-size: 16px;
   line-height: 1.7;
-  color: #24292f;
+  color: var(--md-text);
   word-wrap: break-word;
   overflow-wrap: break-word;
   max-width: 100%;
 }
 
 .dark .markdown-preview {
-  color: var(--os-text-primary);
+  color: var(--md-text);
 }
 
 /* A big document's preview is grouped into chunks of top-level blocks
@@ -1160,8 +1212,8 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   margin-top: 24px;
   margin-bottom: 16px;
   padding-bottom: 0.3em;
-  border-bottom: 1px solid #d8dee4;
-  color: #24292f;
+  border-bottom: 1px solid var(--md-heading-border);
+  color: var(--md-heading);
   line-height: 1.25;
 }
 
@@ -1171,8 +1223,8 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 .dark .markdown-preview h4,
 .dark .markdown-preview h5,
 .dark .markdown-preview h6 {
-  color: #e6edf3;
-  border-bottom-color: #3a3a3a;
+  color: var(--md-heading);
+  border-bottom-color: var(--md-heading-border);
 }
 
 .markdown-preview h1:first-child {
@@ -1185,8 +1237,8 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   margin-top: 24px;
   margin-bottom: 16px;
   padding-bottom: 0.3em;
-  border-bottom: 1px solid #d8dee4;
-  color: #24292f;
+  border-bottom: 1px solid var(--md-heading-border);
+  color: var(--md-heading);
   line-height: 1.25;
 }
 
@@ -1195,7 +1247,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   font-weight: 600;
   margin-top: 24px;
   margin-bottom: 16px;
-  color: #24292f;
+  color: var(--md-heading);
   line-height: 1.25;
 }
 
@@ -1239,8 +1291,8 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 .markdown-preview blockquote {
   margin: 0 0 16px 0;
   padding: 0 1em;
-  color: #57606a;
-  border-left: 0.25em solid #d0d7de;
+  color: var(--md-quote-text);
+  border-left: 0.25em solid var(--md-border);
 }
 
 .markdown-preview blockquote > :first-child {
@@ -1323,7 +1375,8 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   padding: 0.2em 0.4em;
   margin: 0;
   font-size: 85%;
-  background-color: rgba(175, 184, 193, 0.2);
+  color: var(--md-code-text);
+  background-color: var(--md-inline-code-bg);
   border-radius: var(--radius-xs, 6px);
   /* the bundled code font (--font-mono), not the OS's: the PDF export embeds it, so code
      reads the same on macOS (where it was Menlo) and Linux (where it was DejaVu Sans Mono) */
@@ -1331,7 +1384,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 }
 
 .dark .markdown-preview code {
-  background-color: rgba(110, 118, 129, 0.4);
+  background-color: var(--md-inline-code-bg);
 }
 
 .markdown-preview pre {
@@ -1340,7 +1393,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   overflow-y: auto;
   font-size: 85%;
   line-height: 1.45;
-  background-color: #f6f8fa;
+  background-color: var(--md-code-bg);
   border-radius: var(--radius-xs, 6px);
   margin-top: 0;
   margin-bottom: 16px;
@@ -1350,7 +1403,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 }
 
 .dark .markdown-preview pre {
-  background-color: var(--os-code-bg);
+  background-color: var(--md-code-bg);
 }
 
 .markdown-preview pre code {
@@ -1370,17 +1423,17 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
    The renderer's own syntax-highlight tokens (<span class="hljs-*">, see
    "Fenced code syntax highlighting" below) are excluded so they keep their
    per-theme --os-code-* colours; everything else inside a block is forced
-   to the dark code colour on a transparent background. */
+   to the code text colour on a transparent background. */
 .dark .markdown-preview pre code,
 .dark .markdown-preview pre code *:not([class*="hljs-"]),
 .dark .markdown-preview pre *:not([class*="hljs-"]) {
-  color: #e6edf3 !important;
+  color: var(--md-code-text) !important;
   background-color: transparent !important;
   background: none !important;
 }
 
 .dark .markdown-preview code {
-  color: #e6edf3 !important;
+  color: var(--md-code-text) !important;
 }
 
 /* Remove any background highlights on spans and other elements inside code blocks */
@@ -1613,7 +1666,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 }
 
 .markdown-preview a {
-  color: #0969da;
+  color: var(--md-link);
   text-decoration: none;
 }
 
@@ -1622,12 +1675,12 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 }
 
 .dark .markdown-preview a {
-  color: #4a9eff;
+  color: var(--md-link);
 }
 
 .dark .markdown-preview blockquote {
-  color: #b0b0b0;
-  border-left-color: #3a3a3a;
+  color: var(--md-quote-text);
+  border-left-color: var(--md-border);
 }
 
 .markdown-preview table {
@@ -1642,63 +1695,63 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 }
 
 .markdown-preview table tr {
-  background-color: #ffffff;
-  border-top: 1px solid #d0d7de;
+  background-color: var(--md-surface);
+  border-top: 1px solid var(--md-border);
 }
 
 .markdown-preview table tr:nth-child(2n) {
-  background-color: #f6f8fa;
+  background-color: var(--md-surface-alt);
 }
 
 .markdown-preview table th,
 .markdown-preview table td {
   padding: 6px 13px;
-  border: 1px solid #d0d7de;
+  border: 1px solid var(--md-border);
 }
 
 .markdown-preview table th {
   font-weight: 600;
-  background-color: #f6f8fa;
+  background-color: var(--md-surface-alt);
 }
 
 .dark .markdown-preview table tr {
-  background-color: #1f1f1f;
-  border-top-color: #3a3a3a;
+  background-color: var(--md-surface);
+  border-top-color: var(--md-border);
 }
 
 .dark .markdown-preview table tr:nth-child(2n) {
-  background-color: #161b22;
+  background-color: var(--md-surface-alt);
 }
 
 .dark .markdown-preview table th,
 .dark .markdown-preview table td {
-  border-color: #3a3a3a;
+  border-color: var(--md-border);
 }
 
 .dark .markdown-preview table th {
-  background-color: #161b22;
+  background-color: var(--md-surface-alt);
 }
 
 .dark .markdown-preview hr {
-  background-color: #3a3a3a;
+  background-color: var(--md-border);
 }
 
 .dark .markdown-preview img {
-  background-color: #1f1f1f;
+  background-color: var(--md-surface);
 }
 
 .dark .markdown-preview kbd {
-  color: #e6edf3;
-  background-color: #161b22;
-  border-color: #3a3a3a;
-  box-shadow: inset 0 -1px 0 #3a3a3a;
+  color: var(--md-text);
+  background-color: var(--md-surface-alt);
+  border-color: var(--md-border);
+  box-shadow: inset 0 -1px 0 var(--md-border);
 }
 
 .markdown-preview hr {
   height: 0.25em;
   padding: 0;
   margin: 24px 0;
-  background-color: #d0d7de;
+  background-color: var(--md-border);
   border: 0;
 }
 
@@ -1718,7 +1771,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   max-width: 100%;
   height: auto;
   box-sizing: content-box;
-  background-color: #ffffff;
+  background-color: var(--md-surface);
 }
 
 .markdown-preview kbd {
@@ -1726,9 +1779,9 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   padding: 3px 5px;
   font-size: 11px;
   line-height: 10px;
-  color: #24292f;
+  color: var(--md-text);
   vertical-align: middle;
-  background-color: #f6f8fa;
+  background-color: var(--md-surface-alt);
   border: solid 1px rgba(175, 184, 193, 0.2);
   border-bottom-color: rgba(175, 184, 193, 0.2);
   border-radius: var(--radius-xs, 6px);
@@ -1743,13 +1796,13 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 }
 
 .dark .markdown-preview mark {
-  background-color: #6e5a00;
-  color: #e6edf3;
+  background-color: #6e5a00;   /* a highlighter's yellow, on purpose */
+  color: #e6edf3;              /* ...with the light text it needs */
 }
 
 /* Dark mode overrides for any HTML elements in preview */
 .dark .markdown-preview * {
-  border-color: #3a3a3a;
+  border-color: var(--md-border);
 }
 
 /* Force dark backgrounds for common container elements */
@@ -1779,7 +1832,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 .dark .markdown-preview [style*="color: black"],
 .dark .markdown-preview [style*="color: #000"],
 .dark .markdown-preview [style*="color: #000000"] {
-  color: #e6edf3 !important;
+  color: var(--md-text) !important;
 }
 
 /* Form elements in preview */
@@ -1787,250 +1840,23 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 .dark .markdown-preview textarea,
 .dark .markdown-preview select,
 .dark .markdown-preview button {
-  background-color: #1f1f1f;
-  color: #e6edf3;
-  border-color: #3a3a3a;
+  background-color: var(--md-surface);
+  color: var(--md-text);
+  border-color: var(--md-border);
 }
 
 /* Definition lists */
 .dark .markdown-preview dl {
-  color: #e6edf3;
+  color: var(--md-text);
 }
 
 .dark .markdown-preview dt {
   font-weight: 600;
-  color: #e6edf3;
+  color: var(--md-text);
 }
 
 .dark .markdown-preview dd {
-  color: #b0b0b0;
-}
-
-/* Markdown Preview for AI Chat */
-.markdown-preview-ai {
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  max-width: 100%;
-}
-
-.markdown-preview-ai h1,
-.markdown-preview-ai h2,
-.markdown-preview-ai h3,
-.markdown-preview-ai h4,
-.markdown-preview-ai h5,
-.markdown-preview-ai h6 {
-  font-weight: bold;
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
-}
-
-.markdown-preview-ai h1 {
-  font-size: 1.25em;
-}
-
-.markdown-preview-ai h2 {
-  font-size: 1.15em;
-}
-
-.markdown-preview-ai h3 {
-  font-size: 1.05em;
-}
-
-.markdown-preview-ai p {
-  margin-top: 0;
-  margin-bottom: 0.75em;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-
-.markdown-preview-ai p:last-child {
-  margin-bottom: 0;
-}
-
-.markdown-preview-ai blockquote {
-  margin: 0.5em 0;
-  padding: 0.25em 0.75em;
-  border-left: 3px solid #4b5563;
-  background-color: rgba(0, 0, 0, 0.03);
-  font-style: italic;
-}
-
-.dark .markdown-preview-ai blockquote {
-  background-color: rgba(255, 255, 255, 0.03);
-  border-left-color: #808080;
-}
-
-.markdown-preview-ai code {
-  background-color: rgba(0, 0, 0, 0.05);
-  padding: 0.15em 0.3em;
-  border-radius: var(--radius-xs, 6px);
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 0.9em;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-
-.dark .markdown-preview-ai code {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.markdown-preview-ai pre {
-  background-color: rgba(0, 0, 0, 0.05);
-  padding: 0.75em;
-  border-radius: var(--radius-sm, 8px);
-  overflow-x: auto;
-  margin: 0.5em 0;
-  max-width: 100%;
-}
-
-.dark .markdown-preview-ai pre {
-  background-color: rgba(255, 255, 255, 0.05);
-}
-
-.markdown-preview-ai pre code {
-  background-color: transparent;
-  padding: 0;
-  font-size: 0.85em;
-  display: block;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-}
-
-.markdown-preview-ai ul,
-.markdown-preview-ai ol {
-  margin: 0.5em 0;
-  padding-left: 1.5em;
-}
-
-.markdown-preview-ai ul {
-  list-style-type: disc;
-  list-style-position: outside;
-}
-
-.markdown-preview-ai ol {
-  list-style-type: decimal;
-  list-style-position: outside;
-}
-
-.markdown-preview-ai ul ul {
-  list-style-type: circle;
-}
-
-.markdown-preview-ai ul ul ul {
-  list-style-type: square;
-}
-
-.markdown-preview-ai li {
-  margin-bottom: 0.25em;
-  display: list-item;
-}
-
-.markdown-preview-ai a {
-  color: #2563eb;
-  text-decoration: underline;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-
-.markdown-preview-ai a:hover {
-  color: #1d4ed8;
-}
-
-.markdown-preview-ai strong {
-  font-weight: bold;
-}
-
-.markdown-preview-ai em {
-  font-style: italic;
-}
-
-.markdown-preview-ai del {
-  text-decoration: line-through;
-}
-
-.markdown-preview-ai hr {
-  border: none;
-  border-top: 1px solid #d1d5db;
-  margin: 1em 0;
-}
-
-.dark .markdown-preview-ai hr {
-  border-top-color: #3a3a3a;
-}
-
-.markdown-preview-ai table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 0.5em 0;
-  font-size: 0.9em;
-}
-
-.markdown-preview-ai th,
-.markdown-preview-ai td {
-  border: 1px solid #d1d5db;
-  padding: 0.4em 0.6em;
-  text-align: left;
-}
-
-.dark .markdown-preview-ai th,
-.dark .markdown-preview-ai td {
-  border-color: #3a3a3a;
-}
-
-.markdown-preview-ai th {
-  background-color: rgba(0, 0, 0, 0.05);
-  font-weight: bold;
-}
-
-.dark .markdown-preview-ai th {
-  background-color: rgba(255, 255, 255, 0.05);
-}
-
-/* User message markdown (white text on blue background) */
-.markdown-preview-ai-user {
-  color: white;
-}
-
-.markdown-preview-ai-user code {
-  background-color: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-
-.markdown-preview-ai-user pre {
-  background-color: rgba(255, 255, 255, 0.15);
-}
-
-.markdown-preview-ai-user pre code {
-  background-color: transparent;
-  color: white;
-}
-
-.markdown-preview-ai-user blockquote {
-  border-left-color: rgba(255, 255, 255, 0.5);
-  background-color: rgba(255, 255, 255, 0.1);
-  color: white;
-}
-
-.markdown-preview-ai-user a {
-  color: #93c5fd;
-  text-decoration: underline;
-}
-
-.markdown-preview-ai-user a:hover {
-  color: #bfdbfe;
-}
-
-.markdown-preview-ai-user hr {
-  border-top-color: rgba(255, 255, 255, 0.3);
-}
-
-.markdown-preview-ai-user th,
-.markdown-preview-ai-user td {
-  border-color: rgba(255, 255, 255, 0.3);
-}
-
-.markdown-preview-ai-user th {
-  background-color: rgba(255, 255, 255, 0.15);
+  color: var(--md-quote-text);
 }
 
 /* No global rule on [title]. An earlier `[title] { position: relative }`
@@ -2700,11 +2526,36 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 .sc-chat-markdown .md-callout { margin: 0.5em 0 0.7em; padding: 0.5em 0.7em; }
 .sc-chat-markdown .md-callout-title { font-size: 1em; margin-bottom: 0.25em; }
 .sc-chat-markdown img { max-width: 100%; }
-/* the user's bubble: white on blue, so no fixed greys */
-.sc-chat-markdown-user, .sc-chat-markdown-user h1, .sc-chat-markdown-user h2, .sc-chat-markdown-user h3, .sc-chat-markdown-user p, .sc-chat-markdown-user li, .sc-chat-markdown-user a { color: inherit; }
-.sc-chat-markdown-user code { background-color: rgb(255 255 255 / 0.18); color: inherit; }
-.sc-chat-markdown-user pre, .dark .sc-chat-markdown-user pre { background-color: rgb(0 0 0 / 0.25); }
-.sc-chat-markdown-user hr { background-color: rgb(255 255 255 / 0.4); }
+/* Links in a bubble read on that bubble (--chat-link on the reply's secondary card), underlined so they stay links,
+   and a long bare URL wraps inside the bubble. These outrank the preview's .dark link rule. */
+.markdown-preview.sc-chat-markdown a, .dark .markdown-preview.sc-chat-markdown a {
+  color: var(--chat-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.markdown-preview.sc-chat-markdown a:hover, .dark .markdown-preview.sc-chat-markdown a:hover { color: var(--chat-link); text-decoration-thickness: 2px; }
+/* the user's bubble sits on the accent (--chat-user-bg, the selected-button surface): everything inside takes the
+   on-accent colour, the tints are of that colour; these outrank the preview's .dark rules and their !important */
+.ai-chat-message.btn-selected { background-color: var(--chat-user-bg); border-color: var(--chat-user-bg); color: var(--chat-user-text); }
+.markdown-preview.sc-chat-markdown-user, .dark .markdown-preview.sc-chat-markdown-user,
+.markdown-preview.sc-chat-markdown-user :is(h1, h2, h3, h4, h5, h6, p, li, blockquote, dl, dt, dd, th, td, kbd, strong, em, del),
+.dark .markdown-preview.sc-chat-markdown-user :is(h1, h2, h3, h4, h5, h6, p, li, blockquote, dl, dt, dd, th, td, kbd, strong, em, del) { color: var(--chat-user-text); }
+.markdown-preview.sc-chat-markdown-user li::marker { color: var(--chat-user-text); }
+.markdown-preview.sc-chat-markdown-user a, .dark .markdown-preview.sc-chat-markdown-user a,
+.markdown-preview.sc-chat-markdown-user a:hover, .dark .markdown-preview.sc-chat-markdown-user a:hover { color: var(--chat-user-text); }
+.markdown-preview.sc-chat-markdown-user code, .dark .markdown-preview.sc-chat-markdown-user code { color: var(--chat-user-text) !important; background-color: var(--chat-user-tint); }
+.markdown-preview.sc-chat-markdown-user pre, .dark .markdown-preview.sc-chat-markdown-user pre { background-color: var(--chat-user-tint); }
+.markdown-preview.sc-chat-markdown-user pre code, .dark .markdown-preview.sc-chat-markdown-user pre code,
+.markdown-preview.sc-chat-markdown-user pre code *, .dark .markdown-preview.sc-chat-markdown-user pre code *:not([class*="hljs-"]) { color: var(--chat-user-text) !important; background-color: transparent !important; }
+.markdown-preview.sc-chat-markdown-user blockquote, .dark .markdown-preview.sc-chat-markdown-user blockquote { border-left-color: var(--chat-user-line); background-color: transparent; }
+.markdown-preview.sc-chat-markdown-user hr, .dark .markdown-preview.sc-chat-markdown-user hr { background-color: var(--chat-user-line); }
+.markdown-preview.sc-chat-markdown-user table tr, .dark .markdown-preview.sc-chat-markdown-user table tr { background-color: transparent; border-color: var(--chat-user-line); }
+.markdown-preview.sc-chat-markdown-user table th, .markdown-preview.sc-chat-markdown-user table td,
+.dark .markdown-preview.sc-chat-markdown-user table th, .dark .markdown-preview.sc-chat-markdown-user table td { border-color: var(--chat-user-line); }
+.markdown-preview.sc-chat-markdown-user table th, .dark .markdown-preview.sc-chat-markdown-user table th { background-color: var(--chat-user-tint); }
+.dark .markdown-preview.sc-chat-markdown-user * { border-color: var(--chat-user-line); }
 
 /* Corner exceptions (see the radius scale in @theme): the tabs of a tab
    strip (open documents, workflows, boards, tasks, calendars, tools -

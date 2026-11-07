@@ -14,6 +14,11 @@ a = Analysis(
     datas=[('parsers', 'parsers'), ('templates', 'templates'), ('static', 'static'), ('../package.json', '.'), ('../protocol.json', '.')] + selenium_datas + webdriver_manager_datas,
     hiddenimports=[
         'engineio.async_drivers.threading',
+        # The worker processes of parsers/parallel.py (the parsers ship as data files, so their imports are not
+        # analysed): the spawn start method on every platform, its pipes and its resource tracker
+        'multiprocessing', 'multiprocessing.connection', 'multiprocessing.context', 'multiprocessing.process',
+        'multiprocessing.reduction', 'multiprocessing.spawn', 'multiprocessing.util', 'multiprocessing.resource_tracker',
+        'multiprocessing.popen_spawn_posix', 'multiprocessing.popen_spawn_win32',
         'yaml', 're', 'json', 'xml.etree.ElementTree',
         # Flask and extensions
         'flask',

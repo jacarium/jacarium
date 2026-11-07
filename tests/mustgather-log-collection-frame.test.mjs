@@ -36,7 +36,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const mg = registry.slice(registry.indexOf("'mustgather': {"));
   const keys = [...mg.matchAll(/^        '([a-z_]+)': \{/gm)].map((m) => m[1]);
   // the Log Viewer sits under Log Collection as in a sosreport: the group is still the last entry, its only sub-tab the viewer
-  check('the must-gather registry ends with log_collection, a group whose only sub-tab is log_viewer (as in a sosreport)', keys[keys.length - 1] === 'log_collection' && /'log_collection':\s*\{[\s\S]{0,400}'sub_tabs':\s*\{\s*'log_viewer':/.test(mg) && (mg.slice(mg.indexOf("'log_collection': {")).match(/^                '([a-z_]+)': \{/gm) || []).length === 1, keys.join(','));
+  check('the must-gather registry ends with log_collection, a group whose sub-tabs are log_viewer then log_histogram (as in a sosreport)', keys[keys.length - 1] === 'log_collection' && /'log_collection':\s*\{[\s\S]{0,400}'sub_tabs':\s*\{\s*'log_viewer':/.test(mg) && (mg.slice(mg.indexOf("'log_collection': {")).match(/^                '([a-z_]+)': \{/gm) || []).map((x) => x.trim().split("'")[1]).join(',') === 'log_viewer,log_histogram', keys.join(','));
   const src = fs.readFileSync(path.join(REPO, 'backend', 'templates', 'tabs', 'mustgather_log_collection.html'), 'utf8');
   const shared = fs.readFileSync(path.join(REPO, 'backend', 'templates', 'tabs', '_log_collection.html'), 'utf8');
   const utilities = ['grid-cols-', 'col-span-', 'bg-gray-', 'text-gray-', 'md:', 'space-y-'].filter((c) => src.includes(c) || shared.includes(c));

@@ -36,7 +36,7 @@ check('the neutral variant keeps the previous dark greys', neutral['--os-canvas'
 check('the light theme is unchanged (canvas, card, text, blue)', light['--os-canvas'] === '#F5F5F5' && light['--os-card'] === '#FFFFFF' && light['--os-text-primary'] === '#151515' && light['--os-blue'] === '#0066CC');
 check('every token the neutral variant overrides exists in the Jacaranda block (no token falls through to a mixed theme)', Object.keys(neutral).every((k) => k in jac), Object.keys(neutral).filter((k) => !(k in jac)).join(','));
 check('every surface/text token of the light theme has a Jacaranda value', ['--os-canvas', '--os-card', '--os-card-secondary', '--os-modal', '--os-border', '--os-text-primary', '--os-text-secondary', '--os-text-muted', '--os-divider', '--os-input-bg', '--os-input-border', '--os-rail', '--os-rail-hover', '--os-rail-active', '--os-rail-text', '--os-rail-tooltip', '--os-rail-separator', '--os-terminal-bg', '--os-terminal-text', '--os-status-success', '--os-code-bg'].every((k) => k in jac));
-check('the body and the preview follow the tokens in the dark theme', /\.dark body \{\s*background-color: var\(--os-canvas\);\s*color: var\(--os-text-primary\);/.test(css) && /\.dark \.markdown-preview \{\s*color: var\(--os-text-primary\);/.test(css) && /\.dark \.markdown-preview pre \{\s*background-color: var\(--os-code-bg\);/.test(css));
+check('the body and the preview follow the tokens in the dark theme', /\.dark body \{\s*background-color: var\(--os-canvas\);\s*color: var\(--os-text-primary\);/.test(css) && /\.dark \.markdown-preview \{\s*color: var\(--md-text\);/.test(css) && /--md-text: var\(--os-text-primary\);/.test(css) && /\.dark \.markdown-preview pre \{\s*background-color: var\(--md-code-bg\);/.test(css) && /--md-code-bg: var\(--os-code-bg\);/.test(css));
 check('the success colour utility draws from the token', /--color-status-success: var\(--os-status-success\);/.test(css));
 
 // ---- contrast ----
@@ -67,8 +67,8 @@ check("ThemeContext exports DARK_THEMES with 'dark' = Jacaranda (dark) and 'dark
 check("'dark-neutral' adds the .dark class", /if \(themeMode === 'dark-neutral'\) actualTheme = 'dark';/.test(ctx));
 check('the neutral dark and the gradient themes set data-dark-variant="neutral"; Jacaranda and Auto remove it', /themeMode === 'dark-neutral' \|\| isGradientTheme\)\) \{\s*document\.documentElement\.setAttribute\('data-dark-variant', 'neutral'\);\s*\} else \{\s*document\.documentElement\.removeAttribute\('data-dark-variant'\);/.test(ctx));
 // the Color Scheme control lives in Settings > Theme (ThemeSettings.jsx) since it moved out of General
-const general = read('src/components/common/modals/settings/ThemeSettings.jsx');
-check('the Color Scheme setting offers Auto, Light, the dark themes and the gradient themes', /<option value="auto">Auto \(System\)<\/option>/.test(general) && /<option value="light">Light<\/option>/.test(general) && /Object\.entries\(DARK_THEMES\)\.map/.test(general) && /Object\.entries\(GRADIENT_THEMES\)\.map/.test(general));
+const general = read('src/components/common/modals/settings/SchemeGallery.jsx');   // the scheme gallery (the Theme page's one picker since 4.2.0)
+check('the scheme gallery offers Auto, Light, the dark themes and the gradient themes', /\{ id: 'auto', name: 'Auto \(System\)'/.test(general) && /\{ id: 'light', name: 'Light' \}/.test(general) && /Object\.entries\(DARK_THEMES\)\.map/.test(general) && /Object\.entries\(GRADIENT_THEMES\)\.map/.test(general));
 
 // ---- the rail ----
 const rail = read('src/components/CompactSidebar.jsx');

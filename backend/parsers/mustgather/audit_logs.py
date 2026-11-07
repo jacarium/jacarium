@@ -24,7 +24,7 @@ import json
 import os
 import re
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from parsers.mustgather._common import resolve_data_dir
 from parsers.mustgather import audit_bodies, audit_profile
@@ -461,90 +461,10 @@ def _top(counter, errors=None, n=TOP, kinds=None):
     return out
 
 
-def human_duration(minutes):
-    minutes = int(round(minutes))
-    if minutes < 60:
-        return f"{minutes} min"
-    h, m = divmod(minutes, 60)
-    if h < 48:
-        return f"{h} h {m} min" if m else f"{h} h"
-    d, h = divmod(h, 24)
-    return f"{d} d {h} h" if h else f"{d} d"
-
-
-def _windows(stamps, gap_seconds):
-    """[(first, last)] of the capture windows in a sorted list of timestamps
-    with events: a hole longer than `gap_seconds` splits them."""
-    wins = []
-    start = prev = stamps[0]
-    for t in stamps[1:]:
-        if (t - prev).total_seconds() > gap_seconds:
-            wins.append((start, prev))
-            start = t
-        prev = t
-    wins.append((start, prev))
-    return wins
-
-
-BUCKET_STEPS = (1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400)   # seconds: 1 s ... 1 d
-BUCKET_TARGET = 60      # at most this many buckets over the active time (so 30-60 bars as a rule)
-GAP_SECONDS = 1800      # a hole without events longer than max(this, 10 buckets) splits the capture into windows
-
-
-def step_text(seconds):
-    """'5 s', '1 min', '2 h', '1 d'."""
-    if seconds < 60:
-        return f"{seconds} s"
-    if seconds < 3600:
-        return f"{seconds // 60} min"
-    if seconds < 86400:
-        return f"{seconds // 3600} h"
-    return f"{seconds // 86400} d"
-
-
-def bucket_plan(stamps, max_buckets=BUCKET_TARGET, min_step=1):
-    """The broken time axis of a chart over `stamps` (sorted datetimes, at
-    second or minute resolution): the bucket step (1/2/5/10/15/30 s, 1/2/5/
-    10/15/30 min, 1/2/3/6/12 h, 1 d) chosen so the ACTIVE time (the capture
-    windows added up, not the wall-clock span across a hole) takes at most
-    `max_buckets` buckets; the windows; the gaps between them; the bucket
-    items (a dict per bucket, zero-filled inside a window, a gap item between
-    windows) and key_of(t), the bucket of a timestamp. A capture of a lab
-    that was powered off and started again two days later is two windows
-    with one gap."""
-    wins = _windows(stamps, GAP_SECONDS)
-    step = min_step
-    for _ in range(2):   # the gap threshold depends on the step, the step on the active time
-        active = sum((b - a).total_seconds() + min_step for a, b in wins)
-        step = next((st for st in BUCKET_STEPS if st >= min_step and active / st <= max_buckets), BUCKET_STEPS[-1])
-        wins = _windows(stamps, max(GAP_SECONDS, 10 * step))
-    active = sum((b - a).total_seconds() + min_step for a, b in wins)
-    wall = (stamps[-1] - stamps[0]).total_seconds() + min_step
-    multi = len(wins) > 1 or wall > 86400
-    fmt = '%H:%M:%S' if step < 60 else '%H:%M'
-    items, gaps = [], []
-    for i, (a, b) in enumerate(wins):
-        a = a.replace(microsecond=0)
-        if i:
-            pb = wins[i - 1][1]
-            hole = (a - pb).total_seconds() - min_step
-            gap = {'gap': True, 'from': (pb + timedelta(seconds=min_step)).strftime('%Y-%m-%d %H:%M' if min_step >= 60 else '%Y-%m-%d %H:%M:%S'), 'to': a.strftime('%Y-%m-%d %H:%M' if min_step >= 60 else '%Y-%m-%d %H:%M:%S'),
-                   'minutes': int(hole // 60), 'seconds': int(hole), 'label': f"no events for {human_duration(hole / 60)}", 'index': len(items)}
-            gaps.append(gap)
-            items.append(gap)
-        t = a
-        while t <= b:
-            items.append({'t': t, 'gap': False, 'label': t.strftime('%m-%d ' + fmt if multi and t == a else fmt), 'window': i, 'start': t == a})
-            t += timedelta(seconds=step)
-
-    def key_of(t):
-        for a, b in wins:
-            if a <= t <= b:
-                a0 = a.replace(microsecond=0)
-                return a0 + timedelta(seconds=(int((t - a0).total_seconds()) // step) * step)
-        return None
-    return {'step_seconds': step, 'step': step // 60, 'windows': wins, 'gaps': gaps, 'items': items, 'key_of': key_of,
-            'active_seconds': int(active), 'active_minutes': int(active // 60), 'wall_seconds': int(wall), 'wall_minutes': int(wall // 60)}
+# the broken time axis (bucket_plan and its labels) lives in parsers/logtime.py, shared with the Log Collection
+# Histogram; the names stay importable from here (audit_search uses audit_logs.bucket_plan / step_text)
+from parsers.logtime import (  # noqa: E402,F401 - re-exported
+    BUCKET_STEPS, BUCKET_TARGET, GAP_SECONDS, _windows, bucket_plan, human_duration, step_text)
 
 
 def _timeline(agg):

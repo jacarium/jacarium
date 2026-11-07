@@ -84,7 +84,7 @@ try:
 
     # the probe: landing exactly on a line start must not skip that line
     pattern = lv.re.compile(r'^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})')
-    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+    with open(path, 'rb') as f:   # the binary search reads the file in binary (exact byte offsets)
         line_start = len(lines[0]) + 1  # the byte after the header line's newline: entry 0 starts here
         ts, pos = lv.JournalctlParser()._find_timestamp_at_position(f, line_start, year, pattern)
         check('a probe landing exactly on a line start reads that line (was: skipped it as "partial")', pos == line_start and ts == datetime(year, 1, 1, 0, 0, 0), (pos, line_start, ts))

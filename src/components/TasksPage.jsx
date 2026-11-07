@@ -1344,12 +1344,12 @@ export default function TasksPage() {
                   data-testid="tasks-filter-button"
                   aria-haspopup={isMobile ? 'menu' : undefined}
                   aria-expanded={isMobile ? showFilters : undefined}
-                  className={`relative p-1.5 rounded-sm transition-colors ${showFilters ?'bg-os-blue text-white':'hover:bg-os-card-secondary text-os-text-secondary'}`}
+                  className={`relative p-1.5 rounded-sm transition-colors ${showFilters ?'bg-os-blue text-(--btn-primary-fg)':'hover:bg-os-card-secondary text-os-text-secondary'}`}
                   title="Filters"
                 >
                   <Filter size={14} />
                   {isMobile && (statusFilter.length + (projectFilter ? 1 : 0) + (tagFilter ? 1 : 0)) > 0 && (
-                    <span data-testid="tasks-filter-count" className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-os-blue text-white text-[10px] font-semibold leading-4 text-center">{statusFilter.length + (projectFilter ? 1 : 0) + (tagFilter ? 1 : 0)}</span>
+                    <span data-testid="tasks-filter-count" className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-os-blue text-(--btn-primary-fg) text-[10px] font-semibold leading-4 text-center">{statusFilter.length + (projectFilter ? 1 : 0) + (tagFilter ? 1 : 0)}</span>
                   )}
                 </button>
                 {isMobile && showFilters && (
@@ -1567,7 +1567,7 @@ export default function TasksPage() {
  }`}
                         title="Select all active tasks"
                       >
-                        {activeTasks.every(t => selectedTasks.includes(t.id)) && <Check size={12} className="text-white" />}
+                        {activeTasks.every(t => selectedTasks.includes(t.id)) && <Check size={12} className="text-(--btn-primary-fg)" />}
                       </button>
                       <Play className="w-3.5 h-3.5 text-green-600" />
                       <button
@@ -1618,7 +1618,7 @@ export default function TasksPage() {
  }`}
                         title="Select all pending tasks"
                       >
-                        {pendingTasks.every(t => selectedTasks.includes(t.id)) && <Check size={12} className="text-white" />}
+                        {pendingTasks.every(t => selectedTasks.includes(t.id)) && <Check size={12} className="text-(--btn-primary-fg)" />}
                       </button>
                       <Circle className="w-3.5 h-3.5 text-os-text-muted" />
                       <button
@@ -1669,7 +1669,7 @@ export default function TasksPage() {
  }`}
                         title="Select all waiting tasks"
                       >
-                        {waitingTasks.every(t => selectedTasks.includes(t.id)) && <Check size={12} className="text-white" />}
+                        {waitingTasks.every(t => selectedTasks.includes(t.id)) && <Check size={12} className="text-(--btn-primary-fg)" />}
                       </button>
                       <Clock className="w-3.5 h-3.5 text-amber-600" />
                       <button
@@ -1720,7 +1720,7 @@ export default function TasksPage() {
  }`}
                         title="Select all completed tasks"
                       >
-                        {completedTasks.every(t => selectedTasks.includes(t.id)) && <Check size={12} className="text-white" />}
+                        {completedTasks.every(t => selectedTasks.includes(t.id)) && <Check size={12} className="text-(--btn-primary-fg)" />}
                       </button>
                       <CheckCircle className="w-3.5 h-3.5 text-green-500" />
                       <button
@@ -1771,7 +1771,7 @@ export default function TasksPage() {
  }`}
                         title="Select all deleted tasks"
                       >
-                        {deletedTasks.every(t => selectedTasks.includes(t.id)) && <Check size={12} className="text-white" />}
+                        {deletedTasks.every(t => selectedTasks.includes(t.id)) && <Check size={12} className="text-(--btn-primary-fg)" />}
                       </button>
                       <Trash2 className="w-3.5 h-3.5 text-red-500" />
                       <button

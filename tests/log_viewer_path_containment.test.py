@@ -90,7 +90,7 @@ print('\n--- endpoints (parsers stubbed) ---')
 captured = {}
 
 
-def fake_stream(uploaded_dir, start, end, log_paths):
+def fake_stream(uploaded_dir, start, end, log_paths, **kwargs):   # the route also passes workers= and cancelled=
     captured['stream'] = list(log_paths)
     yield {'entries': []}
 

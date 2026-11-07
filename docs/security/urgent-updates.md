@@ -564,3 +564,16 @@ fetches, Google Calendar), so the denylist matters there.
    nothing here. Taken so the image carries no Caddy release with an open advisory. Not 2.11.9 (2026-11-05 01:30
    UTC: FastCGI hardening and a fix of 2.11.8's PHP-index regression, neither used here): next, from the lane's
    2026-11-07 01:30 UTC.
+
+## 2026-11-07 - Caddy 2.11.8 -> 2.11.9, the security lane
+
+`scripts/verify-go-module.sh github.com/caddyserver/caddy/v2 v2.11.9` (run 2026-11-07 01:31 UTC): checksum database
+record 70814862, `h1:bhZtcRKQOq0fuLvEgCdPYvUxXyGn9kzjG4lh2332DTE=` (go.mod
+`h1:jctG0eTy0tC4ST/Q7GIPKIfxox7mhSCtcwlwF82HLVM=`), proxy time 2026-11-04 23:05 UTC (2.1 days old), origin the tag
+refs/tags/v2.11.9 at 0d98caea58f794f88e709b1bef2880996a471bca of github.com/caddyserver/caddy; no red flag. The
+release is a follow-up to 2.11.8: the fix of 2.11.8's PHP directory-index regression and FastCGI hardening,
+placeholders in path matchers compared case-insensitively, and backported fixes. deploy/Caddyfile uses no
+php_fastcgi, no path-matcher placeholders and no file_server browse; taken so the image stays on Caddy's current
+release with no open advisory. The Containerfile's build asserts the version (`caddy version`), and the pins of
+x/net, chi, go-jose and klauspost/compress stay as they are.
+

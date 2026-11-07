@@ -4,8 +4,9 @@ frame tests that fake localhost:8080 with playwright routes (the Audit
 Events search needs the real search over the synthetic must-gather, not
 a canned answer):
   backend/venv/bin/python tests/helpers/diagnostics-api.py --path /audit_events_search --body-file req.json
-prints {"status": <http status>, "json": <the answer>}; the body file holds
-the request JSON (its "directory" is used as sent).
+prints {"status": <http status>, "json": <the answer>} (a streamed route:
+{"status", "text": the whole event stream}); the body file holds the
+request JSON (its "directory" is used as sent).
 """
 import argparse
 import json
@@ -30,7 +31,15 @@ def main(argv=None):
     app = Flask(__name__, template_folder=os.path.join(BACKEND, "templates"))
     app.register_blueprint(log_viewer.log_viewer)
     app.secret_key = "diagnostics-api-helper"
-    res = app.test_client().post(args.path, json=body)
+    import contextlib
+    # the parsers print progress lines; stdout carries the one JSON answer, so they go to stderr
+    with contextlib.redirect_stdout(sys.stderr):
+        res = app.test_client().post(args.path, json=body)
+        data = res.get_data(as_text=True)   # a streamed answer runs (and prints) here
+    if res.mimetype == "text/event-stream":
+        # a streamed route (the Histogram's /log_histogram_stream): the whole stream as text, for the page to replay
+        sys.stdout.write(json.dumps({"status": res.status_code, "text": data}, ensure_ascii=False))
+        return 0
     sys.stdout.write(json.dumps({"status": res.status_code, "json": res.get_json()}, ensure_ascii=False))
     return 0
 

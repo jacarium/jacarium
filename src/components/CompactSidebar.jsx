@@ -15,7 +15,7 @@ import SettingsModal from './common/modals/SettingsModal';
 import ConfirmationModal from './common/modals/ConfirmationModal';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useChat } from '../contexts/ChatContext';
-import { useTheme, GRADIENT_THEMES } from '../contexts/ThemeContext';
+import { useTheme, GRADIENT_THEMES, isTokenScheme } from '../contexts/ThemeContext';
 import { useContextMenu } from '../hooks/useContextMenu';
 import { useExportFlow } from '../hooks/useExportFlow';
 
@@ -57,13 +57,16 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
   // the bell's right-click: Clear All Notifications, confirmed first
   const [showClearNotificationsModal, setShowClearNotificationsModal] = useState(false);
   const { unreadMentions } = useChat();
-  const { theme } = useTheme();
+  const { theme, previewTheme } = useTheme();
   // File > Database > Export runs under the shared Export Progress modal
   const exportFlow = useExportFlow();
 
   // Check if current theme is a gradient theme
   const isGradientTheme = theme && theme.startsWith('gradient-');
   const gradientConfig = isGradientTheme ? GRADIENT_THEMES[theme] : null;
+  // a custom theme (or one being previewed) paints the rail with its fill - a colour or a gradient -
+  // through the derived --os-rail-fill token (src/utils/customThemes.js); the other tokens style the rest
+  const isCustomTheme = !!previewTheme || isTokenScheme(theme);
 
   // The side each panel is on, or remembered for its next opening (JQLBuilder
   // sends it with every open state): the menu item reads "Open on the right"
@@ -678,10 +681,11 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
           DocumentSidebar's z-10 search pill, while every overlay tier from z-50 up
           (page modals, toasts, floating widgets, dialogs) still covers them. */}
       <nav
-        className={`w-16 shrink-0 flex flex-col items-center py-4 gap-1 ${isGradientTheme ? 'border-r border-white/10' : 'border-r border-os-rail-border'} ${!isGradientTheme ? 'bg-os-rail' : ''}`}
+        className={`w-16 shrink-0 flex flex-col items-center py-4 gap-1 ${isGradientTheme ? 'border-r border-white/10' : 'border-r border-os-rail-border'} ${!isGradientTheme && !isCustomTheme ? 'bg-os-rail' : ''}`}
         style={{
           zIndex: 40,
-          ...(isGradientTheme && gradientConfig ? { background: gradientConfig.gradient } : {})
+          ...(isGradientTheme && gradientConfig ? { background: gradientConfig.gradient } : {}),
+          ...(isCustomTheme ? { background: 'var(--os-rail-fill, var(--os-rail))' } : {})
         }}
       >
         {/* The mark: the rail is dark in every theme, so the blossom is the

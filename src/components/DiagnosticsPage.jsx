@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { FileText, FolderOpen, SlidersHorizontal, EthernetPort, Loader, AlertCircle, X, ChevronRight, Monitor, ListChecks, Cpu, Server, Gauge, Settings, Cloud, HardDrive, Layers, PieChart, Network, TrendingUp, GitFork, BarChart, MemoryStick, AlertTriangle, Hourglass, Skull, Bell, Box, Briefcase, Boxes } from 'lucide-react';
+import { FileText, FolderOpen, SlidersHorizontal, EthernetPort, Loader, AlertCircle, X, ChevronRight, Monitor, ListChecks, Cpu, Server, Gauge, Settings, Cloud, HardDrive, Layers, PieChart, Network, TrendingUp, GitFork, BarChart, ChartColumn, MemoryStick, AlertTriangle, Hourglass, Skull, Bell, Box, Briefcase, Boxes } from 'lucide-react';
 // import Breadcrumbs from './Breadcrumbs'; // Commented out - can be restored later
 import ResizableSidebar from './ResizableSidebar';
 import { useMobile } from '../contexts/MobileContext';
@@ -116,8 +116,8 @@ function normalizeFragmentHtml(html) {
 // not listed here is refused - a malicious diagnostic payload must NOT be able
 // to reach sensitive authenticated routes (e.g. /api/execute-ssh) through this
 // channel. One-shot POSTs vs streamed (SSE) responses are allowlisted separately.
-const DIAGNOSTICS_API_ALLOWLIST = new Set(['/get_log_date_range', '/parse_haproxy_log', '/audit_event_body', '/audit_events_search', '/audit_events_cancel', '/mustgather_log_search', '/mustgather_log_cancel', '/mustgather_log_date_range']);
-const DIAGNOSTICS_API_STREAM_ALLOWLIST = new Set(['/parse_log_viewer_stream']);
+const DIAGNOSTICS_API_ALLOWLIST = new Set(['/get_log_date_range', '/parse_haproxy_log', '/audit_event_body', '/audit_events_search', '/audit_events_cancel', '/mustgather_log_search', '/mustgather_log_cancel', '/mustgather_log_date_range', '/log_histogram_cancel']);
+const DIAGNOSTICS_API_STREAM_ALLOWLIST = new Set(['/parse_log_viewer_stream', '/log_histogram_stream']);
 
 // The backend's styles.css, fetched once per app session. The page injects it into the parent document as
 // <style id="diagnostics-styles"> (the loading pill and the frame's serialized styles read it) and removes that
@@ -155,7 +155,10 @@ function buildDiagnosticsSrcDoc(fragmentHtml, theme, tabKey, backendCss = '') {
   // correct (no light-mode flash): the `dark` class plus the theme
   // attributes the tokens are keyed on, and a `#diagnostics-content` wrapper
   // (the backend styles.css scopes its rules to it).
-  const htmlAttrs = `${theme.dark ? ' class="dark"' : ''}${theme.theme ? ` data-theme="${escapeAttr(theme.theme)}"` : ''}${theme.darkVariant ? ` data-dark-variant="${escapeAttr(theme.darkVariant)}"` : ''}${theme.gradient ? ` data-gradient="${escapeAttr(theme.gradient)}"` : ''}`;
+  // the inline custom properties of the parent's <html> (a custom theme's tokens) go into the frame's <html> too,
+  // so its first paint has them (the theme bridge keeps them current afterwards)
+  const inlineVars = Object.entries(theme.vars || {}).filter(([n, v]) => /^--[a-z0-9-]+$/i.test(n) && typeof v === 'string' && v.length < 200 && !/[;{}<>]/.test(v)).map(([n, v]) => `${n}: ${v}`).join('; ');
+  const htmlAttrs = `${theme.dark ? ' class="dark"' : ''}${theme.theme ? ` data-theme="${escapeAttr(theme.theme)}"` : ''}${theme.darkVariant ? ` data-dark-variant="${escapeAttr(theme.darkVariant)}"` : ''}${theme.gradient ? ` data-gradient="${escapeAttr(theme.gradient)}"` : ''}${inlineVars ? ` style="${escapeAttr(inlineVars)}"` : ''}`;
 
   return `<!doctype html>
 <html${htmlAttrs}>
@@ -288,7 +291,7 @@ ${getDiagnosticsCodeScriptTags()}
   // query is handed to the new page once it is up (diagLinks.applyQuery puts
   // it into the page's [data-ui-search] field): a Findings row's "Open".
   window.diagnosticsOpenTab = function (tab, subTab, query) {
-    parent.postMessage({ __diagnosticsApi: true, dir: 'up', type: 'open-tab', tab: tab, subTab: subTab || null, query: query ? String(query).slice(0, 200) : null }, '*');
+    parent.postMessage({ __diagnosticsApi: true, dir: 'up', type: 'open-tab', tab: tab, subTab: subTab || null, query: query ? String(query).slice(0, 2000) : null }, '*');   // 2000: a Log Viewer link names its sources and a time window
   };
   // Where the diagnostics pane's viewport lies over this frame. The frame never
   // scrolls (the pane does, and sizes the frame to its content), so a template's
@@ -514,6 +517,7 @@ export default function DiagnosticsPage() {
       'fas fa-chart-line': TrendingUp,
       'fas fa-diagram-project': GitFork,
       'fas fa-chart-bar': BarChart,
+      'fas fa-chart-column': ChartColumn,
       'fas fa-memory': MemoryStick,
       'fas fa-triangle-exclamation': AlertTriangle,
       'fas fa-hourglass-half': Hourglass,
@@ -669,7 +673,7 @@ export default function DiagnosticsPage() {
         if (!known) return;
         if (subTab && !(known.sub_tabs || []).some(st => st.tab_name === subTab)) return;
         setExpandedTabs(prev => (prev.includes(tab) ? prev : [...prev, tab]));
-        pendingQueryRef.current = typeof d.query === 'string' && d.query ? { query: d.query.slice(0, 200), key: subTab || tab } : null;
+        pendingQueryRef.current = typeof d.query === 'string' && d.query ? { query: d.query.slice(0, 2000), key: subTab || tab } : null;
         loadTabRef.current(tab, subTab);
         return;
       }

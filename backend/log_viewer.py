@@ -186,6 +186,13 @@ PARSERS = {
                     'icon': 'fas fa-file-lines',
                     'label': 'Log Viewer'
                 },
+                # the lines per time bucket and what stands out in them (parsers/log_histogram.py), analysed on
+                # demand through /log_histogram_stream; never part of the AI context (see AI_CONTEXT_EXCLUDED)
+                'log_histogram': {
+                    'module': 'parsers.sosreport.log_histogram',
+                    'icon': 'fas fa-chart-column',
+                    'label': 'Histogram'
+                },
             }
         },
         'sos_report': {
@@ -321,6 +328,11 @@ PARSERS = {
                     'module': 'parsers.mustgather.log_viewer',
                     'icon': 'fas fa-file-lines',
                     'label': 'Log Viewer'
+                },
+                'log_histogram': {
+                    'module': 'parsers.mustgather.log_histogram',
+                    'icon': 'fas fa-chart-column',
+                    'label': 'Histogram'
                 },
             }
         },
@@ -692,6 +704,148 @@ def mustgather_log_cancel():
     return jsonify({"ok": True})
 
 
+# ---------------------------------------------------------------- Log Collection > Histogram
+
+# The adapters of the Histogram (parsers/log_histogram.py is the engine): the sources a report lists and the check
+# that the selected paths are among them, inside the report
+HISTOGRAM_ADAPTERS = {'sosreport': 'parsers.sosreport.log_histogram', 'mustgather': 'parsers.mustgather.log_histogram'}
+HISTOGRAM_CACHE_PER_REPORT = 6   # analyses kept per open report (a selection and a window each)
+
+
+def _histogram_cache_put(directory, key, result):
+    """Keep the analysis next to the report's parsed data (parsed_cache: dropped when another report opens), at
+    most HISTOGRAM_CACHE_PER_REPORT per report, the oldest out first."""
+    prefix = f"{directory}:log_histogram:"
+    mine = [k for k in parsed_cache if k.startswith(prefix)]
+    for k in mine[:max(0, len(mine) - HISTOGRAM_CACHE_PER_REPORT + 1)]:
+        del parsed_cache[k]
+    parsed_cache[key] = result
+
+
+@log_viewer.route("/log_histogram_stream", methods=["POST"])
+def log_histogram_stream():
+    """Log Collection > Histogram: the analysis of the selected logs for the selected window, as Server-Sent Events -
+    {"progress": {done, total}} while it runs, then {"result": {...}} (or {"cancelled": true} / {"error": ...}). The
+    directory goes through the same containment as every tab; only logs the report lists, inside it, are read; the
+    window is two ISO timestamps (minutes) or none. The result is cached per report, selection (with the files'
+    sizes and mtimes) and window. A newer analysis of the same report, /log_histogram_cancel, or the page going away
+    stops the running one (its worker processes are terminated)."""
+    from flask import Response, stream_with_context
+    import hashlib
+    import json
+    import queue
+    import threading
+    from datetime import datetime
+
+    data = request.json if isinstance(request.json, dict) else {}
+    directory, refusal = _report_directory(data.get("directory"))
+    if refusal:
+        return refusal
+    report_type = data.get("report_type")
+    if report_type not in HISTOGRAM_ADAPTERS:
+        return jsonify({"error": "report_type must be sosreport or mustgather"}), 400
+    adapter = importlib.import_module(HISTOGRAM_ADAPTERS[report_type])
+    paths = data.get("paths") if data.get("paths") is not None else data.get("log_paths")
+    sources, error = adapter.sources_for(directory, paths)
+    if error:
+        return jsonify({"error": error}), 400
+    window = []
+    for name in ("start", "end"):
+        raw = data.get(name)
+        if raw in (None, ""):
+            window.append(None)
+            continue
+        try:
+            window.append(datetime.fromisoformat(str(raw).replace("Z", "")[:19]).replace(second=0, microsecond=0))
+        except ValueError:
+            return jsonify({"error": f"the {name} is not an ISO timestamp"}), 400
+    start, end = window
+    if start and end and end < start:
+        return jsonify({"error": "the end is before the start"}), 400
+
+    from parsers import log_histogram as engine
+    from parsers import parallel
+
+    signature = []
+    for s in sources:
+        try:
+            st = os.stat(s["path"])
+            signature.append([s["path"], st.st_size, int(st.st_mtime)])
+        except OSError:
+            signature.append([s["path"], None, None])
+    digest = hashlib.sha256(json.dumps([report_type, signature, start and start.isoformat(), end and end.isoformat()]).encode()).hexdigest()[:24]
+    cache_key = f"{directory}:log_histogram:{digest}"
+    items = engine.plan_items(sources, start, end)
+    token = engine.begin(directory)   # a running analysis of this report stops
+
+    def event(obj):
+        return f"data: {json.dumps(obj)}\n\n"
+
+    def generate():
+        cached = parsed_cache.get(cache_key)
+        if cached is not None:
+            yield event({"result": dict(cached, cached=True)})
+            return
+        q = queue.Queue()
+
+        def work():
+            try:
+                res = engine.analyse(items, start, end, cancelled=engine.checker(directory, token),
+                                     progress=lambda done, total: q.put(("progress", done, total)),
+                                     all_links=[s["link"] for s in sources])
+                q.put(("result", res))
+            except parallel.Cancelled:
+                q.put(("cancelled",))
+            except Exception as e:  # noqa: BLE001 - the page shows the message; the server keeps running
+                print(f"[Histogram] analysis failed: {type(e).__name__}: {e}")
+                q.put(("error", f"{type(e).__name__}: {e}"))
+
+        threading.Thread(target=work, name="log-histogram", daemon=True).start()
+        finished = False
+        try:
+            yield event({"progress": {"done": 0, "total": len(items), "files": len(sources)}})
+            while True:
+                try:
+                    msg = q.get(timeout=1.0)
+                except queue.Empty:
+                    yield ": waiting\n\n"   # a comment line: keeps the stream (and a proxy) from idling out
+                    continue
+                if msg[0] == "progress":
+                    yield event({"progress": {"done": msg[1], "total": msg[2], "files": len(sources)}})
+                    continue
+                finished = True
+                if msg[0] == "result":
+                    _histogram_cache_put(directory, cache_key, msg[1])
+                    yield event({"result": msg[1]})
+                elif msg[0] == "cancelled":
+                    yield event({"cancelled": True})
+                else:
+                    yield event({"error": msg[1]})
+                return
+        finally:
+            if not finished and engine.is_current(directory, token):
+                engine.cancel(directory)   # the page went away mid-way: the workers stop
+
+    return Response(stream_with_context(generate()), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@log_viewer.route("/log_histogram_cancel", methods=["POST"])
+def log_histogram_cancel():
+    """Log Collection > Histogram: the page's Cancel - the report's running analysis stops."""
+    data = request.json if isinstance(request.json, dict) else {}
+    directory, refusal = _report_directory(data.get("directory"))
+    if refusal:
+        return refusal
+    from parsers import log_histogram as engine
+    engine.cancel(directory)
+    return jsonify({"ok": True})
+
+
+# The tabs whose data never goes to /get_tab_data (the AI context): the Histogram's rows carry raw log lines
+AI_CONTEXT_EXCLUDED = {("sosreport", "log_histogram"), ("mustgather", "log_histogram")}
+
+
 @log_viewer.route("/get_tab_data", methods=["POST"])
 def get_tab_data():
     """Get raw JSON data for a tab (for AI context)"""
@@ -702,6 +856,9 @@ def get_tab_data():
     uploaded_dir, refusal = _report_directory(uploaded_dir)
     if refusal:
         return refusal
+
+    if (report_type, sub_tab or tab) in AI_CONTEXT_EXCLUDED:
+        return jsonify({"data": None, "excluded": "this tab's data is not shared as AI context"})
 
     cache_key = f"{uploaded_dir}:{report_type}:{tab}:{sub_tab if sub_tab else 'main'}"
 
@@ -748,6 +905,18 @@ def _paths_within(base_dir, paths):
         if real == base or real.startswith(base + os.sep):
             safe.append(expanded)
     return safe
+
+
+# the generation of each report's running Log Viewer stream (parsers/parallel.Generation): a newer one cancels it
+_LOG_STREAMS = None
+
+
+def _log_streams():
+    global _LOG_STREAMS
+    if _LOG_STREAMS is None:
+        from parsers import parallel
+        _LOG_STREAMS = parallel.Generation()
+    return _LOG_STREAMS
 
 
 @log_viewer.route("/parse_log_viewer_stream", methods=["POST"])
@@ -801,13 +970,17 @@ def parse_log_viewer_stream():
                 return False
         return True
 
+    # a newer load of the same report stops this one's worker processes (the page's Abort closes the stream too)
+    token = _log_streams().begin(os.path.realpath(uploaded_dir))
+    still_current = _log_streams().checker(os.path.realpath(uploaded_dir), token)
+
     def generate():
         try:
             from parsers.sosreport import log_viewer
 
             matched = 0
-            # Stream entries as they're parsed
-            for chunk in log_viewer.parse_date_range_stream(uploaded_dir, start_date, end_date, log_paths):
+            # Stream entries as they're parsed (a large journal in worker processes: the same rows, in order)
+            for chunk in log_viewer.parse_date_range_stream(uploaded_dir, start_date, end_date, log_paths, workers=None, cancelled=still_current):
                 if filtered:
                     # every chunk, the closing one included: the matches so far count as the total, what was read
                     # stays as scanned; an emptied chunk mid-stream is not sent
@@ -825,6 +998,9 @@ def parse_log_viewer_stream():
             yield f"data: {json.dumps({'done': True})}\n\n"
 
         except Exception as e:
+            if type(e).__name__ == 'Cancelled':
+                print("[Log Viewer Stream] Cancelled: a newer load of this report replaced it")
+                return
             print(f"[Log Viewer Stream] Error: {e}")
             import traceback
             traceback.print_exc()

@@ -1,0 +1,8 @@
+{% import "tabs/_log_histogram.html" as lh %}
+{# Log Collection > Histogram of a must-gather: the shared page (tabs/_log_histogram.html) over the container, host
+   service, node and network logs the Log Viewer lists (parsers/mustgather/log_histogram.py: about 20 MB selected,
+   the previous logs first), driven by diagLogHistogram. #}
+{{ lh.page('mustgather', data, findings, directory, source_noun='log') }}
+<script>
+  window.diagLogHistogram && window.diagLogHistogram.mount(document.getElementById('log-histogram'), { reportType: 'mustgather', directory: {{ directory | default('') | tojson }}, dateRange: {{ data.date_range | tojson }}, gatherTime: {{ data.gather_time | default(None) | tojson }} });
+</script>

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import BaseModal from './BaseModal';
-import { Upload, X, FileJson, Database, FileText, Search, AlertCircle, Workflow, Trello, Bookmark, Terminal, FileCode, CheckSquare, Folder, Grid3x3, Brain, Image, SpellCheck } from 'lucide-react';
+import { Upload, X, FileJson, Database, FileText, Search, AlertCircle, Workflow, Trello, Bookmark, Terminal, FileCode, CheckSquare, Folder, Grid3x3, Brain, Image, SpellCheck, Palette } from 'lucide-react';
 import { readCustomWordsSection } from '../../../utils/customWords';
+import { readCustomThemesSection } from '../../../utils/customThemes';
 import ImportStats from '../ImportStats';
 import ImportFooter from '../ImportFooter';
 import MergeModeOption from '../MergeModeOption';
@@ -311,6 +312,12 @@ export default function ImportDBModal({
                   <div className="flex items-center gap-2" data-testid="import-preview-custom-words">
                     <SpellCheck size={14} />
                     <span>{readCustomWordsSection(importData).length} custom spelling {readCustomWordsSection(importData).length === 1 ? 'word' : 'words'}</span>
+                  </div>
+                )}
+                {readCustomThemesSection(importData) && (
+                  <div className="flex items-center gap-2" data-testid="import-preview-custom-themes">
+                    <Palette size={14} />
+                    <span>{readCustomThemesSection(importData).length} custom {readCustomThemesSection(importData).length === 1 ? 'theme' : 'themes'}</span>
                   </div>
                 )}
               </div>

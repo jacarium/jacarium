@@ -64,7 +64,11 @@ const ui = fs.readFileSync(path.join(REPO, 'backend', 'static', 'diagnostics-ui.
 
 // ---- static ----
 {
-  const header = view.slice(view.indexOf('<!-- Date Range Filter -->'), view.indexOf('<!-- Log Table -->'));
+  // the header: the viewer's own part (the toolbar, the actions) and the date range and source picker it renders
+  // through their shared macros (range_picker, source_picker - the Log Collection Histogram uses them too)
+  const macro = (name) => { const i = view.indexOf(`{% macro ${name}(`); return i < 0 ? '' : view.slice(i, view.indexOf('{%- endmacro %}', i)); };
+  const header = view.slice(view.indexOf('<!-- Date Range Filter -->'), view.indexOf('<!-- Log Table -->')) + macro('range_picker') + macro('source_picker');
+  check('the viewer renders the date range and the picker through the shared macros', /\{\{ range_picker\(date_range\) \}\}/.test(view) && /\{\{ source_picker\(/.test(view) && macro('range_picker').length > 0 && macro('source_picker').length > 0);
   check('the slider track, highlight and inputs are styled by the shared lv-* rules (backend/static/styles.css), not by utility classes the frame lacks', /class="lv-slider-track"/.test(header) && /id="date-range-highlight" class="lv-slider-highlight"/.test(header) && !/class="[^"]*(?:h-1\.5|top-1\/2|-translate-y-1\/2|bg-blue-500|bg-gray-300|dark:bg-gray-600)/.test(header));
   const ids = ['single-date-button', 'single-date-display', 'date-calendar', 'cal-prev-month', 'cal-next-month', 'cal-month-year', 'cal-grid', 'cal-today', 'cal-clear', 'date-start-label', 'date-end-label', 'date-slider-container', 'date-range-highlight', 'date-slider-start', 'date-slider-end', 'log-file-dropdown-btn', 'log-file-selection-display', 'log-file-dropdown-panel', 'log-file-search', 'log-file-list', 'select-all-logs', 'clear-all-logs', 'get-range-btn', 'load-logs-btn', 'export-csv-btn', 'loading-indicator', 'logs-loaded-info', 'loaded-count', 'filter-panel', 'log-search', 'log-exclude', 'severity-filter', 'process-filter'];
   const missing = ids.filter((id) => (view.match(new RegExp(`id="${id}"`, 'g')) || []).length !== 1);

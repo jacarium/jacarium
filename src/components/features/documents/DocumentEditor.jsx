@@ -839,10 +839,10 @@ export default function DocumentEditor({
     const selectedButton = selected ? popup.querySelector(`[data-slash-entry="${selected.id}"]`) : null;
 
     if (selectedButton) {
-      selectedButton.scrollIntoView({
-        block: 'nearest',
-        behavior: 'smooth',
-      });
+      // instant, like the doc-link picker: a smooth scroll is an animation the next ArrowDown interrupts and a
+      // slow or busy machine has not finished when the user (or a test) looks - the highlighted entry must be
+      // in view the moment it is highlighted
+      selectedButton.scrollIntoView({ block: 'nearest' });
     }
     // also when the list changes (the query typed): the selection resets to the first entry, which may sit above
     // a popup the user had scrolled - bring it back into view

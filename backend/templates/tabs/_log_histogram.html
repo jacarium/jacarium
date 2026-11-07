@@ -1,0 +1,109 @@
+{#
+  Log Collection > Histogram (the shared page of a sosreport and a must-gather; parsers/log_histogram.py is the
+  engine, parsers/<type>/log_histogram.py the adapter, diagnostics-ui.js diagLogHistogram the controller).
+
+  The controls are the Log Viewer's own (tabs/_log_view.html: range_picker, source_picker; driven by the shared
+  diagLogView.sourceRange): the date range limits the analysis, the picker chooses the logs; Analyze (with its busy
+  state and Cancel) asks /log_histogram_stream and the page draws what comes back - the Findings strip, the lines
+  per time bucket with the anomalies' windows shaded, the busiest sources, the ranked anomalies (each with Open in
+  Log Viewer at its time window and a literal piece of its message as the search), the templates, the thresholds.
+  Nothing is analysed until Analyze; every value is report content and is escaped (Jinja here, textContent in the
+  controller). Every id is the contract with the controller and the tests.
+
+    {{ lh.page(report_type, data, findings, directory, source_noun='log') }}
+#}
+{% import "tabs/_ui.html" as ui %}
+{% import "tabs/_log_view.html" as logview %}
+{% macro page(report_type, data, findings, directory, source_noun='log', empty_title='No log to analyze') -%}
+<div id="log-histogram" class="lh" data-report-type="{{ report_type }}" data-sources="{{ data.available_logs | length }}">
+  <div id="lh-findings"><div class="ui-detail-findings">{{ ui.findings(findings) }}</div></div>
+{% if data.available_logs %}
+  <div class="panel rounded-lg shadow-sm">
+    <div class="lv-header mb-4 p-3 rounded-sm">
+      {{ logview.range_picker(data.date_range) }}
+      <div class="lv-toolbar">
+        {{ logview.source_picker(data.available_logs, data.unavailable_logs, source_noun) }}
+        <div class="lv-actions">
+          <button id="get-range-btn" type="button" class="btn btn-secondary btn-sm lv-control lv-button" title="Read the earliest and latest timestamps of the selected {{ source_noun }}s into the slider">
+            Get Date Range
+          </button>
+          <button id="lh-analyze" type="button" class="btn btn-primary btn-sm lv-control lv-button lv-primary" title="Count the selected {{ source_noun }}s' lines per time bucket for the selected dates and find what stands out">
+            Analyze
+          </button>
+        </div>
+        <div class="lv-status"><span id="lh-status" class="ui-status" aria-live="polite"></span></div>
+      </div>
+    </div>
+
+    <div id="lh-results" hidden>
+      <div class="ui-status mb-3" id="lh-summary"></div>
+      <div class="ui-grid-charts">
+        <div class="panel rounded-lg shadow-sm p-3" data-chart-card data-wide>
+          {% call ui.card_title('Lines per time bucket') %}<span class="ui-legend" id="lh-legend"><span style="--swatch: var(--chart-bad, #dc2626)">errors</span><span style="--swatch: var(--chart-warn, #d97706)">warnings</span><span style="--swatch: var(--chart-info, #0066cc)">info</span><span style="--swatch: var(--chart-muted, #9ca3af)">other</span></span>{% endcall %}
+          <canvas id="lh-timeline" aria-label="Lines per time bucket, the anomalies' windows shaded"></canvas>
+          <div class="ui-status" id="lh-timeline-note"></div>
+        </div>
+        <div class="panel rounded-lg shadow-sm p-3" data-chart-card data-wide>
+          {{ ui.card_title('Busiest sources (click: their messages)') }}
+          <canvas id="lh-groups" aria-label="Lines per source"></canvas>
+        </div>
+      </div>
+
+      <section class="panel rounded-lg shadow-sm p-3 mb-3" id="lh-anomalies-section" aria-labelledby="lh-anomalies-title">
+        <div class="ui-card-title" id="lh-anomalies-title"><span>Anomalies</span><span class="ui-count-text" id="lh-anomalies-count"></span></div>
+        {% call ui.filter_bar(id='lh-anomaly-filters') %}
+          {% call ui.select() %}<select id="lh-kind" class="ui-select" aria-label="Kind"><option value="">All kinds</option><option value="volume">Volume spike</option><option value="errors">Error spike</option><option value="burst">Burst</option><option value="new">New</option><option value="incident">Incident</option><option value="stopped">Stopped</option><option value="rare">Rare</option></select>{% endcall %}
+          {% call ui.select() %}<select id="lh-level" class="ui-select" aria-label="Level"><option value="">All levels</option><option value="critical">Critical</option><option value="error">Error</option><option value="warning">Warning</option><option value="info">Information</option><option value="debug">Debug</option><option value="other">Other</option></select>{% endcall %}
+          {% call ui.select() %}<select id="lh-source" class="ui-select" aria-label="Source"><option value="">All sources</option></select>{% endcall %}
+          <button type="button" class="ui-chip ui-on" id="lh-window-chip" hidden title="Clear the time filter"></button>
+          {% call ui.end() %}<span class="ui-status" id="lh-anomalies-status"></span>{{ ui.xrow_all('#lh-anomalies') }}{% endcall %}
+        {% endcall %}
+        <table class="ui-table" id="lh-anomalies">
+          <thead><tr>
+            <th data-w="status" data-sorted="descending">Score</th>
+            <th data-w="narrow">Kind</th>
+            <th data-w="text">When</th>
+            <th data-w="text" data-p="2">Source</th>
+            <th data-w="status" data-p="2">Level</th>
+            <th data-w="flex">What</th>
+            <th data-w="num" data-p="3">Lines</th>
+            <th data-w="status">Log Viewer</th>
+          </tr></thead>
+          <tbody id="lh-anomalies-body"></tbody>
+        </table>
+        {% call ui.pagebar('lh-anomalies-page-status', 'lh-anomalies-pager') %}<select id="lh-anomalies-rows" class="ui-select" aria-label="Rows per page"><option value="25" selected>25</option><option value="50">50</option><option value="100">100</option><option value="-1">All</option></select>{% endcall %}
+      </section>
+
+      <section class="panel rounded-lg shadow-sm p-3 mb-3" id="lh-templates-section" aria-labelledby="lh-templates-title">
+        <div class="ui-card-title" id="lh-templates-title"><span>Messages</span><span class="ui-count-text" id="lh-templates-count"></span></div>
+        {% call ui.filter_bar(id='lh-template-filters') %}
+          {{ ui.search('lh-template-search', 'Search messages (plain text)') }}
+          {% call ui.select() %}<select id="lh-template-level" class="ui-select" aria-label="Level"><option value="">All levels</option><option value="critical">Critical</option><option value="error">Error</option><option value="warning">Warning</option><option value="info">Information</option><option value="debug">Debug</option><option value="other">Other</option></select>{% endcall %}
+          {% call ui.select() %}<select id="lh-template-source" class="ui-select" aria-label="Source"><option value="">All sources</option></select>{% endcall %}
+          {% call ui.end() %}<span class="ui-status" id="lh-templates-status"></span>{{ ui.xrow_all('#lh-templates') }}{% endcall %}
+        {% endcall %}
+        <table class="ui-table" id="lh-templates">
+          <thead><tr>
+            <th data-w="num" data-key="count" data-sorted="descending">Lines</th>
+            <th data-w="status" data-key="severity">Level</th>
+            <th data-w="text" data-key="group" data-p="2">Source</th>
+            <th data-w="flex" data-key="template">Message (variable parts as &lt;*&gt;)</th>
+            <th data-w="narrow" data-key="first" data-p="3">First</th>
+            <th data-w="narrow" data-key="last" data-p="3">Last</th>
+            <th data-w="status">Log Viewer</th>
+          </tr></thead>
+          <tbody id="lh-templates-body"></tbody>
+        </table>
+        {% call ui.pagebar('lh-templates-page-status', 'lh-templates-pager') %}<select id="lh-templates-rows" class="ui-select" aria-label="Rows per page"><option value="50" selected>50</option><option value="100">100</option><option value="250">250</option><option value="-1">All</option></select>{% endcall %}
+      </section>
+
+      {% call ui.fold('Thresholds') %}
+        <div class="ui-status mb-2">How the anomalies are found (parsers/log_histogram.py, THRESHOLDS): the lines are counted per message template and time bucket; a spike is a robust z-score over the buckets, a burst a Poisson tail against the template's own usual rate within the time its sources cover, "new" a template first seen after the opening share of that time, "stopped" a steady template that goes quiet well before its sources end.</div>
+        <dl class="ui-kv" id="lh-thresholds"></dl>
+      {% endcall %}
+    </div>
+  </div>
+  {{ logview.alert_modal() }}
+{% endif %}
+</div>
+{%- endmacro %}

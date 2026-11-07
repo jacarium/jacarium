@@ -6,7 +6,8 @@
      <script>window.diagLogView.mount(document.getElementById('log-view'), window.diagLogView.adapters.sosreport({ directory: ..., dateRange: ... }));</script>
    sources: [{name, path, size, checked, group?}] (checked, or type == checked_type: read on load; group: a heading in the picker);
    unavailable: [{name}] listed but unreadable; date_range: {start, end} ISO or null; columns: the five header labels.
-   Every element id is the contract with the controller, the driver scripts and the tests. #}
+   Every element id is the contract with the controller, the driver scripts and the tests. The date range and the
+   source picker are macros of their own (range_picker, source_picker), shared with the Log Collection Histogram. #}
 {% macro viewer(sources, unavailable=[], date_range=None, source_noun='log file', columns=['Timestamp', 'Level', 'Hostname', 'Process', 'Message'], empty_title='No Readable Log Files Found', empty_text='', checked_type=None, chart_title='Logs per Process', source_label='All Processes') -%}
 <div id="log-view" class="ui-logview" data-sources="{{ sources | length }}">
 {% if sources %}
@@ -37,147 +38,11 @@
        page look the same. Every element id is part of the contract with
        the script below and the tests. -->
   <div class="lv-header mb-4 p-3 rounded-sm">
-    <!-- Date Range Slider -->
-    <div class="mb-4">
-      <div class="flex items-center justify-between mb-2">
-        <label class="block text-xs font-medium">Date Range</label>
-        <div class="flex items-center gap-2">
-          <div class="relative">
-            <button
-              id="single-date-button"
-              type="button"
-              class="btn btn-secondary"
-            >
-              <span id="single-date-display">Select Range</span>
-            </button>
-            <div id="date-calendar" class="hidden ui-popover ui-daterange lv-calendar" role="dialog" aria-label="Date range">
-              {# the shared date-range picker (diagDateRange) fills the grid; the ids are the viewer's contract #}
-              <div class="ui-dr-head">
-                <button type="button" id="cal-prev-month" class="ui-icon-btn ui-dr-nav ui-dr-prev" aria-label="Previous month" title="Previous month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
-                <div class="ui-dr-title" id="cal-month-year" aria-live="polite"></div>
-                <button type="button" id="cal-next-month" class="ui-icon-btn ui-dr-nav ui-dr-next" aria-label="Next month" title="Next month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
-              </div>
-              <div class="ui-dr-dow" aria-hidden="true"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
-              <div id="cal-grid" class="ui-dr-grid" role="grid" aria-label="Days"></div>
-              <div class="ui-dr-foot">
-                <button type="button" id="cal-today" class="btn btn-secondary flex-1 ui-dr-today">Today</button>
-                <button type="button" id="cal-clear" class="btn btn-secondary flex-1 ui-dr-clear">Clear</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <p id="date-range-note" class="lv-range-note" hidden></p>
-      <div class="lv-slider">
-        <div class="lv-slider-labels">
-          {# start/end are None when no readable log had a parseable timestamp #}
-          <span id="date-start-label">{{ date_range.start[:10] if date_range and date_range.start else 'unknown' }}</span>
-          <span id="date-end-label">{{ date_range.end[:10] if date_range and date_range.end else 'unknown' }}</span>
-        </div>
-        <div class="lv-slider-area" id="date-slider-container">
-          <!-- Background track -->
-          <div class="lv-slider-track"></div>
-          <!-- Selected range highlight -->
-          <div id="date-range-highlight" class="lv-slider-highlight" style="left: 0%; width: 100%;"></div>
-          <!-- Sliders -->
-          <input type="range" id="date-slider-start" class="range-slider" style="pointer-events: none;">
-          <input type="range" id="date-slider-end" class="range-slider" style="pointer-events: none;">
-        </div>
-      </div>
-    </div>
+    {{ range_picker(date_range) }}
 
     <!-- The toolbar: the files to read, the actions (Load Logs is the main one), the status -->
     <div class="lv-toolbar">
-      <!-- Log Files Dropdown -->
-      <div class="relative lv-files">
-        <button
-          type="button"
-          id="log-file-dropdown-btn"
-          class="btn btn-secondary btn-sm lv-control lv-button lv-files-btn"
-          title="The {{ source_noun }}s to read"
-        >
-          <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-          <span id="log-file-selection-display" class="flex-1 text-left truncate">1 {{ source_noun }} selected</span>
-          <svg class="lv-icon lv-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
-        </button>
-
-        <!-- Dropdown panel -->
-        <div id="log-file-dropdown-panel" class="hidden ui-popover lv-files-panel">
-          <!-- Search input: the head stays while the list scrolls -->
-          <div class="ui-popover-head">
-            <input
-              type="text"
-              id="log-file-search"
-              placeholder="Search {{ source_noun }}s..."
-              class="ui-input w-full"
-              autocomplete="off"
-            />
-          </div>
-
-          <!-- File list: the body scrolls within the room the popover has -->
-          <div id="log-file-list" class="ui-popover-body">
-            {% for log in sources %}
-            {% if log.group and (loop.first or loop.previtem.group != log.group) %}<div class="ui-logview-group" data-group="{{ log.group }}">{{ log.group }}</div>{% endif %}
-            <label class="log-file-item" data-log-name="{{ log.name | lower }}">
-              <input
-                type="checkbox"
-                class="ui-check log-file-checkbox"
-                data-path="{{ log.path }}"
-                data-name="{{ log.name }}"
-                data-type="{{ log.type | default('') }}"
-                data-namespace="{{ log.namespace | default('') }}"
-                data-pod="{{ log.pod | default('') }}"
-                data-container="{{ log.container | default('') }}"
-                data-node="{{ log.node | default('') }}"
-                data-role="{{ log.role | default('') }}"
-                {% if log.checked or (checked_type and log.type == checked_type) %}checked{% endif %}
-              />
-              <div class="flex-1 min-w-0">
-                <div class="lv-files-name" title="{{ log.name }}">{{ log.name }}</div>
-                <div class="lv-files-size">{{ (log.size / 1024 / 1024) | round(2) }} MB</div>
-              </div>
-            </label>
-            {% endfor %}
-          </div>
-
-          <!-- The foot stays: the unavailable note, Select All / Clear All -->
-          <div class="ui-popover-foot">
-          {% if unavailable %}
-          <!-- Log files present in the report tree that cannot be opened:
-               dangling symlinks (var/log/containers/*.log pointing into a
-               var/log/pods/ tree the collector did not capture) or unreadable
-               files. Listed as unavailable instead of failing the whole tab;
-               hover for the file names. -->
-          <div
-            id="log-file-unavailable"
-            class="ui-popover-foot-note"
-            title="{% for log in unavailable %}{{ log.name }}{% if not loop.last %}&#10;{% endif %}{% endfor %}"
-          >
-            <i class="fas fa-triangle-exclamation mr-1"></i>
-            {{ unavailable | length }} {{ source_noun }}{{ 's' if unavailable | length != 1 else '' }} unavailable (not captured in this report)
-          </div>
-          {% endif %}
-
-          <!-- Action buttons -->
-          <div class="ui-popover-foot-actions">
-            <button
-              type="button"
-              id="select-all-logs"
-              class="btn btn-secondary flex-1"
-            >
-              Select All
-            </button>
-            <button
-              type="button"
-              id="clear-all-logs"
-              class="btn btn-secondary flex-1"
-            >
-              Clear All
-            </button>
-          </div>
-          </div>
-        </div>
-      </div>
+      {{ source_picker(sources, unavailable, source_noun, checked_type) }}
 
       <div class="lv-actions">
         <button id="get-range-btn" type="button" class="btn btn-secondary btn-sm lv-control lv-button" title="Read the earliest and latest timestamps of the selected files into the slider">
@@ -329,4 +194,155 @@
       <button type="button" id="alert-modal-ok" class="btn btn-primary">OK</button>
     </div>
   </div>
+{%- endmacro %}
+
+{# The date range of a Log Collection page (the Log Viewer, the Histogram): the label, the calendar (the shared
+   diagDateRange picker) and the dual slider over the days of date_range ({start, end} ISO or null). The ids are the
+   contract with diagLogView.sourceRange (diagnostics-ui.js), which drives it on both pages. #}
+{% macro range_picker(date_range=None) -%}
+  <!-- Date Range Slider -->
+  <div class="mb-4">
+    <div class="flex items-center justify-between mb-2">
+      <label class="block text-xs font-medium">Date Range</label>
+      <div class="flex items-center gap-2">
+        <div class="relative">
+          <button
+            id="single-date-button"
+            type="button"
+            class="btn btn-secondary"
+          >
+            <span id="single-date-display">Select Range</span>
+          </button>
+          <div id="date-calendar" class="hidden ui-popover ui-daterange lv-calendar" role="dialog" aria-label="Date range">
+            {# the shared date-range picker (diagDateRange) fills the grid; the ids are the viewer's contract #}
+            <div class="ui-dr-head">
+              <button type="button" id="cal-prev-month" class="ui-icon-btn ui-dr-nav ui-dr-prev" aria-label="Previous month" title="Previous month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+              <div class="ui-dr-title" id="cal-month-year" aria-live="polite"></div>
+              <button type="button" id="cal-next-month" class="ui-icon-btn ui-dr-nav ui-dr-next" aria-label="Next month" title="Next month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
+            <div class="ui-dr-dow" aria-hidden="true"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+            <div id="cal-grid" class="ui-dr-grid" role="grid" aria-label="Days"></div>
+            <div class="ui-dr-foot">
+              <button type="button" id="cal-today" class="btn btn-secondary flex-1 ui-dr-today">Today</button>
+              <button type="button" id="cal-clear" class="btn btn-secondary flex-1 ui-dr-clear">Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p id="date-range-note" class="lv-range-note" hidden></p>
+    <div class="lv-slider">
+      <div class="lv-slider-labels">
+        {# start/end are None when no readable log had a parseable timestamp #}
+        <span id="date-start-label">{{ date_range.start[:10] if date_range and date_range.start else 'unknown' }}</span>
+        <span id="date-end-label">{{ date_range.end[:10] if date_range and date_range.end else 'unknown' }}</span>
+      </div>
+      <div class="lv-slider-area" id="date-slider-container">
+        <!-- Background track -->
+        <div class="lv-slider-track"></div>
+        <!-- Selected range highlight -->
+        <div id="date-range-highlight" class="lv-slider-highlight" style="left: 0%; width: 100%;"></div>
+        <!-- Sliders -->
+        <input type="range" id="date-slider-start" class="range-slider" style="pointer-events: none;">
+        <input type="range" id="date-slider-end" class="range-slider" style="pointer-events: none;">
+      </div>
+    </div>
+  </div>
+{%- endmacro %}
+
+{# The source picker of a Log Collection page: the button with the selection, the popover with the search, the
+   sources (grouped under their group headings), the unavailable note and Select All / Clear All. sources:
+   [{name, path, size, checked, type, group?, namespace?, pod?, container?, node?, role?}] - checked, or type ==
+   checked_type, is selected on load. The ids and classes are the contract with diagLogView.sourceRange. #}
+{% macro source_picker(sources, unavailable=[], source_noun='log file', checked_type=None) -%}
+    <!-- Log Files Dropdown -->
+    <div class="relative lv-files">
+      <button
+        type="button"
+        id="log-file-dropdown-btn"
+        class="btn btn-secondary btn-sm lv-control lv-button lv-files-btn"
+        title="The {{ source_noun }}s to read"
+      >
+        <svg class="lv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+        <span id="log-file-selection-display" class="flex-1 text-left truncate">1 {{ source_noun }} selected</span>
+        <svg class="lv-icon lv-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+      </button>
+
+      <!-- Dropdown panel -->
+      <div id="log-file-dropdown-panel" class="hidden ui-popover lv-files-panel">
+        <!-- Search input: the head stays while the list scrolls -->
+        <div class="ui-popover-head">
+          <input
+            type="text"
+            id="log-file-search"
+            placeholder="Search {{ source_noun }}s..."
+            class="ui-input w-full"
+            autocomplete="off"
+          />
+        </div>
+
+        <!-- File list: the body scrolls within the room the popover has -->
+        <div id="log-file-list" class="ui-popover-body">
+          {% for log in sources %}
+          {% if log.group and (loop.first or loop.previtem.group != log.group) %}<div class="ui-logview-group" data-group="{{ log.group }}">{{ log.group }}</div>{% endif %}
+          <label class="log-file-item" data-log-name="{{ log.name | lower }}">
+            <input
+              type="checkbox"
+              class="ui-check log-file-checkbox"
+              data-path="{{ log.path }}"
+              data-name="{{ log.name }}"
+              data-type="{{ log.type | default('') }}"
+              data-namespace="{{ log.namespace | default('') }}"
+              data-pod="{{ log.pod | default('') }}"
+              data-container="{{ log.container | default('') }}"
+              data-node="{{ log.node | default('') }}"
+              data-role="{{ log.role | default('') }}"
+              {% if log.checked or (checked_type and log.type == checked_type) %}checked{% endif %}
+            />
+            <div class="flex-1 min-w-0">
+              <div class="lv-files-name" title="{{ log.name }}">{{ log.name }}</div>
+              <div class="lv-files-size">{{ (log.size / 1024 / 1024) | round(2) }} MB</div>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+
+        <!-- The foot stays: the unavailable note, Select All / Clear All -->
+        <div class="ui-popover-foot">
+        {% if unavailable %}
+        <!-- Log files present in the report tree that cannot be opened:
+             dangling symlinks (var/log/containers/*.log pointing into a
+             var/log/pods/ tree the collector did not capture) or unreadable
+             files. Listed as unavailable instead of failing the whole tab;
+             hover for the file names. -->
+        <div
+          id="log-file-unavailable"
+          class="ui-popover-foot-note"
+          title="{% for log in unavailable %}{{ log.name }}{% if not loop.last %}&#10;{% endif %}{% endfor %}"
+        >
+          <i class="fas fa-triangle-exclamation mr-1"></i>
+          {{ unavailable | length }} {{ source_noun }}{{ 's' if unavailable | length != 1 else '' }} unavailable (not captured in this report)
+        </div>
+        {% endif %}
+
+        <!-- Action buttons -->
+        <div class="ui-popover-foot-actions">
+          <button
+            type="button"
+            id="select-all-logs"
+            class="btn btn-secondary flex-1"
+          >
+            Select All
+          </button>
+          <button
+            type="button"
+            id="clear-all-logs"
+            class="btn btn-secondary flex-1"
+          >
+            Clear All
+          </button>
+        </div>
+        </div>
+      </div>
+    </div>
 {%- endmacro %}

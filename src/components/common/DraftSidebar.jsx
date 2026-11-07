@@ -361,19 +361,19 @@ export default function DraftSidebar({ isOpen, side = 'left' }) {
           <div className="flex-1"></div>
           <button
             onClick={() => setPreviewMode(!previewMode)}
-            className={`p-1.5 rounded-sm transition-colors ${previewMode ?'bg-os-blue text-white':'hover:bg-os-card-secondary'}`}
+            className={`p-1.5 rounded-sm transition-colors ${previewMode ?'bg-os-blue text-(--btn-primary-fg)':'hover:bg-os-card-secondary'}`}
             title={previewMode ? 'Edit' : 'Preview'}
           >
-            {previewMode ? <Edit3 size={16} className="text-white" /> : <Eye size={16} className="text-os-text-primary" />}
+            {previewMode ? <Edit3 size={16} className="text-(--btn-primary-fg)" /> : <Eye size={16} className="text-os-text-primary" />}
           </button>
           <button
             onClick={() => setShowSearch(!showSearch)}
-            className={`p-1.5 rounded-sm transition-colors ${showSearch ?'bg-os-blue text-white':'hover:bg-os-card-secondary'}`}
+            className={`p-1.5 rounded-sm transition-colors ${showSearch ?'bg-os-blue text-(--btn-primary-fg)':'hover:bg-os-card-secondary'}`}
             title="Load Document"
             aria-label="Load Document"
             aria-pressed={showSearch}
           >
-            <Search size={16} className={showSearch ? 'text-white' : 'text-os-text-primary'} />
+            <Search size={16} className={showSearch ? 'text-(--btn-primary-fg)' : 'text-os-text-primary'} />
           </button>
           <button
             onClick={handleSave}

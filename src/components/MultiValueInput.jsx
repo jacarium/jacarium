@@ -52,7 +52,7 @@ export default function MultiValueInput({ values, onChange, options, placeholder
           {valueList.map((value, index) => (
             <span
               key={index}
-              className="inline-flex items-center gap-1 px-2 py-1 bg-os-blue text-white text-xs font-medium"
+              className="inline-flex items-center gap-1 px-2 py-1 bg-os-blue text-(--btn-primary-fg) text-xs font-medium"
             >
               {value}
               <button

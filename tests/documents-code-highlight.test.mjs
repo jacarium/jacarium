@@ -337,11 +337,12 @@ try {
     const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
     // the code block background: a literal in the light theme, the --os-code-bg token in the dark
     // themes (Jacaranda in .dark, the neutral greys under the variant attribute)
-    const tokenOf = (text, name) => (text.match(new RegExp(name + ':\\s*(#[0-9a-fA-F]{6})')) || [])[1];
+    // a token's hex, following var() hops (--md-code-bg -> --os-code-bg; the preview's tokens since 4.2.0)
+    const tokenOf = (text, name, depth = 0) => { const raw = (text.match(new RegExp(name + ':\\s*([^;]+);')) || [])[1] || ''; const lit = raw.match(/#[0-9a-fA-F]{6}/); if (lit) return lit[0]; const v = raw.match(/var\((--[\w-]+)\)/); return v && depth < 3 ? tokenOf(text, v[1], depth + 1) : undefined; };
     const resolveBg = (selector, tokenBlock) => { const raw = (block(selector).match(/background-color:\s*([^;]+);/) || [])[1] || ''; const literal = raw.match(/#[0-9a-fA-F]{6}/); if (literal) return literal[0]; const v = raw.match(/var\((--[\w-]+)\)/); return v ? tokenOf(tokenBlock, v[1]) : undefined; };
     const lightBg = resolveBg('.markdown-preview pre', block(':root'));
     const darkBg = resolveBg('.dark .markdown-preview pre', block('.dark'));
-    const neutralBg = resolveBg('.dark .markdown-preview pre', block('.dark[data-dark-variant="neutral"]'));
+    const neutralBg = resolveBg('.dark .markdown-preview pre', block('.dark[data-dark-variant="neutral"]') + block('.dark'));   // the variant's own tokens first, the rest from .dark
     check('section 7: found the light and dark code block backgrounds in index.css', !!lightBg && !!darkBg && !!neutralBg, `${lightBg} / ${darkBg} / ${neutralBg}`);
     for (const n of NAMES) {
       const cl = light[n] && lightBg ? contrast(light[n], lightBg) : 0;
@@ -364,7 +365,7 @@ try {
         && !/\.dark \.markdown-preview pre code \*\s*[,{]/.test(css) && !/\.dark \.markdown-preview pre code span\s*[,{]/.test(css));
     // the font is the bundled Red Hat Mono (--font-mono) since the PDF export embeds the app's own fonts on every OS
     check('section 7: the code block styling (background, padding, the bundled mono font) is unchanged',
-      /\.markdown-preview pre\s*\{[^}]*padding:\s*16px/.test(css) && /\.markdown-preview pre\s*\{[^}]*background-color:\s*#f6f8fa/.test(css) && /\.markdown-preview pre\s*\{[^}]*font-family:\s*var\(--font-mono\)/.test(css) && /--font-mono:\s*"Red Hat Mono"/.test(css));
+      /\.markdown-preview pre\s*\{[^}]*padding:\s*16px/.test(css) && /\.markdown-preview pre\s*\{[^}]*background-color:\s*var\(--md-code-bg\)/.test(css) && /--md-code-bg: #f6f8fa;/.test(css) && /\.markdown-preview pre\s*\{[^}]*font-family:\s*var\(--font-mono\)/.test(css) && /--font-mono:\s*"Red Hat Mono"/.test(css));
   }
 
   // =====================================================================

@@ -83,6 +83,7 @@ const TYPE_LABELS = {
   media: 'Media files',
   localStorage: 'UI settings (localStorage)',
   customWords: 'Custom spelling words',
+  customThemes: 'Custom themes',
 };
 
 // [summary key, column header]

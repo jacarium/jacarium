@@ -11,6 +11,7 @@ import GeneralSettings from './settings/GeneralSettings';
 import ThemeSettings from './settings/ThemeSettings';
 import DebugSettings from './settings/DebugSettings';
 import EditorSettings from './settings/EditorSettings';
+import PerformanceSettings from './settings/PerformanceSettings';
 import IntegrationsSettings from './settings/IntegrationsSettings';
 import AIProvidersSettings from './settings/AIProvidersSettings';
 import UsersSettings from './settings/UsersSettings';
@@ -483,6 +484,7 @@ export default function SettingsModal({
               { id: 'general', label: 'General' },
               { id: 'editor', label: 'Editor' },
               { id: 'theme', label: 'Theme' },
+              { id: 'performance', label: 'Performance' },
               { id: 'integrations', label: SETTINGS_FIELDS.integrations.tab },
               { id: 'ai', label: SETTINGS_FIELDS.ai.tab },
               ...(isMobile ? [] : [{ id: 'shortcuts', label: 'Shortcuts' }]),
@@ -527,6 +529,7 @@ export default function SettingsModal({
               {activeTab === 'theme' && (
                 <ThemeSettings theme={theme} setTheme={setTheme} zoomFactor={zoomFactor} setZoomFactor={handleZoomChange} />
               )}
+              {activeTab === 'performance' && <PerformanceSettings />}
               {activeTab === 'debug' && (
                 <DebugSettings debugBarEnabled={debugBarEnabled} setDebugBarEnabled={handleDebugBarChange} />
               )}

@@ -49,10 +49,14 @@
       from the one palette (ok blue, errors red, warnings amber, other grey,
       then the categorical series in order) unless a dataset keeps its own,
       the empty state ("No data for this filter") and a minimum height.
-    diagChart.timeSeries(canvas, { buckets, step, series, onBucket, stacked })
+    diagChart.timeSeries(canvas, { buckets, step, series, onBucket, stacked, bands, activeBand })
       a bar/line chart over time buckets (from the backend's bucket plan:
       {t, label, n, ...} items and {gap: true} items between capture
-      windows) on the broken axis; series: [{ label, role, value(bucket) }]
+      windows) on the broken axis; series: [{ label, role, value(bucket) }];
+      bands: [{ from, to, role, id }] shaded windows behind the bars (the
+      bucket indexes, both ends included; the Log Collection Histogram's
+      anomalies), activeBand the id drawn stronger - change chart.$diagBands /
+      chart.$diagActiveBand and call chart.update('none') to redraw
     diagChart.categoryBars(canvas, rows, { colour, onRow, stacked })
       rows: [{ name (shown), key (the exact filter value, else the name), count, other (not clickable) }]
     make(canvas, { ..., onPick(pick) })  the one click resolver of a chart: pick = { index, label, key, value,
@@ -1134,16 +1138,34 @@
         backgroundColor: function () { return rgba(roleColor(s.role, i), 0.85); }, borderRadius: 2 };
     });
     var onBucket = spec.onBucket;
+    // the shaded windows (bands): behind the bars, the role's colour, the active one stronger
+    var bandsPlugin = { id: 'diagBands', beforeDatasetsDraw: function (c) {
+      var bands = c.$diagBands || [], xs = c.scales.x, ca = c.chartArea;
+      if (!bands.length || !xs || !ca || !c.$axis) return;
+      var ctx = c.ctx;
+      ctx.save();
+      bands.forEach(function (b, i) {
+        var pts = c.$axis.points.filter(function (p) { return p.index >= b.from && p.index <= b.to; });
+        if (!pts.length) return;
+        var x0 = xs.getPixelForValue(pts[0].start), x1 = xs.getPixelForValue(pts[pts.length - 1].start + step);
+        var active = c.$diagActiveBand !== undefined && c.$diagActiveBand !== null && c.$diagActiveBand === b.id;
+        ctx.fillStyle = rgba(roleColor(b.role || 'warn', i), active ? 0.26 : 0.11);
+        ctx.fillRect(x0, ca.top, Math.max(2, x1 - x0), ca.bottom - ca.top);
+        if (active) { ctx.strokeStyle = rgba(roleColor(b.role || 'warn', i), 0.9); ctx.lineWidth = 1; ctx.strokeRect(x0 + 0.5, ca.top + 0.5, Math.max(2, x1 - x0) - 1, ca.bottom - ca.top - 1); }
+      });
+      ctx.restore();
+    } };
     var chart = make(canvas, {
       type: spec.type || 'bar',
-      plugins: [ax.plugin],
-      data: { datasets: datasets },
+      plugins: [ax.plugin, bandsPlugin],
+      // each point's key is its bucket's label (the shared pick resolver reads data.keys: a click picks its bucket)
+      data: { datasets: datasets, keys: ax.points.map(function (p) { return p.label; }) },
       onPick: onBucket ? function (p) { var pt = p.raw && p.raw.bucket ? p.raw : null; if (pt) onBucket(pt.bucket); } : null,
       options: { interaction: { mode: 'index', intersect: false },
         plugins: { legend: { display: !!spec.legend }, tooltip: { callbacks: { title: function (items) { return range(items[0].raw.t); }, afterBody: function () { return [onBucket ? 'click: filter to this time' : '']; } } } },
         scales: { x: merge(ax.scale(), { stacked: spec.stacked !== false }), y: { stacked: spec.stacked !== false, beginAtZero: true, ticks: { font: { size: 10 }, maxTicksLimit: 4, precision: 0 } } } },
     });
-    if (chart) { chart.$axis = ax; ax.apply(chart); }
+    if (chart) { chart.$axis = ax; chart.$diagBands = spec.bands || []; chart.$diagActiveBand = spec.activeBand; ax.apply(chart); }
     return chart;
   }
   // horizontal bars, one per row ({name, count, errors?}); colour(row) → css colour for the plain form; onRow(row) on a click
@@ -2336,40 +2358,27 @@
     },
   };
 
-function mount(root, adapter) {
-  if (!root || !adapter) return null;
-  const root0 = root;
-  const loadLogsBtn = document.getElementById('load-logs-btn');
-  const getRangeBtn = document.getElementById('get-range-btn');
-  const logFileDropdownBtn = document.getElementById('log-file-dropdown-btn');
-  const logFileDropdownPanel = document.getElementById('log-file-dropdown-panel');
-  const logFileSelectionDisplay = document.getElementById('log-file-selection-display');
-  const logFileSearch = document.getElementById('log-file-search');
-  const selectAllLogsBtn = document.getElementById('select-all-logs');
-  const clearAllLogsBtn = document.getElementById('clear-all-logs');
-  const dateSliderStart = document.getElementById('date-slider-start');
-  const dateSliderEnd = document.getElementById('date-slider-end');
-  const dateStartLabel = document.getElementById('date-start-label');
-  const dateEndLabel = document.getElementById('date-end-label');
-  const dateRangeHighlight = document.getElementById('date-range-highlight');
-  const singleDateButton = document.getElementById('single-date-button');
-  const singleDateDisplay = document.getElementById('single-date-display');
-  const dateCalendar = document.getElementById('date-calendar');
-  const loadingIndicator = document.getElementById('loading-indicator');
-
-  let processChart = null;
-  let severityChart = null;
-  const logsLoadedInfo = document.getElementById('logs-loaded-info');
-  const loadedCount = document.getElementById('loaded-count');
-  const logTableBody = document.getElementById('log-table-body');
-  const noResults = document.getElementById('no-results');
-  const searchInput = document.getElementById('log-search');
-  const severityFilter = document.getElementById('severity-filter');
-  const processFilter = document.getElementById('process-filter');
-  const entryCount = document.getElementById('entry-count');
-  const pageInfo = document.getElementById('page-info');
-
-  // Modal elements
+/*
+  diagLogView.sourceRange(adapter, showAlert, opts): the source picker and the date range of a Log Collection page,
+  shared by the Log Viewer (mount below) and the Histogram (diagLogHistogram). It drives the markup of
+  tabs/_log_view.html's source_picker() and range_picker() (their ids) and the Get Date Range button
+  (#get-range-btn). adapter: { dateRange, gatherTime, getRange(paths) } (an adapter of diagLogView.adapters does);
+  showAlert(title, message, type); opts.bar: the element the busy state marks. Returns:
+    selectedPaths()          the checked sources' paths
+    updateSelectionDisplay() the picker button's text after a change from outside
+    getRange()               the selection's earliest and latest timestamps into the slider (Get Date Range)
+    window()                 { start, end, known, loadsWhole, override } - the ISO minutes to read: the slider's
+                             whole days, or the minute-precise window a cross-link set until the range moves again
+    setWindow(from, to)      a cross-link's window (ISO minutes, the end exclusive): the slider moves to its days
+                             and the note under it names the window
+    checkSources(wanted)     a cross-link's source list checked and nothing else (the grammar of applyQuery);
+                             the number checked
+    rangeDates()             { start, end }: the calendar's range (UTC dates), for a file name
+*/
+// the alert modal of a Log Collection page (tabs/_log_view.html alert_modal()): showAlert(title, message, type) with
+// type info / warning / error / success; OK or a click beside the card closes it. Shared by the Log Viewer and the
+// Histogram.
+function alerter() {
   const alertModal = document.getElementById('alert-modal');
   const alertModalIcon = document.getElementById('alert-modal-icon');
   const alertModalTitle = document.getElementById('alert-modal-title');
@@ -2400,18 +2409,32 @@ function mount(root, adapter) {
     }
   });
 
-  let allEntries = [];
-  let filteredEntries = [];
-  let loadScope = null;   // the last load: { filtered: the filters went server-side, files: the selected files }
-  let currentPage = 0;
-  let pageSize = 100;
-  let sortColumn = -1;
-  let sortAscending = true;
+  return showAlert;
+}
 
-  // Loading state for abort functionality
-  let isLoading = false;
-  let busyHandle = null;   // the shared busy state (diagBusy) of the running load / range read
-  let currentReader = null;
+// the cross-link grammar of a Log Collection page: sources=<a>,<b>[&from=<ISO minute>][&to=<ISO minute>][&level=<l>][&q=<term>]
+// (the values URI-encoded, the term last)
+const QUERY = /^sources=([^&]*)((?:&(?:from|to|level)=[^&]*)*)(?:&q=(.*))?$/;
+
+function sourceRange(adapter, showAlert, opts) {
+  opts = opts || {};
+  let override = null;   // a cross-link's minute-precise window (setWindow), until the range moves
+  const selectedPaths = () => Array.from(document.querySelectorAll('.log-file-checkbox:checked')).map((cb) => cb.getAttribute('data-path'));
+  const getRangeBtn = document.getElementById('get-range-btn');
+  const logFileDropdownBtn = document.getElementById('log-file-dropdown-btn');
+  const logFileDropdownPanel = document.getElementById('log-file-dropdown-panel');
+  const logFileSelectionDisplay = document.getElementById('log-file-selection-display');
+  const logFileSearch = document.getElementById('log-file-search');
+  const selectAllLogsBtn = document.getElementById('select-all-logs');
+  const clearAllLogsBtn = document.getElementById('clear-all-logs');
+  const dateSliderStart = document.getElementById('date-slider-start');
+  const dateSliderEnd = document.getElementById('date-slider-end');
+  const dateStartLabel = document.getElementById('date-start-label');
+  const dateEndLabel = document.getElementById('date-end-label');
+  const dateRangeHighlight = document.getElementById('date-range-highlight');
+  const singleDateButton = document.getElementById('single-date-button');
+  const singleDateDisplay = document.getElementById('single-date-display');
+  const dateCalendar = document.getElementById('date-calendar');
 
   // Update selection display
   function updateSelectionDisplay() {
@@ -2568,6 +2591,7 @@ function mount(root, adapter) {
   }
   function updateDateLabel() {
     if (!dateSliderStart || !dateSliderEnd) return;   // no logs, no date picker
+    if (override) { override = null; rangeNote(selectedPaths().length); }   // the range moved: whole days again
     const startDays = parseInt(dateSliderStart.value);
     const endDays = parseInt(dateSliderEnd.value);
 
@@ -2779,6 +2803,150 @@ function mount(root, adapter) {
 
   updateDateLabel();
 
+  // Get Range button handler
+  getRangeBtn?.addEventListener('click', () => { getRange(); });
+  async function getRange() {
+    const checkboxes = document.querySelectorAll('.log-file-checkbox:checked');
+    const selectedPaths = Array.from(checkboxes).map(cb => cb.getAttribute('data-path'));
+
+    if (selectedPaths.length === 0) {
+      showAlert('No Files Selected', 'Please select at least one log file', 'warning');
+      return;
+    }
+
+    const rangeBusy = window.diagBusy ? window.diagBusy.start(getRangeBtn, { label: 'Getting range…', bar: opts.bar || document.querySelector('.lv-toolbar') || document.querySelector('.lv-header') }) : null;
+    if (!rangeBusy) { getRangeBtn.disabled = true; getRangeBtn.textContent = 'Getting range…'; }
+
+    try {
+      // the adapter reads the earliest and latest timestamps of the selected sources ({ start, end,
+      // untimestamped: [names] }); sources without timestamps are not an error: they load whole, in file order
+      const newRange = (await adapter.getRange(selectedPaths)) || {};
+      const newMin = parseServerDate(newRange.start);
+      const newMax = parseServerDate(newRange.end);
+      untimestamped = Array.isArray(newRange.untimestamped) ? newRange.untimestamped : [];
+      emptySources = Array.isArray(newRange.empty) ? newRange.empty : [];
+      loadsWhole = !newMin && !newMax && (untimestamped.length > 0 || emptySources.length >= selectedPaths.length);
+      rangeNote(selectedPaths.length);
+      if (!newMin || !newMax) {
+        if (loadsWhole) { dateRangeKnown = false; sliderShown(false); return; }
+        throw new Error('Could not extract date range from selected files.');
+      }
+      loadsWhole = false;
+      sliderShown(true);
+      minDateParsed = newMin;
+      maxDateParsed = newMax;
+      dateRangeKnown = true;
+
+      minDate = midnightUTC(minDateParsed);
+      maxDate = midnightUTC(maxDateParsed);
+      totalDays = Math.max(0, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)));
+
+
+      // Update slider limits and values
+      dateSliderStart.max = totalDays;
+      dateSliderEnd.max = totalDays;
+      dateSliderStart.value = 0;
+      dateSliderEnd.value = totalDays;
+
+      if (picker) picker.bounds(minDate, maxDate);
+      updateDateLabel();
+
+    } catch (error) {
+      console.error('[Get Range] Error:', error);
+
+      // the bounds stay what they were (never reset to today); the message says what failed
+      showAlert('Error Getting Date Range', error.message, 'error');
+    } finally {
+      if (rangeBusy) rangeBusy.done('Date range read'); else { getRangeBtn.disabled = false; getRangeBtn.textContent = 'Get Date Range'; }
+    }
+  }
+
+  // the window to read: the slider's whole days (the calendar's range), or the minute-precise window a cross-link set
+  // (setWindow) until the range is moved again
+  function window_() {
+    if (override) return { start: override.start, end: override.end, known: true, loadsWhole: false, override: true };
+    if (!dateRangeKnown) return { start: '', end: '', known: false, loadsWhole, override: false };
+    const startDays = parseInt(dateSliderStart.value);
+    const endDays = parseInt(dateSliderEnd.value);
+    // Create dates in UTC to avoid timezone shifting
+    const startDate = new Date(Date.UTC(minDate.getUTCFullYear(), minDate.getUTCMonth(), minDate.getUTCDate() + startDays, 0, 0, 0, 0));
+    const endDate = new Date(Date.UTC(minDate.getUTCFullYear(), minDate.getUTCMonth(), minDate.getUTCDate() + endDays, 23, 59, 59, 999));
+    return { start: startDate.toISOString().slice(0, 16), end: endDate.toISOString().slice(0, 16), known: true, loadsWhole: false, override: false };
+  }
+  // a cross-link's window (ISO minutes, the end exclusive): the slider covers its days, the note under it names it
+  function setWindow(from, to) {
+    const a = parseServerDate(from), b = parseServerDate(to);
+    if (!a || !b || b < a || !dateSliderStart || !dateSliderEnd) return false;
+    if (!dateRangeKnown) { minDateParsed = a; maxDateParsed = b; minDate = midnightUTC(a); maxDate = midnightUTC(b); totalDays = Math.max(0, Math.ceil((maxDate - minDate) / 864e5)); dateSliderStart.max = totalDays; dateSliderEnd.max = totalDays; dateRangeKnown = true; sliderShown(true); if (picker) picker.bounds(minDate, maxDate); }
+    const day = 864e5;
+    const clamp = (v) => Math.max(0, Math.min(parseInt(dateSliderStart.max) || 0, v));
+    dateSliderStart.value = clamp(Math.floor((midnightUTC(a) - minDate) / day));
+    dateSliderEnd.value = clamp(Math.floor((midnightUTC(new Date(b.getTime() - 1)) - minDate) / day));
+    updateDateLabel();
+    override = { start: a.toISOString().slice(0, 16), end: b.toISOString().slice(0, 16) };
+    const note = document.getElementById('date-range-note');
+    if (note) { note.textContent = `Window ${override.start.replace('T', ' ')} - ${override.end.slice(11)}${override.end.slice(0, 10) !== override.start.slice(0, 10) ? ' (' + override.end.slice(0, 10) + ')' : ''} UTC, from a link; move the range to read whole days.`; note.hidden = false; }
+    return true;
+  }
+  // a cross-link's source list (see diagLogView.applyQuery): the sources it names checked and nothing else
+  function checkSources(wanted) {
+    const hit = (box, w) => {
+      const d = box.dataset;
+      if (w.startsWith('node:')) return d.type === 'node' && d.node === w.slice(5);
+      if (w.startsWith('host:')) { const [role, file] = w.slice(5).split('/'); return d.type === 'host' && d.role === role && (!file || d.name === `${role}/${file}`); }
+      if (d.type === 'container') { const parts = w.split('/'); return d.namespace === parts[0] && d.pod === parts[1] && (parts.length < 3 || d.container === parts[2]); }
+      return d.name === w;
+    };
+    let n = 0;
+    document.querySelectorAll('.log-file-checkbox').forEach((box) => { const on = wanted.some((w) => hit(box, w)); box.checked = on; if (on) n += 1; });
+    updateSelectionDisplay();
+    return n;
+  }
+  return {
+    selectedPaths, updateSelectionDisplay, getRange, setWindow, checkSources, window: window_,
+    rangeDates: () => ({ start: rangeStartDate, end: rangeEndDate }),
+    known: () => dateRangeKnown, loadsWhole: () => loadsWhole,
+  };
+}
+
+function mount(root, adapter) {
+  if (!root || !adapter) return null;
+  const root0 = root;
+  const loadLogsBtn = document.getElementById('load-logs-btn');
+  const loadingIndicator = document.getElementById('loading-indicator');
+
+  let processChart = null;
+  let severityChart = null;
+  const logsLoadedInfo = document.getElementById('logs-loaded-info');
+  const loadedCount = document.getElementById('loaded-count');
+  const logTableBody = document.getElementById('log-table-body');
+  const noResults = document.getElementById('no-results');
+  const searchInput = document.getElementById('log-search');
+  const severityFilter = document.getElementById('severity-filter');
+  const processFilter = document.getElementById('process-filter');
+  const entryCount = document.getElementById('entry-count');
+  const pageInfo = document.getElementById('page-info');
+
+  // the alert modal (alerter, shared with the Histogram)
+  const showAlert = alerter();
+
+  let allEntries = [];
+  let filteredEntries = [];
+  let loadScope = null;   // the last load: { filtered: the filters went server-side, files: the selected files }
+  let currentPage = 0;
+  let pageSize = 100;
+  let sortColumn = -1;
+  let sortAscending = true;
+
+  // Loading state for abort functionality
+  let isLoading = false;
+  let busyHandle = null;   // the shared busy state (diagBusy) of the running load / range read
+  let currentReader = null;
+
+  // the source picker and the date range (sourceRange, shared with the Histogram)
+  const sr = sourceRange(adapter, showAlert);
+  const getRange = sr.getRange;   // Get Date Range: the controller's own button
+
   // Initialize empty charts
   updateProcessChart([]);
   updateSeverityChart([]);
@@ -2939,83 +3107,20 @@ function mount(root, adapter) {
     severityChart = window.diagChart.make(ctx, config);
   }
 
-  // Get Range button handler
-  getRangeBtn?.addEventListener('click', () => { getRange(); });
-  async function getRange() {
-    const checkboxes = document.querySelectorAll('.log-file-checkbox:checked');
-    const selectedPaths = Array.from(checkboxes).map(cb => cb.getAttribute('data-path'));
-
-    if (selectedPaths.length === 0) {
-      showAlert('No Files Selected', 'Please select at least one log file', 'warning');
-      return;
-    }
-
-    const rangeBusy = window.diagBusy ? window.diagBusy.start(getRangeBtn, { label: 'Getting range…', bar: document.querySelector('.lv-toolbar') || document.querySelector('.lv-header') }) : null;
-    if (!rangeBusy) { getRangeBtn.disabled = true; getRangeBtn.textContent = 'Getting range…'; }
-
-    try {
-      // the adapter reads the earliest and latest timestamps of the selected sources ({ start, end,
-      // untimestamped: [names] }); sources without timestamps are not an error: they load whole, in file order
-      const newRange = (await adapter.getRange(selectedPaths)) || {};
-      const newMin = parseServerDate(newRange.start);
-      const newMax = parseServerDate(newRange.end);
-      untimestamped = Array.isArray(newRange.untimestamped) ? newRange.untimestamped : [];
-      emptySources = Array.isArray(newRange.empty) ? newRange.empty : [];
-      loadsWhole = !newMin && !newMax && (untimestamped.length > 0 || emptySources.length >= selectedPaths.length);
-      rangeNote(selectedPaths.length);
-      if (!newMin || !newMax) {
-        if (loadsWhole) { dateRangeKnown = false; sliderShown(false); return; }
-        throw new Error('Could not extract date range from selected files.');
-      }
-      loadsWhole = false;
-      sliderShown(true);
-      minDateParsed = newMin;
-      maxDateParsed = newMax;
-      dateRangeKnown = true;
-
-      minDate = midnightUTC(minDateParsed);
-      maxDate = midnightUTC(maxDateParsed);
-      totalDays = Math.max(0, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)));
-
-
-      // Update slider limits and values
-      dateSliderStart.max = totalDays;
-      dateSliderEnd.max = totalDays;
-      dateSliderStart.value = 0;
-      dateSliderEnd.value = totalDays;
-
-      if (picker) picker.bounds(minDate, maxDate);
-      updateDateLabel();
-
-    } catch (error) {
-      console.error('[Get Range] Error:', error);
-
-      // the bounds stay what they were (never reset to today); the message says what failed
-      showAlert('Error Getting Date Range', error.message, 'error');
-    } finally {
-      if (rangeBusy) rangeBusy.done('Date range read'); else { getRangeBtn.disabled = false; getRangeBtn.textContent = 'Get Date Range'; }
-    }
-  }
-
   // a cross-link's source list (see the contract above): the sources it names checked and nothing else, their date
-  // range read, the logs loaded, the term in the search; false when the query is not a source list
+  // range read, the window a link names (from / to, ISO minutes, the end exclusive) set to the minute, the level in
+  // its select, the logs loaded, the term in the search; false when the query is not a source list
   function applyQuery(q) {
-    const m = /^sources=([^&]*)(?:&q=(.*))?$/.exec(String(q || ''));
+    const m = QUERY.exec(String(q || ''));
     if (!m) return false;
     const wanted = decodeURIComponent(m[1]).split(',').map((s) => s.trim()).filter(Boolean);
-    const hit = (box, w) => {
-      const d = box.dataset;
-      if (w.startsWith('node:')) return d.type === 'node' && d.node === w.slice(5);
-      if (w.startsWith('host:')) { const [role, file] = w.slice(5).split('/'); return d.type === 'host' && d.role === role && (!file || d.name === `${role}/${file}`); }
-      if (d.type === 'container') { const parts = w.split('/'); return d.namespace === parts[0] && d.pod === parts[1] && (parts.length < 3 || d.container === parts[2]); }
-      return d.name === w;
-    };
-    let n = 0;
-    document.querySelectorAll('.log-file-checkbox').forEach((box) => { const on = wanted.some((w) => hit(box, w)); box.checked = on; if (on) n += 1; });
-    updateSelectionDisplay();
-    if (searchInput) { searchInput.value = m[2] ? decodeURIComponent(m[2]) : ''; }
+    const opt = {};
+    (m[2] || '').split('&').filter(Boolean).forEach((kv) => { const i = kv.indexOf('='); opt[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1)); });
+    const n = sr.checkSources(wanted);
+    if (searchInput) { searchInput.value = m[3] ? decodeURIComponent(m[3]) : ''; }
+    if (severityFilter) severityFilter.value = SEVERITY_LEVELS.includes(opt.level) ? opt.level : '';
     if (!n) { showAlert('No Matching Logs', `None of the listed logs is ${wanted.join(', ')}.`, 'warning'); return true; }
-    (async () => { await getRange(); if (!isLoading) await loadLogs(); })();
+    (async () => { await getRange(); if (opt.from && opt.to) sr.setWindow(opt.from, opt.to); if (!isLoading) await loadLogs(); })();
     return true;
   }
 
@@ -3029,35 +3134,18 @@ function mount(root, adapter) {
       return;
     }
 
-    if (!dateRangeKnown && !loadsWhole) {
+    // the window: the slider's whole days, or a cross-link's minute-precise window (sourceRange.window)
+    const range = sr.window();
+    if (!range.known && !range.loadsWhole) {
       showAlert('Date Range Unknown',
         'No timestamps could be read from the default log files. Select the log files to view and click "Get Date Range" first.',
         'warning');
       return;
     }
 
-    // Calculate start and end datetime from date slider (full days)
-    const startDays = parseInt(dateSliderStart.value);
-    const endDays = parseInt(dateSliderEnd.value);
-
-    // Create dates in UTC to avoid timezone shifting
-    const startDate = new Date(Date.UTC(
-      minDate.getUTCFullYear(),
-      minDate.getUTCMonth(),
-      minDate.getUTCDate() + startDays,
-      0, 0, 0, 0
-    ));
-
-    const endDate = new Date(Date.UTC(
-      minDate.getUTCFullYear(),
-      minDate.getUTCMonth(),
-      minDate.getUTCDate() + endDays,
-      23, 59, 59, 999
-    ));
-
     // no known range (the sources carry no timestamps): the sources load whole, in file order
-    const startDateStr = dateRangeKnown ? startDate.toISOString().slice(0, 16) : '';
-    const endDateStr = dateRangeKnown ? endDate.toISOString().slice(0, 16) : '';
+    const startDateStr = range.start;
+    const endDateStr = range.end;
 
     isLoading = true;
     loadLogsBtn.textContent = 'Abort Loading';
@@ -3453,6 +3541,7 @@ function mount(root, adapter) {
     let startDateStr = 'all';
     let endDateStr = 'all';
 
+    const { start: rangeStartDate, end: rangeEndDate } = sr.rangeDates();
     if (rangeStartDate) {
       startDateStr = `${rangeStartDate.getUTCFullYear()}-${String(rangeStartDate.getUTCMonth() + 1).padStart(2, '0')}-${String(rangeStartDate.getUTCDate()).padStart(2, '0')}`;
     }
@@ -3491,5 +3580,347 @@ let mounted = null;   // the one viewer of the page (diagLogView.applyQuery hand
     (function go() { if (mounted) { mounted.applyQuery(q); return; } if (tries++ < 40) setTimeout(go, 50); })();
     return true;
   }
-  window.diagLogView = { mount: mount, adapters: adapters, sseReader: sseReader, applyQuery: applyQueryWhenMounted };
+  window.diagLogView = { mount: mount, adapters: adapters, sseReader: sseReader, applyQuery: applyQueryWhenMounted, sourceRange: sourceRange, QUERY: QUERY, alerter: alerter };
+})();
+
+/*
+  diagLogHistogram: Log Collection > Histogram (tabs/_log_histogram.html; parsers/log_histogram.py is the engine).
+
+    window.diagLogHistogram.mount(root, { reportType, directory, dateRange, gatherTime })
+
+  The controls are the Log Viewer's (diagLogView.sourceRange over the shared range_picker / source_picker markup, the
+  adapter's Get Date Range). Analyze streams /log_histogram_stream (diagnosticsApiStream: progress events, then the
+  result) with the busy state and Cancel (the stream aborted and /log_histogram_cancel, which stops the server's
+  worker processes); the result draws the Findings strip, the lines per time bucket (diagChart.timeSeries, the
+  anomalies' windows as bands; a click on a bucket filters the anomalies to it), the busiest sources
+  (diagChart.categoryBars; a click filters by the source), the ranked anomalies and the message templates (paged with
+  diagPager, rows expandable with the sample line), each with an Open button to the Log Viewer at its window
+  (data-tab / data-query: diagLinks). Every value is set as text, never as HTML.
+*/
+(function () {
+  const SEV_ROLE = { critical: 'bad', error: 'bad', warning: 'warn', info: 'info', debug: 'muted', other: 'muted' };
+  const KIND = { volume: ['Volume spike', 'warn'], errors: ['Error spike', 'bad'], burst: ['Burst', 'warn'], new: ['New', 'info'], incident: ['Incident', 'bad'], stopped: ['Stopped', 'warn'], rare: ['Rare', 'muted'] };
+  // the thresholds in words: [label, what it means] (the key, parsers/log_histogram.py THRESHOLDS, in the tooltip)
+  const THRESHOLD_TEXT = {
+    min_burst: ['Smallest spike or burst', 'lines in a bucket, at least'], burst_ratio: ['Burst ratio', 'times the usual rate, at least'],
+    burst_p: ['Burst improbability', '-log10 of its Poisson tail, at least'], burst_floor: ['Lowest usual rate', 'lines per bucket a message is given'],
+    spike_z: ['Spike score', 'robust z-score (median / MAD), at least'], spike_ratio: ['Spike ratio', 'times the median bucket, at least'],
+    new_after: ['New after', 'share of the time its sources cover'], new_min: ['New: seen', 'times, at least'],
+    stop_before: ['Stopped: quiet for', 'share of the buckets before its sources end'], stop_presence: ['Stopped: present in', 'share of its buckets before'],
+    stop_min_rate: ['Stopped: rate before', 'lines per bucket, at least'], stop_min_life: ['Stopped: steady for', 'buckets, at least'],
+    rare_max: ['Rare: seen', 'times at most (an error or critical message)'], incident_min: ['Incident', 'never-seen messages of one source in one bucket'], incident_vs_usual: ['Incident vs usual', 'times the one-offs the source writes per bucket anyway'],
+    merge_similarity: ['Same template', 'share of equal words (one source, the same length)'],
+  };
+
+  function mount(root, opts) {
+    if (!root || root.$lh || !window.diagLogView || !window.diagDetail) return null;
+    root.$lh = true;
+    opts = opts || {};
+    const D = window.diagDetail;
+    const el = D.el;
+    const $ = (id) => document.getElementById(id);
+    const analyzeBtn = $('lh-analyze');
+    if (!analyzeBtn) return null;   // no logs: the Findings strip says so
+    const base = window.diagLogView.adapters[opts.reportType === 'mustgather' ? 'mustgather' : 'sosreport']({ directory: opts.directory, dateRange: opts.dateRange, gatherTime: opts.gatherTime });
+    const showAlert = window.diagLogView.alerter();
+    const toolbar = root.querySelector('.lv-toolbar');
+    const sr = window.diagLogView.sourceRange(base, showAlert, { bar: toolbar });
+    const results = $('lh-results');
+    const status = $('lh-status');
+    let result = null;
+    let running = null;   // { stream, busy }
+    const charts = {};
+    const view = { kind: '', level: '', source: '', window: null, aPage: 1, aSize: 25, tPage: 1, tSize: 50, tSort: 'count', tAsc: false, tSearch: '', tLevel: '', tSource: '' };
+
+    // ---- Analyze / Cancel
+    function setRunning(on) {
+      analyzeBtn.textContent = on ? 'Cancel' : 'Analyze';
+      analyzeBtn.classList.toggle('btn-danger-solid', on);
+      analyzeBtn.classList.toggle('btn-primary', !on);
+      analyzeBtn.title = on ? 'Stop the analysis' : analyzeBtn.dataset.title || analyzeBtn.title;
+    }
+    analyzeBtn.dataset.title = analyzeBtn.title;
+    function cancel() {
+      if (!running) return;
+      const r = running;
+      running = null;
+      try { r.stream.cancel(); } catch { /* the stream is gone */ }
+      window.diagnosticsApiRequest('/log_histogram_cancel', { directory: opts.directory }).catch(() => {});
+      if (r.busy) r.busy.cancel();
+      setRunning(false);
+      status.textContent = 'Analysis cancelled';
+    }
+    function analyze() {
+      if (running) { cancel(); return; }
+      const paths = sr.selectedPaths();
+      if (!paths.length) { showAlert('No Logs Selected', 'Select at least one log to analyze.', 'warning'); return; }
+      const w = sr.window();
+      if (!w.known && !w.loadsWhole) { showAlert('Date Range Unknown', 'No timestamps could be read from the selected logs. Select the logs and click "Get Date Range" first.', 'warning'); return; }
+      const body = { directory: opts.directory, report_type: opts.reportType, paths, start: w.start || null, end: w.end || null };
+      const busy = window.diagBusy ? window.diagBusy.start(null, { label: 'Analyzing…', bar: toolbar, table: results.hidden ? null : results, cancel }) : null;
+      setRunning(true);
+      status.textContent = 'Analyzing…';
+      let failure = null;
+      let got = null;
+      const run = {};   // this run: a chunk of a run cancelled or replaced since (the bridge cannot abort a stream
+                        // whose answer has not started yet) changes nothing
+      const read = window.diagLogView.sseReader((chunk) => {
+        if (!running || running.run !== run) return;
+        if (chunk.progress) {
+          const p = chunk.progress;
+          const text = `Analyzing… ${Number(p.done || 0).toLocaleString()} of ${Number(p.total || 0).toLocaleString()} parts (${Number(p.files || 0).toLocaleString()} log${p.files === 1 ? '' : 's'})`;
+          status.textContent = text;
+          if (busy) busy.update(text);
+        } else if (chunk.result) {
+          got = chunk.result;
+        } else if (chunk.cancelled) {
+          failure = { cancelled: true };
+        } else if (chunk.error) {
+          failure = { message: chunk.error };
+        }
+      });
+      running = { run, busy };
+      const stream = window.diagnosticsApiStream('/log_histogram_stream', body, read);
+      running.stream = stream;
+      stream.done.then(() => {
+        if (!running || running.stream !== stream) return;   // cancelled meanwhile
+        running = null;
+        setRunning(false);
+        if (got) {
+          render(got);
+          const st = got.stats || {};
+          const run = st.run || {};
+          status.textContent = `${Number(st.matched || 0).toLocaleString()} lines analyzed in ${run.seconds || 0} s` + (run.mode === 'parallel' ? ` (${run.workers} processes)` : '') + (got.cached ? ', from the cache' : '');
+          if (busy) busy.done(`${(got.anomalies || []).length} anomalies`);
+        } else if (failure && failure.cancelled) {
+          status.textContent = 'Analysis cancelled (a newer one replaced it)';
+          if (busy) busy.cancel();
+        } else {
+          const msg = (failure && failure.message) || 'The analysis did not answer';
+          status.textContent = '';
+          if (busy) busy.fail(msg, analyze); else showAlert('Analysis Failed', msg, 'error');
+        }
+      }).catch((e) => {
+        if (!running || running.stream !== stream) return;
+        running = null;
+        setRunning(false);
+        status.textContent = '';
+        const msg = String((e && e.message) || e || 'The analysis failed');
+        if (busy) busy.fail(msg, analyze); else showAlert('Analysis Failed', msg, 'error');
+      });
+    }
+    analyzeBtn.addEventListener('click', analyze);
+
+    // ---- the result
+    function link(query, label) {
+      const b = el('button', 'btn btn-secondary btn-sm ui-finding-link', label || 'Open');
+      b.type = 'button';
+      b.setAttribute('data-tab', 'log_collection');
+      b.setAttribute('data-sub-tab', 'log_viewer');
+      b.setAttribute('data-query', query || '');
+      b.title = 'Open the Log Viewer on these sources for this time window, with a piece of the message as the search';
+      return b;
+    }
+    function td(content, cls, col) {
+      const c = el('td', cls || '');
+      if (col) c.setAttribute('data-col', col);   // the column's name (the tests and the details read by it)
+      if (content === null || content === undefined) return c;
+      if (typeof content === 'string' || typeof content === 'number') c.textContent = String(content); else c.appendChild(content);
+      return c;
+    }
+    const fmtNum = (n) => Number(n || 0).toLocaleString();
+    const when = (iso) => (iso ? String(iso).replace('T', ' ') : '');
+
+    function render(res) {
+      result = res;
+      results.hidden = false;
+      view.window = null; view.aPage = 1; view.tPage = 1;
+      D.findings(document.getElementById('lh-findings'), res.findings || []);
+      const st = res.stats || {};
+      const tl = res.timeline;
+      $('lh-summary').textContent = `${fmtNum(st.matched)} lines in ${fmtNum(st.templates)} message templates from ${fmtNum(st.files)} log${st.files === 1 ? '' : 's'}`
+        + (tl ? `, ${when(tl.first)} to ${when(tl.last)} UTC, ${tl.step_text} per bucket` : '')
+        + (st.outside ? `; ${fmtNum(st.outside)} lines outside the dates` : '') + (st.undated ? `; ${fmtNum(st.undated)} line${st.undated === 1 ? '' : 's'} without a time (continuations)` : '');
+      // the source selects (the anomalies', the messages')
+      ['lh-source', 'lh-template-source'].forEach((id) => {
+        const sel = $(id);
+        while (sel.options.length > 1) sel.remove(1);
+        (res.group_names || []).forEach((g) => { const o = document.createElement('option'); o.value = g; o.textContent = g; sel.appendChild(o); });
+        sel.value = '';
+      });
+      view.source = ''; view.tSource = '';
+      drawTimeline();
+      drawGroups();
+      const dl = $('lh-thresholds');
+      dl.textContent = '';
+      Object.keys(res.thresholds || {}).forEach((k) => { const t = THRESHOLD_TEXT[k] || [k, '']; const d = el('div'); const dt = el('dt', '', t[0]); dt.title = k; d.appendChild(dt); d.appendChild(el('dd', '', `${res.thresholds[k]} ${t[1]}`)); dl.appendChild(d); });
+      renderAnomalies();
+      renderTemplates();
+    }
+
+    function drawTimeline() {
+      const tl = result && result.timeline;
+      const canvas = $('lh-timeline');
+      if (charts.timeline) { try { charts.timeline.destroy(); } catch { /* gone */ } charts.timeline = null; }
+      if (!tl || !window.diagChart) { $('lh-timeline-note').textContent = 'No timestamped line in the selected logs for these dates.'; return; }
+      const sum = (b, keys) => keys.reduce((a, k) => a + (b[k] || 0), 0);
+      charts.timeline = window.diagChart.timeSeries(canvas, {
+        buckets: tl.buckets, step: tl.step_seconds,
+        series: [
+          { label: 'errors', role: 'bad', value: (b) => sum(b, ['critical', 'error']) },
+          { label: 'warnings', role: 'warn', value: (b) => b.warning || 0 },
+          { label: 'info', role: 'info', value: (b) => b.info || 0 },
+          { label: 'other', role: 'muted', value: (b) => sum(b, ['debug', 'other']) },
+        ],
+        bands: (tl.bands || []).map((b) => ({ from: b.from, to: b.to, id: b.id, role: (KIND[b.kind] || [0, 'warn'])[1] === 'bad' || b.severity === 'error' || b.severity === 'critical' ? 'bad' : 'warn' })),
+        onBucket: (bucket) => { setWindow(bucket); },
+      });
+      const gaps = tl.gaps || [];
+      $('lh-timeline-note').textContent = (gaps.length ? `${tl.windows.length} capture windows: ` + gaps.map((g) => `${g.label} (${g.from} to ${g.to})`).join('; ') + '. ' : '') + 'Shaded: the top anomalies\' windows. Click a bucket to list the anomalies in it.';
+    }
+    function drawGroups() {
+      const canvas = $('lh-groups');
+      if (charts.groups) { try { charts.groups.destroy(); } catch { /* gone */ } charts.groups = null; }
+      if (!window.diagChart || !(result.groups || []).length) return;
+      // a click on a source lists its messages (every source has some; not every one has an anomaly)
+      charts.groups = window.diagChart.categoryBars(canvas, result.groups, { onRow: (row) => { $('lh-template-source').value = row.key; view.tSource = row.key; view.tPage = 1; renderTemplates(); } });
+    }
+    function setWindow(bucket) {
+      if (!bucket || !bucket.t) return;
+      const step = (result.timeline.step_seconds || 60) * 1000;
+      const from = bucket.t.slice(0, 16);
+      const to = new Date(new Date(bucket.t + 'Z').getTime() + step).toISOString().slice(0, 16);
+      view.window = { from, to };
+      view.aPage = 1;
+      // the shared filter chip: "Window: <the bucket's label> x", the whole range in its tooltip
+      const chip = $('lh-window-chip');
+      chip.textContent = '';
+      chip.appendChild(el('span', 'ui-chip-key', 'Window: '));
+      chip.appendChild(el('span', 'ui-chip-text', bucket.label || from.slice(11)));
+      chip.appendChild(el('span', 'ui-chip-x', '×'));
+      chip.title = `${when(from)} - ${to.slice(11)} UTC: click to show every anomaly again`;
+      chip.hidden = false;
+      renderAnomalies();
+    }
+    $('lh-window-chip').addEventListener('click', () => { view.window = null; $('lh-window-chip').hidden = true; view.aPage = 1; renderAnomalies(); });
+    [['lh-kind', 'kind'], ['lh-level', 'level'], ['lh-source', 'source']].forEach(([id, key]) => $(id).addEventListener('change', (e) => { view[key] = e.target.value; view.aPage = 1; renderAnomalies(); }));
+    $('lh-anomalies-rows').addEventListener('change', (e) => { view.aSize = Number(e.target.value); view.aPage = 1; renderAnomalies(); });
+    $('lh-templates-rows').addEventListener('change', (e) => { view.tSize = Number(e.target.value); view.tPage = 1; renderTemplates(); });
+    let searchTimer = null;
+    $('lh-template-search').addEventListener('input', (e) => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { view.tSearch = e.target.value.trim().toLowerCase(); view.tPage = 1; renderTemplates(); }, 150); });
+    $('lh-template-level').addEventListener('change', (e) => { view.tLevel = e.target.value; view.tPage = 1; renderTemplates(); });
+    $('lh-template-source').addEventListener('change', (e) => { view.tSource = e.target.value; view.tPage = 1; renderTemplates(); });
+    Array.prototype.forEach.call(document.querySelectorAll('#lh-templates th[data-key]'), (th) => {
+      th.classList.add('cursor-pointer');
+      th.addEventListener('click', () => {
+        const key = th.getAttribute('data-key');
+        view.tAsc = view.tSort === key ? !view.tAsc : (key !== 'count');
+        view.tSort = key;
+        if (window.diagTables) window.diagTables.markSort(th, view.tAsc);
+        view.tPage = 1;
+        renderTemplates();
+      });
+    });
+
+    function page(list, pageNo, size) {
+      const total = list.length;
+      const n = size > 0 ? size : total || 1;
+      const pages = Math.max(1, Math.ceil(total / n));
+      const p = Math.min(Math.max(1, pageNo), pages);
+      return { rows: list.slice((p - 1) * n, (p - 1) * n + n), page: p, start: total ? (p - 1) * n + 1 : 0, end: Math.min(total, p * n), total, size: n };
+    }
+
+    function renderAnomalies() {
+      const all = (result && result.anomalies) || [];
+      const list = all.filter((a) => (!view.kind || a.kind === view.kind) && (!view.level || a.severity === view.level) && (!view.source || a.group === view.source)
+        && (!view.window || (a.from < view.window.to && a.to > view.window.from)));
+      $('lh-anomalies-count').textContent = String(all.length);
+      const pg = page(list, view.aPage, view.aSize);
+      const body = $('lh-anomalies-body');
+      body.textContent = '';
+      if (!list.length) {
+        const tr = el('tr'); const c = td(all.length ? 'No anomaly matches these filters.' : 'No anomaly by the thresholds: nothing stands out in these logs for these dates.'); c.colSpan = 8; c.className = 'ui-status'; tr.appendChild(c); body.appendChild(tr);
+      }
+      pg.rows.forEach((a) => {
+        const tr = el('tr', 'ui-xrow' + (a.severity === 'critical' || a.severity === 'error' || a.kind === 'errors' ? ' ui-row-bad' : ''));
+        tr.setAttribute('data-anomaly', a.id);
+        tr.setAttribute('data-source', a.group || '');
+        // the score ranks; the level and the kind say how bad (a warn / bad meter is a Finding's colour)
+        const score = td(D.meter(a.score, 100, 'ok', String(Math.round(a.score)), 'Score 0-100: how far it stands out'), '', 'score'); score.setAttribute('data-sort', String(a.score)); tr.appendChild(score);
+        const k = KIND[a.kind] || [a.kind, 'muted'];
+        tr.appendChild(td(D.badge(k[1], k[0]), '', 'kind'));
+        tr.appendChild(td(a.when, '', 'when'));
+        tr.appendChild(td(a.group || (a.sources ? `${a.sources} source${a.sources === 1 ? '' : 's'}` : ''), '', 'source'));
+        tr.appendChild(td(a.severity ? D.badge(SEV_ROLE[a.severity] || 'muted', a.severity) : '', '', 'level'));
+        tr.appendChild(td(a.title, '', 'what'));
+        tr.appendChild(td(a.peak !== undefined ? `${fmtNum(a.peak)} (usual ${a.baseline})` : fmtNum(a.count), 'ui-col-num', 'lines'));
+        tr.appendChild(td(link(a.link, 'Open'), '', 'open'));
+        body.appendChild(tr);
+        // the details: the template, the sample line, the related lines of an incident
+        const box = el('div');
+        if (a.template) { box.appendChild(el('div', 'ui-kv-title', 'Message template')); box.appendChild(el('pre', 'ui-code-text', a.template)); }
+        if (a.sample) { box.appendChild(el('div', 'ui-kv-title', 'First line')); box.appendChild(el('pre', 'ui-code-text', a.sample)); }
+        if (a.members && a.members.length) {
+          box.appendChild(el('div', 'ui-kv-title', `The incident's ${a.members.length} messages`));
+          const ul = el('ul', 'ui-list');
+          a.members.forEach((m) => { const li = el('li'); li.appendChild(D.badge(SEV_ROLE[m.severity] || 'muted', m.severity)); li.appendChild(document.createTextNode(` ${m.template} (${fmtNum(m.count)})`)); ul.appendChild(li); });
+          box.appendChild(ul);
+        }
+        box.appendChild(el('div', 'ui-status', `${a.kind === 'stopped' ? 'last seen ' + when(a.last_seen) + '; ' : ''}${a.count !== undefined ? fmtNum(a.count) + ' lines' : ''}${a.sources ? ' from ' + a.sources + ' source' + (a.sources === 1 ? '' : 's') : ''}`));
+        body.appendChild(window.diagTables ? window.diagTables.xrowPanel(9, box) : el('tr'));
+        tr.addEventListener('click', (e) => { if (e.target.closest('button, a')) return; highlight(a.id); });
+      });
+      if (window.diagPager) {
+        window.diagPager.render($('lh-anomalies-pager'), { page: pg.page, total: pg.total, pageSize: pg.size, go: (p) => { view.aPage = p; renderAnomalies(); } });
+        window.diagPager.status($('lh-anomalies-page-status'), { start: pg.start, end: pg.end, total: pg.total, unit: 'anomalies', filteredFrom: all.length });
+      }
+      $('lh-anomalies-status').textContent = view.window ? `in ${when(view.window.from)} - ${view.window.to.slice(11)}` : '';
+    }
+    function highlight(id) {
+      const c = charts.timeline;
+      if (!c) return;
+      c.$diagActiveBand = c.$diagActiveBand === id ? null : id;
+      try { c.update('none'); } catch { /* gone */ }
+    }
+
+    function renderTemplates() {
+      const all = (result && result.templates) || [];
+      const q = view.tSearch;
+      let list = all.filter((t) => (!view.tLevel || t.severity === view.tLevel) && (!view.tSource || t.group === view.tSource) && (!q || `${t.group} ${t.template} ${t.sample}`.toLowerCase().includes(q)));
+      const key = view.tSort, dir = view.tAsc ? 1 : -1;
+      list = list.slice().sort((a, b) => { const x = a[key], y = b[key]; const c = typeof x === 'number' ? x - y : String(x).localeCompare(String(y)); return c * dir || a.id.localeCompare(b.id); });
+      $('lh-templates-count').textContent = String(all.length);
+      const pg = page(list, view.tPage, view.tSize);
+      const body = $('lh-templates-body');
+      body.textContent = '';
+      if (!list.length) { const tr = el('tr'); const c = td(all.length ? 'No message matches.' : 'No message.'); c.colSpan = 7; c.className = 'ui-status'; tr.appendChild(c); body.appendChild(tr); }
+      pg.rows.forEach((t) => {
+        const tr = el('tr', 'ui-xrow');
+        tr.setAttribute('data-source', t.group);
+        tr.appendChild(td(fmtNum(t.count), 'ui-col-num', 'lines'));
+        tr.appendChild(td(D.badge(SEV_ROLE[t.severity] || 'muted', t.severity), '', 'level'));
+        tr.appendChild(td(t.group, '', 'source'));
+        tr.appendChild(td(t.template, '', 'template'));
+        tr.appendChild(td(when(t.first), '', 'first'));
+        tr.appendChild(td(when(t.last), '', 'last'));
+        tr.appendChild(td(link(t.link, 'Open'), '', 'open'));
+        body.appendChild(tr);
+        const box = el('div');
+        box.appendChild(el('div', 'ui-kv-title', 'First line'));
+        box.appendChild(el('pre', 'ui-code-text', t.sample));
+        if (t.merged > 1) box.appendChild(el('div', 'ui-status', `${t.merged} similar messages folded into this template`));
+        body.appendChild(window.diagTables ? window.diagTables.xrowPanel(8, box) : el('tr'));
+      });
+      if (window.diagPager) {
+        window.diagPager.render($('lh-templates-pager'), { page: pg.page, total: pg.total, pageSize: pg.size, go: (p) => { view.tPage = p; renderTemplates(); } });
+        window.diagPager.status($('lh-templates-page-status'), { start: pg.start, end: pg.end, total: pg.total, unit: 'messages', filteredFrom: all.length });
+      }
+      $('lh-templates-status').textContent = all.length >= 1000 ? 'the 1,000 most frequent' : '';
+    }
+
+    const handle = { analyze, cancel, sourceRange: sr, result: () => result, charts };
+    root.$handle = handle;
+    return handle;
+  }
+  window.diagLogHistogram = { mount };
 })();

@@ -143,8 +143,9 @@ try {
     Object.defineProperty(input, 'files', { value: [file], configurable: true });
     await act(async () => { input.dispatchEvent(new dom.window.Event('change', { bubbles: true })); await sleep(80); });
     const line = text('[data-testid="import-preview-custom-words"]');
+    const themes = text('[data-testid="import-preview-custom-themes"]');
     await unmount();
-    return line;
+    return themes === '' ? line : themes;
   }
   let line = await preview(exportFile({ customWords: { formatVersion: 1, words: ['alpha', 'beta', 'gamma'] } }));
   check('5. Import Database preview: "3 custom spelling words" from the export', line === '3 custom spelling words', line);
@@ -152,6 +153,15 @@ try {
   check('5. ...one word: "1 custom spelling word"', line === '1 custom spelling word', line);
   line = await preview(exportFile({}));
   check('5. ...an older export without customWords: no line', line === '', line);
+  const themeOf = (name) => ({ id: `ct-${name}00000000`, name, base: 'dark', colors: { canvas: '#0f0d16', card: '#17141f', cardSecondary: '#211c30', codeBg: '#141120', textPrimary: '#ede6ff', textSecondary: '#b9afd6', textMuted: '#8f84ad', accent: '#4a9eff', border: '#2a2438', success: '#3fa37a', warning: '#facc15', danger: '#f87171', railText: '#b9afd6', sidebar: '#15121f', markArch: '#7b5ce0', markBlossom: '#ede6ff' }, fills: { rail: { type: 'solid', color: '#1b1530' } }, logoTone: 'dark' });
+  line = await preview(exportFile({ customThemes: { formatVersion: 1, themes: [themeOf('a'), themeOf('b'), themeOf('c')] } }));
+  check('5. Import Database preview: "3 custom themes" from the export (the Palette line, shown only with the field)', line === '3 custom themes', line);
+  line = await preview(exportFile({ customThemes: { formatVersion: 1, themes: [themeOf('a')] } }));
+  check('5. ...one theme: "1 custom theme"', line === '1 custom theme', line);
+  line = await preview(exportFile({ customThemes: { formatVersion: 1, themes: [] } }));
+  check('5. ...an export with no saved themes (the section is always written): "0 custom themes"', line === '0 custom themes', line);
+  line = await preview(exportFile({ customWords: { formatVersion: 1, words: ['alpha'] } }));
+  check('5. ...an export without customThemes: the words line only, no themes line', line === '1 custom spelling word', line);
 } finally {
   fs.rmSync(WORK, { recursive: true, force: true });
 }

@@ -3,6 +3,7 @@
 
     python3 tests/fixtures/diagnostics-mock/generate.py            # sosreport + must-gather into out/
     python3 tests/fixtures/diagnostics-mock/generate.py --large    # also a ~50k-line-journal sosreport
+    python3 tests/fixtures/diagnostics-mock/generate.py --anomalies   # also the Log Collection Histogram's planted reports
     python3 tests/fixtures/diagnostics-mock/generate.py --copy-to ~/Downloads
 
 Writes, under --out (default: this directory's out/, which is git-ignored):
@@ -12,6 +13,9 @@ Writes, under --out (default: this directory's out/, which is git-ignored):
     must-gather.local.1234567890/                 extracted must-gather
     must-gather.local.1234567890.tar.gz           the same, archived
     sosreport-web-02-2026-10-13-bigjrnl[.tar.xz]  only with --large
+    sosreport-node-01-2026-10-12-anomaly/        only with --anomalies: a day of journal with six planted anomalies
+    sosreport-node-01-2026-10-12-flat/           only with --anomalies: the same traffic, nothing planted
+    must-gather.local.1111111111/                only with --anomalies: container logs with planted anomalies
 
 Standard library only; deterministic (fixed seed, fixed timestamps, fixed
 archive metadata), so reruns produce byte-identical output. Every value in the
@@ -28,6 +32,7 @@ import tarfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import mock_log_anomalies  # noqa: E402
 import mock_manifests
 import mock_mustgather  # noqa: E402
 import mock_sosreport  # noqa: E402
@@ -95,6 +100,7 @@ def main(argv=None):
     ap.add_argument("--out", default=os.path.join(HERE, "out"), help="output directory (default: tests/fixtures/diagnostics-mock/out)")
     ap.add_argument("--large", action="store_true", help="also build the large sosreport variant (~50k journal lines)")
     ap.add_argument("--large-lines", type=int, default=50000, help="journal lines for the large variant (default 50000)")
+    ap.add_argument("--anomalies", action="store_true", help="also build the Log Collection Histogram's reports with planted anomalies (mock_log_anomalies.py)")
     ap.add_argument("--no-archives", action="store_true", help="only write the extracted directories")
     ap.add_argument("--copy-to", metavar="DIR", help="also copy the extracted report directories into DIR (e.g. ~/Downloads, where the Diagnostics page looks by default)")
     args = ap.parse_args(argv)
@@ -155,6 +161,15 @@ def main(argv=None):
         if not args.no_archives:
             archive_xz(large_dir, large_dir + ".tar.xz")
             built.append(large_dir + ".tar.xz")
+
+    if args.anomalies:
+        # Log Collection > Histogram: a sosreport and a must-gather with planted anomalies, and a flat control
+        for flat in (False, True):
+            name = 'sosreport-node-01-2026-10-12-' + ('flat' if flat else 'anomaly')
+            _reset(os.path.join(out, name))
+            built.append(mock_log_anomalies.planted_sosreport(out, flat=flat, name=name)[0])
+        _reset(os.path.join(out, 'must-gather.local.1111111111'))
+        built.append(mock_log_anomalies.planted_mustgather(out)[0])
 
     copies = []
     if args.copy_to:

@@ -125,7 +125,7 @@ const openAbout = async () => {
   return app.waitFor(`!!document.querySelector('[data-testid="about-settings"] svg[data-brand="mark"]')`, 8000);
 };
 const heroClip = async () => {
-  const r = await app.evaluate(`(() => { const h = document.querySelector('[data-testid="about-settings"] .brand-hero'); const b = h.getBoundingClientRect(); return [b.left, b.top, b.width, b.height]; })()`);
+  const r = await app.evaluate(`(() => { const h = document.querySelector('[data-testid="about-hero"]'); const b = h.getBoundingClientRect(); return [b.left, b.top, b.width, b.height]; })()`);
   return { x: Math.round(r[0]), y: Math.round(r[1]), width: Math.min(HERO_W, Math.round(r[2])), height: Math.round(r[3]), scale: HERO_SCALE };
 };
 
@@ -234,7 +234,7 @@ try {
       check(`${tag}: Settings > About shows the mark`, !!about);
       let hero = null;
       if (about) {
-        const a = await markProbe('[data-testid="about-settings"] .brand-hero');
+        const a = await markProbe('[data-testid="about-hero"]');
         if (t.key === 'light') aboutMarkup[id] = a.outer;
         check(`${tag}: About's mark is 56 px with the ${id === 'none' ? 'plain mark' : 'decoration'}`, a.svg[2] === 56 && (a.decoration || 'none') === id, JSON.stringify([a.svg, a.decoration]));
         if (id !== 'none') check(`${tag}: About's decoration is not clipped by the modal`, a.clipped === null, String(a.clipped));

@@ -140,7 +140,7 @@ function VersionSection({ entry, current, unseen, first }) {
         </h2>
         {entry.date && <time dateTime={entry.date} data-whats-new-date="true" className="text-xs text-os-text-secondary">{entry.date}</time>}
         {current && <span className="text-[10px] uppercase tracking-wide text-os-text-secondary">current</span>}
-        {unseen && !current && <span data-whats-new-new-badge="true" className="text-[10px] uppercase tracking-wide px-1 rounded-sm bg-os-blue text-white">new</span>}
+        {unseen && !current && <span data-whats-new-new-badge="true" className="text-[10px] uppercase tracking-wide px-1 rounded-sm bg-os-blue text-(--btn-primary-fg)">new</span>}
       </div>
       <div className="space-y-4">
         {groups.map((group) => (

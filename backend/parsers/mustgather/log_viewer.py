@@ -34,14 +34,15 @@ must-gather adapter's server side.
 """
 import gzip
 import os
-import re
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 
 from parsers.findings import finding, no_data, recall, remember, sort_findings
 from parsers.mustgather._common import resolve_data_dir, collection_time
 from parsers.sosreport.log_viewer import classify_severity, parse_journal_line
+from parsers.logtime import (  # noqa: F401 - the names this module always had (tests, the Histogram adapter)
+    BRACKET_LINE, CONTAINER_LINE, ISO_LINE, JSON_EPOCH, JSON_TS, KLOG_LINE, LOGFMT_TS, iso as _iso, timestamp_of as _timestamp_of)
 
 MAX_SOURCES = 4000
 MAX_LIMIT = 5000
@@ -49,13 +50,7 @@ BUDGET_SECONDS = 1.5
 MAX_LINE = 4000
 CHECK_EVERY = 2000
 SAMPLE_BYTES = 65536
-CONTAINER_LINE = re.compile(r'^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.(\d+))?(?:Z|[+-]\d{2}:?\d{2})?\s+(stdout|stderr)\s+([FP])\s?(.*)$')
-ISO_LINE = re.compile(r'^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.(\d+))?(?:Z|[+-]\d{2}:?\d{2})?\s+(.*)$')
-KLOG_LINE = re.compile(r'^[IWEF](\d{2})(\d{2})\s+(\d{2}:\d{2}:\d{2})(?:\.\d+)?\s+\d+\s+\S+\]\s?(.*)$')
-BRACKET_LINE = re.compile(r'^\[(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\]\s*(.*)$')
-JSON_TS = re.compile(r'"(?:ts|time|timestamp|@timestamp|Timestamp)"\s*:\s*"?(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})')
-JSON_EPOCH = re.compile(r'"(?:ts|time|timestamp)"\s*:\s*(\d{9,13})(?:\.\d+)?')
-LOGFMT_TS = re.compile(r'(?:^|\s)(?:ts|time|timestamp)=\"?(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})')
+# the line formats and timestamp_of live in parsers/logtime.py (shared with the Log Collection Histogram)
 PROBE_LINES = 60
 
 _lock = threading.Lock()
@@ -175,45 +170,6 @@ def _bounds(path, year, ref=None):
             last = t
             break
     return first, last
-
-
-def _iso(date, clock):
-    try:
-        return datetime.strptime(date + 'T' + clock, '%Y-%m-%dT%H:%M:%S')
-    except ValueError:
-        return None
-
-
-def _timestamp_of(line, year, ref=None):
-    """The time a log line states, in every format the gathers carry; None when it states none."""
-    m = CONTAINER_LINE.match(line) or ISO_LINE.match(line) or BRACKET_LINE.match(line)
-    if m:
-        return _iso(m.group(1), m.group(2))
-    m = KLOG_LINE.match(line)
-    if m:
-        try:
-            return datetime(year, int(m.group(1)), int(m.group(2)), *[int(x) for x in m.group(3).split(':')])
-        except ValueError:
-            return None
-    j = parse_journal_line(line, year, ref)
-    if j:
-        return j['ts']
-    head = line[:400]
-    if head.lstrip().startswith('{'):
-        m = JSON_TS.search(head)
-        if m:
-            return _iso(m.group(1), m.group(2))
-        m = JSON_EPOCH.search(head)
-        if m:
-            n = int(m.group(1))
-            try:
-                return datetime.fromtimestamp(n / 1000 if n > 10 ** 11 else n, tz=timezone.utc).replace(tzinfo=None, microsecond=0)
-            except (OverflowError, OSError, ValueError):
-                return None
-    m = LOGFMT_TS.search(head)
-    if m:
-        return _iso(m.group(1), m.group(2))
-    return None
 
 
 def chosen_sources(paths, directory):
@@ -509,8 +465,137 @@ def source_key(row):
     return f"{row['hostname']}/{row['process']}"
 
 
-def search(directory, q, budget_seconds=BUDGET_SECONDS):
-    """One page of the search: see the module docstring."""
+def _filtered(q):
+    """Whether the search keeps only some rows (a scan reads far more lines than it returns)."""
+    return bool(q['query'] or q['exclude'] or q['level'] or q['source'])
+
+
+def search_chunk(item):
+    """One byte range of a log, searched (a work item of the chunked search, run in a worker process): the rows the
+    filters keep, each with the offset just after its line, the continuation lines that follow it in the range and the
+    range's line / truncation counts at its line;
+    'lead': the continuation lines before the range's first row; 'last_kept': whether the range's last row is one of
+    its kept rows (the next range's leading continuations extend it). The same line handling as search()."""
+    source, q = item['source'], item['q']
+    year = item['year']
+    ref = datetime.fromisoformat(item['ref']) if item['ref'] else None
+    untimestamped = item['untimestamped']
+    start = _parse_iso(q['start']) if q['start'] else None
+    end = _parse_iso(q['end']) if q['end'] else None
+    rows, lead = [], []
+    last = None        # the range's last row so far: [row, offset, continuations] when kept, False when not
+    lines = truncated = 0
+    with _open(item['path']) as f:
+        f.seek(item['start'])
+        offset = item['start']
+        while offset < item['end']:
+            raw = f.readline()
+            if not raw:
+                break
+            offset = f.tell()
+            lines += 1
+            line = raw.decode('utf-8', 'replace').rstrip('\n\r')
+            if len(line) > MAX_LINE:
+                line = line[:MAX_LINE] + ' …'
+                truncated += 1
+            row = _row(line, source, year, untimestamped, ref)
+            if row is None:
+                if line.strip():
+                    if last is None:
+                        lead.append(line)
+                    elif last is not False:
+                        last[2].append(line)
+                continue
+            last = False
+            if row['timestamp_obj']:
+                if start and datetime.fromisoformat(row['timestamp_obj']) < start:
+                    continue
+                if end and datetime.fromisoformat(row['timestamp_obj']) > end:
+                    continue
+            if q['level'] and row['severity'] != q['level']:
+                continue
+            if q['source'] and source_key(row) != q['source']:
+                continue
+            if q['query'] or q['exclude']:
+                text = (row['hostname'] + ' ' + row['process'] + ' ' + row['message']).lower()
+                if q['query'] and not any(t in text for t in q['query']):
+                    continue
+                if q['exclude'] and any(t in text for t in q['exclude']):
+                    continue
+            last = [row, offset, [], lines, truncated]   # the counts at its line: a page that ends on it counts no further
+            rows.append(last)
+    return {'rows': rows, 'lead': lead, 'seen_row': last is not None, 'last_kept': bool(last), 'lines': lines, 'truncated': truncated, 'end': offset}
+
+
+def _search_chunked(root, mine, source, path, offset, q, year, ref, untimestamped, entries, deadline, workers):
+    """The rest of one large log from `offset`, in byte ranges read by worker processes (parallel.imap), stitched in
+    order with search()'s rules: a continuation line extends the row before it (when that row is kept), the page ends
+    right after the row that fills it (its later continuation lines belong to the next page, which drops them as a
+    page start always did) or at a range's end once the time budget is spent. {offset, stop, cancelled, lines,
+    truncated}."""
+    from parsers import parallel
+    from parsers.sosreport.log_viewer import _line_bounds, LOG_CHUNK_BYTES
+    size = os.path.getsize(path)
+    bounds = _line_bounds(path, offset, size, LOG_CHUNK_BYTES)
+    qq = {k: q[k] for k in ('query', 'exclude', 'level', 'source')}
+    qq['start'] = q['start'].isoformat() if q['start'] else None
+    qq['end'] = q['end'].isoformat() if q['end'] else None
+    items = [{'path': path, 'start': a, 'end': b, 'source': source, 'q': qq, 'year': year, 'ref': ref.isoformat() if ref else None,
+              'untimestamped': untimestamped} for a, b in zip(bounds[:-1], bounds[1:])]
+    out = {'offset': offset, 'stop': False, 'cancelled': False, 'lines': 0, 'truncated': 0}
+    prev = None    # the last row so far when it is kept and not the page's last: [row, offset, continuations]
+    it = parallel.imap(search_chunk, items, workers=workers, cancelled=lambda: not _current(root, mine))
+    try:
+        for res in it:
+            if prev is not None:
+                for line in res['lead']:
+                    prev[0]['message'] += '\n' + line
+            if res['seen_row']:
+                prev = None
+            for row, end, conts, lines_at, truncated_at in res['rows']:
+                entries.append(row)
+                if len(entries) >= q['limit']:
+                    out['offset'] = end
+                    out['stop'] = True
+                    out['lines'] += lines_at
+                    out['truncated'] += truncated_at
+                    return out
+                for line in conts:
+                    row['message'] += '\n' + line
+            out['lines'] += res['lines']
+            out['truncated'] += res['truncated']
+            if res['last_kept']:
+                prev = res['rows'][-1]
+            out['offset'] = res['end']
+            if time.monotonic() > deadline and out['offset'] < size:
+                out['stop'] = True
+                return out
+    except parallel.Cancelled:
+        out['cancelled'] = True
+    finally:
+        it.close()
+    return out
+
+
+def _chunk_this(path, offset, q, workers):
+    """Whether a log is read in byte ranges by worker processes: a filtered search (a scan that reads far more than it
+    returns), more than one worker, an uncompressed log with at least LOG_PARALLEL_MIN_BYTES left to read."""
+    if workers == 1 or path.endswith('.gz') or not _filtered(q):
+        return False
+    from parsers import parallel
+    from parsers.sosreport.log_viewer import LOG_PARALLEL_MIN_BYTES
+    if (parallel.default_workers() if workers is None else workers) <= 1:
+        return False
+    try:
+        return os.path.getsize(path) - offset >= LOG_PARALLEL_MIN_BYTES
+    except OSError:
+        return False
+
+
+def search(directory, q, budget_seconds=BUDGET_SECONDS, workers=None):
+    """One page of the search: see the module docstring. A filtered search of an uncompressed log of at least
+    LOG_PARALLEL_MIN_BYTES (from the cursor on) reads it in worker processes (workers: None = parallel.default_workers(),
+    1 = this process) - the same rows in the same order; the page ends at a byte range's end once the budget is spent."""
     root = resolve_data_dir(directory)
     year = _year_of(directory)
     ref = _ref_of(directory)
@@ -528,53 +613,61 @@ def search(directory, q, budget_seconds=BUDGET_SECONDS):
         stop_here = False
         try:
             untimestamped = not _has_timestamps(path, year, ref)
-            with _open(path) as f:
-                f.seek(offset)
-                last = None
-                while True:
-                    raw = f.readline()
-                    if not raw:
-                        break
-                    offset = f.tell()
-                    lines_read += 1
-                    if lines_read % CHECK_EVERY == 0:
-                        if not _current(root, mine):
-                            cancelled = True
+            if _chunk_this(path, offset, q, workers):
+                res = _search_chunked(root, mine, source, path, offset, q, year, ref, untimestamped, entries, deadline, workers)
+                offset, stop_here, cancelled = res['offset'], res['stop'], res['cancelled']
+                lines_read += res['lines']
+                truncated += res['truncated']
+                if not stop_here and not cancelled:
+                    offset = os.path.getsize(path)
+            else:
+                with _open(path) as f:
+                    f.seek(offset)
+                    last = None
+                    while True:
+                        raw = f.readline()
+                        if not raw:
                             break
-                        if time.monotonic() > deadline:
+                        offset = f.tell()
+                        lines_read += 1
+                        if lines_read % CHECK_EVERY == 0:
+                            if not _current(root, mine):
+                                cancelled = True
+                                break
+                            if time.monotonic() > deadline:
+                                stop_here = True
+                                break
+                        line = raw.decode('utf-8', 'replace').rstrip('\n\r')
+                        if len(line) > MAX_LINE:
+                            line = line[:MAX_LINE] + ' …'
+                            truncated += 1
+                        row = _row(line, source, year, untimestamped, ref)
+                        if row is None:
+                            # a continuation line (a traceback, a wrapped message) belongs to the row before it
+                            if last is not None and line.strip():
+                                last['message'] += '\n' + line
+                            continue
+                        last = row
+                        # the date range applies to dated rows; a log without timestamps loads whole, in file order
+                        if row['timestamp_obj']:
+                            if q['start'] and datetime.fromisoformat(row['timestamp_obj']) < q['start']:
+                                continue
+                            if q['end'] and datetime.fromisoformat(row['timestamp_obj']) > q['end']:
+                                continue
+                        if q['level'] and row['severity'] != q['level']:
+                            continue
+                        if q['source'] and source_key(row) != q['source']:
+                            continue
+                        if q['query'] or q['exclude']:
+                            text = (row['hostname'] + ' ' + row['process'] + ' ' + row['message']).lower()
+                            if q['query'] and not any(t in text for t in q['query']):
+                                continue
+                            if q['exclude'] and any(t in text for t in q['exclude']):
+                                continue
+                        entries.append(row)
+                        if len(entries) >= q['limit']:
                             stop_here = True
                             break
-                    line = raw.decode('utf-8', 'replace').rstrip('\n\r')
-                    if len(line) > MAX_LINE:
-                        line = line[:MAX_LINE] + ' …'
-                        truncated += 1
-                    row = _row(line, source, year, untimestamped, ref)
-                    if row is None:
-                        # a continuation line (a traceback, a wrapped message) belongs to the row before it
-                        if last is not None and line.strip():
-                            last['message'] += '\n' + line
-                        continue
-                    last = row
-                    # the date range applies to dated rows; a log without timestamps loads whole, in file order
-                    if row['timestamp_obj']:
-                        if q['start'] and datetime.fromisoformat(row['timestamp_obj']) < q['start']:
-                            continue
-                        if q['end'] and datetime.fromisoformat(row['timestamp_obj']) > q['end']:
-                            continue
-                    if q['level'] and row['severity'] != q['level']:
-                        continue
-                    if q['source'] and source_key(row) != q['source']:
-                        continue
-                    if q['query'] or q['exclude']:
-                        text = (row['hostname'] + ' ' + row['process'] + ' ' + row['message']).lower()
-                        if q['query'] and not any(t in text for t in q['query']):
-                            continue
-                        if q['exclude'] and any(t in text for t in q['exclude']):
-                            continue
-                    entries.append(row)
-                    if len(entries) >= q['limit']:
-                        stop_here = True
-                        break
         except OSError as e:
             entries.append({'timestamp': '', 'timestamp_obj': '', 'severity': 'error', 'hostname': '', 'process': source['name'], 'pid': '', 'message': f'this log could not be read: {e.strerror or e}', 'badges': [{'kind': 'bad', 'text': 'unreadable'}]})
         if cancelled:

@@ -63,6 +63,7 @@ from jira_proxy import jira_proxy
 from whois_lookup import whois_api
 from auth import auth_api
 from update_check import update_check_api, start_update_check_scheduler
+from parallel_settings import parallel_settings_api
 from sync_api import sync_api
 from account_data import account_data
 from downloads import downloads
@@ -87,6 +88,7 @@ app.register_blueprint(whois_api)
 # The release check of a self-hosted server (administrators only; off unless
 # an administrator turns it on, one request a day then)
 app.register_blueprint(update_check_api)
+app.register_blueprint(parallel_settings_api)   # Settings > General > Performance: the worker count
 start_update_check_scheduler()
 # Sign-in for the browser deployment (JACARIUM_AUTH_MODE=accounts);
 # its routes answer 404 in the other modes.

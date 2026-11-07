@@ -1,0 +1,7 @@
+{% import "tabs/_log_histogram.html" as lh %}
+{# Log Collection > Histogram of a sosreport: the shared page (tabs/_log_histogram.html) over the logs the Log
+   Viewer lists (parsers/sosreport/log_histogram.py: the system journal selected), driven by diagLogHistogram. #}
+{{ lh.page('sosreport', data, findings, directory, source_noun='log file') }}
+<script>
+  window.diagLogHistogram && window.diagLogHistogram.mount(document.getElementById('log-histogram'), { reportType: 'sosreport', directory: {{ directory | default('') | tojson }}, dateRange: {{ data.date_range | tojson }} });
+</script>

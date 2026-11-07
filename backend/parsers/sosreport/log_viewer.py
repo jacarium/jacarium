@@ -128,8 +128,30 @@ def report_capture_time(filepath):
     return None
 
 
+# the literal pieces every match of the patterns below contains (the cheap tests before them; see classify_severity)
+_SEVERITY_TOKENS = ('CRIT', 'FATAL', 'PANIC', 'EMERG', 'ALERT', 'ERR', 'WARN', 'NOTICE', 'INFO', 'DEBUG', 'TRACE')
+_SEVERITY_STEMS = ('crit', 'fatal', 'panic', 'emerg', 'err', 'fail', 'segfault', 'oops', 'bug', 'warn', 'deprecated', 'info', 'notice', 'debug', 'trace')
+
+
+def _level_of_word(word):
+    """The level of a word the case-insensitive patterns matched, or None. str.lower() is not the patterns' case
+    folding: 'ſegfault' (the long s) and 'İNFO' (the dotted I) match them, lower() leaves 'ſegfault' / 'i̇nfo'; such a
+    word is looked up by the pattern itself (the level word it matches case-insensitively)."""
+    level = _SEVERITY_BY_WORD.get(word.lower())
+    if level is not None:
+        return level
+    for known, lv in _SEVERITY_BY_WORD.items():
+        if re.fullmatch(re.escape(known), word, re.IGNORECASE):
+            return lv
+    return None
+
+
 def classify_severity(message):
-    """The level a log message states, or 'other' when it states none."""
+    """The level a log message states, or 'other' when it states none.
+
+    Each pattern below only runs when the message holds its literal piece: the upper-case tokens as they are (a
+    case-sensitive pattern), the field names and the level words lower-cased in an ASCII message (for ASCII text
+    exactly what the case-insensitive patterns match; any other message runs every pattern as it always did)."""
     if not message:
         return 'other'
     m = _SEVERITY_PRIORITY_RE.match(message)
@@ -139,14 +161,27 @@ def classify_severity(message):
     m = _SEVERITY_K8S_RE.match(message)
     if m:
         return _SEVERITY_BY_K8S_CODE.get(m.group(1), 'other')
-    m = _SEVERITY_FIELD_RE.search(message)
-    if m and m.group(1).lower() in _SEVERITY_BY_WORD:
-        return _SEVERITY_BY_WORD[m.group(1).lower()]
-    m = _SEVERITY_TOKEN_RE.search(message)
-    if m:
-        return _SEVERITY_BY_WORD[m.group(1).lower()]
+    ascii_ = message.isascii()
+    low = message.lower() if ascii_ else None
+    if not ascii_ or 'level=' in low or 'severity=' in low or 'lvl=' in low:
+        m = _SEVERITY_FIELD_RE.search(message)
+        level = _level_of_word(m.group(1)) if m else None
+        if level is not None:
+            return level
+    for token in _SEVERITY_TOKENS:
+        if token in message:
+            m = _SEVERITY_TOKEN_RE.search(message)
+            if m:
+                return _level_of_word(m.group(1)) or 'other'   # an upper-case ASCII token: always a known word
+            break
+    if ascii_:
+        for stem in _SEVERITY_STEMS:
+            if stem in low:
+                break
+        else:
+            return 'other'
     # whole words, any case; the strongest level wins when several appear
-    found = {_SEVERITY_BY_WORD[w.lower()] for w in _SEVERITY_WORD_RE.findall(message)}
+    found = {_level_of_word(w) for w in _SEVERITY_WORD_RE.findall(message)}
     for level in _SEVERITY_LEVELS:
         if level in found:
             return level
@@ -279,24 +314,31 @@ class JournalctlParser(LogParser):
         return parse_journal_ts(timestamp_str, current_year, getattr(self, '_reference', None))
 
     def _find_timestamp_at_position(self, f, position, current_year, timestamp_pattern, debug=False):
-        """Seek to position, find next valid timestamp (and the position of its line)"""
-        f.seek(position)
+        """Seek to position, find next valid timestamp (and the position of its line). `f` is the file in binary;
+        lines and their offsets as _text_lines gives them (universal newlines, exact byte offsets)."""
+        start = position
         if position > 0:
             # A probe may land in the middle of a line: skip the rest of it.
             # But when it lands exactly on a line START, that line is whole -
             # skipping it used to make the search settle one line too far and
             # lose the first entry of the range.
             f.seek(position - 1)
-            if f.read(1) != '\n':
-                f.readline()  # Skip partial line
+            prev, cur = f.read(1), f.read(1)
+            at_start = prev == b'\n' or (prev == b'\r' and cur != b'\n')
+            if not at_start:
+                start = None
+                for _line, end in _text_lines(f, position):
+                    start = end   # the end of the partial line: the next line starts there
+                    break
+                if start is None:
+                    return None, None
 
         # Read up to 100 lines looking for a timestamp
-        for _ in range(100):
-            pos = f.tell()
-            line = f.readline()
-            if not line:
-                return None, None
-
+        pos = start
+        for n, (line, end) in enumerate(_text_lines(f, start)):
+            if n >= 100:
+                break
+            line_start, pos = pos, end
             match = timestamp_pattern.match(line)
             if match:
                 timestamp_str = match.group(1)
@@ -304,7 +346,7 @@ class JournalctlParser(LogParser):
                 if timestamp_obj:
                     if debug:
                         print(f"[JournalctlParser] At position {position:,}, found timestamp: {timestamp_obj}")
-                    return timestamp_obj, pos
+                    return timestamp_obj, line_start
 
         return None, None
 
@@ -323,7 +365,7 @@ class JournalctlParser(LogParser):
         result_ts = None
         iterations = 0
 
-        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(filepath, 'rb') as f:
             while left < right:
                 iterations += 1
                 mid = (left + right) // 2
@@ -364,7 +406,7 @@ class JournalctlParser(LogParser):
         result_ts = None
         iterations = 0
 
-        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(filepath, 'rb') as f:
             while left < right:
                 iterations += 1
                 mid = (left + right) // 2
@@ -386,8 +428,10 @@ class JournalctlParser(LogParser):
         print(f"[JournalctlParser]   Found at position {result_pos:,}: {result_ts}")
         return result_pos, result_ts
 
-    def parse_entries_streaming(self, filepath, start_date, end_date):
-        """Parse journalctl log entries and yield one at a time"""
+    def _read_range(self, filepath, start_date, end_date):
+        """The byte range [start_pos, end_pos) of the lines in the date range (the binary search over the file), and
+        the context of the parse: (start_pos, end_pos, current_year, reference, use_prev_year); None when no line can
+        be in range."""
         timestamp_pattern = JOURNAL_TS_RE
         self._reference = report_capture_time(filepath)
         current_year = self._reference.year if self._reference else datetime.now().year
@@ -408,14 +452,14 @@ class JournalctlParser(LogParser):
                 if start_date and start_ts is None:
                     print(f"[JournalctlParser] No entries found >= start_date, returning 0 results")
                     print(f"[JournalctlParser] Streaming complete: 0 entries")
-                    return
+                    return None
 
                 # If end_date provided but no entries <= end_date found, return empty
                 # (This means all entries are after end_date)
                 if end_date and end_ts is None and start_ts and start_ts > end_date:
                     print(f"[JournalctlParser] No entries found <= end_date, returning 0 results")
                     print(f"[JournalctlParser] Streaming complete: 0 entries")
-                    return
+                    return None
 
                 bytes_to_read = end_pos - start_pos
                 percent_of_file = (bytes_to_read / file_size * 100) if file_size > 0 else 0
@@ -431,122 +475,51 @@ class JournalctlParser(LogParser):
             import traceback
             traceback.print_exc()
             start_pos = 0
-            end_pos = file_size
+            end_pos = os.path.getsize(filepath) if os.path.exists(filepath) else 0
 
-        issue_patterns = {
-            'kernel_panic': re.compile(r'kernel panic', re.IGNORECASE),
-            'oom_killer': re.compile(r'out of memory|oom[-_]killer|killed process', re.IGNORECASE),
-            'segfault': re.compile(r'segfault|segmentation fault', re.IGNORECASE),
-            'disk_error': re.compile(r'i/o error|disk.*error|blk.*error', re.IGNORECASE),
-            'network_error': re.compile(r'network.*unreachable|connection.*refused|timeout', re.IGNORECASE),
-            'service_failed': re.compile(r'failed to start|service.*failed', re.IGNORECASE),
-            'authentication_failure': re.compile(r'authentication failure|failed password', re.IGNORECASE),
-        }
+        use_prev_year = bool(start_date and start_date.year < current_year)
+        return start_pos, end_pos, current_year, self._reference, use_prev_year
 
-        full_pattern = JOURNAL_LINE_RE   # host, process[pid]: message after any of the timestamp forms
-
-        current_entry = None
-        use_prev_year = False
-        if start_date and start_date.year < current_year:
-            use_prev_year = True
-
+    def parse_entries_streaming(self, filepath, start_date, end_date, workers=1, cancelled=None, info=None,
+                                min_bytes=None, chunk_bytes=None):
+        """Parse journalctl log entries and yield one at a time: the date range found by binary search, then one pass
+        over its lines (_journal_events, _JournalAssembler). workers=1 (the default) reads in this process; with
+        workers=None (parallel.default_workers()) or more, a range of at least min_bytes (LOG_PARALLEL_MIN_BYTES) is
+        read in worker processes, chunk_bytes (LOG_CHUNK_BYTES) at a time - the same entries in the same order, each
+        yielded as soon as its chunk and every chunk before it are done. cancelled / info as in parallel.imap
+        (parallel.Cancelled is raised when cancelled)."""
+        rng = self._read_range(filepath, start_date, end_date)
+        if rng is None:
+            return
+        start_pos, end_pos, current_year, reference, use_prev_year = rng
+        if workers != 1 and end_pos - start_pos >= (LOG_PARALLEL_MIN_BYTES if min_bytes is None else min_bytes):
+            from parsers import parallel
+            n = parallel.default_workers() if workers is None else max(1, int(workers))
+            if n > 1:
+                yield from self._parse_parallel(filepath, rng, n, cancelled, info, chunk_bytes or LOG_CHUNK_BYTES)
+                return
         print(f"[JournalctlParser] Starting streaming parse...")
         entry_count = 0
-
+        asm = _JournalAssembler()
         # Parse file line-by-line without loading everything into memory
         try:
-            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-                # Seek to the start position: the START of the first line in
-                # range (_binary_search_start returns line starts), so nothing
-                # is skipped there. Skipping a "partial line" here dropped the
-                # first entry of every date-ranged load ("Loaded N entries"
-                # was one short, and a range of a single moment found nothing).
-                f.seek(start_pos)
-
-                line_num = 0
-                bytes_read = f.tell()
-
-                while bytes_read < end_pos:
-                    line = f.readline()
-                    if not line:
-                        break
-
-                    line_num += 1
-                    bytes_read = f.tell()
-
-                    # Progress logging
-                    if line_num % 100000 == 0:
-                        print(f"[JournalctlParser] Streamed {entry_count:,} entries so far...")
-
-                    # Sanitize line
-                    line = ''.join(c if c.isprintable() or c in '\n\t ' else ' ' for c in line)
-
-                    timestamp_match = timestamp_pattern.match(line)
-
-                    if timestamp_match:
-                        # Yield the previous entry
-                        if current_entry:
-                            yield current_entry
+            with open(filepath, 'rb') as f:
+                for event in _journal_events(f, start_pos, end_pos, current_year, reference, use_prev_year, {}):
+                    if event[0] == 'error':
+                        done = asm.finish()
+                        if done is not None:
+                            yield done
                             entry_count += 1
-
-                        timestamp_str = timestamp_match.group(1)
-
-                        try:
-                            timestamp_obj = self._parse_timestamp(timestamp_str, current_year)
-                            if timestamp_obj is None:
-                                raise ValueError(timestamp_str)
-                            if use_prev_year and timestamp_obj > datetime.now():
-                                timestamp_obj = timestamp_obj.replace(year=timestamp_obj.year - 1)
-                        except:
-                            timestamp_obj = None
-                            current_entry = None
-                            continue
-
-                        full_match = full_pattern.match(line)
-                        if full_match:
-                            hostname = full_match.group('host')
-                            process = full_match.group('proc')
-                            pid = full_match.group('pid') or ''
-                            message = full_match.group('msg')
-                        else:
-                            hostname = ''
-                            process = ''
-                            pid = ''
-                            message = line.strip()
-
-                        # the level the message states (classify_severity: the same rules for every parser)
-                        severity = classify_severity(message)
-
-                        issues_found = []
-                        for issue_name, pattern in issue_patterns.items():
-                            if pattern.search(line):
-                                issues_found.append(issue_name)
-
-                        current_entry = {
-                            'line_number': line_num,
-                            'timestamp': timestamp_str,
-                            'timestamp_obj': timestamp_obj.isoformat() if timestamp_obj else None,
-                            'hostname': hostname,
-                            'process': process,
-                            'pid': pid,
-                            'severity': severity,
-                            'message': message,
-                            'issues': issues_found
-                        }
-                    else:
-                        # Continuation line
-                        if current_entry:
-                            current_entry['message'] += '\n' + line.strip()
-
-                            for issue_name, pattern in issue_patterns.items():
-                                if pattern.search(line) and issue_name not in current_entry['issues']:
-                                    current_entry['issues'].append(issue_name)
-
+                        raise event[1]
+                    done = asm.feed(event)
+                    if done is not None:
+                        yield done
+                        entry_count += 1
                 # Yield the last entry
-                if current_entry:
-                    yield current_entry
+                last = asm.finish()
+                if last is not None:
+                    yield last
                     entry_count += 1
-
         except Exception as e:
             print(f"[JournalctlParser] Error streaming: {e}")
             import traceback
@@ -554,160 +527,42 @@ class JournalctlParser(LogParser):
 
         print(f"[JournalctlParser] Streaming complete: {entry_count:,} entries")
 
+    def _parse_parallel(self, filepath, rng, workers, cancelled, info, chunk_bytes):
+        """The range's bytes split at line starts into chunk_bytes ranges, each parsed by journal_chunk in a worker
+        (parallel.imap), stitched back in order: a chunk's leading continuation lines belong to the entry still open
+        at the end of the chunk before it; the line numbers count on from the range's start."""
+        from parsers import parallel
+        start_pos, end_pos, current_year, reference, use_prev_year = rng
+        bounds = _line_bounds(filepath, start_pos, end_pos, chunk_bytes)
+        items = [{'path': filepath, 'start': a, 'end': b, 'year': current_year, 'ref': reference.isoformat() if reference else None,
+                  'prev_year': use_prev_year} for a, b in zip(bounds[:-1], bounds[1:])]
+        print(f"[JournalctlParser] Parallel parse: {len(items)} chunks, {workers} workers")
+        asm = _JournalAssembler()
+        base = entry_count = 0
+        try:
+            for res in parallel.imap(journal_chunk, items, workers=workers, cancelled=cancelled, info=info):
+                for done in asm.stitch(res, base):
+                    yield done
+                    entry_count += 1
+                base += res['lines']
+                if res['stopped']:
+                    break   # the read stops where the one-pass read stops (an entry that could not be built)
+            last = asm.finish()
+            if last is not None:
+                yield last
+                entry_count += 1
+        except parallel.Cancelled:
+            raise
+        except Exception as e:
+            print(f"[JournalctlParser] Error streaming: {e}")
+            import traceback
+            traceback.print_exc()
+        print(f"[JournalctlParser] Streaming complete: {entry_count:,} entries")
+
     def parse_entries(self, filepath, start_date, end_date):
-        """Parse journalctl log entries within date range using binary search"""
-        entries = []
-        timestamp_pattern = JOURNAL_TS_RE
-        self._reference = report_capture_time(filepath)
-        current_year = self._reference.year if self._reference else datetime.now().year
-
-        try:
-            # Get file size
-            file_size = os.path.getsize(filepath)
-
-            if start_date or end_date:
-                print(f"[JournalctlParser] Using binary search to find date range: {start_date} to {end_date}")
-                print(f"[JournalctlParser] File size: {file_size:,} bytes")
-
-                # Binary search to find start and end positions
-                start_pos = self._binary_search_start(filepath, start_date, file_size, current_year, timestamp_pattern)
-                end_pos = self._binary_search_end(filepath, end_date, file_size, current_year, timestamp_pattern)
-
-                bytes_to_read = end_pos - start_pos
-                percent_of_file = (bytes_to_read / file_size * 100) if file_size > 0 else 0
-                print(f"[JournalctlParser] Reading from byte {start_pos:,} to {end_pos:,} ({bytes_to_read:,} bytes, {percent_of_file:.1f}% of file)")
-
-                print(f"[JournalctlParser] Will read from position {start_pos:,} to {end_pos:,}")
-
-            else:
-                # No date filter
-                print(f"[JournalctlParser] No date filter, reading entire file...")
-                start_pos = 0
-                end_pos = file_size
-
-        except Exception as e:
-            print(f"[JournalctlParser] Error during binary search: {e}, falling back to full file")
-            import traceback
-            traceback.print_exc()
-            start_pos = 0
-            end_pos = file_size
-
-        issue_patterns = {
-            'kernel_panic': re.compile(r'kernel panic', re.IGNORECASE),
-            'oom_killer': re.compile(r'out of memory|oom[-_]killer|killed process', re.IGNORECASE),
-            'segfault': re.compile(r'segfault|segmentation fault', re.IGNORECASE),
-            'disk_error': re.compile(r'i/o error|disk.*error|blk.*error', re.IGNORECASE),
-            'network_error': re.compile(r'network.*unreachable|connection.*refused|timeout', re.IGNORECASE),
-            'service_failed': re.compile(r'failed to start|service.*failed', re.IGNORECASE),
-            'authentication_failure': re.compile(r'authentication failure|failed password', re.IGNORECASE),
-        }
-
-        timestamp_pattern = re.compile(r'^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})')
-        full_pattern = JOURNAL_LINE_RE   # host, process[pid]: message after any of the timestamp forms
-
-        current_entry = None
-        use_prev_year = False
-        if start_date and start_date.year < current_year:
-            use_prev_year = True
-
-        print(f"[JournalctlParser] Starting line-by-line parsing...")
-
-        # Parse file line-by-line without loading everything into memory
-        try:
-            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-                # Seek to start position
-                f.seek(start_pos)
-                if start_pos > 0:
-                    f.readline()  # Skip partial line
-
-                line_num = 0
-                bytes_read = f.tell()
-
-                while bytes_read < end_pos:
-                    line = f.readline()
-                    if not line:
-                        break
-
-                    line_num += 1
-                    bytes_read = f.tell()
-
-                    # Progress logging for large result sets
-                    if line_num % 50000 == 0:
-                        print(f"[JournalctlParser] Parsed {line_num:,} lines, found {len(entries):,} entries so far...")
-
-                    # Sanitize line to remove non-printable characters
-                    line = ''.join(c if c.isprintable() or c in '\n\t ' else ' ' for c in line)
-
-                    timestamp_match = timestamp_pattern.match(line)
-
-                    if timestamp_match:
-                        if current_entry:
-                            entries.append(current_entry)
-
-                        timestamp_str = timestamp_match.group(1)
-
-                        try:
-                            timestamp_obj = self._parse_timestamp(timestamp_str, current_year)
-                            if timestamp_obj is None:
-                                raise ValueError(timestamp_str)
-                            if use_prev_year and timestamp_obj > datetime.now():
-                                timestamp_obj = timestamp_obj.replace(year=timestamp_obj.year - 1)
-                        except:
-                            timestamp_obj = None
-                            current_entry = None
-                            continue
-
-                        full_match = full_pattern.match(line)
-                        if full_match:
-                            hostname = full_match.group('host')
-                            process = full_match.group('proc')
-                            pid = full_match.group('pid') or ''
-                            message = full_match.group('msg')
-                        else:
-                            hostname = ''
-                            process = ''
-                            pid = ''
-                            message = line.strip()
-
-                        # the level the message states (classify_severity: the same rules for every parser)
-                        severity = classify_severity(message)
-
-                        issues_found = []
-                        for issue_name, pattern in issue_patterns.items():
-                            if pattern.search(line):
-                                issues_found.append(issue_name)
-
-                        current_entry = {
-                            'line_number': line_num,
-                            'timestamp': timestamp_str,
-                            'timestamp_obj': timestamp_obj.isoformat() if timestamp_obj else None,
-                            'hostname': hostname,
-                            'process': process,
-                            'pid': pid,
-                            'severity': severity,
-                            'message': message,
-                            'issues': issues_found
-                        }
-                    else:
-                        # Continuation line - append to current entry
-                        if current_entry:
-                            current_entry['message'] += '\n' + line.strip()
-
-                            for issue_name, pattern in issue_patterns.items():
-                                if pattern.search(line) and issue_name not in current_entry['issues']:
-                                    current_entry['issues'].append(issue_name)
-
-                # Don't forget the last entry
-                if current_entry:
-                    entries.append(current_entry)
-
-        except Exception as e:
-            print(f"[JournalctlParser] Error reading file: {e}")
-            import traceback
-            traceback.print_exc()
-
-        print(f"[JournalctlParser] Parsing complete: {len(entries):,} entries found")
-        return entries
+        """Parse journalctl log entries within date range using binary search: the streamed parse's entries, as a list
+        (this used to be a second copy of the loop, with the read that stopped at a line ending in a bare CR)"""
+        return list(self.parse_entries_streaming(filepath, start_date, end_date))
 
 
 class ContainerLogParser(LogParser):
@@ -1863,6 +1718,289 @@ def get_parser_for_file(filepath):
     return JournalctlParser()
 
 
+# ---- the journal parse: one pass, shared by the serial stream and the parallel chunks ---------------------------
+#
+# _journal_events(f, start_pos, end_pos, ...) reads the lines that start in [start_pos, end_pos) of a text-mode file
+# (utf-8, errors ignored, universal newlines - exactly as the Log Viewer always read them) and yields, per line:
+#   ('new', entry)       a line with a timestamp that parses: a new entry (its line_number counted from start_pos)
+#   ('bad',)             a line with a timestamp that does not: the open entry ends, no new one starts
+#   ('cont', text, [issues])  any other line: a continuation of the open entry (if any)
+#   ('error', exception) building a timestamped line's entry failed: the open entry ends and the read stops there
+#                        (a safety net: classify_severity no longer raises on any text)
+# _JournalAssembler turns them into complete entries (an entry is complete when the next 'new' or 'bad' comes). The
+# costs are the line's, not the rules': a line that is printable throughout skips the per-character sanitize (which
+# would leave it as it is), a line that holds none of the issue patterns' literal words skips the seven patterns (a
+# match of any pattern holds one of them), a timestamp seen before is not parsed again.
+
+_ISSUE_PATTERNS = (
+    ('kernel_panic', re.compile(r'kernel panic', re.IGNORECASE)),
+    ('oom_killer', re.compile(r'out of memory|oom[-_]killer|killed process', re.IGNORECASE)),
+    ('segfault', re.compile(r'segfault|segmentation fault', re.IGNORECASE)),
+    ('disk_error', re.compile(r'i/o error|disk.*error|blk.*error', re.IGNORECASE)),
+    ('network_error', re.compile(r'network.*unreachable|connection.*refused|timeout', re.IGNORECASE)),
+    ('service_failed', re.compile(r'failed to start|service.*failed', re.IGNORECASE)),
+    ('authentication_failure', re.compile(r'authentication failure|failed password', re.IGNORECASE)),
+)
+# every match of a pattern above contains one of these (the same case-insensitive matching): a non-ASCII line without
+# any of them has no issue (an ASCII line is checked with str.find, faster than either)
+_ISSUE_WORDS = re.compile(r'panic|memory|oom|killed process|seg|error|unreachable|refused|timeout|failed|failure|password', re.IGNORECASE)
+LOG_CHUNK_BYTES = 4 << 20          # a parallel read's byte range
+LOG_FIRST_CHUNK_BYTES = 512 << 10  # ... the first one smaller (then doubling): the first rows arrive at once
+LOG_PARALLEL_MIN_BYTES = 8 << 20   # below this many bytes to read, a log is read serially (a pool costs ~0.1-0.5 s)
+_TS_MEMO_MAX = 200000
+
+
+def _after(l, first, then):
+    """`first.*then` in a lower-cased line without an inner newline: `then` somewhere after the first `first`."""
+    i = l.find(first)
+    return i >= 0 and l.find(then, i + len(first)) >= 0
+
+
+def _issues_of(line):
+    """The issue tags of a line, in _ISSUE_PATTERNS order. An ASCII line (the usual one) is matched with str.lower()
+    and str.find - for ASCII text exactly what the case-insensitive patterns match (a sanitized line holds a newline
+    only at its end, so `a.*b` is `b` after the first `a`); any other line goes through the patterns themselves (their
+    Unicode case folding, e.g. the long s, is not str.lower())."""
+    if not line.isascii():
+        if not _ISSUE_WORDS.search(line):
+            return []
+        return [name for name, pattern in _ISSUE_PATTERNS if pattern.search(line)]
+    l = line.lower()
+    out = []
+    if 'kernel panic' in l:
+        out.append('kernel_panic')
+    if 'out of memory' in l or 'oom-killer' in l or 'oom_killer' in l or 'killed process' in l:
+        out.append('oom_killer')
+    if 'segfault' in l or 'segmentation fault' in l:
+        out.append('segfault')
+    if 'i/o error' in l or _after(l, 'disk', 'error') or _after(l, 'blk', 'error'):
+        out.append('disk_error')
+    if _after(l, 'network', 'unreachable') or _after(l, 'connection', 'refused') or 'timeout' in l:
+        out.append('network_error')
+    if 'failed to start' in l or _after(l, 'service', 'failed'):
+        out.append('service_failed')
+    if 'authentication failure' in l or 'failed password' in l:
+        out.append('authentication_failure')
+    return out
+
+
+def _sanitize(line):
+    """Every non-printable character but newline and tab as a space (a printable line is returned as it is)."""
+    body = line[:-1] if line.endswith('\n') else line
+    if body.isprintable():
+        return line
+    return ''.join(c if c.isprintable() or c in '\n\t ' else ' ' for c in line)
+
+
+def _split_cr(raw):
+    """A binary line (ending in a newline or at the end of the file) cut at its bare CRs: the pieces, each ending in
+    its own terminator (CR, CRLF, LF) - universal newlines, as a text-mode file splits it."""
+    out, i, n = [], 0, len(raw)
+    while i < n:
+        j = raw.find(b'\r', i)
+        if j < 0:
+            out.append(raw[i:])
+            break
+        if raw[j + 1:j + 2] == b'\n':
+            out.append(raw[i:j + 2])
+            i = j + 2
+        else:
+            out.append(raw[i:j + 1])
+            i = j + 1
+    return out
+
+
+def _text_lines(f, start_pos, end_pos=None):
+    """(line, offset after it) for each line that STARTS in [start_pos, end_pos) of a file opened in binary: universal
+    newlines (LF, CRLF and a bare CR end a line, each given as '\n'), UTF-8 with undecodable bytes dropped - what a
+    text-mode file gives, with exact byte offsets (a text-mode tell() after a line ending in a bare CR carries the
+    newline decoder's state above bit 64: a read that compared it with an offset stopped there)."""
+    f.seek(start_pos)
+    pos = start_pos
+    for raw in f:
+        for piece in (_split_cr(raw) if b'\r' in raw else (raw,)):
+            if end_pos is not None and pos >= end_pos:
+                return
+            pos += len(piece)
+            text = piece.decode('utf-8', 'ignore')
+            if text.endswith('\r\n'):
+                text = text[:-2] + '\n'
+            elif text.endswith('\r'):
+                text = text[:-1] + '\n'
+            yield text, pos
+
+
+def _journal_events(f, start_pos, end_pos, current_year, reference, use_prev_year, memo):
+    """See the block comment above. `f` is the file opened in binary (_text_lines)."""
+    line_num = 0
+    match_ts, match_full = JOURNAL_TS_RE.match, JOURNAL_LINE_RE.match
+    for line, _end in _text_lines(f, start_pos, end_pos):
+        line_num += 1
+        line = _sanitize(line)
+        timestamp_match = match_ts(line)
+        if timestamp_match:
+            timestamp_str = timestamp_match.group(1)
+            hit = memo.get(timestamp_str)
+            if hit is None:
+                try:
+                    obj = parse_journal_ts(timestamp_str, current_year, reference)
+                except Exception:  # noqa: BLE001 - as before: a timestamp that does not parse ends the entry
+                    obj = None
+                if len(memo) >= _TS_MEMO_MAX:
+                    memo.clear()
+                hit = memo[timestamp_str] = (obj, obj.isoformat() if obj is not None else None)
+            timestamp_obj, iso = hit
+            if timestamp_obj is None:
+                yield ('bad',)
+                continue
+            if use_prev_year:
+                try:
+                    if timestamp_obj > datetime.now():
+                        timestamp_obj = timestamp_obj.replace(year=timestamp_obj.year - 1)
+                        iso = timestamp_obj.isoformat()
+                except Exception:  # noqa: BLE001 - as before (29 February of a year without one)
+                    yield ('bad',)
+                    continue
+            full_match = match_full(line)
+            if full_match:
+                hostname = full_match.group('host')
+                process = full_match.group('proc')
+                pid = full_match.group('pid') or ''
+                message = full_match.group('msg')
+            else:
+                hostname = ''
+                process = ''
+                pid = ''
+                message = line.strip()
+            try:
+                entry = {
+                    'line_number': line_num,
+                    'timestamp': timestamp_str,
+                    'timestamp_obj': iso,
+                    'hostname': hostname,
+                    'process': process,
+                    'pid': pid,
+                    # the level the message states (classify_severity: the same rules for every parser)
+                    'severity': classify_severity(message),
+                    'message': message,
+                    'issues': _issues_of(line),
+                }
+            except Exception as e:  # noqa: BLE001 - see 'error' above: the read ends here
+                yield ('error', e)
+                yield ('lines', line_num)
+                return
+            yield ('new', entry)
+        else:
+            yield ('cont', line.strip(), _issues_of(line))
+    yield ('lines', line_num)
+
+
+class _JournalAssembler:
+    """Events (_journal_events) to complete entries, in order. feed() for one pass; stitch() for a parallel chunk's
+    summary (journal_chunk) after the chunks before it."""
+
+    def __init__(self):
+        self.current = None
+
+    def feed(self, event):
+        """The entry this event completes, or None."""
+        kind = event[0]
+        if kind == 'cont':
+            cur = self.current
+            if cur is not None:
+                cur['message'] += '\n' + event[1]
+                for issue in event[2]:
+                    if issue not in cur['issues']:
+                        cur['issues'].append(issue)
+            return None
+        if kind == 'lines':
+            return None
+        done = self.current
+        self.current = event[1] if kind == 'new' else None
+        return done
+
+    def finish(self):
+        done, self.current = self.current, None
+        return done
+
+    def stitch(self, res, base):
+        """The entries a chunk completes: the open entry from before it (with the chunk's leading continuations)
+        when the chunk starts a new one, then the chunk's own complete entries (line numbers from `base`)."""
+        out = []
+        for event in res['lead']:
+            self.feed(event)
+        if res['closed']:
+            if self.current is not None:
+                out.append(self.current)
+            for e in res['entries']:
+                e['line_number'] += base
+                out.append(e)
+            opened = res['open']
+            if opened is not None:
+                opened['line_number'] += base
+            self.current = opened
+        return out
+
+
+def journal_chunk(item):
+    """One byte range of a journal (a work item of the parallel read, run in a worker process): {'lead': the
+    continuation events before its first timestamped line, 'closed': whether it has one, 'entries': its complete
+    entries, 'open': the entry still open at its end (or None), 'lines': its line count, 'stopped': building an entry
+    failed and the read ends there, as the one-pass read does} - line numbers local."""
+    ref = datetime.fromisoformat(item['ref']) if item.get('ref') else None
+    lead, entries = [], []
+    closed = failed = False
+    asm = _JournalAssembler()
+    lines = 0
+    with open(item['path'], 'rb') as f:
+        for event in _journal_events(f, item['start'], item['end'], item['year'], ref, item['prev_year'], {}):
+            kind = event[0]
+            if kind == 'lines':
+                lines = event[1]
+                continue
+            if kind == 'error':
+                # the failing line ends the entry open before it (the chunk's own, or - when it is the chunk's first
+                # timestamped line - the one from the chunks before), and nothing after it is read
+                if closed:
+                    done = asm.finish()
+                    if done is not None:
+                        entries.append(done)
+                closed = failed = True
+                print(f"[JournalctlParser] Error streaming: {event[1]}")
+                continue
+            if not closed:
+                if kind == 'cont':
+                    lead.append(event)
+                    continue
+                closed = True
+            done = asm.feed(event)
+            if done is not None:
+                entries.append(done)
+    return {'lead': lead, 'closed': closed, 'entries': entries, 'open': None if failed else asm.finish(), 'lines': lines, 'stopped': failed}
+
+
+def _line_bounds(filepath, start_pos, end_pos, chunk, first=LOG_FIRST_CHUNK_BYTES):
+    """Byte offsets [start_pos, b1, b2, ..., end_pos] that split the range at line starts (each boundary just after a
+    newline): the first range `first` bytes, each next one twice the last, up to `chunk` - the first rows come
+    quickly, the rest in ranges large enough to keep the workers busy."""
+    bounds = [start_pos]
+    size = min(first, chunk) if first else chunk
+    with open(filepath, 'rb') as f:
+        pos = start_pos + size
+        while pos < end_pos:
+            f.seek(pos)
+            f.readline()
+            b = f.tell()
+            if b >= end_pos:
+                break
+            if b > bounds[-1]:
+                bounds.append(b)
+            size = min(chunk, size * 2)
+            pos = b + size
+    bounds.append(end_pos)
+    return bounds
+
+
 def _readable_file_size(filepath):
     """Size of a regular file in bytes, or None when it cannot be read.
 
@@ -2098,7 +2236,7 @@ def extract_date_range(filepath):
     return parser.extract_date_range(filepath)
 
 
-def parse_date_range_stream(directory, start_date_str, end_date_str, log_paths=None, batch_size=5000):
+def parse_date_range_stream(directory, start_date_str, end_date_str, log_paths=None, batch_size=5000, workers=1, cancelled=None):
     """Stream log entries progressively as they're parsed - yields batches
 
     Args:
@@ -2107,6 +2245,9 @@ def parse_date_range_stream(directory, start_date_str, end_date_str, log_paths=N
         end_date_str: end date ISO string
         log_paths: list of log file paths to parse
         batch_size: number of entries per batch (default 5000)
+        workers: 1 reads in this process; None (parallel.default_workers()) or more reads a journal-format log of
+            at least LOG_PARALLEL_MIN_BYTES in worker processes - the same entries in the same order
+        cancelled: a callable answering True when the read should stop (parallel.Cancelled is raised)
 
     Yields:
         Dict containing batch of entries and stats
@@ -2155,8 +2296,12 @@ def parse_date_range_stream(directory, start_date_str, end_date_str, log_paths=N
             parser = get_parser_for_file(log_path)
             print(f"[Log Viewer Stream] Parsing {log_path} with {parser.__class__.__name__}")
 
-            # Parse entries line-by-line
-            for entry in parser.parse_entries_streaming(log_path, start_date, end_date):
+            # Parse entries line-by-line (a large journal-format log in worker processes, in order)
+            if isinstance(parser, JournalctlParser):
+                entries = parser.parse_entries_streaming(log_path, start_date, end_date, workers=workers, cancelled=cancelled)
+            else:
+                entries = parser.parse_entries_streaming(log_path, start_date, end_date)
+            for entry in entries:
                 batch.append(entry)
                 total_count += 1
 
@@ -2178,6 +2323,8 @@ def parse_date_range_stream(directory, start_date_str, end_date_str, log_paths=N
                     batch = []
 
         except Exception as e:
+            if type(e).__name__ == 'Cancelled':
+                raise   # a newer read of the report (or the page going away): the stream stops here
             print(f"[Log Viewer Stream] Error parsing {log_path}: {e}")
             import traceback
             traceback.print_exc()

@@ -3,7 +3,7 @@
   the logs this report carries by size (a summary band with the split
   across journal / kernel / system / application logs and the largest
   file, then one sortable, filterable table with a size bar per row) and
-  the way to the Log Viewer sub-tab. The look lives in
+  the way to the Log Viewer and Histogram sub-tabs. The look lives in
   tabs/_log_collection.html, shared with the must-gather page. Nothing
   here reads a log file; every name is escaped by Jinja.
 #}
@@ -15,7 +15,7 @@
 {{ lcm.styles() }}
   <div class="lc-head">
     <span class="lc-sub">{{ lc.total_files }} file{{ 's' if lc.total_files != 1 else '' }}{% if lc.total_size %} &middot; {{ lc.total_size_text }}{% endif %}{% if lc.capped %} (first {{ lc.total_files }} listed){% endif %}</span>
-    <span class="lc-actions"><button type="button" class="lc-btn" id="log-collection-open-viewer" onclick="if (window.diagnosticsOpenTab) { window.diagnosticsOpenTab('log_collection', 'log_viewer'); } else if (window.switchTab) { window.switchTab('log_viewer', 'log_collection'); }">Open Log Viewer</button></span>
+    <span class="lc-actions"><button type="button" class="lc-btn" id="log-collection-open-viewer" onclick="if (window.diagnosticsOpenTab) { window.diagnosticsOpenTab('log_collection', 'log_viewer'); } else if (window.switchTab) { window.switchTab('log_viewer', 'log_collection'); }">Open Log Viewer</button><button type="button" class="lc-btn" id="log-collection-open-histogram" onclick="if (window.diagnosticsOpenTab) { window.diagnosticsOpenTab('log_collection', 'log_histogram'); } else if (window.switchTab) { window.switchTab('log_histogram', 'log_collection'); }">Open Histogram</button></span>
   </div>
 {% if lc.rows %}
   {% if not lc.journal_present %}<div class="lc-note">No journal capture (sos_commands/logs/journalctl*) in this report: the Log Viewer works from var/log alone.</div>{% endif %}

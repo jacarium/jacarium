@@ -34,6 +34,7 @@ import { stringifyToParts } from './incrementalJson';
 import { createYielder } from './yieldToUI';
 import { formatBytes, downloadBlob, dateStamp } from './exportHelpers';
 import { customWordsExportSection, spellcheckApi } from './customWords';
+import { customThemesExportSection, loadCustomThemes } from './customThemes';
 
 const STEPS = 4;
 
@@ -87,6 +88,7 @@ const SECTION_LABELS = {
   gtfobinsContexts: 'gtfobins contexts',
   media: 'media files',
   customWords: 'custom spelling words',
+  customThemes: 'custom themes',
 };
 
 /**
@@ -353,6 +355,10 @@ export async function collectExportData(report = () => {}, { maybeYield = create
   // The desktop app's custom spelling words (none of the field in a browser)
   const customWords = await collectCustomWords();
   if (customWords) report({ log: `Read ${customWords.words.length} custom spelling words` });
+  // The user's custom colour schemes (Settings > Theme): customThemes { formatVersion: 1, themes } since 4.2.0;
+  // the importer merges them by id (a newer updatedAt wins) and ignores the field's absence
+  const customThemes = customThemesExportSection(loadCustomThemes());
+  report({ log: `Read ${customThemes.themes.length} custom theme${customThemes.themes.length === 1 ? '' : 's'}` });
 
   // Key order here IS the file's key order - keep it stable.
   // formatVersion 2: tasks travel as TaskWarrior JSON per instance
@@ -389,6 +395,8 @@ export async function collectExportData(report = () => {}, { maybeYield = create
     media,
     localStorage: localStorageData,
     ...(customWords ? { customWords } : {}),
+    // always written, also empty, so the import preview lists "0 custom themes" like every other section
+    customThemes,
   };
 
   return exportData;

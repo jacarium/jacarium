@@ -17,6 +17,7 @@ rerun it any time.
 ```sh
 python3 tests/fixtures/diagnostics-mock/generate.py             # ~2 s, standard library only
 python3 tests/fixtures/diagnostics-mock/generate.py --large     # + a 50k-line-journal sosreport
+python3 tests/fixtures/diagnostics-mock/generate.py --anomalies # + the Log Collection Histogram's planted reports
 python3 tests/fixtures/diagnostics-mock/generate.py --copy-to ~/Downloads   # also copy the trees where the page looks by default
 ```
 
@@ -31,6 +32,9 @@ Output in `tests/fixtures/diagnostics-mock/out/`:
 | `must-gather.local.1234567890/` | extracted must-gather (143 files, incl. host_service_logs/, network_logs/ and the API audit logs under audit_logs/ for the Audit and Log Collection tabs) |
 | `must-gather.local.1234567890.tar.gz` | the same tree archived (51 KiB) |
 | `sosreport-web-02-2026-10-13-bigjrnl[.tar.xz]` | `--large` only: same host story, ~50 000 journal lines (587 KiB archive) for Log Viewer performance |
+| `sosreport-node-01-2026-10-12-anomaly/` | `--anomalies` only: one day of journal (`node-01.example.test`, ~110 000 lines) with six planted anomalies for Log Collection > Histogram (below) |
+| `sosreport-node-01-2026-10-12-flat/` | `--anomalies` only: the same routine traffic with nothing planted - the Histogram finds no anomaly |
+| `must-gather.local.1111111111/` | `--anomalies` only: 12 container logs (CRI format) and a node journal with a new error, an expired certificate and a crash loop's previous log |
 
 Deterministic: fixed seed, fixed timestamps, fixed archive metadata, so a
 rerun produces byte-identical files.
@@ -134,6 +138,25 @@ and `dmesg_-T` (all kernel lines), `sos_commands/kernel/modinfo_example_fastpath
 ## Audit logs (`audit_logs/`, `mock_audit_logs.py`)
 
 The API servers' audit logs in the real layout (`<apiserver>/<node>-audit.log.gz`, a rotated `-audit-<stamp>.log.gz` per master, `-termination.log.gz`, the `.audit_logs_listing` files, a plain `monitoring/<pod>/audit.log`) and the audit.k8s.io/v1 Event schema: 3,048 requests over two hours from three masters, service accounts, nodes and the oauth users `alice`, `bob-admin`, `svc-deployer`; planted: a **spike** of 400 denied (`403`) secret lists from `example-scanner/0.1 (burst)` in one minute, 20 **throttled** (`429`) Prometheus lists, alice denied on `openshift-config` secrets then reading `demo-app/db-credentials` three times, bob-admin **impersonating** the demo-app service account, svc-deployer denied early on an old registry secret (on master-2, outside the scan's first-100 sample: only the Events search finds it), **sensitive deletes** (a namespace, secrets, a configmap, a clusterrolebinding, a CRD) and **RBAC changes**, the **slowest** requests (8.5 s, 6.2 s, 3.2 s ...), long-running watches, deprecated endpoints calls, and 12 **malformed** lines. The cluster `APIServer` config (`cluster-scoped-resources/config.openshift.io/apiservers/cluster.yaml`) sets the audit profile **Default** with a custom rule (`system:authenticated:oauth` → WriteRequestBodies); master-2 records write bodies ("Mixed"): a deployment's image bump, JSON-patch scale 3→5 and scale/ subresource 5→2, resources and env changes, labels, a RoleBinding granted (alice, then bob-admin) and revoked with deleteOptions, a ClusterRole rule added, a ConfigMap key edit (one credential-like key masked), a Secret key rotation with run-time placeholder values (never shown), a node cordon + taint, CRD / webhook / SCC updates — the Audit > Changes page. `mock_audit_logs.generate(profile=...)` also builds the WriteRequestBodies / AllRequestBodies variants the tests use.
+
+## Log Collection > Histogram (`--anomalies`, `mock_log_anomalies.py`)
+
+The journal of `sosreport-node-01-2026-10-12-anomaly` is a day (2026-10-12) of routine traffic at a daily swing
+(nginx access lines, a queue worker, sessions, sshd, chronyd, crond, containerd, a slow-request warning) and a
+kubelet heartbeat every minute, with six anomalies planted (`PLANTED`, checked by `tests/log_histogram.test.py`):
+
+| Time | Kind | What |
+| --- | --- | --- |
+| 06:00-06:30 | error spike | `sshd: Failed password for invalid user admin` x8 |
+| 10:00-10:05 | volume spike | the nginx access lines x12 |
+| 14:00-14:20 | burst | `kernel: nfs: server nfs01.example.test not responding, still trying`, 40 a minute (usually one every 20 minutes) |
+| 16:33 | rare | `kernel: BUG: soft lockup - CPU#3 stuck for 23s!` once |
+| 18:00- | new | `kernel: XFS (dm-3): metadata I/O error ...`, never before |
+| 20:00- | stopped | the `PLEG is healthy` heartbeat stops |
+
+The `flat` report is the control: the same traffic and heartbeat, nothing planted. `must-gather.local.1111111111`
+plants `reconcile failed: conflict` errors in `demo-app/api-0/api` from 09:00 and an expired certificate in
+`payments-demo/payments-1/gateway` from 15:00; `demo-app/api-1/api` has a previous log that ends in a panic.
 
 ## What is in the must-gather (`demo` cluster, OpenShift 4.16.12)
 

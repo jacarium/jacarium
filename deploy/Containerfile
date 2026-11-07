@@ -95,9 +95,9 @@ LABEL com.jacarium.image=deploy com.jacarium.stage=taskwarrior
 # intermediates (not reached by this Caddy, which verifies no peer certificate - vex/decisions.yaml); the
 # image is golang:1.27.3-alpine of 2026-10-21, moved to on 2026-11-05 under the seven-day rule.
 FROM docker.io/library/golang:1.27.3-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS caddy
-# Caddy 2.11.8 (2026-11-04, the security lane at 2.1 days: GHSA-r766-rf9f-588h and four more; none reaches
-# deploy/Caddyfile - docs/security/urgent-updates.md, 2026-11-06)
-ARG CADDY_VERSION=v2.11.8
+# Caddy 2.11.9 (2026-11-05, the security lane at 2.1 days: FastCGI hardening and the fix of 2.11.8's PHP-index
+# regression - neither used by deploy/Caddyfile; docs/security/urgent-updates.md, 2026-11-07)
+ARG CADDY_VERSION=v2.11.9
 ARG XNET_VERSION=v0.62.0
 # go-chi/chi v5.4.0 (2026-10-12): GHSA-j6qf-3m9c-vwj3, reported against the v5.3.2 Caddy 2.11.7 pulls in
 ARG CHI_VERSION=v5.4.0

@@ -4,6 +4,42 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.2.0
+
+_2026-11-07_
+
+### [SETTINGS]
+
+Custom themes in Settings > Theme: a gallery of schemes you switch with one click - Built-in, Palettes (Nord, Dracula, Solarized, Gruvbox, One Dark, Tokyo Night, Catppuccin, GitHub) and Crazy (Synthwave 84, Aurora Borealis, Lava Lamp, Deep Ocean, Cotton Candy, Toxic Neon) - and Customize below it: the colour picker, solid, linear or radial gradient rails, the logo's arch, blossom and centre colours, and a contrast warning when text would be hard to read
+
+Themes travel: Export JSON (copy or download) and Import JSON (paste or file, with a dry run) for single themes, and your custom themes are part of the database export and import (the preview lists N custom themes)
+
+Settings > Performance: how many CPU cores the log analysis and the Log Viewer use - Auto, or 1 up to the machine's cores; on a server with accounts only administrators can change it, and JACARIUM_WORKERS overrides it
+
+### [DIAGNOSTICS]
+
+Log Collection > Histogram, for sosreports and must-gathers: choose a date range and logs as in the Log Viewer and click Analyze - it finds volume and error-rate spikes, bursts of one message, new and stopped messages, rare errors and incidents, ranked, with a time chart, the busiest sources and Open in Log Viewer at the exact minutes; runs on several CPU cores, locally, nothing sent anywhere
+
+The Log Viewer loads large logs much faster (a 1,000,000-line journal in about 3.5 seconds instead of 25), with the same results as before; the must-gather log search is faster too
+
+Log Viewer: logs are read to the end - a line ending in a bare carriage return, or a word with letters such as the long s, no longer cuts the view short, fails a Histogram analysis or breaks a must-gather search
+
+Log Viewer links can open a time window to the minute, not only whole days
+
+### [UI]
+
+The document preview's headings, code-block text, links, tables and quotes follow the theme's colours (the built-in themes look as before)
+
+AI Chat: text and links in both chat bubbles are readable in every theme, and links are underlined
+
+About: the header sits on the page in the theme's colours, without the purple box
+
+Text on accent-coloured buttons, badges and chips follows the theme
+
+### [SECURITY]
+
+Caddy 2.11.9 in the container (through the security lane; FastCGI hardening and a fix of 2.11.8's PHP-index regression, neither used in Jacarium's configuration)
+
 ## What's New in v4.1.4
 
 _2026-11-07_

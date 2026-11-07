@@ -97,6 +97,7 @@
 // with synchronisation (src/sync/syncEngine.js) so import and sync agree.
 export { toMillis, importedIsNewer, isBlank, missingFieldFills } from './mergeCore';
 import { readCustomWordsSection, mergeCustomWords, spellcheckApi } from './customWords';
+import { readCustomThemesSection, mergeCustomThemes, loadCustomThemes, saveCustomThemes } from './customThemes';
 
 /**
  * The export's `customWords` section into the desktop app's spelling
@@ -108,6 +109,32 @@ import { readCustomWordsSection, mergeCustomWords, spellcheckApi } from './custo
  * @returns {Promise<object | null>} a newSummary() with created = added words,
  *   skipped = already present, invalid = entries that are not a single word
  */
+/**
+ * The export's `customThemes` section into the user's custom colour schemes (src/utils/customThemes.js), merged
+ * by id in both import modes: a theme with the same id is replaced only by a newer updatedAt, an unknown id is
+ * added under a unique name, nothing is removed or duplicated. A file without the field (an older export) leaves
+ * the themes alone and adds no summary. The settings page reloads its list when the import finishes (the
+ * 'jacarium-custom-themes-changed' event).
+ * @returns {object | null} a newSummary() with created / updated / skipped counts, invalid = entries that are no theme
+ */
+export function importCustomThemes(importData, { dryRun = false } = {}) {
+  const candidates = readCustomThemesSection(importData);
+  if (!candidates) return null;
+  const summary = newSummary();
+  const result = mergeCustomThemes(candidates, loadCustomThemes());
+  summary.created = result.created;
+  summary.updated = result.updated;
+  summary.skipped = result.skipped;
+  // one error line for the lot; the count is the entries' (tallyInvalid adds one per line, so it is set after)
+  if (result.invalid) tallyInvalid(summary, `${result.invalid} ${result.invalid === 1 ? 'entry' : 'entries'}`, 'not a valid theme (unknown keys, a bad colour or fill, a name over 60 characters)');
+  summary.invalid = result.invalid;
+  if (!dryRun && (result.created || result.updated)) {
+    saveCustomThemes(result.themes);
+    try { window.dispatchEvent(new CustomEvent('jacarium-custom-themes-changed')); } catch { /* no window (a test) */ }
+  }
+  return summary;
+}
+
 export async function importCustomWords(importData, { dryRun = false } = {}) {
   const candidates = readCustomWordsSection(importData);
   const api = spellcheckApi();
@@ -1069,6 +1096,8 @@ export async function mergeImportDatabase(importData, { dryRun = false } = {}) {
   // --- the custom spelling words: merged into the dictionary, never removed ---
   const customWords = await importCustomWords(importData, { dryRun });
   if (customWords) summary.customWords = customWords;
+  const customThemes = importCustomThemes(importData, { dryRun });
+  if (customThemes) summary.customThemes = customThemes;
 
   return summary;
 }
@@ -1338,6 +1367,8 @@ export async function replaceImportDatabase(importData) {
   // is the user's, not the database's, so nothing is removed from it
   const customWords = await importCustomWords(importData);
   if (customWords) summary.customWords = customWords;
+  const customThemes = importCustomThemes(importData);
+  if (customThemes) summary.customThemes = customThemes;
 
   return summary;
 }
@@ -1518,6 +1549,8 @@ export async function planReplaceImport(importData) {
   const plan = replacePlan(await loadExistingForReplace(), importData);
   const customWords = await importCustomWords(importData, { dryRun: true });
   if (customWords) plan.customWords = customWords;
+  const customThemes = importCustomThemes(importData, { dryRun: true });
+  if (customThemes) plan.customThemes = customThemes;
   return plan;
 }
 
