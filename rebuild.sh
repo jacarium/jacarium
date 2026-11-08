@@ -355,6 +355,12 @@ build_here() {
 
     log_info "building the Python backend"
     build_backend
+    # the licence list's Python side (scripts/generate-licences.mjs): the packages the frozen backend
+    # bundles, read from PyInstaller's analysis - --strict fails on one without an entry. No backend
+    # built (no Python here), no Python side.
+    if [ -f backend/build/flask-backend/Analysis-00.toc ]; then
+        export JACARIUM_LICENCES_PYTHON=frozen
+    fi
 
     log_info "building the UI ($BUILD_MODE_LABEL)"
     bash scripts/build-ui.sh "${UI_BUILD_ARGS[@]+"${UI_BUILD_ARGS[@]}"}"

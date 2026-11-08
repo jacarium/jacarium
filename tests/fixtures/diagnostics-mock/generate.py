@@ -16,6 +16,7 @@ Writes, under --out (default: this directory's out/, which is git-ignored):
     sosreport-node-01-2026-10-12-anomaly/        only with --anomalies: a day of journal with six planted anomalies
     sosreport-node-01-2026-10-12-flat/           only with --anomalies: the same traffic, nothing planted
     must-gather.local.1111111111/                only with --anomalies: container logs with planted anomalies
+    sosreport-node-01-2026-10-12-anomaly-<N>d/   only with --anomalies --days N (N > 1): N days of journal, the plants on day one
 
 Standard library only; deterministic (fixed seed, fixed timestamps, fixed
 archive metadata), so reruns produce byte-identical output. Every value in the
@@ -101,6 +102,7 @@ def main(argv=None):
     ap.add_argument("--large", action="store_true", help="also build the large sosreport variant (~50k journal lines)")
     ap.add_argument("--large-lines", type=int, default=50000, help="journal lines for the large variant (default 50000)")
     ap.add_argument("--anomalies", action="store_true", help="also build the Log Collection Histogram's reports with planted anomalies (mock_log_anomalies.py)")
+    ap.add_argument("--days", type=int, default=1, help="with --anomalies: also a planted sosreport whose journal spans this many days (the Histogram's multi-day axis), at 20 lines a minute")
     ap.add_argument("--no-archives", action="store_true", help="only write the extracted directories")
     ap.add_argument("--copy-to", metavar="DIR", help="also copy the extracted report directories into DIR (e.g. ~/Downloads, where the Diagnostics page looks by default)")
     args = ap.parse_args(argv)
@@ -170,6 +172,10 @@ def main(argv=None):
             built.append(mock_log_anomalies.planted_sosreport(out, flat=flat, name=name)[0])
         _reset(os.path.join(out, 'must-gather.local.1111111111'))
         built.append(mock_log_anomalies.planted_mustgather(out)[0])
+        if args.days > 1:
+            name = f'sosreport-node-01-2026-10-12-anomaly-{args.days}d'
+            _reset(os.path.join(out, name))
+            built.append(mock_log_anomalies.planted_sosreport(out, per_minute=20, name=name, days=args.days)[0])
 
     copies = []
     if args.copy_to:

@@ -129,9 +129,14 @@ try:
 
     # ---------- 1. the constant itself ----------
     real_timeout = getattr(ai_chat, 'CUSTOM_AI_TIMEOUT', None)
-    check('ai_chat defines CUSTOM_AI_TIMEOUT', isinstance(real_timeout, (int, float)), repr(real_timeout))
-    check('CUSTOM_AI_TIMEOUT is generous enough for slow local models (>= 60s)',
-          isinstance(real_timeout, (int, float)) and real_timeout >= 60, repr(real_timeout))
+    # a (connect, read) pair since 4.3.0: a short connect timeout, a long gap between bytes (a reasoning model
+    # answers nothing for minutes before its first byte); the checks below look at the read part
+    pair = isinstance(real_timeout, tuple) and len(real_timeout) == 2 and all(isinstance(v, (int, float)) for v in real_timeout)
+    read_timeout = real_timeout[1] if pair else real_timeout
+    check('ai_chat defines CUSTOM_AI_TIMEOUT as a (connect, read) pair of numbers', pair, repr(real_timeout))
+    check('the connect timeout is short (<= 30s) and the read timeout generous enough for slow local models (>= 60s)',
+          pair and real_timeout[0] <= 30 and read_timeout >= 60, repr(real_timeout))
+    real_timeout = read_timeout
     check('CUSTOM_AI_TIMEOUT is bounded (not None/0/infinite)',
           isinstance(real_timeout, (int, float)) and 0 < real_timeout < 3600, repr(real_timeout))
 

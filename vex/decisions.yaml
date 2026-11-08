@@ -512,13 +512,13 @@ decisions:
   # ---- oauthlib 4.0.0 in the backend (backend/requirements.lock since 3.0.0; in the container image and in the
   # desktop installers' bundled backend): GHSA-3jp2-3mrg-2vxc is in the server side of RFC 8628 - the device-code
   # grant's token endpoint (DeviceCodeGrant.validate_token_request) did not validate device_code. The backend
-  # is an OAuth client only. 4.0.1 has the fix and comes in with the next lock refresh under the seven-day rule
-  # (from 2026-11-08); then this statement turns to fixed for that release.
+  # is an OAuth client only. 4.0.1 has the fix and came in with Jacarium 4.3.0 under the seven-day rule (locked
+  # 2026-11-08), so the statement covers the releases before 4.3.0 only (a fixed version is not reported).
   - id: GHSA-3jp2-3mrg-2vxc
     aliases: [CVE-2026-49272]
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
-    versions: ['>=3.0.0']
+    versions: ['<4.3.0']
     products: [image, desktop]
     components: [pkg:pypi/oauthlib@4.0.0]
     impact: >-

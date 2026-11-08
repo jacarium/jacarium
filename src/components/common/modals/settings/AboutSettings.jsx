@@ -36,11 +36,15 @@ const CREDITS = [
   { name: 'React', what: 'the user interface', url: 'https://react.dev', licence: 'MIT', licenceUrl: 'https://github.com/facebook/react/blob/main/LICENSE' },
   { name: 'Electron', what: 'the desktop app', url: 'https://www.electronjs.org', licence: 'MIT', licenceUrl: 'https://github.com/electron/electron/blob/main/LICENSE' },
   { name: 'Node.js', what: 'the central server, the desktop app\'s main process', url: 'https://nodejs.org', licence: 'MIT', licenceUrl: MIT_NODE },
+  // CPython and its standard library: frozen into the desktop installers' backend (PyInstaller), Red Hat's python3.14 in the container
+  { name: 'Python', what: 'the backend\'s runtime', url: 'https://www.python.org', licence: 'PSF License Version 2', licenceUrl: 'https://docs.python.org/3/license.html' },
   { name: 'Lucide', what: 'icons', url: 'https://lucide.dev', licence: 'ISC', licenceUrl: 'https://github.com/lucide-icons/lucide/blob/main/LICENSE' },
   { name: 'Yjs', what: 'live documents (the shared editing)', url: 'https://yjs.dev', licence: 'MIT', licenceUrl: 'https://github.com/yjs/yjs/blob/main/LICENSE' },
   { name: 'Red Hat Text', what: 'font', url: 'https://fonts.google.com/specimen/Red+Hat+Text', ...OFL },
   { name: 'Red Hat Mono', what: 'font', url: 'https://fonts.google.com/specimen/Red+Hat+Mono', ...OFL },
   { name: 'Sora', what: 'font', url: 'https://fonts.google.com/specimen/Sora', ...OFL },
+  // KaTeX renders the ```latex blocks (src/utils/latexBlocks.js); its fonts (Computer Modern, AMS) ship with it
+  { name: 'KaTeX', what: 'maths in ```latex blocks, with its fonts', url: 'https://katex.org', licence: 'MIT', licenceUrl: 'https://github.com/KaTeX/KaTeX/blob/main/LICENSE' },
   // Font Awesome Free: the icons are CC BY 4.0 (this attribution is what the licence asks for), the fonts SIL OFL 1.1, the code MIT
   { name: 'Font Awesome Free', what: 'the Diagnostics pages\' icons', url: 'https://fontawesome.com', licence: 'CC BY 4.0 icons, SIL OFL 1.1 fonts, MIT code', licenceUrl: 'https://fontawesome.com/license/free' },
   // the spell-checking dictionaries of the Windows and Linux builds, unchanged from Chromium's (electron/spellcheck-dictionaries-NOTICE.txt)
@@ -86,7 +90,7 @@ function LicencesList() {
     <div className="space-y-3" data-testid="about-licences">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-os-text-muted" data-testid="about-licences-count">
-          {state.doc.packages.length} packages ({state.doc.counts?.npm ?? 0} npm, {state.doc.counts?.pypi ?? 0} Python), {state.doc.counts?.withText ?? 0} with their licence text
+          {state.doc.packages.length} packages ({state.doc.counts?.npm ?? 0} npm, {state.doc.counts?.pypi ?? 0} Python{state.doc.counts?.runtime ? `, ${state.doc.counts.runtime} runtime` : ''}), {state.doc.counts?.withText ?? 0} with their licence text
           {state.doc.counts?.pypi === 0 ? ' - the Python packages of the backend are not in this build\'s list' : ''}
         </p>
         <Button size="sm" onClick={() => setState({ status: 'closed', doc: null, error: '' })} data-testid="about-licences-close">Close</Button>
@@ -97,10 +101,11 @@ function LicencesList() {
           <details key={`${p.ecosystem}:${p.name}@${p.version}`} className="group px-3 py-2 text-sm" data-testid="about-licence-package">
             <summary className="cursor-pointer flex flex-wrap items-baseline gap-x-2 text-os-text-primary">
               <span className="font-mono">{p.name}</span>
-              <span className="text-os-text-muted text-xs">{p.version}{p.ecosystem === 'pypi' ? ' · Python' : p.where === 'central' ? ' · central server' : ''}</span>
+              <span className="text-os-text-muted text-xs">{p.version}{p.ecosystem === 'pypi' ? ' · Python' : p.ecosystem === 'runtime' ? ' · runtime' : p.where === 'central' ? ' · central server' : ''}</span>
               <span className="text-os-text-secondary text-xs ml-auto">{p.licence || 'licence not declared'}</span>
             </summary>
             <div className="mt-2 space-y-2 text-xs text-os-text-secondary">
+              {p.note && <p>{p.note}</p>}
               {p.url && <ExternalLink href={p.url} className="brand-link">{p.url}</ExternalLink>}
               {p.texts.length === 0 && <p className="text-os-text-muted">No licence file in the package; its licence is the one declared above.</p>}
               {p.texts.map((t) => (

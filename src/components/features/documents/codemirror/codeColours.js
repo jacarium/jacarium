@@ -23,7 +23,7 @@
  */
 import { StateEffect, StateField } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin } from '@codemirror/view';
-import { syntaxTree } from '@codemirror/language';
+import { treeChanged, treeFor } from './markdownLanguage';
 import { highlightCode, resolveHighlightLanguage } from '../../../../utils/codeHighlight';
 
 /** Past either, a block is tinted but not coloured. One constant, for the tests and the docs. */
@@ -119,7 +119,7 @@ export function withinCap(code) {
  */
 export function colourDecorations(state, ranges) {
   const marks = [];
-  const tree = syntaxTree(state);
+  const tree = treeFor(state, ranges.length ? ranges[ranges.length - 1].to : 0);
   const seen = new Set();
   for (const { from, to } of ranges) {
     tree.iterate({
@@ -169,7 +169,7 @@ const scheduler = ViewPlugin.fromClass(class {
   }
   update(update) {
     if (update.docChanged) this.schedule(DEBOUNCE_MS);
-    else if (update.viewportChanged) this.schedule(0);
+    else if (update.viewportChanged || treeChanged(update)) this.schedule(0);   // the parse landing: the blocks on screen colour now
   }
   schedule(ms) {
     if (this.timer !== null) clearTimeout(this.timer);

@@ -229,7 +229,7 @@ function writeVex(repo, version) {
   const python = fs.existsSync(venv) ? venv : 'python3';
   const r = spawnSync(python, [script, '--version', version], { cwd: repo, encoding: 'utf8' });
   if (r.status !== 0) throw new Error(`the VEX document could not be written (${python} scripts/vex.py --version ${version}): ${(r.stderr || r.stdout || '').trim().split('\n').slice(-3).join(' | ')}`);
-  log(r.stdout.trim());
+  console.error(r.stdout.trim());
 }
 
 /**

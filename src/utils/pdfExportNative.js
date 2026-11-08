@@ -268,6 +268,7 @@ export async function exportDocumentToPDFNative(doc, { report, filename, signal 
 
   const { processInteractiveMarkdown, resolveAttachmentImages } = await import('./interactiveMarkdown');
   const { renderMermaidDiagrams } = await import('./mermaidDiagrams');
+  const { renderLatexBlocks } = await import('./latexBlocks');
 
   report({ step: 1, steps: STEPS, label: 'Rendering preview', indeterminate: true });
   // Off-screen, attached to the document: Mermaid measures labels and images
@@ -297,6 +298,10 @@ export async function exportDocumentToPDFNative(doc, { report, filename, signal 
     // diagram reads the same on every OS (Mermaid's default stack is Trebuchet
     // MS, which macOS has and Linux has not)
     await renderMermaidDiagrams(container, { theme: 'default', fontFamily: '"Red Hat Text", "trebuchet ms", verdana, arial, sans-serif', signal: signal || undefined });
+    // ```latex blocks as maths: KaTeX's stylesheet (and its fonts, bundled) join the page's stylesheets when it
+    // loads, so collectExportStylesWithFonts() below carries them into the PDF with the fonts inlined
+    report({ step: 2, steps: STEPS, label: 'Rendering maths', indeterminate: true });
+    await renderLatexBlocks(container, { signal: signal || undefined });
     await waitForImages(container);
     if (signal?.aborted) throw abortError();
 

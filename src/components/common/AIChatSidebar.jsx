@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { scopedKey } from '../../utils/accountStorage';
+import { AI_DEFAULT_MAX_TOKENS, AI_PROBE_TIMEOUT_MS, CONTINUE_PROMPT, truncationMessage } from '../../utils/aiStream';
 import { Bot, Trash2, Plus, Edit2, AlertCircle, RefreshCw, Code2, X, ChevronDown, FileJson, FileText, Trello, GitBranch, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import SidebarHeader from './sidebar/SidebarHeader';
 import ResizableSidebar from '../ResizableSidebar';
@@ -45,7 +46,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
     provider: 'anthropic',
     model: 'claude-sonnet-4-5@20250929',
     temperature: 0,
-    maxTokens: 2000
+    maxTokens: AI_DEFAULT_MAX_TOKENS
   });
 
   // Conversations management
@@ -61,7 +62,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
           provider: 'anthropic',
           model: 'claude-sonnet-4-5@20250929',
           temperature: 0,
-          maxTokens: 2000
+          maxTokens: AI_DEFAULT_MAX_TOKENS
         }
       }));
       console.log('[AI Chat] Migrated conversations:', migrated);
@@ -76,7 +77,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
         provider: 'anthropic',
         model: 'claude-sonnet-4-5@20250929',
         temperature: 0,
-        maxTokens: 2000
+        maxTokens: AI_DEFAULT_MAX_TOKENS
       }
     };
     return [defaultConv];
@@ -137,7 +138,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
     provider: 'anthropic',
     model: 'claude-sonnet-4-5@20250929',
     temperature: 0,
-    maxTokens: 2000,
+    maxTokens: AI_DEFAULT_MAX_TOKENS,
     sshConfig: sshConfig
   };
 
@@ -233,7 +234,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
           provider: envVars.DEFAULT_AI_PROVIDER || 'anthropic',
           model: envVars.DEFAULT_AI_MODEL || 'claude-sonnet-4-5@20250929',
           temperature: parseFloat(envVars.DEFAULT_AI_TEMPERATURE || '0'),
-          maxTokens: parseInt(envVars.DEFAULT_AI_MAX_TOKENS || '2000')
+          maxTokens: parseInt(envVars.DEFAULT_AI_MAX_TOKENS || String(AI_DEFAULT_MAX_TOKENS))
         };
         setDefaultAISettings(defaults);
 
@@ -331,7 +332,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
       const backendUrl = await getBackendUrl();
       const response = await apiFetch(`${backendUrl}/api/ai/models`, {
         method: 'GET',
-        signal: AbortSignal.timeout(3000)
+        signal: AbortSignal.timeout(AI_PROBE_TIMEOUT_MS)
       });
 
       if (response.ok) {
@@ -390,7 +391,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
       const backendUrl = await getBackendUrl();
       const response = await apiFetch(`${backendUrl}/api/ai/health`, {
         method: 'GET',
-        signal: AbortSignal.timeout(3000)
+        signal: AbortSignal.timeout(AI_PROBE_TIMEOUT_MS)
       });
 
       if (response.ok) {
@@ -527,13 +528,15 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
     return FileText;
   }
 
-  async function handleSendMessage() {
-    if (!inputMessage.trim() || isLoading || backendStatus === 'offline') return;
+  // `textOverride`: Continue sends CONTINUE_PROMPT without touching the input (a click event is not a text)
+  async function handleSendMessage(textOverride) {
+    const typed = typeof textOverride === 'string' ? textOverride : inputMessage;
+    if (!typed.trim() || isLoading || backendStatus === 'offline') return;
 
     // The contexts go with the first message, as the delimited blocks the
     // eye dialog shows (exactly that text), with the redaction note when a
     // placeholder is in them
-    let messageContent = inputMessage;
+    let messageContent = typed;
     const sendContexts = contexts.length > 0 && !contextSent;
     if (sendContexts) {
       // never an empty block: a context whose content could not be loaded is
@@ -548,7 +551,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
           message: `${skipped.map(({ ctx }) => `"${ctx.title}"`).join(', ')} ${skipped.length === 1 ? 'has' : 'have'} no content and ${skipped.length === 1 ? 'was' : 'were'} left out. Use the chip's eye to reset or edit it.`,
         });
       }
-      if (usable.length) messageContent = buildContextMessage(usable.map(({ r }) => r.text), inputMessage);
+      if (usable.length) messageContent = buildContextMessage(usable.map(({ r }) => r.text), typed);
     }
 
     const userMessage = { role: 'user', content: messageContent };
@@ -560,7 +563,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
         : conv
     ));
 
-    setInputMessage('');
+    if (typeof textOverride !== 'string') setInputMessage('');
     // Keep context persistent so user can ask multiple questions
     setIsLoading(true);
 
@@ -575,7 +578,8 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
         provider: aiSettings.provider,
         model: aiSettings.model,
         temperature: aiSettings.temperature,
-        max_tokens: aiSettings.maxTokens
+        max_tokens: aiSettings.maxTokens,
+        maxTokens: aiSettings.maxTokens
       };
 
       // Add SSH config if provider is SSH
@@ -613,7 +617,8 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
       }
 
       const data = await response.json();
-      const assistantMessage = { role: 'assistant', content: data.message };
+      // the token limit cut the reply off: the message says so and offers Continue
+      const assistantMessage = { role: 'assistant', content: data.message, ...(data.truncated ? { truncated: true, finishReason: data.finishReason || null, maxTokens: aiSettings.maxTokens } : {}) };
 
       setConversations(prev => prev.map(conv =>
         conv.id === currentConversationId
@@ -686,7 +691,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
         provider: option.provider,
         model: option.model,
         temperature: currentSettings?.temperature || 0,
-        maxTokens: currentSettings?.maxTokens || 2000
+        maxTokens: currentSettings?.maxTokens || AI_DEFAULT_MAX_TOKENS
       }
     };
     setConversations(prev => [newConv, ...prev]);
@@ -1037,6 +1042,12 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
  :'bg-os-card-secondary text-os-text-primary'
  }`}
                   >
+                    {msg.role === 'assistant' && msg.truncated && (
+                      <div className="mb-2 flex items-center justify-between gap-2 text-xs text-os-text-secondary" data-testid="ai-truncated-note">
+                        <span>{truncationMessage(msg.maxTokens)}</span>
+                        <button type="button" onClick={() => handleSendMessage(CONTINUE_PROMPT)} disabled={isLoading} className="btn btn-secondary px-2 py-0.5 text-xs shrink-0" data-testid="ai-continue">Continue</button>
+                      </div>
+                    )}
                     {!showRawMarkdown ? (
                       /* Memoized per message so streaming chunks only
                          re-parse the message actually changing. */

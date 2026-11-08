@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Bot, X, RefreshCw, Check, Trash2 } from 'lucide-react';
 import { getBackendUrl } from '../../../utils/backendUrl';
 import { NO_AI_PROVIDER_MESSAGE, resolveAiRequestSettings, savedAiChatSettings } from '../../../utils/aiRequestSettings';
+import { streamAiReply, truncationMessage, CONTINUE_PROMPT } from '../../../utils/aiStream';
 
 /**
  * AskAIPopup - Ask AI about selected text
@@ -25,6 +26,10 @@ export default function AskAIPopup({
   const [prompt, setPrompt] = useState('');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState(null);           // 'waiting' | 'thinking' | 'answering' while loading
+  const [truncated, setTruncated] = useState(false);  // the token limit cut the reply off (the limit, when known)
+  const abortRef = useRef(null);
+  const firstChunkRef = useRef(true);
   const [selectedResponse, setSelectedResponse] = useState('');
   const [backendStatus] = useState('online');
   const [popupSize, setPopupSize] = useState({ width: 500, height: 600 });
@@ -167,34 +172,55 @@ export default function AskAIPopup({
       ? `${prompt}\n\n${editableSelectedText}`
       : editableSelectedText;
 
-    fetch(`${await getBackendUrl()}/api/ai/ask`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: fullMessage,
-        provider: aiSettings.provider,
-        model: aiSettings.model,
-        temperature: aiSettings.temperature,
-        maxTokens: aiSettings.maxTokens
-      }),
-      signal: AbortSignal.timeout(30000)
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.response) {
-          setResponse(data.response);
-        } else if (data.error) {
-          setResponse('Error: ' + data.error);
-        } else {
-          setResponse('Error: No response from AI');
-        }
-      })
-      .catch(err => {
-        setResponse('Error: ' + err.message);
-      })
-      .finally(() => {
-        setLoading(false);
+    await runAsk({ aiSettings, message: fullMessage });
+  };
+
+  // One request, streamed (src/utils/aiStream.js): the reply grows as it arrives, a reasoning model's thinking
+  // shows as "Thinking...", Cancel aborts, no total timeout - only the idle one. `append` keeps the reply so far.
+  const runAsk = async ({ aiSettings, message, append = false }) => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setLoading(true);
+    setPhase('waiting');
+    setTruncated(false);
+    if (!append) setResponse('');
+    firstChunkRef.current = true;
+    try {
+      const result = await streamAiReply({
+        url: `${await getBackendUrl()}/api/ai/ask`,
+        signal: controller.signal,
+        body: { message, provider: aiSettings.provider, model: aiSettings.model, temperature: aiSettings.temperature, maxTokens: aiSettings.maxTokens, stream: true },
+        onEvent: (ev) => {
+          if (ev.type === 'thinking_start' || ev.type === 'thinking') setPhase('thinking');
+          else if (ev.type === 'content' && ev.content) {
+            setPhase('answering');
+            const piece = (firstChunkRef.current && append ? '\n\n' : '') + ev.content;
+            firstChunkRef.current = false;
+            setResponse((prev) => prev + piece);
+          }
+        },
       });
+      if (!result.content && !append) setResponse(result.thinking ? '(The model only reasoned and gave no answer - the token limit may be too low for its thinking.)' : 'Error: No response from AI');
+      setTruncated(result.truncated ? (aiSettings.maxTokens || true) : false);
+    } catch (err) {
+      // Cancel keeps what arrived (or says so); an error goes under what arrived
+      const cancelled = !!(err && err.name === 'AbortError');
+      const note = cancelled ? 'Cancelled.' : 'Error: ' + (err && err.message ? err.message : String(err));
+      setResponse((prev) => (cancelled ? (prev || note) : (prev ? prev + '\n\n' + note : note)));
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+      setPhase(null);
+      setLoading(false);
+    }
+  };
+  const handleCancel = () => { abortRef.current?.abort(); };
+  const handleContinue = async () => {
+    if (loading || !response) return;
+    let aiSettings = null;
+    try { aiSettings = await resolveAiRequestSettings({ saved: savedAiChatSettings() }); } catch { aiSettings = null; }
+    if (!aiSettings) return;
+    const question = prompt.trim() ? `${prompt}\n\n${editableSelectedText}` : editableSelectedText;
+    await runAsk({ aiSettings, message: `${question}\n\nYour answer so far (cut off at the token limit):\n${response}\n\n${CONTINUE_PROMPT}`, append: true });
   };
 
   const handleResponseSelection = () => {
@@ -332,24 +358,31 @@ export default function AskAIPopup({
           {/* Response */}
           {(response || loading) && (
             <div className="flex-1 flex flex-col min-h-0">
-              <label className="block text-xs text-os-text-primary mb-1 shrink-0">
-                {loading ? 'Generating response...' : 'Response:'}
+              <label className="block text-xs text-os-text-primary mb-1 shrink-0 flex items-center justify-between gap-2">
+                <span>{loading ? (phase === 'thinking' ? 'The model is thinking...' : phase === 'answering' ? 'Answering...' : 'Waiting for the model...') : 'Response:'}</span>
+                {loading && <button type="button" onClick={handleCancel} className="btn btn-secondary px-2 py-0.5 text-xs" data-testid="ask-ai-cancel">Cancel</button>}
               </label>
               <div className="relative flex-1">
                 <textarea
                   ref={responseRef}
-                  value={loading ? 'Generating response...' : response}
+                  value={loading && !response ? (phase === 'thinking' ? 'Thinking...' : 'Waiting for the model...') : response}
                   readOnly={loading}
                   onSelect={handleResponseSelection}
                   onMouseUp={handleResponseSelection}
                   className="w-full h-full px-2 py-2 border border-os-border rounded-sm bg-os-card-secondary font-mono text-xs resize-none focus:outline-hidden cursor-text"
                 />
-                {loading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/75 rounded-sm">
+                {loading && !response && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-os-card/75 rounded-sm">
                     <RefreshCw size={20} className="text-purple-600 animate-spin" />
                   </div>
                 )}
               </div>
+              {truncated && !loading && (
+                <p className="text-xs text-os-text-secondary mt-1 flex items-center justify-between gap-2 shrink-0" data-testid="ask-ai-truncated">
+                  <span>{truncationMessage(typeof truncated === 'number' ? truncated : null)}</span>
+                  <button type="button" onClick={handleContinue} className="btn btn-secondary px-2 py-0.5 text-xs shrink-0" data-testid="ask-ai-continue">Continue</button>
+                </p>
+              )}
               {selectedResponse && !loading && (
                 <p className="text-xs text-purple-600 mt-1 shrink-0">
                   {selectedResponse.length} characters selected

@@ -19,7 +19,7 @@
  */
 import { Facet } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
-import { syntaxTree } from '@codemirror/language';
+import { treeChanged, treeFor } from './markdownLanguage';
 import { findDocLinks } from '../../../../utils/docLinks';
 
 /** The Markdown nodes a directive is plain text in (the preview prints it as written there: no chip). */
@@ -59,7 +59,7 @@ class DocLinkChip extends WidgetType {
 export function docLinkChipRanges(state, visibleRanges, resolve) {
   const marks = [];
   const selection = state.selection.ranges;
-  const tree = syntaxTree(state);
+  const tree = treeFor(state, visibleRanges.length ? visibleRanges[visibleRanges.length - 1].to : 0);
   for (const { from, to } of visibleRanges) {
     const text = state.sliceDoc(from, to);
     for (const link of findDocLinks(text)) {
@@ -84,7 +84,7 @@ const chipsPlugin = ViewPlugin.fromClass(class {
   constructor(view) { this.decorations = docLinkChipRanges(view.state, view.visibleRanges, view.state.facet(docLinkResolverFacet)); }
   update(update) {
     const resolverChanged = update.startState.facet(docLinkResolverFacet) !== update.state.facet(docLinkResolverFacet);
-    if (update.docChanged || update.viewportChanged || update.selectionSet || resolverChanged) {
+    if (update.docChanged || update.viewportChanged || update.selectionSet || resolverChanged || treeChanged(update)) {
       this.decorations = docLinkChipRanges(update.state, update.view.visibleRanges, update.state.facet(docLinkResolverFacet));
     }
   }

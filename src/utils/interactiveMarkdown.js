@@ -106,6 +106,11 @@ renderer.code = function(token) {
   if (lang === 'mermaid') {
     return `<div class="mermaid-diagram" data-mermaid="pending"><pre><code class="language-mermaid">${escapeHtml(token.text)}</code></pre></div>\n`;
   }
+  // ```latex: the same shape - an inert placeholder with the source as an escaped code block, rendered as display
+  // maths afterwards by src/utils/latexBlocks.js (the preview effect / the PDF export); fenced blocks only
+  if (lang === 'latex') {
+    return `<div class="latex-block" data-latex="pending"><pre><code class="language-latex">${escapeHtml(token.text)}</code></pre></div>\n`;
+  }
   const highlightLang = resolveHighlightLanguage(lang);
   if (highlightLang) {
     // Mirror marked's own normalisation: exactly one trailing newline.
@@ -199,6 +204,8 @@ marked.setOptions({ renderer });
  *   device renders as a muted "Document not found". The titles come from
  *   `options.resolveDocLink` (createDocLinkResolver over the documents'
  *   metadata); without one every link is "not found".
+ * - ```latex fenced code blocks - emitted as .latex-block placeholders that
+ *   src/utils/latexBlocks.js renders as display maths (KaTeX) after the parse.
  * - ```mermaid fenced code blocks - emitted as .mermaid-diagram
  *   placeholders (see renderer.code above) that
  *   src/utils/mermaidDiagrams.js turns into diagrams after the parse.

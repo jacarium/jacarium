@@ -39,10 +39,10 @@ const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}:
 
 // justified exceptions: the primitives themselves, the games and tiles (their own visual language), charts and highlighting
 const ALLOW = /src\/components\/ui\/|LoadingGame|FloatingTiles|game-modes\/|charts?\/|codeHighlight|mermaid/i;
-// colours: the games and tiles, the workflow node palette, the OpenShift masthead imitation, charts and highlighting keep their own;
+// colours: the games and tiles, the workflow node palette, charts and highlighting keep their own;
 // FloatingDraft's paper palettes are a feature
-const HEX_ALLOW = /LoadingGame|FloatingTiles|game-modes\/|charts?\/|codeHighlight|mermaid|brand\/|OpenShiftMasthead|calendars\/|workflow\/nodes|StartupError|diagnostics|FloatingDraft/i;
-const GREY_ALLOW = /LoadingGame|FloatingTiles|game-modes\/|charts?\/|codeHighlight|mermaid|OpenShiftMasthead|workflow\/nodes|FloatingDraft/i;
+const HEX_ALLOW = /LoadingGame|FloatingTiles|game-modes\/|charts?\/|codeHighlight|mermaid|brand\/|calendars\/|workflow\/nodes|StartupError|diagnostics|FloatingDraft/i;
+const GREY_ALLOW = /LoadingGame|FloatingTiles|game-modes\/|charts?\/|codeHighlight|mermaid|workflow\/nodes|FloatingDraft/i;
 const GREY = /(?<![\w-])(?:(?:dark|hover|group-hover|focus):)*(?:bg|text|border|divide|placeholder|ring)-(?:gray|slate|zinc|neutral|stone)-\d{2,3}(?:\/\d+)?(?![\w-])/;
 const files = execFileSync('git', ['ls-files', 'src'], { cwd: REPO, encoding: 'utf8' }).split('\n').filter((f) => /\.jsx$/.test(f) && !ALLOW.test(f));
 const WEIGHT = /(?<![\w-])(?:(?:hover|focus|group-hover|dark|sm|md|lg|focus-visible|active|disabled):)*font-(?:bold|semibold|medium)(?![\w-])/;
@@ -97,7 +97,7 @@ for (const f of files) {
         if (!GREY_ALLOW.test(f)) for (const s of strs) { const m = s.match(GREY); if (m) greys.push(`${f}:${line} ${m[0]}`); }
       }
     }
-    if ((name === 'button' || name === 'Button') && lucide.size && !ROW_LIKE(attrText(node, src), node, src) && !/OpenShiftSidebar/.test(f)) {
+    if ((name === 'button' || name === 'Button') && lucide.size && !ROW_LIKE(attrText(node, src), node, src)) {
       const attrsEnd = node.openingElement.range[1];
       const skipSet = new Set(); walk(node, (n) => { if (n !== node && n.type === 'JSXElement' && TOOLTIPISH(attrText(n, src))) skipSet.add(n); });
       const inSkipped = (n) => { let q = parents.get(n); while (q && q !== node) { if (skipSet.has(q)) return true; q = parents.get(q); } return false; };

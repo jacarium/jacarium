@@ -577,3 +577,34 @@ php_fastcgi, no path-matcher placeholders and no file_server browse; taken so th
 release with no open advisory. The Containerfile's build asserts the version (`caddy version`), and the pins of
 x/net, chi, go-jose and klauspost/compress stay as they are.
 
+## 2026-11-08 - glibc 2.34-284.el9_8.4 (RHSA-2026:95618), the security lane
+
+The fresh Grype database of 2026-11-07 reported CVE-2026-8674 (the DNS stub resolver: a denial of service through a
+long search domain in the configuration) and CVE-2026-89092 (an nscd stack overflow) against the base image's
+glibc 2.34-283.el9_8; the erratum also fixes CVE-2026-86805 and CVE-2026-95818. Moderate; the image does not run
+nscd, and its resolver configuration is the container runtime's, but the fix is taken so the image carries no
+fixable glibc advisory. `scripts/verify-rpm-update.sh --cve CVE-2026-8674 --cve CVE-2026-89092
+glibc-2.34-284.el9_8.4`, run 2026-11-08 07:46 AEST once the erratum was two days old (at 1.9 days, 06:15, it
+correctly refused):
+
+```
+== CVE-2026-8674: public 2026-09-17T16:54:27Z severity Moderate
+   Red Hat Enterprise Linux 9: RHSA-2026:95618 2026-11-05T00:00:00Z glibc-0:2.34-284.el9_8.4
+== CVE-2026-89092: public 2026-09-11T01:23:01Z severity Moderate
+   Red Hat Enterprise Linux 9: RHSA-2026:95618 2026-11-05T00:00:00Z glibc-0:2.34-284.el9_8.4
+== RHSA-2026:95618: Red Hat Security Advisory: glibc security update
+   released 2026-11-05T21:43:56+00:00 severity Moderate cves CVE-2026-8674,CVE-2026-86805,CVE-2026-89092,CVE-2026-95818
+   age 2.0 days
+   fixed: glibc-2.34-284.el9_8.4: aarch64, i686, ppc64le, s390x, src, x86_64
+== registry.access.redhat.com/ubi9-minimal:9.8-1792742033@sha256:2d4c4551af6831dcd26bbf86108c4385de5183ec8fe6b5868f6f9640fe47f4ed: microdnf upgrade glibc
+   glibc-2.34-284.el9_8.4.aarch64: signature RSA/SHA256, Fri Oct 30 22:08:29 2026, Key ID 199e2f91fd431d51
+   vendor Red Hat, Inc., built Fri Oct 23 09:37:00 2026, source glibc-2.34-284.el9_8.4.src.rpm
+
+no red flag
+```
+
+deploy/Containerfile's runtime stage upgrades `glibc glibc-common glibc-minimal-langpack` in its one microdnf
+line and checks the exact versions with `rpm -q`; tests/container_reproducible.test.py names them among the
+packages raised past the pinned base. The ubi9-minimal base bump due from 2026-11-09 will carry these and lets the
+upgrade line go.
+

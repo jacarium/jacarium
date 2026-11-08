@@ -291,8 +291,12 @@ The fonts (Red Hat Text, Red Hat Mono, Sora) are under the
 [Yjs](https://yjs.dev) (MIT). The interface is built with
 [React](https://react.dev) (MIT) and its icons are
 [Lucide](https://lucide.dev) (ISC); the desktop app runs on
-[Electron](https://www.electronjs.org) (MIT) and the central server on
-[Node.js](https://nodejs.org) (MIT). The Diagnostics pages' icons are
+[Electron](https://www.electronjs.org) (MIT), the central server on
+[Node.js](https://nodejs.org) (MIT) and the backend on
+[Python](https://www.python.org) (the
+[PSF License Version 2](https://docs.python.org/3/license.html); the desktop
+installers freeze it with PyInstaller, whose bootloader is GPL-2.0-or-later
+with its bundling exception). The Diagnostics pages' icons are
 [Font Awesome Free](https://fontawesome.com) (icons CC BY 4.0, fonts SIL OFL
 1.1, code MIT - [its licence](https://fontawesome.com/license/free)).
 The Windows and Linux builds ship Chromium's Hunspell spell-checking
@@ -303,5 +307,8 @@ MPL-1.1, at your option) - the notice and the texts are in
 [electron/spellcheck-dictionaries-NOTICE.txt](electron/spellcheck-dictionaries-NOTICE.txt)
 and [docs/security/spellcheck-dictionaries.md](docs/security/spellcheck-dictionaries.md).
 Every package that ships, with its licence text, is listed in the app under
-Settings > About > "All open-source licences" (generated from the lock files
-at build time).
+Settings > About > "All open-source licences" (generated at build time from
+the lock files and, for the backend, from the Python packages each build
+really ships: what the container installs from `backend/requirements.lock`,
+what the installers' PyInstaller bundle includes - with Python itself and,
+in the installers, the PyInstaller bootloader).

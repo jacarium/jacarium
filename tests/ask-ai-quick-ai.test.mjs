@@ -101,7 +101,18 @@ const stubFetch = async (url, options = {}) => {
   const u = String(url);
   if (/\/api\/ai\/health/.test(u)) return json({ status: 'online' });
   if (/\/api\/ai\/models/.test(u)) return json(MODELS);
-  if (/\/api\/ai\/ask/.test(u)) { requests.push({ url: u, body: JSON.parse(options.body || '{}') }); return json({ response: 'ANSWER' }); }
+  if (/\/api\/ai\/ask/.test(u)) {
+    const body = JSON.parse(options.body || '{}');
+    requests.push({ url: u, body });
+    // Quick AI streams (stream: true) since 4.3.0: the SSE events of /api/ai/chat-stream
+    if (body.stream) {
+      const enc = new TextEncoder();
+      const lines = ['data: {"type":"content","content":"ANS"}\n\n', 'data: {"type":"content","content":"WER"}\n\n', 'data: {"type":"done","finishReason":"stop","truncated":false}\n\n'];
+      const stream = new ReadableStream({ start(c) { for (const l of lines) c.enqueue(enc.encode(l)); c.close(); } });
+      return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+    }
+    return json({ response: 'ANSWER' });
+  }
   return json({}, 404);
 };
 define('fetch', stubFetch); window.fetch = stubFetch;

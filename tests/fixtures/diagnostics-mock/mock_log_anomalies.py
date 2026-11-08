@@ -59,23 +59,25 @@ def _short_ts(dt):
     return f"{dt.strftime('%b')} {dt.day:2d} {dt.strftime('%H:%M:%S')}"
 
 
-def write_planted_journal(path, per_minute=60, seed=7, flat=False):
+def write_planted_journal(path, per_minute=60, seed=7, flat=False, days=1):
+    """`days` > 1: the routine traffic over that many days from DAY, the anomalies planted on the first day only."""
     rnd = random.Random(seed)
     routine = _routine(rnd)
     weights = [r[1] for r in routine]
     events = []
-    for minute in range(24 * 60):
-        t0 = DAY + timedelta(minutes=minute)
-        hour = minute / 60
+    for absolute in range(days * 24 * 60):
+        t0 = DAY + timedelta(minutes=absolute)
+        minute = absolute if absolute < 24 * 60 else -1   # the plants below: the first day only
+        hour = (absolute % 1440) / 60
         rate = per_minute * (1.0 + 0.4 * math.sin((hour - 9) / 24 * 2 * math.pi) ** 2)   # a daily swing
         k = max(0, int(rnd.gauss(rate, math.sqrt(rate))))
         msgs = []
         for _ in range(k):
             proc, _w, f = rnd.choices(routine, weights=weights)[0]
             msgs.append((proc, f()))
-        heartbeat = flat or minute < 1200
+        heartbeat = flat or 0 <= minute < 1200
         if heartbeat:
-            msgs.append(('kubelet', f'I1012 {t0.strftime("%H:%M:%S")}.000000 {rnd.randint(1000, 9999)} kubelet.go:2400] "PLEG is healthy" relist_ms={rnd.randint(1, 90)}'))
+            msgs.append(('kubelet', f'I{t0.strftime("%m%d")} {t0.strftime("%H:%M:%S")}.000000 {rnd.randint(1000, 9999)} kubelet.go:2400] "PLEG is healthy" relist_ms={rnd.randint(1, 90)}'))
         if not flat:
             if 360 <= minute < 390:   # errors 06:00-06:30
                 msgs += [('sshd', f'Failed password for invalid user admin from {_ip(rnd)} port {rnd.randint(30000, 65000)} ssh2') for _ in range(int(per_minute * 0.03 * 8) + 2)]
@@ -85,7 +87,7 @@ def write_planted_journal(path, per_minute=60, seed=7, flat=False):
                 msgs += [('kernel', 'nfs: server nfs01.example.test not responding, still trying') for _ in range(40)]
             if minute == 993:         # rare 16:33
                 msgs.append(('kernel', 'BUG: soft lockup - CPU#3 stuck for 23s! [kworker/3:1:123]'))
-            if minute >= 1080:        # new 18:00-
+            if 1080 <= minute:        # new 18:00-
                 msgs += [('kernel', f'XFS (dm-3): metadata I/O error in "xfs_btree_read_buf_block" at daddr 0x{rnd.getrandbits(28):x} len 8 error 5') for _ in range(2)]
         for proc, m in msgs:
             dt = t0 + timedelta(seconds=rnd.uniform(0, 59.999))
@@ -94,21 +96,23 @@ def write_planted_journal(path, per_minute=60, seed=7, flat=False):
     events.sort(key=lambda e: e[0])
     os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
     with open(path, 'w', encoding='utf-8') as f:
-        f.write('-- Logs begin at Mon 2026-10-12 00:00:00 UTC, end at Mon 2026-10-12 23:59:59 UTC. --\n')
+        last = DAY + timedelta(days=days) - timedelta(seconds=1)
+        f.write(f'-- Logs begin at Mon 2026-10-12 00:00:00 UTC, end at {last.strftime("%a %Y-%m-%d %H:%M:%S")} UTC. --\n')
         for _, line in events:
             f.write(line + '\n')
     return [] if flat else [dict(p) for p in PLANTED]
 
 
-def planted_sosreport(base, per_minute=60, seed=7, flat=False, name=None):
-    name = name or ('sosreport-node-01-2026-10-12-' + ('flat' if flat else 'anomaly'))
+def planted_sosreport(base, per_minute=60, seed=7, flat=False, name=None, days=1):
+    name = name or ('sosreport-node-01-2026-10-12-' + ('flat' if flat else 'anomaly') + (f'-{days}d' if days > 1 else ''))
     root = os.path.join(base, name)
-    truth = write_planted_journal(os.path.join(root, 'sos_commands', 'logs', 'journalctl_--no-pager'), per_minute, seed, flat)
+    truth = write_planted_journal(os.path.join(root, 'sos_commands', 'logs', 'journalctl_--no-pager'), per_minute, seed, flat, days)
+    stamp = (DAY + timedelta(days=days) - timedelta(seconds=1)).strftime('%a %b %d %H:%M:%S UTC %Y\n')
     with open(os.path.join(root, 'date'), 'w', encoding='utf-8') as f:
-        f.write('Mon Oct 12 23:59:59 UTC 2026\n')
+        f.write(stamp)
     os.makedirs(os.path.join(root, 'sos_commands', 'date'), exist_ok=True)
     with open(os.path.join(root, 'sos_commands', 'date', 'date'), 'w', encoding='utf-8') as f:
-        f.write('Mon Oct 12 23:59:59 UTC 2026\n')
+        f.write(stamp)
     with open(os.path.join(root, 'hostname'), 'w', encoding='utf-8') as f:
         f.write(HOST + '\n')
     return root, truth

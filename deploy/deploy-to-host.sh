@@ -208,7 +208,7 @@ case "$ACTION" in
             # installers of an earlier build must not be published alongside the new ones
             rm -f "$REPO_ROOT"/dist-electron/*.dmg "$REPO_ROOT"/dist-electron/*.zip "$REPO_ROOT"/dist-electron/*.AppImage "$REPO_ROOT"/dist-electron/*.deb "$REPO_ROOT"/dist-electron/*.exe "$REPO_ROOT"/dist-electron/*.blockmap 2>/dev/null
             # shellcheck disable=SC2046  # the extra targets are deliberately word-split
-            (cd "$REPO_ROOT" && npm run backend:build && npm run build && npx electron-builder --mac dmg zip --arm64 $([ "$DESKTOP_LINUX" = yes ] && echo '--linux AppImage --arm64 --x64')) \
+            (cd "$REPO_ROOT" && npm run backend:build && JACARIUM_LICENCES_PYTHON=frozen npm run build && npx electron-builder --mac dmg zip --arm64 $([ "$DESKTOP_LINUX" = yes ] && echo '--linux AppImage --arm64 --x64')) \
                 || { log_error "the desktop build failed"; exit 1; }
             FROM_DIR="$REPO_ROOT/dist-electron"
         fi

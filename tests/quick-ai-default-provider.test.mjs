@@ -177,7 +177,7 @@ check('buildModelOptions flattens the /api/ai/models answer like the chat UIs do
 window.electronAPI = { platform: 'darwin', readEnvFile: async () => ({ DEFAULT_AI_PROVIDER: 'ollama', DEFAULT_AI_MODEL: 'qwen3:30b', DEFAULT_AI_MAX_TOKENS: '9000' }) };
 MODELS = OLLAMA; forgetAiModelChoice();
 let s = await resolveAiRequestSettings();
-check('desktop (electronAPI present): default ollama/qwen3:30b', s && s.provider === 'ollama' && s.model === 'qwen3:30b' && s.temperature === 0 && s.maxTokens === 2000, JSON.stringify(s));
+check('desktop (electronAPI present): default ollama/qwen3:30b', s && s.provider === 'ollama' && s.model === 'qwen3:30b' && s.temperature === 0 && s.maxTokens === 4096, JSON.stringify(s));
 delete window.electronAPI;
 forgetAiModelChoice();
 s = await resolveAiRequestSettings({ temperature: 0.3, maxTokens: 4000 });

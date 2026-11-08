@@ -66,6 +66,8 @@ for (const s of THEME_STARTERS) {
   const chatUser = theme ? ct.contrastRatio(tokens['--chat-user-text'], tokens['--chat-user-bg']) : 0;
   const chatLink = theme ? ct.contrastRatio(tokens['--chat-link'], s.theme.colors.cardSecondary) : 0;
   check(`${s.name}: the chat bubbles read - user text ${chatUser.toFixed(2)}:1 on the bubble, reply links ${chatLink.toFixed(2)}:1 on the secondary card`, chatUser >= 4.5 && chatLink >= 4.5, JSON.stringify([tokens['--chat-user-text'], tokens['--chat-user-bg'], tokens['--chat-link'], s.theme.colors.cardSecondary]));
+  const badgeMin = theme ? Math.min(...ct.fillColors(theme.fills.rail).map((stop) => ct.contrastRatio(tokens['--rail-badge'], stop))) : 0;
+  check(`${s.name}: the unread dot (--rail-badge, from the accent) reads on every rail stop (${badgeMin.toFixed(2)}:1 >= 3)`, badgeMin >= 3, JSON.stringify([tokens['--rail-badge'], theme && theme.fills.rail]));
 }
 {
   const nord = palettes.find((s) => s.id === 'nord');

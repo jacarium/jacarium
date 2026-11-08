@@ -609,7 +609,7 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
     >
       <Icon size={20} />
       {badge && (
-        <span className="absolute top-2 right-2 w-2 h-2 bg-purple-500 rounded-full"></span>
+        <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-(--rail-badge)" data-testid="rail-badge"></span>
       )}
       <div className="absolute left-full ml-2 px-2 py-1 bg-os-rail-tooltip text-white text-xs rounded-sm opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
         {label}
@@ -855,7 +855,7 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
                   <Icon size={14} className={item.active ? 'text-os-blue' : 'text-os-text-secondary'} />
                   {item.label}
                   {item.badge && (
-                    <span className="absolute right-4 w-2 h-2 bg-purple-500 rounded-full"></span>
+                    <span className="absolute right-4 w-2 h-2 rounded-full bg-(--rail-badge)"></span>
                   )}
                 </button>
               );

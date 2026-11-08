@@ -1,3 +1,4 @@
+import { AI_DEFAULT_MAX_TOKENS } from './aiStream';
 import { apiFetch, getBackendUrl } from './backendUrl';
 import { resolveModelOption } from './aiDefaults';
 
@@ -68,11 +69,14 @@ export function forgetAiModelChoice() {
  * is an optional earlier choice ({ provider, model }) honoured only when it
  * is still configured.
  */
-export async function resolveAiRequestSettings({ saved = null, temperature = 0, maxTokens = 2000 } = {}) {
+export async function resolveAiRequestSettings({ saved = null, temperature = 0, maxTokens = null } = {}) {
   const { options, defaults } = await loadAiModelChoice();
   const option = resolveModelOption(options, saved, defaults);
   if (!option) return null;
-  const settings = { provider: option.provider, model: option.model, temperature, maxTokens };
+  // the reply length: the caller's, else Settings > AI Providers > Default Max Tokens (the backend reports it
+  // with the model list), else the app's default - the same number every AI caller sends
+  const configured = Number(defaults && defaults.maxTokens);
+  const settings = { provider: option.provider, model: option.model, temperature, maxTokens: maxTokens || (configured > 0 ? configured : AI_DEFAULT_MAX_TOKENS) };
   if (option.sshConfig) settings.sshConfig = option.sshConfig;
   return settings;
 }

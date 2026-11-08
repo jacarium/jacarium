@@ -4,6 +4,46 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.3.0
+
+_2026-11-08_
+
+### [DOCUMENTS]
+
+LaTeX in documents: a fenced code block marked latex is rendered as typeset maths (KaTeX), in the preview and in the PDF export
+
+Each document remembers where you were: switching tabs, coming back from another document in Preview, or closing and reopening it returns you to the same place
+
+Editor: code blocks show their tinted background straight away after switching from Preview to Editor, not only once they are scrolled out of view and back
+
+### [AI]
+
+Quick AI streams its answer, with Cancel, and waits as long as a reasoning model keeps working instead of stopping after 30 seconds with a timeout error
+
+Replies follow Settings > AI Providers > Default Max Tokens everywhere (4,096 by default, up from 2,000), and a reply cut off at the limit says so and offers Continue
+
+### [DIAGNOSTICS]
+
+Histogram and Audit over several days: the time axis spans the whole range, with the date at each midnight, instead of one day from 00:00 to 24:00
+
+### [SECURITY]
+
+Container image: glibc 2.34-284.el9_8.4 (RHSA-2026:95618: CVE-2026-8674, CVE-2026-86805, CVE-2026-89092, CVE-2026-95818)
+
+oauthlib 4.0.1 (GHSA-3jp2-3mrg-2vxc, CVE-2026-49272): Jacarium never ran the affected code, and the update removes the finding
+
+### [UI]
+
+The unread dot next to the bell follows the colour scheme: every built-in, palette, Crazy and custom theme gives it its own colour, always readable on the rail
+
+About > View all licences lists Python, the Python packages each build ships and the PyInstaller bootloader; Credits names Python too
+
+### [MISC]
+
+Removed unused code (the old OpenShiftMasthead and OpenShiftSidebar components)
+
+Release script: no crash after writing the VEX document
+
 ## What's New in v4.2.0
 
 _2026-11-07_
@@ -40,6 +80,7 @@ Text on accent-coloured buttons, badges and chips follows the theme
 
 Caddy 2.11.9 in the container (through the security lane; FastCGI hardening and a fix of 2.11.8's PHP-index regression, neither used in Jacarium's configuration)
 
+
 ## What's New in v4.1.4
 
 _2026-11-07_
@@ -47,6 +88,7 @@ _2026-11-07_
 ### [DOCUMENTS]
 
 Selecting text inside a code block, inline code or a document-link chip in the editor shows the selection again (it was drawn under the code block's background)
+
 
 ## What's New in v4.1.3
 
@@ -66,6 +108,7 @@ Coming back to Diagnostics from another page shows the open report with its styl
 
 The weekly rescan of the published SBOMs applies the release's VEX itself, so findings recorded as not affected or fixed no longer keep the rescan issue open
 
+
 ## What's New in v4.1.2
 
 _2026-11-06_
@@ -73,6 +116,7 @@ _2026-11-06_
 ### [SECURITY]
 
 The container's Caddy is built with klauspost/compress 1.20.2 (GO-2026-6865 / CVE-2026-116591, a panic on crafted zstd frames, published 5 November), and the build checks the version; this is the container image 4.1.1 could not publish
+
 
 ## What's New in v4.1.1
 
@@ -83,6 +127,7 @@ _2026-11-06_
 oauthlib GHSA-3jp2-3mrg-2vxc (CVE-2026-49272) recorded as not affected: the flaw is in oauthlib's server-side device-code token endpoint, and the backend uses oauthlib only as a client for the Google Calendar sign-in; oauthlib 4.0.1 follows with the next dependency refresh
 
 The PyPI release verifier counts code only: the same words in comments and docstrings no longer raise a red flag, while real imports and calls still do
+
 
 ## What's New in v4.1.0
 
@@ -114,6 +159,7 @@ Caddy 2.11.8 in the container (GHSA-r766-rf9f-588h and four more advisories; non
 
 sqlite CVE-2026-119586 recorded as not affected: it is in the sqlite3 command-line shell, which the image does not carry, and the build fails if it ever does
 
+
 ## What's New in v4.0.3
 
 _2026-11-05_
@@ -125,6 +171,7 @@ A click on a workflow in the list opens it at once (it used to wait a quarter of
 ### [SETTINGS]
 
 About: the Show data folder button is a plain text button like the others
+
 
 ## What's New in v4.0.2
 
@@ -144,6 +191,7 @@ The urgent-update script installs exactly the reviewed version
 
 Local logs, databases and .env files in any folder, and local tool folders, stay out of the container build
 
+
 ## What's New in v4.0.1
 
 _2026-11-04_
@@ -155,6 +203,7 @@ The macOS, Windows and Linux installers build again: the open-source licence lis
 ### [DEPLOY]
 
 The container's licence list still includes the central server's packages; local tool folders stay out of the image build
+
 
 ## What's New in v4.0.0
 
@@ -204,6 +253,7 @@ The spell-check dictionaries are re-pinned to Electron 45.1.0's verified set
 
 Dependency policy note: after an update through the security lane, Dependabot may fail for that package's dependents until it is 7 days old
 
+
 ## What's New in v3.8.0
 
 _2026-11-03_
@@ -230,6 +280,7 @@ npm audit in two tiers: the shipped dependencies are kept clean at moderate and 
 
 Self-hosting guide: a Podman Quadlet unit and a pod file for podman kube play, both pinned to the release's signed image digest
 
+
 ## What's New in v3.7.2
 
 _2026-11-01_
@@ -238,9 +289,10 @@ _2026-11-01_
 
 VEX: minimatch's GHSA-g3hv-75wg-m249 (CVE-2026-118764) does not affect Jacarium - minimatch is only in the build and lint tooling (ESLint, electron-builder), not in the installers or the container image, and its patterns come from the project's own configuration
 
+
 ## What's New in v3.7.1
 
-_2026-11-01_
+_2026-10-31_
 
 ### [DOCUMENTS]
 
@@ -256,9 +308,10 @@ pyasn1 0.6.5 in the container image (GHSA-2qm8-x737-gmw5, GHSA-9m75-vc3g-4x39, G
 
 Reusable verifiers for dependency updates: scripts/verify-pypi-release.py, scripts/verify-rpm-update.sh and scripts/verify-go-module.sh
 
+
 ## What's New in v3.7.0
 
-_2026-10-31_
+_2026-10-30_
 
 ### [DOCUMENTS]
 
@@ -276,9 +329,10 @@ Every context menu in the app can be used with the keyboard (arrows, Home/End, E
 
 Browser tests run against a production build with real mouse and keyboard input, and a check keeps every click-outside handler from swallowing clicks inside its own menu
 
+
 ## What's New in v3.6.2
 
-_2026-10-30_
+_2026-10-29_
 
 ### [SYNC]
 
@@ -294,6 +348,7 @@ The weekly vulnerability rescan uses the VEX attached to the release, refuses to
 
 body-parser 2.4.0 now comes from Express 5 itself (the temporary pin is gone); eslint-plugin-react-refresh 0.5.7
 
+
 ## What's New in v3.6.1
 
 _2026-10-29_
@@ -301,6 +356,7 @@ _2026-10-29_
 ### [SECURITY]
 
 The container's Node.js (the central server) is 24.22.1, which fixes CVE-2026-111497 in its bundled brotli decoder - a Critical flaw that is being exploited; the release's vulnerability scan reports no vulnerabilities
+
 
 ## What's New in v3.6.0
 
@@ -324,6 +380,7 @@ The image's web server (Caddy) is built with golang.org/x/net 0.62.0 and go-jose
 
 Password logins in the workflow SSH node keep working on the new image
 
+
 ## What's New in v3.5.1
 
 _2026-10-28_
@@ -338,9 +395,10 @@ The release's VEX records that the base image's system Python 3.9 is never execu
 
 Electron 42.11.17
 
+
 ## What's New in v3.5.0
 
-_2026-10-28_
+_2026-10-27_
 
 ### [SECURITY]
 
@@ -356,6 +414,7 @@ New Workflow opens its tab again right away
 
 Dependencies updated: React 19.3, Vite 8.3, ESLint 10.13, mermaid 12.2, Yjs 13.6.33, socket.io 4.8.4, Flask-Compress 1.25 (zstd), paramiko 5.1 and others; marked 18, markdownify 1.2 and quicktype 26 (the JSON to types tool now generates modern defaults per language, and its code is 55% smaller)
 
+
 ## What's New in v3.4.8
 
 _2026-10-27_
@@ -365,6 +424,7 @@ _2026-10-27_
 Every release now carries the Sigstore attestation bundle of each file, as FILE.intoto.jsonl next to it: provenance, and for the installers the SBOM and VEX attestations, verified before they are attached. Anyone can verify a download offline: gh attestation verify FILE --bundle FILE.intoto.jsonl --repo jacarium/jacarium
 
 The bundles are listed in SHA256SUMS.txt, and releases 3.4.5 to 3.4.7 got theirs attached too
+
 
 ## What's New in v3.4.7
 
@@ -379,6 +439,7 @@ The release workflow's shell steps pass actionlint's shellcheck checks
 ### [DEPLOY]
 
 Development snapshots say clearly when the export was not confirmed
+
 
 ## What's New in v3.4.6
 
@@ -402,6 +463,7 @@ CONTRIBUTING.md: how to report bugs and propose changes, the coding standards an
 
 Lint is clean and stays clean: npm run lint fails on any warning
 
+
 ## What's New in v3.4.5
 
 _2026-10-27_
@@ -412,6 +474,7 @@ Release pipeline fix: every installer gets its SBOM attestation (the x64 AppImag
 
 Release runs are titled by their version in GitHub Actions
 
+
 ## What's New in v3.4.4
 
 _2026-10-27_
@@ -420,6 +483,7 @@ _2026-10-27_
 
 Release pipeline fix: the release workflow is accepted by GitHub again (3.4.3's was refused before it ran), so cosign signs in to Quay with the release's short-lived keyless robot token and the images get their cosign signatures and SBOM and VEX attestations in the registry
 
+
 ## What's New in v3.4.3
 
 _2026-10-27_
@@ -427,6 +491,7 @@ _2026-10-27_
 ### [SECURITY]
 
 Release pipeline fix: cosign signs in to Quay with the release's short-lived keyless robot token, so the container images get their cosign signatures and their SBOM and VEX attestations in the registry (3.4.2's images were pushed and attested with GitHub, but cosign was refused)
+
 
 ## What's New in v3.4.2
 
@@ -440,6 +505,7 @@ The weekly vulnerability rescan reads each image SBOM once, and the installers' 
 
 Versions follow Semantic Versioning from now on: patch releases for fixes and security updates, minor releases for new features
 
+
 ## What's New in v3.4.1
 
 _2026-10-27_
@@ -451,6 +517,7 @@ Release pipeline fix: the SBOM and VEX attestations name their exact files, so t
 Every image build names its target platform and checks the built image's architecture before it is deployed
 
 Version numbers: the patch now runs 0-99 (3.4.9 -> 3.4.10), as releases are more frequent
+
 
 ## What's New in v3.4.0
 
@@ -465,6 +532,7 @@ Caddy in the container image is built from source with Go 1.27.2 and golang.org/
 The base image's unused Node.js and npm are removed from the container image
 
 Release pipeline fixes: the installer builds honour the approved cooldown exceptions, verified tool downloads on macOS, VEX statements that match the scanned images
+
 
 ## What's New in v3.3.9
 
@@ -481,6 +549,7 @@ Container image security updates: a newer Red Hat UBI 9 base (ca-certificates an
 ### [DIAGNOSTICS]
 
 Pod READY and STATUS as kubectl shows them, init containers shown apart; chips that never overflow and long lists that fold past 15; no overlapping text in tables
+
 
 ## What's New in v3.3.8
 
@@ -514,6 +583,7 @@ Chips never overflow: long labels wrap inside them, long lists show the first 15
 
 No overlapping text in tables and detail pages, including Field ownership paths
 
+
 ## What's New in v3.3.7
 
 _2026-10-26_
@@ -546,6 +616,7 @@ Links follow the theme, and every control keeps its rounded corners in every the
 
 The privacy scan also catches IP addresses written as host names (ip-192-0-2-10)
 
+
 ## What's New in v3.3.6
 
 _2026-10-24_
@@ -574,6 +645,7 @@ Updated body-parser, Electron, fast-uri, undici and zod for newly published advi
 
 The app's own HTTPS requests refuse certificates from the compromised eMudhra intermediates
 
+
 ## What's New in v3.3.5
 
 _2026-10-23_
@@ -589,6 +661,7 @@ New must-gather Log Collection page (last in the sidebar): top-level directories
 ### [SECURITY]
 
 Updated DOMPurify for a newly published critical advisory, and Electron for a moderate one
+
 
 ## What's New in v3.3.4
 
@@ -618,6 +691,7 @@ AI Chat and Robin use the app's normal text size; headings in messages are only 
 
 Robin formats your own messages the same way as the AI Chat sidebar
 
+
 ## What's New in v3.3.3
 
 _2026-10-21_
@@ -643,6 +717,7 @@ Export as JSON in Workflows, Kanban and Tasks opens a window where you can copy 
 Tasks: right-clicking a category opens its menu again (Export Category)
 
 Phone: the sidebar drawers meet the bottom bar with no gap
+
 
 ## What's New in v3.3.2
 
@@ -680,6 +755,7 @@ The mouse wheel scrolls the tab bar sideways when the tabs don't fit
 
 Updated vite and follow-redirects for newly published high-severity advisories
 
+
 ## What's New in v3.3.1
 
 _2026-10-20_
@@ -700,6 +776,7 @@ Bold, Insert link and Replace have no shortcut by default; Find (Ctrl/⌘+F), Fi
 
 Tabs in the Media Library, the import dialog and under Robin's replies have the app's straight underline
 
+
 ## What's New in v3.3.0
 
 _2026-10-20_
@@ -709,6 +786,7 @@ _2026-10-20_
 Fedora and RHEL: install and update Jacarium with dnf - sudo dnf copr enable robincernin/jacarium, then sudo dnf install jacarium (Fedora 42 and newer, RHEL 10 with EPEL)
 
 The packages are the official release builds, checked against the release's SHA256SUMS.txt, and are built automatically when a release is published
+
 
 ## What's New in v3.2.9
 
@@ -728,6 +806,7 @@ Copy this device's settings to your account: a one-time offer, also under Genera
 
 Unlinking the device or signing out removes your account's keys from this device
 
+
 ## What's New in v3.2.8
 
 _2026-10-19_
@@ -737,6 +816,7 @@ _2026-10-19_
 Quick AI (/ai), Ask AI, the AI panels in Quick Notes and the quiz and grid generators use your Default AI Provider and Model from Settings, on the desktop and the web
 
 With no AI provider set up, they say so ("No AI provider configured - set one in Settings > AI") instead of showing a backend error
+
 
 ## What's New in v3.2.7
 
@@ -778,6 +858,7 @@ Settings: the temperature hint says what it applies to; Claude uses its own defa
 
 The re-check button on the "backend offline" banners shows again
 
+
 ## What's New in v3.2.6
 
 _2026-10-19_
@@ -796,6 +877,7 @@ The "/" popup lists the built-in commands (callouts, Quick Workflow, Quick AI, Q
 
 Tab bar on a narrow window: the "N open" list has square corners and opens above the sidebar
 
+
 ## What's New in v3.2.5
 
 _2026-10-19_
@@ -809,6 +891,7 @@ Tabs that were already doubled are merged into one when the app opens
 ### [DIAGNOSTICS]
 
 Log Viewer: the (?) button is gone; the Search logs and Filter out tooltips explain the search syntax
+
 
 ## What's New in v3.2.4
 
@@ -830,6 +913,7 @@ Log Viewer: a date range no longer drops its first entry
 
 Log Viewer: levels are read the same way for every log file; a word like "preferred" no longer counts as an error, and a line that states no level shows as Other
 
+
 ## What's New in v3.2.3
 
 _2026-10-18_
@@ -845,6 +929,7 @@ Phone layout: the steps of a workflow are evenly spaced
 ### [SYNC]
 
 A tab opened on another device now shows its content straight away, even when it arrives before the document itself
+
 
 ## What's New in v3.2.2
 

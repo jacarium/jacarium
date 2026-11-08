@@ -17,7 +17,9 @@
  * anomalies; an anomaly's Open goes to the Log Viewer on its sources, its minute window (the note says so) and its
  * search term, and the rows loaded are that window's; a slow analysis shows Cancel, which stops it (the cancel route
  * is called); no horizontal overflow at 1920, 1010 and 420; screenshots of both report types in both themes
- * (LOGHIST_OUT, default a temporary directory).
+ * (LOGHIST_OUT, default a temporary directory). A sosreport whose journal spans three days (mock_log_anomalies'
+ * days=3): the timeline's axis labels spread over the whole range - the first on Oct 12, the last on Oct 14, the
+ * date at each midnight in between - the way the bars and their tooltips do.
  *
  *   node tests/diagnostics-log-histogram.test.mjs        env: SMOKE_PORT, LOGHIST_OUT, SKIP_BROWSER_TESTS=1 (static only)
  */
@@ -68,9 +70,9 @@ fs.mkdirSync(OUT, { recursive: true });
 // The fixtures: a sosreport and a must-gather with planted anomalies
 // ---------------------------------------------------------------------------
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'diagnostics-loghist-fixture-'));
-const gen = spawnSync(PYTHON, ['-I', '-c', `import sys, json; sys.path.insert(0, ${JSON.stringify(path.join(REPO, 'tests', 'fixtures', 'diagnostics-mock'))}); import mock_log_anomalies as m; a = m.planted_sosreport(${JSON.stringify(work)}); b = m.planted_mustgather(${JSON.stringify(work)}); print(json.dumps([a[0], b[0]]))`], { encoding: 'utf8' });
+const gen = spawnSync(PYTHON, ['-I', '-c', `import sys, json; sys.path.insert(0, ${JSON.stringify(path.join(REPO, 'tests', 'fixtures', 'diagnostics-mock'))}); import mock_log_anomalies as m; a = m.planted_sosreport(${JSON.stringify(work)}); b = m.planted_mustgather(${JSON.stringify(work)}); c = m.planted_sosreport(${JSON.stringify(work)}, per_minute=20, days=3); print(json.dumps([a[0], b[0], c[0]]))`], { encoding: 'utf8' });
 if (gen.status !== 0) { console.log('SKIP: could not build the synthetic fixtures: ' + (gen.stderr || '').slice(-300)); process.exit(failed ? 1 : 0); }
-const [SOS, MG] = JSON.parse(gen.stdout.trim().split('\n').pop());
+const [SOS, MG, SOS3] = JSON.parse(gen.stdout.trim().split('\n').pop());
 // a report line that holds HTML: a rare error the page must show as text
 const journal = path.join(SOS, 'sos_commands', 'logs', 'journalctl_--no-pager');
 {
@@ -81,12 +83,12 @@ const journal = path.join(SOS, 'sos_commands', 'logs', 'journalctl_--no-pager');
   fs.writeFileSync(journal, lines.join('\n'));
 }
 const reports = {};
-for (const [type, dir] of [['sosreport', SOS], ['mustgather', MG]]) {
-  const htmlDir = path.join(work, 'html-' + type);
+for (const [key, type, dir] of [['sosreport', 'sosreport', SOS], ['mustgather', 'mustgather', MG], ['sos3d', 'sosreport', SOS3]]) {
+  const htmlDir = path.join(work, 'html-' + key);
   const ren = spawnSync(PYTHON, [path.join(REPO, 'tests', 'helpers', 'diagnostics-render.py'), '--out', htmlDir, '--fixture', dir, '--report-type', type, '--tabs', 'log_histogram', 'log_viewer'], { encoding: 'utf8' });
-  check(`the ${type} Histogram and Log Viewer render through Flask over the synthetic report`, ren.status === 0, (ren.stderr || '').slice(-400));
+  check(`the ${key} Histogram and Log Viewer render through Flask over the synthetic report`, ren.status === 0, (ren.stderr || '').slice(-400));
   if (ren.status !== 0) { console.log(`\n${failed} check(s) failed`); process.exit(1); }
-  reports[type] = { name: path.basename(dir), path: dir, type, modified: 1760000000, html: { log_histogram: fs.readFileSync(path.join(htmlDir, 'log_histogram.html'), 'utf8'), log_viewer: fs.readFileSync(path.join(htmlDir, 'log_viewer.html'), 'utf8') }, tabs: JSON.parse(fs.readFileSync(path.join(htmlDir, 'tabs.json'), 'utf8')) };
+  reports[key] = { name: path.basename(dir), path: dir, type, modified: 1760000000, html: { log_histogram: fs.readFileSync(path.join(htmlDir, 'log_histogram.html'), 'utf8'), log_viewer: fs.readFileSync(path.join(htmlDir, 'log_viewer.html'), 'utf8') }, tabs: JSON.parse(fs.readFileSync(path.join(htmlDir, 'tabs.json'), 'utf8')) };
 }
 check('the sosreport page preselects the system journal and offers Analyze; the must-gather page preselects within its budget', /data-path="[^"]*journalctl_--no-pager"[^>]*\n?\s*[^>]*checked/.test(reports.sosreport.html.log_histogram) && reports.sosreport.html.log_histogram.includes('id="lh-analyze"') && (reports.mustgather.html.log_histogram.match(/class="ui-check log-file-checkbox"[^>]*checked/g) || []).length >= 1 + 0 * 1);
 
@@ -216,7 +218,7 @@ async function shot(pg, file) {
   await sleep(300);
 }
 async function openHistogram(pg, rep) {
-  await pg.waitForFunction((name) => { const b = Array.from(document.querySelectorAll('button')).find((el) => el.textContent.includes(name) && el.offsetParent); if (!b) return false; b.click(); return true; }, rep.name, { timeout: 20000 }).catch(() => {});
+  await pg.waitForFunction((name) => { const b = Array.from(document.querySelectorAll('button')).find((el) => el.textContent.includes(name) && !el.textContent.includes(name + '-') && el.offsetParent); if (!b) return false; b.click(); return true; }, rep.name, { timeout: 20000 }).catch(() => {});
   await pg.waitForFunction(() => document.querySelectorAll('div.cursor-pointer span').length > 3, null, { timeout: 20000 }).catch(() => {});
   await sleep(400);
   await expandGroup(pg, 'Log Collection');
@@ -308,8 +310,41 @@ try {
       check(`${theme}: the answer that arrives after a cancel is ignored`, /cancelled/i.test(late), late);
     } else check(`${theme}: the must-gather Histogram opens`, false);
     const frameErrs = await pg.evaluate(() => window.__errs || []);
-    check(`${theme}: no uncaught error in the app or the frames`, !errors.length && !frameErrs.length, JSON.stringify(errors.concat(frameErrs)).slice(0, 600));
     await context.close();
+    // ---- three days of journal: the time axis covers the whole range
+    {
+      const { context: c3, page: p3, errors: e3 } = await open(theme);
+      await clickButton(p3, 'Tools'); await sleep(400); await clickButton(p3, 'Diagnostics'); await sleep(600);
+      const f3 = await openHistogram(p3, reports.sos3d);
+      check(`${theme}: the three-day sosreport's Histogram opens`, !!f3);
+      if (f3) {
+        const s3 = await analyze(f3);
+        const axis = await f3.evaluate(() => {
+          const c = window.diagChart.charts().find((x) => x.canvas && x.canvas.id === 'lh-timeline');
+          if (!c) return null;
+          const real = c.$axis.points.map((p) => p.t);
+          const ticks = c.scales.x.ticks.map((t) => ({ label: String(t.label), value: t.value }));
+          const ms = c.$axis.ticks.map((t) => t.ms);
+          const tip = c.options.plugins.tooltip.callbacks.title([{ raw: c.data.datasets[0].data[c.data.datasets[0].data.length - 1] }]);
+          // the labels Chart.js drew: every tick's label is on the canvas between the plot's left and right edges
+          const xs = c.scales.x; const inside = ticks.every((t) => { const px = xs.getPixelForValue(t.value); return px >= c.chartArea.left - 1 && px <= c.chartArea.right + 1; });
+          return { first: real[0], last: real[real.length - 1], ticks, ms, tip, inside, step: c.$axis.step, interval: c.$axis.tickInterval };
+        });
+        check(`${theme}: three days: the timeline is drawn (${s3.count})`, s3.shown && s3.timeline && !!axis, JSON.stringify(s3).slice(0, 300));
+        if (axis) {
+          const labels = axis.ticks.map((t) => t.label);
+          const mids = ['Oct 13', 'Oct 14'];
+          check(`${theme}: three days: the bars span Oct 12 to Oct 14, and so do the axis labels - the first says Oct 12, the last tick is on Oct 14 (${labels.join(' | ')})`, /^2026-10-12T/.test(axis.first) && /^2026-10-14T/.test(axis.last) && /^Oct 12\b/.test(labels[0]) && new Date(axis.ms[axis.ms.length - 1]).toISOString().startsWith('2026-10-14') && axis.inside, JSON.stringify(axis).slice(0, 600));
+          check(`${theme}: three days: the date labels each midnight (${mids.join(', ')}), no time of day repeats without its date, the step is a round one`, mids.every((d) => labels.includes(d)) && axis.ms.every((m, i) => i === 0 || m > axis.ms[i - 1]) && [21600, 43200, 86400].includes(axis.interval), labels.join(' | ') + ' interval ' + axis.interval);
+          check(`${theme}: three days: the last bar's tooltip is on Oct 14 like its axis`, /^2026-10-14 /.test(axis.tip), axis.tip);
+        }
+        await shot(p3, `log-histogram-3days-${theme}.png`);
+      }
+      const fe3 = await p3.evaluate(() => window.__errs || []);
+      check(`${theme}: three days: no uncaught error`, !e3.length && !fe3.length, JSON.stringify(e3.concat(fe3)).slice(0, 400));
+      await c3.close();
+    }
+    check(`${theme}: no uncaught error in the app or the frames`, !errors.length && !frameErrs.length, JSON.stringify(errors.concat(frameErrs)).slice(0, 600));
   }
 } finally {
   await stop();

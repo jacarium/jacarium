@@ -84,10 +84,74 @@ def ollama_options(model, temperature, max_tokens):
     }
 
 
-# Timeout (seconds) for requests to the user-configured custom/Ollama endpoint.
-# Applies as both the connect timeout and the max gap between received bytes,
-# so it will not cut off a slow-but-live stream - only a fully silent connection.
-CUSTOM_AI_TIMEOUT = 120
+# Timeouts (seconds) for requests to the user-configured custom/Ollama endpoint:
+# a short connect timeout, and a long one for the gap between received bytes -
+# a non-streaming request receives nothing until the whole reply is ready, and
+# a reasoning model (qwen3, deepseek-r1, gpt-oss ...) can think for minutes
+# before its first byte; the old single 120 s cut those off ("Read timed out").
+# The renderer keeps its own idle timeout on a stream (src/utils/aiStream.js
+# AI_IDLE_TIMEOUT_MS); a stream's chunks keep both alive, a dead connection
+# trips both. Caddy and gunicorn allow 10 minutes (deploy/).
+CUSTOM_AI_CONNECT_TIMEOUT = 10
+CUSTOM_AI_READ_TIMEOUT = 600
+CUSTOM_AI_TIMEOUT = (CUSTOM_AI_CONNECT_TIMEOUT, CUSTOM_AI_READ_TIMEOUT)
+
+# ---- the reply length: the request's maxTokens / max_tokens, else Settings >
+# AI Providers > Default Max Tokens (DEFAULT_AI_MAX_TOKENS), else this default;
+# clamped. (The chat UIs sent `max_tokens` while the routes read `maxTokens`,
+# so the setting never reached a provider and 2000 always applied.)
+DEFAULT_MAX_TOKENS = 4096
+MIN_MAX_TOKENS = 256
+MAX_MAX_TOKENS = 200000
+
+
+def _clamp_tokens(value):
+    try:
+        n = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    if n <= 0:
+        return None
+    return max(MIN_MAX_TOKENS, min(MAX_MAX_TOKENS, n))
+
+
+def default_max_tokens():
+    """Settings > AI Providers > Default Max Tokens, else DEFAULT_MAX_TOKENS."""
+    return _clamp_tokens(setting('DEFAULT_AI_MAX_TOKENS', '') or '') or DEFAULT_MAX_TOKENS
+
+
+def request_max_tokens(data):
+    """The reply length of a request: its maxTokens or max_tokens, else the default - always within the bounds."""
+    for key in ('maxTokens', 'max_tokens'):
+        n = _clamp_tokens((data or {}).get(key))
+        if n:
+            return n
+    return default_max_tokens()
+
+
+# ---- how a reply stopped: 'stop' / 'end_turn' when the model finished, 'length'
+# (OpenAI-compatible, Ollama), 'max_tokens' (Anthropic), 'MAX_TOKENS' (Gemini)
+# when the token limit cut it off. A reply is a str for every caller that only
+# wants the text; the routes put the reason next to it so the UI can offer
+# Continue instead of ending silently.
+class AiReply(str):
+    finish_reason = None
+
+
+def ai_reply(text, finish_reason=None):
+    reply = AiReply('' if text is None else str(text))
+    reply.finish_reason = (str(finish_reason) if finish_reason is not None else None)
+    return reply
+
+
+def is_truncated(finish_reason):
+    return str(finish_reason or '').lower() in ('length', 'max_tokens')
+
+
+def reply_json(key, reply):
+    """The JSON of a non-streaming route: the text under `key`, finishReason and truncated beside it."""
+    reason = getattr(reply, 'finish_reason', None)
+    return {key: str(reply), 'finishReason': reason, 'truncated': is_truncated(reason)}
 
 # SSH Chat Sessions - track which gemini sessions have been created
 # Maps session_id -> True for sessions that exist on the remote gemini CLI
@@ -383,6 +447,7 @@ def ai_models():
         # default provider's first model, the first model - see
         # src/utils/aiDefaults.js resolveModelOption.
         models['defaults'] = {
+            'maxTokens': default_max_tokens(),
             'provider': setting('DEFAULT_AI_PROVIDER', '') or '',
             'model': setting('DEFAULT_AI_MODEL', '') or '',
         }
@@ -405,7 +470,7 @@ def ai_ask():
         system_prompt = data.get('systemPrompt', '')
         provider, model = request_provider(data, 'anthropic')
         temperature = data.get('temperature', 0)
-        max_tokens = data.get('maxTokens', 1000)
+        max_tokens = request_max_tokens(data)
 
         debug_print(f"[AI Ask] Provider: {provider}, Message: {message[:50]}...")
 
@@ -417,6 +482,22 @@ def ai_ask():
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": message})
+
+        # Quick AI streams (stream: true): the same SSE events as /api/ai/chat-stream, so a reasoning model's
+        # thinking shows as it happens and no total timeout is needed on the way
+        if data.get('stream'):
+            from flask import Response, stream_with_context
+            import json as _json
+
+            def generate():
+                try:
+                    for event in stream_reply_events(messages, provider, model, temperature, max_tokens, data):
+                        yield f"data: {_json.dumps(event)}\n\n"
+                except Exception as e:  # noqa: BLE001 - the error goes to the user as an event
+                    import traceback
+                    print(f"[AI Ask Stream Error] {traceback.format_exc()}")
+                    yield f"data: {_json.dumps({'error': str(e)})}\n\n"
+            return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
         # Get API response based on provider
         if provider == 'openai':
@@ -436,7 +517,7 @@ def ai_ask():
         else:
             return jsonify({"error": f"Unknown provider: {provider}"}), 400
 
-        return jsonify({"response": response_message})
+        return jsonify(reply_json("response", response_message))
 
     except Exception as e:
         import traceback
@@ -453,7 +534,7 @@ def ai_chat():
         messages = plain_messages(data.get('messages', []))
         provider, model = request_provider(data, 'openai', 'gpt-4')
         temperature = data.get('temperature', 0)
-        max_tokens = data.get('maxTokens', 2000)
+        max_tokens = request_max_tokens(data)
 
         # Display provider and model
         model_display = model
@@ -479,13 +560,46 @@ def ai_chat():
         else:
             return jsonify({"error": f"Unknown provider: {provider}"}), 400
 
-        return jsonify({"message": response_message})
+        return jsonify(reply_json("message", response_message))
 
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
         print(f"[AI Chat Error] {error_trace}")
         return jsonify({"error": f"{str(e)}\n\nCheck backend console for full traceback."}), 500
+
+
+def stream_reply_events(messages, provider, model, temperature, max_tokens, data):
+    """The events of one streamed reply (the SSE payloads of /api/ai/chat-stream and Quick AI's
+    /api/ai/ask stream): thinking_start / thinking / thinking_end / content chunks from a provider that streams
+    (Ollama, a custom endpoint, Anthropic), one content chunk from one that does not, and a final done event
+    with finishReason and truncated (the token limit cut the reply off) so the UI can offer Continue."""
+    finish = None
+    if provider == 'ollama' or provider == 'custom':
+        source = handle_custom_chat_stream(messages, model, temperature, max_tokens)
+    elif provider == 'anthropic':
+        source = handle_anthropic_chat_stream(messages, model, temperature, max_tokens)
+    else:
+        source = None
+    if source is not None:
+        for chunk in source:
+            if chunk.get('type') == 'finish':
+                finish = chunk.get('reason')
+                continue
+            yield chunk
+    else:
+        if provider == 'openai':
+            response_message = handle_openai_chat(messages, model, temperature, max_tokens)
+        elif provider == 'gemini':
+            response_message = handle_gemini_chat(messages, model, temperature, max_tokens)
+        elif provider == 'ssh':
+            response_message = handle_ssh_chat(messages, model, (data or {}).get('sshConfig', {}))
+        else:
+            yield {'error': f'Unknown provider: {provider}'}
+            return
+        finish = getattr(response_message, 'finish_reason', None)
+        yield {'type': 'content', 'content': str(response_message)}
+    yield {'type': 'done', 'finishReason': finish, 'truncated': is_truncated(finish)}
 
 
 @ai_chat_bp.route("/api/ai/chat-stream", methods=["POST"])
@@ -500,7 +614,7 @@ def ai_chat_stream():
             messages = plain_messages(data.get('messages', []))
             provider, model = request_provider(data, 'openai', 'gpt-4')
             temperature = data.get('temperature', 0)
-            max_tokens = data.get('maxTokens', 2000)
+            max_tokens = request_max_tokens(data)
 
             debug_print(f"[AI Chat Stream] Provider: {provider}, Model: {model}")
 
@@ -508,31 +622,8 @@ def ai_chat_stream():
                 yield f"data: {json.dumps({'error': 'No messages provided'})}\n\n"
                 return
 
-            # Stream response based on provider
-            if provider == 'ollama' or provider == 'custom':
-                for chunk in handle_custom_chat_stream(messages, model, temperature, max_tokens):
-                    yield f"data: {json.dumps(chunk)}\n\n"
-            elif provider == 'anthropic':
-                for chunk in handle_anthropic_chat_stream(messages, model, temperature, max_tokens):
-                    yield f"data: {json.dumps(chunk)}\n\n"
-            else:
-                # Fallback to non-streaming for unsupported providers
-                if provider == 'openai':
-                    response_message = handle_openai_chat(messages, model, temperature, max_tokens)
-                elif provider == 'gemini':
-                    response_message = handle_gemini_chat(messages, model, temperature, max_tokens)
-                elif provider == 'ssh':
-                    ssh_config = data.get('sshConfig', {})
-                    response_message = handle_ssh_chat(messages, model, ssh_config)
-                else:
-                    yield f"data: {json.dumps({'error': f'Unknown provider: {provider}'})}\n\n"
-                    return
-
-                # Send as single chunk
-                yield f"data: {json.dumps({'type': 'content', 'content': response_message})}\n\n"
-
-            # Send done signal
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            for event in stream_reply_events(messages, provider, model, temperature, max_tokens, data):
+                yield f"data: {json.dumps(event)}\n\n"
 
         except Exception as e:
             import traceback
@@ -609,7 +700,8 @@ def handle_openai_chat(messages, model, temperature, max_tokens):
 
     response = client.chat.completions.create(**request_params)
 
-    return response.choices[0].message.content
+    choice = response.choices[0]
+    return ai_reply(choice.message.content, getattr(choice, 'finish_reason', None))
 
 
 def handle_anthropic_chat(messages, model, temperature, max_tokens):
@@ -663,7 +755,7 @@ def handle_anthropic_chat(messages, model, temperature, max_tokens):
         )
 
         response_body = json.loads(response['body'].read())
-        return anthropic_text(response_body.get('content'))
+        return ai_reply(anthropic_text(response_body.get('content')), response_body.get('stop_reason'))
 
     elif use_vertex:
         # Use Google Cloud Vertex AI with gcloud credentials
@@ -693,7 +785,7 @@ def handle_anthropic_chat(messages, model, temperature, max_tokens):
 
         response = client.messages.create(**request_params)
 
-        return anthropic_text(response.content)
+        return ai_reply(anthropic_text(response.content), getattr(response, 'stop_reason', None))
 
     else:
         # Use direct API key authentication
@@ -718,7 +810,7 @@ def handle_anthropic_chat(messages, model, temperature, max_tokens):
 
         response = client.messages.create(**request_params)
 
-        return anthropic_text(response.content)
+        return ai_reply(anthropic_text(response.content), getattr(response, 'stop_reason', None))
 
 
 def _gemini_system_instruction(messages):
@@ -803,7 +895,16 @@ def handle_gemini_chat(messages, model, temperature, max_tokens):
             config=types.GenerateContentConfig(**last_config)
         )
 
-        return response.text
+        return ai_reply(response.text, _gemini_finish_reason(response))
+
+
+def _gemini_finish_reason(response):
+    """The first candidate's finish reason as its name ('STOP', 'MAX_TOKENS'), or None."""
+    try:
+        reason = (response.candidates or [None])[0].finish_reason
+    except (AttributeError, IndexError, TypeError):
+        return None
+    return getattr(reason, 'name', None) or (str(reason) if reason else None)
 
 
 def handle_custom_chat(messages, model, temperature, max_tokens):
@@ -859,10 +960,11 @@ def handle_custom_chat(messages, model, temperature, max_tokens):
         text = data.get('message', {}).get('content', 'No response')
         if data.get('done_reason') == 'length':
             text += TRUNCATED_NOTE
-        return text
+        return ai_reply(text, data.get('done_reason'))
     else:
         # OpenAI-compatible format
-        return data.get('message', data.get('choices', [{}])[0].get('message', {}).get('content', 'No response'))
+        choice = (data.get('choices') or [{}])[0]
+        return ai_reply(data.get('message', choice.get('message', {}).get('content', 'No response')), choice.get('finish_reason'))
 
 
 def handle_custom_chat_stream(messages, model, temperature, max_tokens):
@@ -958,6 +1060,7 @@ def handle_custom_chat_stream(messages, model, temperature, max_tokens):
                     # a reply that is all reasoning looks like an empty answer
                     if chunk_data.get('done_reason') == 'length':
                         yield {'type': 'content', 'content': TRUNCATED_NOTE}
+                    yield {'type': 'finish', 'reason': chunk_data.get('done_reason')}
                     break
             else:
                 # OpenAI-compatible format
@@ -968,7 +1071,9 @@ def handle_custom_chat_stream(messages, model, temperature, max_tokens):
                     if content:
                         yield {'type': 'content', 'content': content}
 
-                    if chunk_data['choices'][0].get('finish_reason'):
+                    finish_reason = chunk_data['choices'][0].get('finish_reason')
+                    if finish_reason:
+                        yield {'type': 'finish', 'reason': finish_reason}
                         break
 
         except json.JSONDecodeError:
@@ -1059,6 +1164,11 @@ def handle_anthropic_chat_stream(messages, model, temperature, max_tokens):
                     if thinking_active:
                         thinking_active = False
                         yield {'type': 'thinking_end'}
+                elif event.type == 'message_delta':
+                    # how the reply stopped: 'end_turn', or 'max_tokens' when the limit cut it off
+                    stop_reason = getattr(getattr(event, 'delta', None), 'stop_reason', None)
+                    if stop_reason:
+                        yield {'type': 'finish', 'reason': stop_reason}
 
 
 def render_ssh_ai_command(template, user_message):

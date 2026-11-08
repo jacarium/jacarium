@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { scopedKey } from '../utils/accountStorage';
+import { AI_DEFAULT_MAX_TOKENS, AI_IDLE_TIMEOUT_MS, CONTINUE_PROMPT, readWithIdleTimeout, truncationMessage } from '../utils/aiStream';
 import { Bot, Send, MessageSquare, Plus, RefreshCw, ChevronDown, Search, Code2, Download, Database, Clock, User, AlertTriangle, Menu } from 'lucide-react';
 import { getBackendUrl, apiFetch } from '../utils/backendUrl';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -50,7 +51,7 @@ export default function AIChatPage() {
     provider: 'anthropic',
     model: 'claude-sonnet-4-5@20250929',
     temperature: 0,
-    maxTokens: 2000
+    maxTokens: AI_DEFAULT_MAX_TOKENS
   });
   const [sshConnected, setSshConnected] = useState(false);
   const [conversationCounter, setConversationCounter] = useState(0);
@@ -427,7 +428,7 @@ export default function AIChatPage() {
                 provider: option.provider,
                 model: option.model,
                 temperature: 0,
-                maxTokens: 2000,
+                maxTokens: AI_DEFAULT_MAX_TOKENS,
                 datasets: conv.settings.datasets || {
                   documentIds: [],
                   lastUpdated: null
@@ -449,7 +450,7 @@ export default function AIChatPage() {
           provider: option.provider,
           model: option.model,
           temperature: 0,
-          maxTokens: 2000,
+          maxTokens: AI_DEFAULT_MAX_TOKENS,
           datasets: {
             documentIds: [],
             lastUpdated: null
@@ -594,10 +595,12 @@ export default function AIChatPage() {
     }
   }
 
-  async function handleSendMessage() {
-    if (!inputMessage.trim() || isLoading || backendStatus === 'offline' || noModelsConfigured || !modelsLoaded) return;
+  // `textOverride`: Continue sends CONTINUE_PROMPT without touching the input (a click event is not a text)
+  async function handleSendMessage(textOverride) {
+    const text = typeof textOverride === 'string' ? textOverride : inputMessage;
+    if (!text.trim() || isLoading || backendStatus === 'offline' || noModelsConfigured || !modelsLoaded) return;
 
-    const userMessage = { role: 'user', content: inputMessage };
+    const userMessage = { role: 'user', content: text };
     const updatedMessages = [...messages, userMessage];
 
     // Reset scroll state when sending new message
@@ -609,7 +612,7 @@ export default function AIChatPage() {
         : conv
     ));
 
-    setInputMessage('');
+    if (typeof textOverride !== 'string') setInputMessage('');
     setIsLoading(true);
 
     try {
@@ -633,7 +636,8 @@ export default function AIChatPage() {
         provider: aiSettings.provider,
         model: aiSettings.model,
         temperature: aiSettings.temperature,
-        max_tokens: aiSettings.maxTokens
+        max_tokens: aiSettings.maxTokens,
+        maxTokens: aiSettings.maxTokens
       };
 
       // Use RAG endpoint if datasets are selected and provider supports RAG
@@ -791,7 +795,9 @@ export default function AIChatPage() {
 
     try {
       while (!streamDone) {
-        const { done, value } = await reader.read();
+        // the idle timeout (src/utils/aiStream.js): nothing received for minutes is a dead connection; a
+        // reasoning model's thinking streams, so a long think is fine - there is no total timeout
+        const { done, value } = await readWithIdleTimeout(reader, abortControllerRef.current, AI_IDLE_TIMEOUT_MS);
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
@@ -886,6 +892,16 @@ export default function AIChatPage() {
               return conv;
             }));
           } else if (data.type === 'done') {
+            // the token limit cut the reply off: the message says so and offers Continue
+            if (data.truncated) {
+              setConversations(prev => prev.map(conv => {
+                if (conv.id !== currentConversationId) return conv;
+                const msgs = [...conv.messages];
+                const lastMsg = msgs[msgs.length - 1];
+                if (lastMsg) msgs[msgs.length - 1] = { ...lastMsg, truncated: true, finishReason: data.finishReason || null, maxTokens: requestBody.maxTokens || requestBody.max_tokens || null };
+                return { ...conv, messages: msgs };
+              }));
+            }
             // Streaming complete - also exit the outer read loop (a bare
             // break here only left the inner for-loop, so bytes arriving
             // after 'done' were appended to the finished message)
@@ -1423,6 +1439,12 @@ export default function AIChatPage() {
                             - Thinking tab is active (user clicked it)
                             - OR content doesn't exist yet (still thinking)
                           */}
+                          {msg.role === 'assistant' && msg.truncated && (
+                            <div className="mb-2 flex items-center justify-between gap-2 text-xs text-os-text-secondary" data-testid="ai-truncated-note">
+                              <span>{truncationMessage(msg.maxTokens)}</span>
+                              <button type="button" onClick={() => handleSendMessage(CONTINUE_PROMPT)} disabled={isLoading} className="btn btn-secondary px-2 py-0.5 text-xs shrink-0" data-testid="ai-continue">Continue</button>
+                            </div>
+                          )}
                           {msg.thinking && (msg.activeTab === 'thinking' || !msg.content || !msg.content.trim()) ? (
                             <div className="text-xs text-os-text-primary whitespace-pre-wrap wrap-break-word">
                               {msg.thinking}

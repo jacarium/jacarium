@@ -63,12 +63,12 @@ try:
     r = client.get('/api/ai/models')
     body = r.get_json() or {}
     check('/api/ai/models answers 200 with the provider lists', r.status_code == 200 and isinstance(body.get('anthropic'), list) and isinstance(body.get('ollama'), list), (r.status_code, list(body.keys())))
-    check('...and carries the Settings defaults: {"provider": "ollama", "model": "qwen3:30b"}', body.get('defaults') == {'provider': 'ollama', 'model': 'qwen3:30b'}, body.get('defaults'))
+    check('...and carries the Settings defaults: {"provider": "ollama", "model": "qwen3:30b", "maxTokens": 4096}', body.get('defaults') == {'provider': 'ollama', 'model': 'qwen3:30b', 'maxTokens': 4096}, body.get('defaults'))
     os.environ.pop('DEFAULT_AI_PROVIDER', None)
     os.environ.pop('DEFAULT_AI_MODEL', None)
     r = client.get('/api/ai/models')
     body = r.get_json() or {}
-    check('with no defaults configured the key is still there, both empty', body.get('defaults') == {'provider': '', 'model': ''}, body.get('defaults'))
+    check('with no defaults configured the key is still there, provider and model empty, the default reply length', body.get('defaults') == {'provider': '', 'model': '', 'maxTokens': 4096}, body.get('defaults'))
     check('nothing configured: every provider list is empty (ssh only appears when configured)', all(body.get(k) == [] for k in ('anthropic', 'openai', 'gemini', 'ollama')) and not body.get('ssh'), {k: body.get(k) for k in ('anthropic', 'openai', 'gemini', 'ollama', 'ssh')})
     # ---- a request that names no provider runs on the configured default ----
     seen = []

@@ -149,6 +149,33 @@ check('index.css: the preview tokens default to the built-in values in :root (li
 check('the contrast warnings cover the headings (the text colour on the background) and the derived code text on the code background', ct.contrastWarnings(base).some((w) => w.what === 'Text and headings on the background') && ct.contrastWarnings(base).some((w) => w.what === 'Code text on the code background (as derived)'));
 const about = fs.readFileSync(path.join(REPO, 'src/components/common/modals/settings/AboutSettings.jsx'), 'utf8');
 check('About: the header sits on the page (no brand-hero box), the title in the text colour, the tagline in the secondary colour; the sign-in page keeps its hero', !/brand-hero/.test(about) && /data-testid="about-hero"/.test(about) && /BrandWordmark size=\{30\} className="text-os-text-primary"/.test(about) && /brand-tagline text-os-text-secondary/.test(about) && /className="brand-hero /.test(fs.readFileSync(path.join(REPO, 'src/components/auth/AuthGate.jsx'), 'utf8')));
+const rail = fs.readFileSync(path.join(REPO, 'src/components/CompactSidebar.jsx'), 'utf8');
+check('the bell\'s unread dot has no ring or border (the dot\'s own contrast on the rail separates it)', (() => { const m = fs.readFileSync(path.join(REPO, 'src/components/CompactSidebar.jsx'), 'utf8').match(/<span className="([^"]*)" data-testid="rail-badge"/); return !!m && !/\bring-|\bborder/.test(m[1]); })());
+check('the rail\'s unread dots (the bell, the panels menu) are painted from --rail-badge, no fixed purple left; the token defaults to that purple in the light, Jacaranda and neutral blocks; a theme derives it from its accent against every rail stop', (rail.match(/bg-\(--rail-badge\)/g) || []).length === 2 && !/bg-purple-500 rounded-full|rounded-full bg-purple-500/.test(rail) && !/--rail-badge: #a855f7;/.test(css) && /'--rail-badge': railBadge\(c\.accent, t\.fills\.rail\)/.test(fs.readFileSync(path.join(REPO, 'src/utils/customThemes.js'), 'utf8')) && ct.contrastRatio(ct.railBadge('#1b1530', { type: 'solid', color: '#1b1530' }), '#1b1530') >= 3);
+// every built-in scheme's dot: railBadge() of its own accent (Light, Jacaranda, Dark) or its mark's arch tint (the
+// gradient schemes), written into index.css, >= 3:1 on every stop of its rail, and no longer the old fixed purple
+{
+  const st = await import(path.join(REPO, 'src/utils/themeStarters.js'));
+  const blockValue = (scheme) => {
+    if (scheme === 'light') return (css.slice(0, css.indexOf('.dark {')).match(/--rail-badge: (#[0-9a-f]{6});/i) || [])[1];
+    if (scheme === 'dark') { const i = css.indexOf('.dark {'); return (css.slice(i, css.indexOf('.dark[data-dark-variant="neutral"]', i)).match(/--rail-badge: (#[0-9a-f]{6});/i) || [])[1]; }
+    if (scheme === 'dark-neutral') { const i = css.indexOf('.dark[data-dark-variant="neutral"]'); return (css.slice(i, i + 12000).match(/--rail-badge: (#[0-9a-f]{6});/i) || [])[1]; }
+    return (css.match(new RegExp(`\\[data-theme="${scheme}"\\] \\{[^}]*--rail-badge: (#[0-9a-f]{6});`, 'i')) || [])[1];
+  };
+  const rows = [];
+  let ok = true;
+  for (const scheme of ['light', 'dark', 'dark-neutral', 'gradient-red-purple', 'gradient-blue-purple', 'gradient-green-blue', 'gradient-orange-red', 'gradient-pink-purple']) {
+    const starter = st.starterForScheme(scheme);
+    const base = scheme.startsWith('gradient-') ? starter.theme.colors.markArch : starter.theme.colors.accent;
+    const want = ct.railBadge(base, starter.theme.fills.rail);
+    const got = (blockValue(scheme) || '').toLowerCase();
+    const min = Math.min(...ct.fillColors(starter.theme.fills.rail).map((stop) => ct.contrastRatio(got || '#000000', stop)));
+    rows.push(`${scheme}: ${got} (${min.toFixed(2)}:1)`);
+    if (got !== want || min < 3 || got === '#a855f7') ok = false;
+  }
+  check('index.css: every built-in scheme\'s --rail-badge is railBadge() of its own accent / arch tint on its rail, >= 3:1 on every stop, none the old purple', ok, rows.join(' | '));
+  console.log('  ' + rows.join(' | '));
+}
 const diag = fs.readFileSync(path.join(REPO, 'src/components/DiagnosticsPage.jsx'), 'utf8');
 check('the Diagnostics frame bakes the inline custom properties into its document and takes them from the theme bridge', /inlineVars/.test(diag) && /html\.style\.setProperty\(n, String\(d\.vars\[n\]\)\)/.test(fs.readFileSync(path.join(REPO, 'backend/static/diagnostics-ui.js'), 'utf8')) || /vars/.test(diag));
 

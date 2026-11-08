@@ -12,11 +12,20 @@
 //     container (--with-central, or JACARIUM_LICENCES_CENTRAL=1, which
 //     deploy/Containerfile sets); the desktop installers do not carry the
 //     central server, so their list leaves it out;
-//   - the Python packages of the backend: from the installed site-packages
-//     the build has at hand (backend/venv in a checkout, /opt/app-root in the
-//     container), their METADATA's licence and the licence files in the
-//     dist-info; absent when there is no venv (a browser-only build), and
-//     said so;
+//   - the Python side, from scripts/licences-python.py run by the Python the
+//     build ships (its METADATA's licence and the dist-info's licence files,
+//     plus the interpreter itself, PSF-2.0, and for the installers the
+//     PyInstaller bootloader). JACARIUM_LICENCES_PYTHON says which build:
+//       frozen  the installers (rebuild.sh, after the backend build): the
+//               packages the PyInstaller bundle includes, from its analysis
+//               (backend/build/flask-backend/Analysis-00.toc); --strict fails
+//               on a bundled package without an entry
+//       image   the container: its UI build stage has no Python, so the list
+//               leaves the Python side to the runtime stage, which merges
+//               what /opt/app-root installs from backend/requirements.lock
+//               (deploy/Containerfile; --strict there too)
+//       unset   a dev checkout: backend/venv's packages that the lock names;
+//               none when there is no venv (a browser-only build), said so;
 //
 // with the version from the lock, the licence from the package's own
 // package.json (`license`, or the legacy `licenses` list) and the text of its
@@ -35,16 +44,20 @@
 //   node scripts/generate-licences.mjs --strict   (the build) the same, but a missing production package is an
 //                                                 error: a build must not ship a list with holes
 //   ... --with-central                            also the central server's tree (the container build)
+//   ... --python-only                             only the Python side's JSON on stdout (the tests)
 //   node scripts/generate-licences.mjs --check    prints what it would write (count, size) without writing
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(REPO, 'public', 'licences.json');
 const CHECK = process.argv.includes('--check');
 const STRICT = process.argv.includes('--strict');
 const WITH_CENTRAL = process.argv.includes('--with-central') || process.env.JACARIUM_LICENCES_CENTRAL === '1';
+const PY_MODE = process.env.JACARIUM_LICENCES_PYTHON || '';   // frozen | image | '' (a dev checkout)
+const BACKEND = process.env.JACARIUM_LICENCES_BACKEND || path.join(REPO, 'backend');
 const LICENCE_FILE = /^(licen[sc]e|copying|notice)([-._].*)?$/i;
 const MAX_TEXT = 60000;   // one file's text kept at most (the odd 300 KB notice is cut, and says so)
 
@@ -102,53 +115,47 @@ function npmPackages(root, lockRel, { productionOnly }) {
   return { packages: out, missing };
 }
 
-/** The Python packages of an installed site-packages (the dist-info's METADATA and licence files). */
-function pythonPackages() {
-  const roots = [];
-  for (const base of [path.join(REPO, 'backend', 'venv', 'lib'), '/opt/app-root/lib']) {
-    try { for (const v of fs.readdirSync(base)) { const sp = path.join(base, v, 'site-packages'); if (fs.existsSync(sp)) roots.push(sp); } } catch { /* no venv here */ }
-  }
-  const out = [];
-  for (const sp of roots) {
-    for (const info of fs.readdirSync(sp).filter((n) => n.endsWith('.dist-info'))) {
-      const dir = path.join(sp, info);
-      let meta = '';
-      try { meta = fs.readFileSync(path.join(dir, 'METADATA'), 'utf8'); } catch { continue; }
-      const field = (k) => { const m = new RegExp(`^${k}: (.*)$`, 'm').exec(meta); return m ? m[1].trim() : ''; };
-      const name = field('Name'), version = field('Version');
-      if (!name) continue;
-      let licence = field('License-Expression') || field('License');
-      if (!licence || licence === 'UNKNOWN' || licence.length > 80) {
-        const classifiers = [...meta.matchAll(/^Classifier: License :: (?:OSI Approved :: )?(.+)$/gm)].map((m) => m[1].trim());
-        if (classifiers.length) licence = classifiers.join(' / ');
-        else if (licence && licence.length > 80) licence = licence.slice(0, 77) + '...';
-      }
-      const url = field('Home-page') || ((/^Project-URL: (?:Homepage|Source|Repository)[^,]*, (.*)$/m.exec(meta) || [])[1] || '');
-      const texts = [];
-      for (const sub of ['', 'licenses']) {
-        for (const t of readLicenceTexts(path.join(dir, sub))) texts.push(sub ? { ...t, file: `${sub}/${t.file}` } : t);
-      }
-      out.push({ ecosystem: 'pypi', name, version, licence, url, texts });
-    }
-    break;   // one site-packages is the truth for a build
-  }
-  return out;
+/**
+ * The Python side: scripts/licences-python.py, run by the backend's own Python (the venv the installers
+ * freeze, or a dev checkout's), prints its packages and runtime entries. The container's is merged in its
+ * runtime stage instead (no Python in the UI build stage).
+ */
+function pythonSide() {
+  if (PY_MODE === 'image') return { packages: [], runtime: [], source: 'merged in by the container image\'s runtime stage from what /opt/app-root installs (scripts/licences-python.py)', failed: '' };
+  if (PY_MODE && PY_MODE !== 'frozen') return { packages: [], runtime: [], source: '', failed: `JACARIUM_LICENCES_PYTHON=${PY_MODE} is not frozen or image` };
+  const python = [path.join(BACKEND, 'venv', 'bin', 'python3'), path.join(BACKEND, 'venv', 'Scripts', 'python.exe')].find((p) => fs.existsSync(p));
+  if (!python) return { packages: [], runtime: [], source: 'none found at build time (no backend venv)', failed: PY_MODE === 'frozen' ? 'no backend venv to read the frozen backend\'s packages from' : '' };
+  const args = ['-I', path.join(REPO, 'scripts', 'licences-python.py'), '--mode', PY_MODE || 'venv', '--lock', path.join(BACKEND, 'requirements.lock')];
+  if (PY_MODE === 'frozen') args.push('--toc', process.env.JACARIUM_LICENCES_TOC || path.join(BACKEND, 'build', 'flask-backend', 'Analysis-00.toc'));
+  if (PY_MODE === 'frozen' && STRICT) args.push('--strict');
+  const r = spawnSync(python, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  if (r.stderr) process.stderr.write(r.stderr);
+  if (r.status !== 0) return { packages: [], runtime: [], source: '', failed: `scripts/licences-python.py --mode ${PY_MODE || 'venv'} failed (exit ${r.status})` };
+  const out = JSON.parse(r.stdout);
+  return { packages: out.packages, runtime: out.runtime, source: out.source, failed: '' };
 }
 
 const rootNpm = npmPackages(REPO, 'package-lock.json', { productionOnly: true });
 const centralNpm = WITH_CENTRAL
   ? npmPackages(path.join(REPO, 'jacarium-central'), 'package-lock.json', { productionOnly: false })
   : { packages: [], missing: [] };
-const python = pythonPackages();
+const py = pythonSide();
+if (process.argv.includes('--python-only')) { fs.writeSync(1, JSON.stringify(py) + '\n'); process.exit(py.failed ? 1 : 0); }
+if (py.failed) {
+  if (STRICT) { console.error(`[licences] ERROR: ${py.failed} - a build must not ship Python packages without their entries`); process.exit(1); }
+  console.warn(`[licences] ${py.failed}; the list has no Python side`);
+}
+const python = [...py.packages, ...py.runtime];
 const seen = new Map();
 for (const p of [...rootNpm.packages, ...centralNpm.packages.map((p) => ({ ...p, ecosystem: 'npm', where: 'central' })), ...python]) {
   const id = `${p.ecosystem}:${p.name}@${p.version}`;
   if (!seen.has(id)) seen.set(id, p);
 }
-const packages = [...seen.values()].sort((a, b) => a.ecosystem.localeCompare(b.ecosystem) || a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
+const RANK = { npm: 0, pypi: 1, runtime: 2 };
+const packages = [...seen.values()].sort((a, b) => (RANK[a.ecosystem] - RANK[b.ecosystem]) || a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
 const doc = {
-  generatedFrom: { rootLock: 'package-lock.json (production tree)', centralLock: WITH_CENTRAL ? 'jacarium-central/package-lock.json' : 'not part of this build (the desktop installers do not ship the central server)', python: python.length ? 'the installed backend packages (site-packages)' : 'none found at build time' },
-  counts: { npm: packages.filter((p) => p.ecosystem === 'npm').length, pypi: python.length, withText: packages.filter((p) => p.texts.length).length },
+  generatedFrom: { rootLock: 'package-lock.json (production tree)', centralLock: WITH_CENTRAL ? 'jacarium-central/package-lock.json' : 'not part of this build (the desktop installers do not ship the central server)', python: py.source || 'none' },
+  counts: { npm: packages.filter((p) => p.ecosystem === 'npm').length, pypi: py.packages.length, runtime: py.runtime.length, withText: packages.filter((p) => p.texts.length).length },
   packages,
 };
 const json = JSON.stringify(doc);
@@ -159,9 +166,9 @@ if (missing.length) {
   console.warn(note);
 }
 if (CHECK) {
-  console.log(`[licences] ${packages.length} packages (${doc.counts.npm} npm, ${doc.counts.pypi} pypi; ${doc.counts.withText} with a licence text), ${Math.round(json.length / 1024)} KB`);
+  console.log(`[licences] ${packages.length} packages (${doc.counts.npm} npm, ${doc.counts.pypi} pypi, ${doc.counts.runtime} runtime; ${doc.counts.withText} with a licence text), ${Math.round(json.length / 1024)} KB`);
 } else {
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, json);
-  console.log(`[licences] ${packages.length} packages (${doc.counts.npm} npm, ${doc.counts.pypi} pypi; ${doc.counts.withText} with a licence text) -> ${path.relative(REPO, OUT)} (${Math.round(json.length / 1024)} KB)`);
+  console.log(`[licences] ${packages.length} packages (${doc.counts.npm} npm, ${doc.counts.pypi} pypi, ${doc.counts.runtime} runtime; ${doc.counts.withText} with a licence text) -> ${path.relative(REPO, OUT)} (${Math.round(json.length / 1024)} KB)`);
 }

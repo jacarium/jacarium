@@ -228,6 +228,7 @@ body {
   --os-rail-active: #374151;
   --os-rail-text: #9ca3af;
   --os-rail-text-active: #ffffff;
+  --rail-badge: #0066cc;   /* the unread dot by the bell: railBadge() of this scheme's accent and rail - the accent on the dark rail (3.1:1); a custom theme derives its own */
   --os-rail-tooltip: #111827;
   --os-rail-separator: #374151;
 
@@ -451,6 +452,7 @@ body {
   --os-rail-active: #7B5CE0;
   --os-rail-text: #B9AFD6;
   --os-rail-text-active: #FFFFFF;
+  --rail-badge: #4a9eff;   /* the unread dot by the bell: railBadge() of this scheme's accent and rail - the accent on the Jacaranda rail (6.4:1); a custom theme derives its own */
   --os-rail-tooltip: #0F0D16;
   --os-rail-separator: #3A3350;
 
@@ -645,6 +647,7 @@ body {
   --os-rail-active: #374151;
   --os-rail-text: #9ca3af;
   --os-rail-text-active: #ffffff;
+  --rail-badge: #4a9eff;   /* the unread dot by the bell: railBadge() of this scheme's accent and rail - the accent on the grey rail (6.3:1); a custom theme derives its own */
   --os-rail-tooltip: #111827;
   --os-rail-separator: #374151;
 
@@ -1589,6 +1592,23 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   max-width: 100%;
   height: auto;
 }
+
+/* ```latex blocks (src/utils/latexBlocks.js): the source hidden once rendered, each display centred in the
+   preview's text colour (so a theme colours the maths), a wide formula scrolling inside its box rather than past
+   the page; the error box shares the diagram error's look */
+.markdown-preview .latex-block[data-latex="rendered"] > pre,
+.markdown-preview .latex-block[data-latex="error"] > pre { display: none; }
+.markdown-preview .latex-block[data-latex="error"] > pre { display: block; }
+.markdown-preview .latex-block-output { margin: 0 0 16px; color: inherit; max-width: 100%; }
+.markdown-preview .latex-block-output .katex-display {
+  margin: 0.5em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25em 0;
+  color: inherit;
+}
+.markdown-preview .latex-block-output .katex-display > .katex { color: inherit; }
+.markdown-preview .latex-block-output .katex-display + .katex-display { margin-top: 0.9em; }
 
 .markdown-preview .mermaid-diagram-error {
   margin: 0 0 8px;
@@ -2612,11 +2632,15 @@ textarea.resize-none.h-full { border-radius: 0; }
 
 /* The gradient themes' links: a light tint of each theme's own accent. They sit on the neutral dark surfaces, whose
    block (.dark[data-dark-variant="neutral"]) also sets --link, so these rules need the same specificity and a later place. */
-.dark[data-theme="gradient-red-purple"] { --link: #FDA4AF; --link-hover: #FECDD3; }   /* Magma: a rose tint */
-.dark[data-theme="gradient-blue-purple"] { --link: #A5B4FC; --link-hover: #C7D2FE; }   /* Nebula: an indigo tint */
-.dark[data-theme="gradient-green-blue"] { --link: #6EE7B7; --link-hover: #A7F3D0; }   /* Vulkan: an emerald tint */
-.dark[data-theme="gradient-orange-red"] { --link: #FDBA74; --link-hover: #FED7AA; }   /* Sunset: an orange tint */
-.dark[data-theme="gradient-pink-purple"] { --link: #F9A8D4; --link-hover: #FBCFE8; }   /* Aurora: a pink tint */
+/* --rail-badge, the unread dot by the bell on the gradient schemes: the mark's arch tint, which reads on every stop of the
+   gradient (railBadge() in src/utils/customThemes.js picked these; 4.5:1 or better on each). .dark[data-theme]
+   because the gradient schemes also carry data-dark-variant="neutral", whose block sets the neutral dot. (One
+   .dark[data-theme] rule per scheme: tests/link-colour.test.mjs reads that block.) */
+.dark[data-theme="gradient-red-purple"] { --link: #FDA4AF; --link-hover: #FECDD3; --rail-badge: #ffe4e6; }   /* Magma: a rose tint */
+.dark[data-theme="gradient-blue-purple"] { --link: #A5B4FC; --link-hover: #C7D2FE; --rail-badge: #e0e7ff; }   /* Nebula: an indigo tint */
+.dark[data-theme="gradient-green-blue"] { --link: #6EE7B7; --link-hover: #A7F3D0; --rail-badge: #d1fae5; }   /* Vulkan: an emerald tint */
+.dark[data-theme="gradient-orange-red"] { --link: #FDBA74; --link-hover: #FED7AA; --rail-badge: #ffedd5; }   /* Sunset: an orange tint */
+.dark[data-theme="gradient-pink-purple"] { --link: #F9A8D4; --link-hover: #FBCFE8; --rail-badge: #fce7f3; }   /* Aurora: a pink tint */
 
 /* Document links ([[doc:...]], src/utils/docLinks.js): the preview's link to another document carries the
    document's current title; a target that is not on this device is a muted, inert "Document not found";

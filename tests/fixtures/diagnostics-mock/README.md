@@ -35,6 +35,7 @@ Output in `tests/fixtures/diagnostics-mock/out/`:
 | `sosreport-node-01-2026-10-12-anomaly/` | `--anomalies` only: one day of journal (`node-01.example.test`, ~110 000 lines) with six planted anomalies for Log Collection > Histogram (below) |
 | `sosreport-node-01-2026-10-12-flat/` | `--anomalies` only: the same routine traffic with nothing planted - the Histogram finds no anomaly |
 | `must-gather.local.1111111111/` | `--anomalies` only: 12 container logs (CRI format) and a node journal with a new error, an expired certificate and a crash loop's previous log |
+| `sosreport-node-01-2026-10-12-anomaly-<N>d/` | `--anomalies --days N` (N > 1) only: N days of journal at 20 lines a minute, the anomalies planted on the first day - the Histogram's multi-day time axis |
 
 Deterministic: fixed seed, fixed timestamps, fixed archive metadata, so a
 rerun produces byte-identical files.

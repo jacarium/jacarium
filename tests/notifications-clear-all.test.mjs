@@ -87,7 +87,7 @@ const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 const click = (el) => el.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
 const rightClick = (el) => el.dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 30, clientY: 700 }));
 const bell = () => $('[data-testid="rail-notifications"]');
-const badge = () => bell()?.querySelector('span.bg-purple-500');
+const badge = () => bell()?.querySelector('[data-testid="rail-badge"]');
 const events = [];
 window.addEventListener('toggleNotificationSidebar', () => events.push('toggle'));
 H.mount();

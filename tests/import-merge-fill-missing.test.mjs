@@ -12,8 +12,9 @@
  * updatedAt was missing/null was created but, because the app lists
  * documents via orderBy('updatedAt') and IndexedDB drops rows with a
  * non-key indexed value from the index, it never showed up in the UI.
- * Finally OpenShiftMasthead's import handler ignored the merge flag and ran
- * its own inline wipe+replace.
+ * Finally a second host's import handler (OpenShiftMasthead, removed in
+ * 4.2.1 as dead code) ignored the merge flag and ran its own inline
+ * wipe+replace.
  *
  * Proved here against the REAL src/utils/importDatabase.js +
  * src/db/database.js + src/utils/documents.js on real Dexie over
@@ -37,9 +38,9 @@
  *
  * And, in jsdom against the REAL ImportDBModal:
  *   8. the "Keep existing data" checkbox is passed to onImport as the second
- *      argument (true when checked, false when not), and both hosts
- *      (CompactSidebar, OpenShiftMasthead) route that flag to
- *      mergeImportDatabase (source-level check).
+ *      argument (true when checked, false when not), and the host
+ *      (CompactSidebar) routes that flag to mergeImportDatabase
+ *      (source-level check).
  *
  * Fixture data is synthetic throughout.
  *
@@ -614,10 +615,10 @@ check('unchecked -> onImport(data, false) (replace mode)',
   window.__imports[0][0]?.documents?.[0]?.title === 'Runbook UI',
   JSON.stringify(window.__imports.map((i) => i[1])));
 
-// Both hosts must hand the mode flag (and the dry-run request) to runImport
-// in ../utils/importDatabase - not to an inline wipe (the OpenShiftMasthead
-// handler used to ignore the flag entirely).
-for (const host of ['src/components/CompactSidebar.jsx', 'src/components/OpenShiftMasthead.jsx']) {
+// The host must hand the mode flag (and the dry-run request) to runImport
+// in ../utils/importDatabase - not to an inline wipe (the removed
+// OpenShiftMasthead's handler used to ignore the flag entirely).
+for (const host of ['src/components/CompactSidebar.jsx']) {
   const src = fs.readFileSync(path.join(REPO, host), 'utf8');
   const handler = src.slice(src.indexOf('async function runDatabaseImport('));
   check(`${path.basename(host)}: import + dry run both route through runImport(importData, mergeMode, { dryRun })`,

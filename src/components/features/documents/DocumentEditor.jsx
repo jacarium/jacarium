@@ -12,6 +12,7 @@ import { BUILTIN_COMMANDS, matchesSlashQuery, slashQueryAt, isInsideCode } from 
 import { createDocLinkResolver, docLinkContextAt, searchDocuments, docLinkDirective } from '../../../utils/docLinks';
 import { useCaretPopupPosition } from './useCaretPopup.js';
 import { previewBlockForLine, previewTopVisibleLine, scrollPreviewToBlock } from '../../../utils/previewPlace';
+import { placeKeyFor, rememberPlace, rememberedPlace } from '../../../utils/documentPlaces';
 
 // The GitHub-style callouts the preview renders (src/utils/interactiveMarkdown.js),
 // each with its lucide icon (the same drawings the preview paints), for the
@@ -82,6 +83,8 @@ import {
   findMermaidTargets, renderMermaidDiagrams, mermaidThemeForApp, MERMAID_PENDING_SELECTOR,
   serializeDiagramSvg, diagramExportFilename,
 } from '../../../utils/mermaidDiagrams';
+import { findLatexTargets, renderLatexBlocks, LATEX_PENDING_SELECTOR } from '../../../utils/latexBlocks';
+import { streamAiReply, truncationMessage, CONTINUE_PROMPT } from '../../../utils/aiStream';
 import { chunkPreviewBlocks, previewRenderDelay, hugePreview } from '../../../utils/previewChunks';
 import { useDeferredPreview } from '../../../hooks/useDeferredPreview';
 import { Note } from '../../ui/primitives';
@@ -140,6 +143,23 @@ import { MENU_ICONS } from '../../common/menus/menuIcons';
  * - /task command for Quick Tasks (create a TaskWarrior task)
  * - Collaborative cursors for cloud documents
  */
+/**
+ * The editor's view place from a document's remembered place (src/utils/documentPlaces.js): the preview opens at
+ * the remembered line's block, the editor (when it mounts anew) at that line with the selection as it was; none
+ * remembered - a document never opened - and both start at the top.
+ */
+function viewPlaceFrom(saved) {
+  if (!saved) return { toPreview: null, toEditor: null, editorScrollTop: 0, previewScrollTop: 0 };
+  // the line is the one currency: an offset put into a freshly built editor state, or a preview whose chunks
+  // are still estimates, lands on another line; a line is settled by the view itself
+  return {
+    toPreview: saved.line ?? null,
+    toEditor: saved.line != null || saved.selection ? { line: saved.line ?? null, selection: saved.selection || null, cursorVisible: false, leftAt: null } : null,
+    editorScrollTop: saved.editorScrollTop || 0,
+    previewScrollTop: saved.previewScrollTop || 0,
+  };
+}
+
 export default function DocumentEditor({
   documentId,
   document,
@@ -183,6 +203,13 @@ export default function DocumentEditor({
   const quickAIDragStartRef = useRef({ top: 0, left: 0, x: 0, y: 0 });
   const selectionMenuRef = useRef(null);
   const previousDocumentIdRef = useRef(documentId);
+  // the reader's place per document (src/utils/documentPlaces.js), by the document's stable id: recorded as the
+  // reader scrolls either view and when a document is left; a document opened again - from the sidebar, a tab,
+  // or after a page switch (this editor mounts anew) - shows that place in whichever view it opens
+  const placeKey = placeKeyFor(document, documentId);
+  const placeKeyRef = useRef(placeKey);
+  useLayoutEffect(() => { placeKeyRef.current = placeKey; }, [placeKey]);
+  const previousPlaceKeyRef = useRef(placeKey);
   const [previewMode, setPreviewMode] = useState(false);
   // The reader's place across Editor <-> Preview, per document: what was at
   // the top of the view being left (its source line), the view's own scroll
@@ -192,7 +219,7 @@ export default function DocumentEditor({
   // deferred render of a huge document lands) and by onSurface when the
   // editor mounts again; a document switch clears it (a fresh document
   // opens at the top).
-  const viewPlaceRef = useRef({ toPreview: null, toEditor: null, editorScrollTop: 0, previewScrollTop: 0 });
+  const viewPlaceRef = useRef(viewPlaceFrom(rememberedPlace(placeKey)));   // a mount: the remembered place, if any
   // Leaving the editor for the preview: remember what is at the top (the
   // source line, from CodeMirror's line blocks), the scroll offset, the
   // selection and whether the caret was on screen
@@ -209,6 +236,7 @@ export default function DocumentEditor({
         selection: { start: surface.selectionStart, end: surface.selectionEnd, direction: surface.selectionDirection },
         cursorVisible: surface.isCursorVisible(),
       };
+      rememberPlace(placeKeyRef.current, { line: place.toPreview, editorScrollTop: place.editorScrollTop, selection: place.toEditor.selection });
     } catch { /* no place to keep */ }
   }, []);
   // Leaving the preview for the editor: the top visible block's source line
@@ -221,7 +249,18 @@ export default function DocumentEditor({
       place.previewScrollTop = container.scrollTop;
       const line = previewTopVisibleLine(container);
       place.toEditor = { ...(place.toEditor || { selection: null, cursorVisible: false }), line };
+      rememberPlace(placeKeyRef.current, { line, previewScrollTop: container.scrollTop });
     } catch { /* no place to keep */ }
+  }, []);
+  // the place follows the reader through the preview: the top block's line and the offset on every scroll
+  const previewScrollFrameRef = useRef(null);
+  const handlePreviewScroll = useCallback((e) => {
+    const container = e.currentTarget;
+    if (previewScrollFrameRef.current !== null) return;
+    previewScrollFrameRef.current = requestAnimationFrame(() => {
+      previewScrollFrameRef.current = null;
+      try { rememberPlace(placeKeyRef.current, { line: previewTopVisibleLine(container), previewScrollTop: container.scrollTop }); } catch { /* gone */ }
+    });
   }, []);
   // Global override: when on, every document renders in preview mode regardless
   // of its own per-document sessionStorage entry (cycled via the preview button).
@@ -260,6 +299,12 @@ export default function DocumentEditor({
   const [quickAIInput, setQuickAIInput] = useState('');
   const [quickAIResponse, setQuickAIResponse] = useState('');
   const [quickAILoading, setQuickAILoading] = useState(false);
+  // the stream's phase ('waiting' | 'thinking' | 'answering'), the request to cancel, and a reply the token limit
+  // cut off (the limit it hit, so the note can name it) - src/utils/aiStream.js
+  const [quickAIPhase, setQuickAIPhase] = useState(null);
+  const [quickAITruncated, setQuickAITruncated] = useState(false);
+  const quickAIAbortRef = useRef(null);
+  const quickAIFirstChunkRef = useRef(true);
   const [quickAICursorPos, setQuickAICursorPos] = useState(null);
   const [quickAIPopupPos, setQuickAIPopupPos] = useState({ x: 0, y: 0 });
   const [quickAISelectedText, setQuickAISelectedText] = useState('');
@@ -422,7 +467,6 @@ export default function DocumentEditor({
   useEffect(() => {
     // Check if we actually switched documents (not just a re-render)
     const documentChanged = previousDocumentIdRef.current !== documentId;
-    if (documentChanged) viewPlaceRef.current = { toPreview: null, toEditor: null, editorScrollTop: 0, previewScrollTop: 0 };
 
     if (documentChanged && textareaRef.current) {
       // Sync the editor's text when switching documents (not during typing!)
@@ -440,10 +484,17 @@ export default function DocumentEditor({
       // ready and the surface binds to the live text (CodeMirrorEditor).
       console.log('[DocumentEditor] Syncing document content to the editor (doc change):', currentContent?.length || 0, 'chars');
       textareaRef.current.replaceDocument(currentContent || '');
-    }
-
-    if (documentChanged && previewRef.current) {
-      previewRef.current.scrollTop = 0;
+      // the document opened: back at its remembered place, the selection as it was; a new one starts at the top
+      const saved = rememberedPlace(placeKeyRef.current);
+      if (saved && textareaRef.current.isCodeMirror) {
+        try {
+          const s = textareaRef.current;
+          if (saved.selection) s.setSelectionRange(saved.selection.start, saved.selection.end, saved.selection.direction, { scrollIntoView: false });
+          if (saved.line != null) s.scrollToLine(saved.line);
+        } catch { /* a place that no longer fits the document */ }
+        // applied here, to the mounted editor: a later mount must not apply it again
+        viewPlaceRef.current.toEditor = null;
+      }
     }
 
     // Restore preview mode for this document from sessionStorage
@@ -468,6 +519,7 @@ export default function DocumentEditor({
 
       // Update the ref for next comparison
       previousDocumentIdRef.current = documentId;
+      previousPlaceKeyRef.current = placeKey;
     }
     // content/yjsEnabled intentionally trigger re-evaluation; other reads are
     // per-document snapshots
@@ -1670,34 +1722,61 @@ export default function DocumentEditor({
     const systemPrompt = 'You are a code assistant. Respond ONLY with the requested code, command, or text. Do NOT include explanations, markdown formatting, or comments unless specifically requested. Be extremely concise.';
 
     const backendUrl = await getBackendUrl();
+    await runQuickAI({ backendUrl, aiSettings, message, systemPrompt });
+  };
 
-    apiFetch(`${backendUrl}/api/ai/ask`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message,
-        systemPrompt: systemPrompt,
-        provider: aiSettings.provider,
-        model: aiSettings.model,
-        temperature: aiSettings.temperature,
-        maxTokens: aiSettings.maxTokens
-      }),
-      signal: AbortSignal.timeout(30000) // 30 second timeout
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.response) {
-          setQuickAIResponse(data.response);
-        } else if (data.error) {
-          setQuickAIResponse('Error: ' + data.error);
-        }
-      })
-      .catch(err => {
-        setQuickAIResponse('Error: ' + err.message);
-      })
-      .finally(() => {
-        setQuickAILoading(false);
+  // One Quick AI request, streamed (src/utils/aiStream.js): the reply grows in the response box as it arrives,
+  // a reasoning model's thinking shows as "Thinking...", Cancel aborts it, and there is no total timeout - only
+  // the idle one (nothing received for minutes). `append` keeps what is there (Continue after a cut-off).
+  const runQuickAI = async ({ backendUrl, aiSettings, message, systemPrompt, append = false }) => {
+    const controller = new AbortController();
+    quickAIAbortRef.current = controller;
+    setQuickAILoading(true);
+    setQuickAIPhase('waiting');
+    setQuickAITruncated(false);
+    if (!append) setQuickAIResponse('');
+    const prefix = append ? '\n\n' : '';
+    quickAIFirstChunkRef.current = true;
+    try {
+      const result = await streamAiReply({
+        url: `${backendUrl}/api/ai/ask`,
+        fetchImpl: apiFetch,   // the app's fetch: the auth token on the web
+        signal: controller.signal,
+        body: { message, systemPrompt, provider: aiSettings.provider, model: aiSettings.model, temperature: aiSettings.temperature, maxTokens: aiSettings.maxTokens, stream: true },
+        onEvent: (ev) => {
+          if (ev.type === 'thinking_start' || ev.type === 'thinking') setQuickAIPhase('thinking');
+          else if (ev.type === 'content' && ev.content) {
+            setQuickAIPhase('answering');
+            const piece = (quickAIFirstChunkRef.current ? prefix : '') + ev.content;
+            quickAIFirstChunkRef.current = false;
+            setQuickAIResponse((prev) => prev + piece);
+          }
+        },
       });
+      if (!result.content && !append) setQuickAIResponse(result.thinking ? '(The model only reasoned and gave no answer - the token limit may be too low for its thinking.)' : 'Error: No response from AI');
+      setQuickAITruncated(result.truncated ? (aiSettings.maxTokens || true) : false);
+    } catch (err) {
+      // Cancel keeps what arrived (or says so); an error goes under what arrived
+      const cancelled = !!(err && err.name === 'AbortError');
+      const note = cancelled ? 'Cancelled.' : 'Error: ' + (err && err.message ? err.message : String(err));
+      setQuickAIResponse((prev) => (cancelled ? (prev || note) : (prev ? prev + '\n\n' + note : note)));
+    } finally {
+      if (quickAIAbortRef.current === controller) quickAIAbortRef.current = null;
+      setQuickAIPhase(null);
+      setQuickAILoading(false);
+    }
+  };
+  const handleQuickAICancel = () => { quickAIAbortRef.current?.abort(); };
+  // Continue a reply the token limit cut off: the same question with the partial answer, asked to go on
+  const handleQuickAIContinue = async () => {
+    if (quickAILoading || !quickAIResponse) return;
+    let aiSettings = null;
+    try { aiSettings = await resolveAiRequestSettings({ saved: savedAiChatSettings() }); } catch { aiSettings = null; }
+    if (!aiSettings) return;
+    const question = quickAIContext ? `Selected text:\n${quickAIContext.text}\n\nQuestion: ${quickAIInput}` : quickAIInput;
+    const message = `${question}\n\nYour answer so far (cut off at the token limit):\n${quickAIResponse}\n\n${CONTINUE_PROMPT}`;
+    const systemPrompt = 'You are a code assistant. Respond ONLY with the requested code, command, or text. Do NOT include explanations, markdown formatting, or code fences.';
+    await runQuickAI({ backendUrl: await getBackendUrl(), aiSettings, message, systemPrompt, append: true });
   };
 
   const handleAcceptAIResponse = (useSelection = false) => {
@@ -2368,6 +2447,17 @@ export default function DocumentEditor({
   );
   const onSurface = useCallback((surface) => {
     textareaRef.current = surface;
+    if (surface && surface.isCodeMirror) {
+      // the place follows the reader through the editor: the top line and the offset on every scroll
+      let frame = null;
+      surface.addEventListener('scroll', () => {
+        if (frame !== null) return;
+        frame = requestAnimationFrame(() => {
+          frame = null;
+          try { rememberPlace(placeKeyRef.current, { line: surface.topVisibleLine(), editorScrollTop: surface.scrollTop }); } catch { /* gone */ }
+        });
+      });
+    }
     // the editor mounted again after a preview: the selection back where it
     // was (without scrolling to it), the view at the preview's top block -
     // or, without a mapping, at the editor's own last offset - and the caret
@@ -2385,7 +2475,11 @@ export default function DocumentEditor({
       // the caret was on screen and the preview was not scrolled elsewhere
       // (its top is still where the editor was left): keep the caret on screen
       const navigated = line != null && leftAt != null && Math.abs(line - leftAt) > 3;
-      if (cursorVisible && selection && !navigated) surface.scrollCursorIntoView();
+      if (cursorVisible && selection && !navigated) {
+        // after the line scroll has been measured and applied: only a caret that is then off screen is brought
+        // back (a second scroll target dispatched now would replace the first and put the caret at an edge)
+        requestAnimationFrame(() => { try { if (textareaRef.current === surface && !surface.isCursorVisible()) surface.scrollCursorIntoView(); } catch { /* gone */ } });
+      }
     } catch { /* a place that no longer fits the document */ }
   }, []);
 
@@ -2661,6 +2755,28 @@ export default function DocumentEditor({
   // (src/utils/previewChunks.js, index.css .md-chunk) - after React has set
   // the HTML and before the first paint, so the layout of the whole
   // document is never done. Nothing happens below the size where it pays.
+  // a document switch (the sidebar, a tab): the view's place becomes the opened document's remembered one, set
+  // here so the preview effect below reads it in this same commit; a document without one starts at the top. The
+  // editor is not remounted on a switch: the effect that swaps its text applies the place there.
+  const placeSwitchRef = useRef(documentId);
+  useLayoutEffect(() => {
+    if (placeSwitchRef.current === documentId) return;
+    placeSwitchRef.current = documentId;
+    // the document being left: its place and selection, from the editor still showing it (the surface swaps
+    // its text in a later effect; a preview records its place as it scrolls)
+    const leaving = previousPlaceKeyRef.current;
+    const s = textareaRef.current;
+    if (leaving && leaving !== placeKey && !isPreviewActive && s && s.isCodeMirror) {
+      try { rememberPlace(leaving, { line: s.topVisibleLine(), editorScrollTop: s.scrollTop, selection: { start: s.selectionStart, end: s.selectionEnd, direction: s.selectionDirection } }); } catch { /* no place to keep */ }
+    }
+    const saved = rememberedPlace(placeKey);
+    // toEditor stays set: the editor is usually still mounted (the text-swap effect applies the place and clears
+    // it), but when the document left was in Preview the editor is mounted anew for this one, and onSurface is
+    // the only path that can place it - with toEditor cleared here it opened at the top
+    viewPlaceRef.current = viewPlaceFrom(saved);
+    if (!saved && previewRef.current) previewRef.current.scrollTop = 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs on the switch only; the view mode is read as it is then
+  }, [documentId, placeKey]);
   useLayoutEffect(() => {
     if (!isPreviewActive || !previewRef.current) return;
     chunkPreviewBlocks(previewRef.current);
@@ -2669,10 +2785,15 @@ export default function DocumentEditor({
     const place = viewPlaceRef.current;
     if (place.toPreview != null) {
       const container = previewRef.current;
-      const block = previewBlockForLine(container, place.toPreview);
+      const block = place.toPreview > 1 ? previewBlockForLine(container, place.toPreview) : null;   // line 1: the top itself
+      const top = place.toPreview <= 1;
       place.toPreview = null;
-      if (block) {
+      if (top) {
+        container.scrollTop = 0;
+      } else if (block) {
         scrollPreviewToBlock(container, block);
+        // once more after the paint: the chunks' estimated sizes become real ones and the block may have moved
+        requestAnimationFrame(() => { if (previewRef.current === container && container.isConnected) scrollPreviewToBlock(container, block); });
       } else if (place.previewScrollTop > 0) {
         container.scrollTop = place.previewScrollTop;
       }
@@ -2732,6 +2853,34 @@ export default function DocumentEditor({
       if (scheduled) clearTimeout(scheduled);
     };
   }, [isPreviewActive, previewHtml, mermaidTheme]);
+
+  // Render ```latex fences in the preview as display maths (src/utils/latexBlocks.js): the same pattern as the
+  // mermaid effect above - placeholders filled in after the HTML is in the DOM, KaTeX and its stylesheet loaded
+  // the first time a document has one, aborted on unmount or a document change, the observer catching DOM
+  // rebuilds that bring back fresh placeholders. The maths take the preview's text colour (any theme).
+  useEffect(() => {
+    if (!isPreviewActive || !previewRef.current) return;
+    const container = previewRef.current;
+    if (!findLatexTargets(container).length) return;
+    const controller = new AbortController();
+    let scheduled = null;
+    const run = () => {
+      scheduled = null;
+      renderLatexBlocks(container, { signal: controller.signal }).catch((err) => {
+        console.error('[DocumentEditor] LaTeX rendering failed:', err);
+      });
+    };
+    run();
+    const observer = new MutationObserver(() => {
+      if (!scheduled && container.querySelector(LATEX_PENDING_SELECTOR)) scheduled = setTimeout(run, 0);
+    });
+    observer.observe(container, { childList: true, subtree: true });
+    return () => {
+      controller.abort();
+      observer.disconnect();
+      if (scheduled) clearTimeout(scheduled);
+    };
+  }, [isPreviewActive, previewHtml]);
 
   // ---- the toolbar's derived bits (see the Toolbar markup) ----
   const canEdit = !locked && isOwner;
@@ -2981,6 +3130,7 @@ export default function DocumentEditor({
             ref={previewRef}
             onClick={handlePreviewClick}
             onContextMenu={handlePreviewContextMenu}
+            onScroll={handlePreviewScroll}
             className="markdown-preview h-full px-6 py-4 overflow-y-auto bg-os-card"
             dangerouslySetInnerHTML={previewInnerHtml}
           />
@@ -3118,18 +3268,30 @@ export default function DocumentEditor({
                   <div className="relative">
                     <textarea
                       ref={quickAIResponseRef}
-                      value={quickAILoading ? 'Generating response...' : quickAIResponse}
+                      value={quickAILoading && !quickAIResponse ? (quickAIPhase === 'thinking' ? 'Thinking...' : 'Waiting for the model...') : quickAIResponse}
                       readOnly={quickAILoading}
                       onSelect={handleQuickAIResponseSelection}
                       onMouseUp={handleQuickAIResponseSelection}
                       className="w-full h-48 px-2 py-2 border border-os-border rounded-sm bg-os-card-secondary font-mono text-xs resize-none focus:outline-hidden cursor-text text-os-text-primary"
                     />
-                    {quickAILoading && (
+                    {quickAILoading && !quickAIResponse && (
                       <div className="absolute inset-0 flex items-center justify-center bg-os-card/75 rounded-sm">
                         <RefreshCw size={20} className="text-purple-600 animate-spin" />
                       </div>
                     )}
                   </div>
+                  {quickAILoading && (
+                    <p className="text-xs text-os-text-secondary mt-1 flex items-center justify-between gap-2" data-testid="quick-ai-status">
+                      <span>{quickAIPhase === 'thinking' ? 'The model is thinking...' : quickAIPhase === 'answering' ? 'Answering...' : 'Waiting for the model...'}</span>
+                      <button type="button" onClick={handleQuickAICancel} className="btn btn-secondary px-2 py-0.5 text-xs" data-testid="quick-ai-cancel">Cancel</button>
+                    </p>
+                  )}
+                  {quickAITruncated && !quickAILoading && (
+                    <p className="text-xs text-os-text-secondary mt-1 flex items-center justify-between gap-2" data-testid="quick-ai-truncated">
+                      <span>{truncationMessage(typeof quickAITruncated === 'number' ? quickAITruncated : null)}</span>
+                      <button type="button" onClick={handleQuickAIContinue} className="btn btn-secondary px-2 py-0.5 text-xs shrink-0" data-testid="quick-ai-continue">Continue</button>
+                    </p>
+                  )}
                   {quickAISelectedText && !quickAILoading && (
                     <p className="text-xs text-purple-600 mt-1">
                       {quickAISelectedText.length} characters selected

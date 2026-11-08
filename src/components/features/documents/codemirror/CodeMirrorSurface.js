@@ -269,9 +269,11 @@ export class CodeMirrorSurface {
   /** The 1-based number of the line at the top of the scroller. */
   topVisibleLine() {
     const view = this.view;
-    // (+1 px: a line scrolled exactly to the top edge is that line, not the one above it)
-    const height = view.scrollDOM.scrollTop - view.documentPadding.top + 1;
-    const block = view.lineBlockAtHeight(Math.max(0, height));
+    // the first line that shows more than a sliver: a line scrolled to the top edge (scrollToLine) sits a few
+    // pixels down, so the line above it may still show its last pixels - that one is not "at the top"
+    const height = Math.max(0, view.scrollDOM.scrollTop - view.documentPadding.top + 1);
+    let block = view.lineBlockAtHeight(height);
+    if (block.bottom - height < 6 && block.to < view.state.doc.length) block = view.lineBlockAtHeight(block.bottom + 1);
     return view.state.doc.lineAt(Math.min(block.from, view.state.doc.length)).number;
   }
   /** Scroll so that line `n` (1-based, clamped) is at the top; the selection stays where it is. */

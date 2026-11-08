@@ -129,14 +129,30 @@ try {
   check('About: the header has no tinted box (a transparent background, no brand-hero), the title in the text colour and the tagline in the secondary colour', about.bg === 'rgba(0, 0, 0, 0)' && !about.hero && about.title === rgb(green.colors.textPrimary) && about.tagline === rgb(green.colors.textSecondary), JSON.stringify(about));
   await page.locator('[data-testid="settings-modal"]').screenshot({ path: path.join(OUT, 'green-theme-about.png') });
   await page.keyboard.press('Escape'); await sleep(300);
+  // the unread dot by the bell (--rail-badge, from the accent): the rail's own markup placed on the bell (the
+  // notification history is in memory, nothing in this test raises one), its painted colour the token's
+  const probeBadge = () => page.evaluate(() => {
+    const bell = document.querySelector('[data-testid="rail-notifications"]');
+    if (!bell) return null;
+    let dot = bell.querySelector('[data-testid="rail-badge"]');
+    if (!dot) { dot = document.createElement('span'); dot.className = 'absolute top-2 right-2 w-2 h-2 rounded-full bg-(--rail-badge)'; dot.setAttribute('data-testid', 'rail-badge'); bell.appendChild(dot); }
+    const cs = getComputedStyle(document.documentElement);
+    return { color: getComputedStyle(dot).backgroundColor, token: cs.getPropertyValue('--rail-badge').trim(), rail: cs.getPropertyValue('--os-rail').trim() };
+  });
+  const badge = await probeBadge();
+  check('the unread dot by the bell takes the theme\'s --rail-badge token (derived from the accent) and reads on the rail (>= 3:1)', !!badge && badge.color === rgb(badge.token) && badge.token === tokens['--rail-badge'] && ct.contrastRatio(badge.token, badge.rail) >= 3, JSON.stringify([badge, tokens['--rail-badge']]));
+  await page.locator('nav.w-16').screenshot({ path: path.join(OUT, 'green-theme-rail-badge.png') });
 
   // the built-in schemes: the values those elements always had
   const expected = {
     dark: { h1: 'rgb(230, 237, 243)', codeText: 'rgb(230, 237, 243)', inlineCode: 'rgb(230, 237, 243)', link: 'rgb(74, 158, 255)', thBg: 'rgb(22, 27, 34)', tdBorder: 'rgb(58, 58, 58)', h1Border: 'rgb(58, 58, 58)', dark: true },
     'dark-neutral': { h1: 'rgb(230, 237, 243)', codeText: 'rgb(230, 237, 243)', inlineCode: 'rgb(230, 237, 243)', link: 'rgb(74, 158, 255)', thBg: 'rgb(22, 27, 34)', tdBorder: 'rgb(58, 58, 58)', h1Border: 'rgb(58, 58, 58)', dark: true },
     light: { h1: 'rgb(36, 41, 47)', codeText: 'rgb(36, 41, 47)', inlineCode: 'rgb(36, 41, 47)', body: 'rgb(36, 41, 47)', link: 'rgb(9, 105, 218)', codeBg: 'rgb(246, 248, 250)', thBg: 'rgb(246, 248, 250)', tdBorder: 'rgb(208, 215, 222)', h1Border: 'rgb(216, 222, 228)', dark: false },
+    'gradient-red-purple': { h1: 'rgb(230, 237, 243)', codeText: 'rgb(230, 237, 243)', inlineCode: 'rgb(230, 237, 243)', link: 'rgb(74, 158, 255)', thBg: 'rgb(22, 27, 34)', tdBorder: 'rgb(58, 58, 58)', h1Border: 'rgb(58, 58, 58)', dark: true },
   };
-  for (const scheme of ['dark', 'dark-neutral', 'light']) {
+  // the unread dot per built-in scheme: railBadge() of its accent (Light, Jacaranda, Dark) or its arch tint (Magma)
+  const badgeExpected = { dark: ['#4a9eff', 'rgb(74, 158, 255)'], 'dark-neutral': ['#4a9eff', 'rgb(74, 158, 255)'], light: ['#0066cc', 'rgb(0, 102, 204)'], 'gradient-red-purple': ['#ffe4e6', 'rgb(255, 228, 230)'] };
+  for (const scheme of ['dark', 'dark-neutral', 'light', 'gradient-red-purple']) {
     await page.evaluate((s) => localStorage.setItem('app-theme', s), scheme);
     await page.reload({ waitUntil: 'load' }); await sleep(1500);
     await dismiss();
@@ -155,6 +171,10 @@ try {
       if (c.body !== rgb(body)) diffs.push(`body: ${c.body} != ${body}`);
     }
     check(`${scheme}: the preview's headings, code text, inline code, link, table header, borders and body keep their built-in values`, diffs.length === 0, diffs.join(' | ') || JSON.stringify(c));
+    const b = await probeBadge();
+    const railStops = await page.evaluate(() => { const nav = document.querySelector('nav.w-16'); const cs = getComputedStyle(nav); return [cs.backgroundImage, cs.backgroundColor]; });
+    check(`${scheme}: the unread dot is the scheme's own (${badgeExpected[scheme][0]}, from its accent / arch tint through railBadge), painted ${badgeExpected[scheme][1]}, not the old purple`, !!b && b.token.toLowerCase() === badgeExpected[scheme][0] && b.color === badgeExpected[scheme][1] && b.color !== 'rgb(168, 85, 247)', JSON.stringify([b, railStops]));
+    if (scheme !== 'dark-neutral') await page.locator('nav.w-16').screenshot({ path: path.join(OUT, `${scheme}-rail-badge.png`) });
   }
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   console.log(`  screenshots: ${OUT}/`);

@@ -15,7 +15,7 @@
  * visible text.
  */
 import { Decoration, ViewPlugin } from '@codemirror/view';
-import { syntaxTree } from '@codemirror/language';
+import { treeChanged, treeFor } from './markdownLanguage';
 
 /** The Lezer Markdown node names whose text is never prose. */
 export const SKIP_NODES = new Set([
@@ -32,9 +32,9 @@ const noSpell = Decoration.mark({ attributes: { spellcheck: 'false' }, class: 'c
  * The [from, to) ranges to skip between `from` and `to` of `state`
  * (sorted, non-overlapping). Exported for the tests.
  */
-export function skipRanges(state, from, to) {
+export function skipRanges(state, from, to, tree = treeFor(state, to)) {
   const ranges = [];
-  syntaxTree(state).iterate({
+  tree.iterate({
     from,
     to,
     enter: (node) => {
@@ -69,6 +69,6 @@ function build(view) {
 export const spellcheckSkip = ViewPlugin.fromClass(class {
   constructor(view) { this.decorations = build(view); }
   update(update) {
-    if (update.docChanged || update.viewportChanged) this.decorations = build(update.view);
+    if (update.docChanged || update.viewportChanged || treeChanged(update)) this.decorations = build(update.view);
   }
 }, { decorations: (plugin) => plugin.decorations });

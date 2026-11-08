@@ -1038,6 +1038,49 @@
     });
     return registry.length;
   }
+  // ---- the time axis's ticks: spread over the whole range, on round wall-clock instants ----
+  // The bucket times are the log's own wall clock ("YYYY-MM-DDTHH:MM:SS", no zone), read as UTC so the browser's
+  // zone (and its DST changes) never moves a tick. The spacing adapts to the time on the axis (seconds, minutes,
+  // hours, 6 h, a day, days, a week); a tick is placed at the instant itself, inside its bucket. Labels: the date
+  // at midnight ("Nov 7"), the time otherwise ("06:00"); the first tick and the first tick after a skipped gap
+  // carry date and time ("Nov 7 14:30"), so every label reads unambiguously however many days the axis spans.
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var TICK_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400, 172800, 604800, 1209600, 2419200];
+  function wallMs(t) { var ms = Date.parse(String(t || '').slice(0, 19) + 'Z'); return isNaN(ms) ? null : ms; }
+  function tickLabel(ms, interval, withDate) {
+    var d = new Date(ms), p2 = function (n) { return String(n).padStart(2, '0'); };
+    var date = MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate();
+    var time = p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + (interval < 60 || d.getUTCSeconds() ? ':' + p2(d.getUTCSeconds()) : '');
+    var midnight = ms % 86400000 === 0;
+    if (midnight && (interval >= 3600 || !withDate)) return date;
+    if (withDate) return date + ' ' + time;
+    return interval >= 86400 ? date : time;
+  }
+  // windows: [{ x0, firstMs, lastMs }] (x in seconds along the axis, gaps excluded); step: the bucket seconds
+  function timeTicks(windows, step, plotWidth) {
+    var active = windows.reduce(function (n, w) { return n + (w.lastMs - w.firstMs) / 1000 + step; }, 0);
+    var maxTicks = Math.max(3, Math.min(12, Math.floor((plotWidth || 600) / 90)));
+    var interval = TICK_STEPS.filter(function (s) { return s >= Math.min(step, 86400); }).find(function (s) { return active / s <= maxTicks; }) || TICK_STEPS[TICK_STEPS.length - 1];
+    var minGap = active / maxTicks / 2;   // an aligned tick this close to a window's opening tick is dropped
+    var ticks = [];
+    windows.forEach(function (w) {
+      var I = interval * 1000;
+      // weeks start on a Monday (1970-01-01 was a Thursday)
+      var offset = interval >= 604800 ? 4 * 86400000 : 0;
+      var first = Math.ceil((w.firstMs + offset) / I) * I - offset;
+      var opening = { value: w.x0, ms: w.firstMs, opening: true };
+      ticks.push(opening);
+      for (var ms = first; ms <= w.lastMs + step * 1000 - 1; ms += I) {
+        var x = w.x0 + (ms - w.firstMs) / 1000;
+        if (ms === w.firstMs || x - w.x0 < minGap) continue;
+        ticks.push({ value: x, ms: ms });
+      }
+    });
+    // ...and one just before the next window's opening tick (across a gap) too
+    ticks = ticks.filter(function (t, i) { var next = ticks[i + 1]; return t.opening || !next || !next.opening || next.value - t.value >= minGap; });
+    ticks.forEach(function (t, i) { t.label = tickLabel(t.ms, interval, t.opening || i === 0); });
+    return { interval: interval, ticks: ticks.map(function (t) { return { value: t.value, label: t.label, ms: t.ms }; }) };
+  }
   // ---- the broken time axis (from the Audit page): buckets with gap items between capture windows ----
   function axis(buckets, step) {
     var a = { buckets: buckets, step: step, points: [], gaps: [], G: step * 4, min: 0, max: 0, ticks: [], labels: new Map(), windows: [] };
@@ -1051,16 +1094,24 @@
         if (b.gap) { a.gaps.push({ x0: x, x1: x + a.G, mid: x + a.G / 2, label: b.label, from: b.from, to: b.to, minutes: b.minutes, index: i }); x += a.G; win = null; return; }
         if (!win) { win = { x0: x, x1: x, first: b.t, last: b.t, buckets: 0 }; a.windows.push(win); }
         a.points.push({ x: x + step / 2, start: x, t: b.t, label: b.label, index: i, bucket: b });
-        a.labels.set(x, b.label);
         win.x1 = x + step; win.last = b.t; win.buckets += 1;
         x += step;
       });
       a.min = 0; a.max = x || step;
       a.plotWidth = plotWidth;
-      var maxTicks = Math.max(3, Math.min(12, Math.floor(plotWidth / 75)));
-      var k = Math.max(1, Math.ceil(a.points.length / maxTicks));
-      var n = 0;
-      a.points.forEach(function (p) { var s = p.bucket.start; if (s) n = 0; if (s || n % k === 0) a.ticks.push({ value: p.start, label: p.label }); n += 1; });
+      // the ticks over the whole range (not every k-th bucket's own label, which carried the time of day only)
+      var wins = [];
+      a.points.forEach(function (p) {
+        var ms = wallMs(p.t);
+        if (ms === null) return;
+        var w = wins[wins.length - 1];
+        if (!w || p.bucket.start || p.start !== w.x1) { w = { x0: p.start, x1: p.start, firstMs: ms, lastMs: ms }; wins.push(w); }
+        w.lastMs = ms; w.x1 = p.start + step;
+      });
+      var tt = timeTicks(wins, step, plotWidth);
+      a.tickInterval = tt.interval;
+      a.ticks = tt.ticks;
+      a.ticks.forEach(function (t) { a.labels.set(t.value, t.label); });
       return a;
     };
     a.layout(600);
@@ -1237,7 +1288,7 @@
     if (chart) { chart.$diagRows = rows; chart.$diagCapacity = capOf; if (opts.valueLabels) { chart.$diag.valueLabels = true; chart.options.plugins.diagValueLabels = { on: true }; chart.update('none'); } }
     return chart;
   }
-  window.diagChart = { barSizing: barSizing, make: make, timeSeries: timeSeries, categoryBars: categoryBars, retheme: retheme, axis: axis, palette: palette, roleColor: roleColor, fmt: fmt, norm: norm, rgba: rgba, token: token, theme: themeColor, accent: accent, text: text, muted: muted, grid: grid, BREAK_PX: BREAK_PX, charts: function () { return registry.slice(); }, truncate: truncate, CHART_MIN: CHART_MIN, CHART_MAX: CHART_MAX, ROW_PX: ROW_PX };
+  window.diagChart = { barSizing: barSizing, make: make, timeSeries: timeSeries, timeTicks: timeTicks, categoryBars: categoryBars, retheme: retheme, axis: axis, palette: palette, roleColor: roleColor, fmt: fmt, norm: norm, rgba: rgba, token: token, theme: themeColor, accent: accent, text: text, muted: muted, grid: grid, BREAK_PX: BREAK_PX, charts: function () { return registry.slice(); }, truncate: truncate, CHART_MIN: CHART_MIN, CHART_MAX: CHART_MAX, ROW_PX: ROW_PX };
 })();
 
 /*

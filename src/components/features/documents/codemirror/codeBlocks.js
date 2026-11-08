@@ -10,12 +10,13 @@
  * (markdownLanguage.js: FencedCode with its CodeMark / CodeInfo / CodeText
  * children, CodeBlock for indented code, InlineCode with its CodeMark
  * backticks), for the visible part of the document only, rebuilt when the
- * document or the viewport changes - like spellcheckSkip.js, so a huge
- * document costs no more than a short one. No syntax colours: plain
+ * document, the viewport or the tree changes (the parse landing for lines
+ * already on screen; markdownLanguage.js treeChanged / treeFor) - like
+ * spellcheckSkip.js, so a huge document costs no more than a short one. No syntax colours: plain
  * Markdown text stays plain text, as before.
  */
 import { Decoration, ViewPlugin } from '@codemirror/view';
-import { syntaxTree } from '@codemirror/language';
+import { treeChanged, treeFor } from './markdownLanguage';
 
 const blockLine = Decoration.line({ class: 'cm-code-block' });
 const firstLine = Decoration.line({ class: 'cm-code-block cm-code-block-first' });
@@ -31,10 +32,10 @@ const inlineTick = Decoration.mark({ class: 'cm-inline-code-mark' });
  * (first / last marked for the edges), the fence and info marks, the inline
  * code marks. Exported for the tests.
  */
-export function codeBlockDecorations(state, from, to) {
+export function codeBlockDecorations(state, from, to, tree = treeFor(state, to)) {
   const ranges = [];
   const doc = state.doc;
-  syntaxTree(state).iterate({
+  tree.iterate({
     from,
     to,
     enter: (node) => {
@@ -85,6 +86,6 @@ function build(view) {
 export const codeBlocks = ViewPlugin.fromClass(class {
   constructor(view) { this.decorations = build(view); }
   update(update) {
-    if (update.docChanged || update.viewportChanged) this.decorations = build(update.view);
+    if (update.docChanged || update.viewportChanged || treeChanged(update)) this.decorations = build(update.view);
   }
 }, { decorations: (plugin) => plugin.decorations });

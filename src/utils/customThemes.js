@@ -368,7 +368,7 @@ export function deriveTokens(theme) {
     '--os-status-success': c.success, '--os-code-bg': c.codeBg,
     '--os-rail': rail, '--os-rail-fill': railCss,
     '--os-rail-border': mix(rail, c.railText, 0.15), '--os-rail-hover': mix(rail, c.railText, 0.12), '--os-rail-active': c.accent,
-    '--os-rail-text': c.railText, '--os-rail-text-active': accentFg, '--os-rail-tooltip': railDark ? darken(rail, 0.2) : darken(rail, 0.6), '--os-rail-separator': mix(rail, c.railText, 0.25),
+    '--os-rail-text': c.railText, '--os-rail-text-active': accentFg, '--rail-badge': railBadge(c.accent, t.fills.rail), '--os-rail-tooltip': railDark ? darken(rail, 0.2) : darken(rail, 0.6), '--os-rail-separator': mix(rail, c.railText, 0.25),
     '--os-terminal-bg': c.codeBg, '--os-terminal-text': c.textPrimary, '--os-terminal-muted': c.textMuted, '--os-terminal-border': c.border,
     '--os-terminal-success': c.success, '--os-terminal-warning': c.warning, '--os-terminal-error': c.danger, '--os-terminal-selection': rgba(c.accent, dark ? 0.35 : 0.22),
     '--chart-ok': c.accent, '--chart-info': c.accent, '--chart-good': c.success, '--chart-warn': c.warning, '--chart-bad': c.danger, '--chart-muted': c.textMuted,
@@ -400,6 +400,19 @@ export function deriveTokens(theme) {
     '--decor-blade-edge': t.logoTone === 'light' ? '#4f7be8' : 'none',
   };
   return out;
+}
+
+/**
+ * The unread dot on the rail (--rail-badge): the accent, nudged towards white (a dark rail) or black until it
+ * reaches 3:1 against every stop of the rail fill - as the rail's icons must (WCAG 1.4.11).
+ */
+export function railBadge(accent, railFill) {
+  const stops = fillColors(railFill);
+  if (!stops.length) return normalizeColor(accent) || accent;
+  const dark = stops.every((stop) => isDarkColor(stop));
+  let c = normalizeColor(accent) || '#a855f7';
+  for (let i = 0; i < 20 && stops.some((stop) => contrastRatio(c, stop) < 3); i++) c = mix(c, dark ? '#ffffff' : '#000000', 0.08);
+  return c;
 }
 
 /** The code text: the text colour, nudged towards white or black until it reads (4.5:1) on the code background. */
