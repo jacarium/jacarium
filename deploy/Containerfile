@@ -61,7 +61,7 @@ LABEL com.jacarium.image=deploy com.jacarium.stage=ui
 # same ubi9-minimal the runtime stage uses, with the toolchain from the UBI
 # repos (tar for the tarball: minimal does not carry it).
 # ---------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9-minimal:9.8-1792742033@sha256:2d4c4551af6831dcd26bbf86108c4385de5183ec8fe6b5868f6f9640fe47f4ed AS taskwarrior
+FROM registry.access.redhat.com/ubi9-minimal:9.8-1793578971@sha256:dfa0eb04abc59221544e74862432496add1f491f915c9b531880f91affc0e12c AS taskwarrior
 RUN microdnf -y --setopt=install_weak_deps=0 --nodocs install tar gzip gcc-c++ cmake make libuuid-devel \
  && microdnf clean all
 WORKDIR /build
@@ -128,8 +128,9 @@ RUN printf '%s\n' 'package main' '' 'import (' '	caddycmd "github.com/caddyserve
  && /usr/bin/caddy build-info | grep -qE "^dep\s+github.com/klauspost/compress\s+${KCOMPRESS_VERSION}\s"
 
 # ---------------------------------------------------------------------------
-# Runtime - ubi9-minimal 9.8-1792742033 (2026-10-23, RHEL 9.8, with the
-# ca-certificates 2026.2.92 fix for CVE-2026-114406): 112 MB and 109 RPMs,
+# Runtime - ubi9-minimal 9.8-1793578971 (2026-11-02, RHEL 9.8; it carries the
+# ca-certificates 2026.2.92 fix for CVE-2026-114406, xz-libs 5.2.5-8.el9_8.1,
+# curl 7.76.1-40.el9_8.9 and krb5-libs 1.21.1-10.el9_8.1): 112 MB and 109 RPMs,
 # without the system Python 3.9, dnf, python3-urllib3, brotli and the s2i
 # tooling that ubi9/python-314 carried and nothing in the image ran - the
 # packages the scanners kept reporting. Red Hat's Python 3.14 (python3.14:
@@ -139,14 +140,14 @@ RUN printf '%s\n' 'package main' '' 'import (' '	caddycmd "github.com/caddyserve
 # sshpass is in ubi-9-appstream-rpms, so no EPEL. OS fixes land with a
 # base-image bump (no blanket update in the build: the image stays
 # reproducible from the pinned digest); the one package raised past the base
-# is xz-libs (5.2.5-8.el9_8.1 for CVE-2026-34743, which the sos report
-# parser reaches through Python's lzma module - the user's exception,
-# docs/security/urgent-updates.md); curl-minimal / libcurl-minimal and glibc (2.34-284.el9_8.4, RHSA-2026:95618:
-# CVE-2026-8674, CVE-2026-86805, CVE-2026-89092, CVE-2026-95818) are raised the same way through the security
-# lane. The base build is seven days old from
-# 2026-10-30, the earliest day a release carries it.
+# is glibc (2.34-284.el9_8.4, RHSA-2026:95618: CVE-2026-8674, CVE-2026-86805,
+# CVE-2026-89092, CVE-2026-95818), through the security lane
+# (docs/security/urgent-updates.md) - this base still carries 2.34-283.el9_8.
+# The xz-libs and curl-minimal / libcurl-minimal lines of the earlier bases
+# are gone: this build carries those fixes itself. The base build is seven
+# days old from 2026-11-09, the earliest day a release carries it.
 # ---------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9-minimal:9.8-1792742033@sha256:2d4c4551af6831dcd26bbf86108c4385de5183ec8fe6b5868f6f9640fe47f4ed
+FROM registry.access.redhat.com/ubi9-minimal:9.8-1793578971@sha256:dfa0eb04abc59221544e74862432496add1f491f915c9b531880f91affc0e12c
 LABEL org.opencontainers.image.title="Jacarium" \
       org.opencontainers.image.description="Jacarium UI + backend behind Caddy (HTTPS)" \
       org.opencontainers.image.url="https://jacarium.com"
@@ -166,8 +167,8 @@ LABEL org.opencontainers.image.title="Jacarium" \
 # libatomic: the nodejs.org Node 26 binary copied below links it
 # (libatomic.so.1; the 24 binary did not), and minimal does not carry it.
 RUN microdnf -y --setopt=install_weak_deps=0 --nodocs install python3.14 python3.14-pip-wheel openssh-clients sshpass openssl libatomic \
- && microdnf -y --setopt=install_weak_deps=0 --nodocs upgrade xz-libs curl-minimal libcurl-minimal glibc glibc-common glibc-minimal-langpack \
- && rpm -q xz-libs-5.2.5-8.el9_8.1 curl-minimal-7.76.1-40.el9_8.9 libcurl-minimal-7.76.1-40.el9_8.9 glibc-2.34-284.el9_8.4 glibc-common-2.34-284.el9_8.4 glibc-minimal-langpack-2.34-284.el9_8.4 \
+ && microdnf -y --setopt=install_weak_deps=0 --nodocs upgrade glibc glibc-common glibc-minimal-langpack \
+ && rpm -q glibc-2.34-284.el9_8.4 glibc-common-2.34-284.el9_8.4 glibc-minimal-langpack-2.34-284.el9_8.4 \
  && test "$(rpm -q python3 python3-libs python3-urllib3 python3-pip libbrotli brotli brotli-devel dnf nodejs npm 2>&1 | grep -vc 'is not installed')" = 0 \
  && ! command -v sqlite3 >/dev/null 2>&1 && ! rpm -q sqlite >/dev/null 2>&1 \
  && microdnf clean all \

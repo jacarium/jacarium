@@ -1,5 +1,23 @@
 [
   {
+    "version": "4.3.1",
+    "date": "2026-11-09",
+    "features": [
+      {
+        "category": "SECURITY",
+        "description": [
+          "Container image: the Red Hat UBI 9 minimal base moves to 9.8-1793578971 (2026-11-02), which ships the xz-libs and curl fixes itself and a newer krb5-libs; the glibc fix (RHSA-2026:95618) is still applied on top"
+        ]
+      },
+      {
+        "category": "DEPLOY",
+        "description": [
+          "Container build: the extra xz-libs and curl upgrades are gone now that the base carries them, so the image builds from fewer changes to the base"
+        ]
+      }
+    ]
+  },
+  {
     "version": "4.3.0",
     "date": "2026-11-08",
     "features": [

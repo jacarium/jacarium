@@ -4,6 +4,18 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.3.1
+
+_2026-11-09_
+
+### [SECURITY]
+
+Container image: the Red Hat UBI 9 minimal base moves to 9.8-1793578971 (2026-11-02), which ships the xz-libs and curl fixes itself and a newer krb5-libs; the glibc fix (RHSA-2026:95618) is still applied on top
+
+### [DEPLOY]
+
+Container build: the extra xz-libs and curl upgrades are gone now that the base carries them, so the image builds from fewer changes to the base
+
 ## What's New in v4.3.0
 
 _2026-11-08_
@@ -43,6 +55,7 @@ About > View all licences lists Python, the Python packages each build ships and
 Removed unused code (the old OpenShiftMasthead and OpenShiftSidebar components)
 
 Release script: no crash after writing the VEX document
+
 
 ## What's New in v4.2.0
 

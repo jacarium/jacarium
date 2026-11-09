@@ -182,9 +182,12 @@ try:
           and all(any(a.startswith('CVE-') for a in d.get('aliases') or []) for d in xnet) and all('0.62.0' in (d.get('notes') or d.get('action') or '') for d in xnet), xnet)
     check('deploy/Containerfile builds Caddy with x/net 0.62.0 and checks it in caddy build-info', 'ARG XNET_VERSION=v0.62.0' in containerfile and 'dep\\s+golang.org/x/net\\s+${XNET_VERSION}' in containerfile)
     check('deploy/Containerfile builds Caddy with go-jose v4.1.6 and checks it in caddy build-info', 'ARG GOJOSE_VERSION=v4.1.6' in containerfile and 'go get "github.com/go-jose/go-jose/v4@${GOJOSE_VERSION}"' in containerfile and 'dep\\s+github.com/go-jose/go-jose/v4\\s+${GOJOSE_VERSION}' in containerfile)
-    check('deploy/Containerfile runs on ubi9-minimal pinned by digest, installs xz-libs 5.2.5-8.el9_8.1 and checks that python3 3.9, python3-urllib3, brotli and dnf are absent',
+    # xz-libs 5.2.5-8.el9_8.1: raised by the microdnf layer up to 4.3.0; from 4.3.1 the pinned base carries it
+    # itself (its comment names it) and the Grype gate would flag CVE-2026-34743 if a base ever brought it back
+    xz_fixed = ('upgrade xz-libs' in containerfile and 'rpm -q xz-libs-5.2.5-8.el9_8.1' in containerfile) or re.search(r'^# Runtime - ubi9-minimal [^\n]*\n(?:#[^\n]*\n)*?#[^\n]*xz-libs 5\.2\.5-8\.el9_8\.1', containerfile, re.M) is not None
+    check('deploy/Containerfile runs on ubi9-minimal pinned by digest, has xz-libs 5.2.5-8.el9_8.1 (raised, or carried by the base) and checks that python3 3.9, python3-urllib3, brotli and dnf are absent',
           re.search(r'^FROM registry\.access\.redhat\.com/ubi9-minimal:9\.8-\d+@sha256:[0-9a-f]{64}\n', containerfile, re.M) is not None and 'ubi9/python-314:' not in containerfile
-          and 'upgrade xz-libs' in containerfile and 'rpm -q xz-libs-5.2.5-8.el9_8.1' in containerfile and 'rpm -q python3 python3-libs python3-urllib3 python3-pip libbrotli brotli brotli-devel dnf nodejs npm' in containerfile)
+          and xz_fixed and 'rpm -q python3 python3-libs python3-urllib3 python3-pip libbrotli brotli brotli-devel dnf nodejs npm' in containerfile)
 finally:
     shutil.rmtree(WORK, ignore_errors=True)
 

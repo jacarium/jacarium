@@ -608,3 +608,19 @@ line and checks the exact versions with `rpm -q`; tests/container_reproducible.t
 packages raised past the pinned base. The ubi9-minimal base bump due from 2026-11-09 will carry these and lets the
 upgrade line go.
 
+
+## 2026-11-09 - base image ubi9-minimal 9.8-1793578971: xz-libs and curl leave the upgrade line
+
+The ordinary base bump (no exception: the build is from 2026-11-02 00:22 UTC, seven days old on 2026-11-09;
+the 2026-11-05 and 2026-11-09 builds stay inside the rule). deploy/Containerfile's two ubi9-minimal stages
+move from 9.8-1792742033 to 9.8-1793578971, pinned by the manifest-list digest
+sha256:dfa0eb04abc59221544e74862432496add1f491f915c9b531880f91affc0e12c (the Docker-Content-Digest the
+registry answers for the tag with the manifest-list media type; podman's RepoDigests agree; the list carries
+amd64, arm64/v8, s390x and ppc64le). Against the previous base its 109 RPMs differ in three packages:
+xz-libs 5.2.5-8.el9_0 -> 5.2.5-8.el9_8.1 (CVE-2026-34743, the lane item of 2026-10-29), curl-minimal /
+libcurl-minimal 7.76.1-40.el9_8.8 -> 7.76.1-40.el9_8.9 (the lane item of 2026-10-30) and krb5-libs
+1.21.1-10.el9_8 -> 1.21.1-10.el9_8.1. So `microdnf ... upgrade` and the `rpm -q` asserts drop xz-libs,
+curl-minimal and libcurl-minimal - the base carries exactly the versions the asserts named - and keep glibc,
+glibc-common and glibc-minimal-langpack: this base still has glibc 2.34-283.el9_8, the lane's 2.34-284.el9_8.4
+(RHSA-2026:95618, 2026-11-08 above) is newer than it. tests/container_reproducible.test.py's allow-list of the
+packages raised past the base is the three glibc packages now.
