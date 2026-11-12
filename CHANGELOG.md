@@ -4,6 +4,18 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.4.1
+
+_2026-11-12_
+
+### [SECURITY]
+
+Container image: glibc 2.34-290.el9_9 (RHSA-2026:98512), which carries the fixes of RHSA-2026:95618 - the UBI repositories moved to RHEL 9.9 and no longer serve the 2.34-284 build 4.4.0 was vetted with
+
+### [DEPLOY]
+
+Container build: the one package raised past the base image is now pinned to its exact build, so a repository change can no longer break the image build (it failed for 4.4.0) or pull in an unvetted newer package; 4.4.1 replaces the 4.4.0 image, which was never published
+
 ## What's New in v4.4.0
 
 _2026-11-12_
@@ -39,6 +51,7 @@ Electron 45.2.3, with the upstream Chromium, V8 and media library security backp
 README: a new Accessibility section with screenshots, regenerated from demo data with npm run screenshots:accessibility
 
 Under the hood: the colours of the whole app now come from the theme roles (no hard-coded colour left), font sizes scale from the root size, and the tests check both
+
 
 ## What's New in v4.3.1
 

@@ -1,5 +1,23 @@
 [
   {
+    "version": "4.4.1",
+    "date": "2026-11-12",
+    "features": [
+      {
+        "category": "SECURITY",
+        "description": [
+          "Container image: glibc 2.34-290.el9_9 (RHSA-2026:98512), which carries the fixes of RHSA-2026:95618 - the UBI repositories moved to RHEL 9.9 and no longer serve the 2.34-284 build 4.4.0 was vetted with"
+        ]
+      },
+      {
+        "category": "DEPLOY",
+        "description": [
+          "Container build: the one package raised past the base image is now pinned to its exact build, so a repository change can no longer break the image build (it failed for 4.4.0) or pull in an unvetted newer package; 4.4.1 replaces the 4.4.0 image, which was never published"
+        ]
+      }
+    ]
+  },
+  {
     "version": "4.4.0",
     "date": "2026-11-12",
     "features": [

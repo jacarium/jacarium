@@ -637,3 +637,49 @@ Publisher electron-nightly (as 45.2.2), a registry signature, no provenance (Ele
 own entry and the root pin alone. The spell-check dictionaries follow (`--repin` at the default seven days,
 the asset 7.2 days old; docs/security/spellcheck-dictionaries.md): a new zip digest (`f4692e1b…`), every file
 inside byte for byte the 45.2.2 pin's. **Not 45.3.0**: inside its seven days.
+
+## 2026-11-12 - the 4.4.0 image build failed on glibc: the lane's upgrade pinned to its exact build (GLIBC_EVR), 2.34-290.el9_9 (RHSA-2026:98512) under the lane's floor
+
+**What broke.** The release workflow's image build failed for amd64 and arm64: the UBI repositories moved
+from RHEL 9.8 to 9.9 on 2026-11-11 and serve glibc-2.34-290.el9_9 alone - 2.34-284.el9_8.4, the build the
+lane verified on 2026-11-08, is no longer served on either architecture (checked in throwaway containers from
+the pinned base: "No package matches 'glibc-2.34-284.el9_8.4'" on both; the base still carries 283.el9_8).
+`microdnf ... upgrade glibc glibc-common glibc-minimal-langpack` took 290, `rpm -q glibc-2.34-284.el9_8.4 ...`
+failed ("not installed"), exit 3. The gate build of the same morning still got 284 - the repositories changed
+between the two.
+
+**The fix (deploy/Containerfile).** The one package raised past the base is upgraded by its exact
+version-release: `ARG GLIBC_EVR`, used by the upgrade (`microdnf upgrade "glibc-${GLIBC_EVR}" ...`) and by the
+`rpm -q` assert, so the image carries the vetted build whatever the repositories' newest is, and when the
+repositories stop serving it the build fails in one place with the name of the missing build - never silently
+with a newer, unvetted one. The packages installed by name (python3.14, python3.14-pip-wheel, openssh-clients,
+sshpass, openssl, libatomic; the taskwarrior stage's build tools) keep floating with the base's repositories:
+they are what the base ships, no lane decision stands behind a particular build, and a repository move must
+not break the build; tests/container_reproducible.test.py checks the pinned form (the ARG, the upgrade and the
+assert naming the same build).
+
+**The pin: glibc 2.34-290.el9_9** (`scripts/verify-rpm-update.sh --cve CVE-2026-8674 --cve CVE-2026-86805
+glibc-2.34-290.el9_9 glibc-common-2.34-290.el9_9 glibc-minimal-langpack-2.34-290.el9_9`). RHSA-2026:98512,
+"glibc security, bug fix, and enhancement update", Moderate, released 2026-11-11 12:27 UTC, CVE-2026-86805,
+CVE-2026-89092, CVE-2026-95818; all three packages among its fixed packages for x86_64 and aarch64; the RPMs
+signed with Red Hat's release key 2 (199e2f91fd431d51), vendor Red Hat, built 2026-10-23 from
+glibc-2.34-290.el9_9.src.rpm. Its changelog carries the 2.34-284 entry as well ("CVE-2026-8674: Denial of
+Service via long DNS search domain"), so 290 holds every fix of RHSA-2026:95618 (the reason for 284.el9_8.4)
+plus the 9.9 rebase. **Two red flags:** the advisory was 0.5 days old (the lane's floor is 2 days - under that
+only on the maintainer's explicit decision, which the branch records here and leaves to the release), and Red
+Hat's CVE-2026-8674 record names RHSA-2026:95618 (284.el9_8.4) as the RHEL 9 fix, not 98512 (the changelog
+shows the fix is in 290 all the same). The alternatives: the base's 283.el9_8 (drop the upgrade - a step back
+from 4.3.1's published image, which carries 284, and the four CVEs are Moderate, so the gate would still pass)
+or waiting for 2026-11-13 12:27 UTC, when 98512 turns 2 days old. GLIBC_EVR is the one line to change.
+
+**Decision (maintainer, 2026-11-12):** take 2.34-290.el9_9 now, under the lane's floor, as an explicit
+exception, and release it as 4.4.1: the vetted 284 build can no longer be installed, 290 is signed by Red Hat
+and carries every 284 fix, and the alternatives were a step back (283) or a day without a published 4.4 image.
+
+**Verified:** `podman build --no-cache` for linux/arm64 and linux/amd64 as localhost/jacarium:4.4.1-<arch>:
+both build, the `rpm -q` asserts pass, glibc / glibc-common / glibc-minimal-langpack are 2.34-290.el9_9 in
+both. grype (database 2026-11-11T06:21Z, the newest offered; the 4.4.0 VEX; `--ignore-states
+not-fixed,wont-fix --fail-on high`) on both saved images: "No vulnerabilities found", exit 0.
+
+**Noted, not taken:** a UBI 9.9 base exists (ubi9-minimal:9.9-1793829856, created 2026-11-11 05:17 UTC) -
+one day old, inside the seven-day rule; the util-linux lane (opens 2026-11-13 05:59 AEST) stays out of 4.4.1.
