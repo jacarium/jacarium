@@ -30,11 +30,11 @@ const LABELS = {
   'data-delete-refused': 'Data deletion refused',
 };
 const TONE = {
-  'sign-in-failed': 'text-amber-700 dark:text-amber-300',
-  'data-deleted': 'text-red-700 dark:text-red-300',
-  'data-delete-refused': 'text-amber-700 dark:text-amber-300',
-  'user-deleted': 'text-red-700 dark:text-red-300',
-  'password-recovered': 'text-amber-700 dark:text-amber-300',
+  'sign-in-failed': 'text-(--status-warning-fg)',
+  'data-deleted': 'text-(--status-danger-fg)',
+  'data-delete-refused': 'text-(--status-warning-fg)',
+  'user-deleted': 'text-(--status-danger-fg)',
+  'password-recovered': 'text-(--status-warning-fg)',
 };
 
 function describe(entry) {

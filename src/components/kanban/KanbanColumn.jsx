@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { paint } from '../../utils/dataColour';
 import { Plus, GripVertical, Trash2 } from 'lucide-react';
 import KanbanCard from './KanbanCard';
 import InlineEdit from '../common/inputs/InlineEdit';
@@ -101,7 +102,7 @@ export default function KanbanColumn({
           <div className="relative">
             <div
               className={`w-3 h-3 rounded-full shrink-0 ${!isReadOnly ?'cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-os-text-muted':''}`}
-              style={{ backgroundColor: column.color }}
+              style={paint(column.color, 'backgroundColor')}
               onClick={(e) => {
                 if (isReadOnly) return;
                 e.stopPropagation();
@@ -120,7 +121,7 @@ export default function KanbanColumn({
                     <button
                       key={color}
                       className="w-6 h-6 rounded-full hover:ring-2 hover:ring-offset-1 hover:ring-os-text-muted transition-all"
-                      style={{ backgroundColor: color }}
+                      style={paint(color, 'backgroundColor')}
                       onClick={() => {
                         onUpdateColumnColor?.(column.id, color);
                         setShowColorPicker(false);
@@ -177,7 +178,7 @@ export default function KanbanColumn({
                   }}
                   className="p-1 hover:bg-os-card-secondary rounded-sm transition-colors opacity-0 group-hover:opacity-100"
                 >
-                  <Trash2 size={14} className="text-red-600" />
+                  <Trash2 size={14} className="text-(--chart-bad)" />
                 </button>
                 {showDeleteConfirm && (
                   <>
@@ -189,7 +190,7 @@ export default function KanbanColumn({
                       <p className="text-sm text-os-text-primary mb-3">
                         Delete column "{column.title}"?
                         {cards.length > 0 && (
-                          <span className="block text-xs text-red-600 mt-1">
+                          <span className="block text-xs text-(--chart-bad) mt-1">
                             This will delete {cards.length} card{cards.length !== 1 ? 's' : ''}.
                           </span>
                         )}
@@ -223,7 +224,7 @@ export default function KanbanColumn({
       {/* Cards Container */}
       <div
         className={`flex-1 overflow-y-auto p-3 space-y-2 min-h-[200px] transition-colors ${
- isDraggedOver ?'bg-blue-50 border-2 border-blue-300 border-dashed':''
+ isDraggedOver ?'bg-(--status-info-bg) border-2 border-(--status-info-border) border-dashed':''
  }`}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}

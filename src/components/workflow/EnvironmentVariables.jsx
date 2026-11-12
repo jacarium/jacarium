@@ -136,16 +136,16 @@ export default function EnvironmentVariables({ onClose }) {
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-4xl mx-auto">
           {/* Info Card */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6">
+          <div className="bg-(--status-info-bg) border border-(--status-info-border) dark:border-os-blue rounded-lg p-4 mb-6">
             <div className="flex items-start gap-3">
-              <Settings size={20} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+              <Settings size={20} className="text-(--chart-info) shrink-0 mt-0.5" />
               <div>
-                <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-1">
+                <h3 className="text-sm font-semibold text-(--status-info-fg) mb-1">
                   How to use environment variables
                 </h3>
-                <p className="text-sm text-blue-800 dark:text-blue-300">
-                  Use <code className="bg-blue-100 dark:bg-blue-800 px-1.5 py-0.5 rounded-sm font-mono text-xs">{'{{VARIABLE_NAME}}'}</code> in your workflow nodes.
-                  For example: <code className="bg-blue-100 dark:bg-blue-800 px-1.5 py-0.5 rounded-sm font-mono text-xs">{'{{BASE_URL}}/api/users'}</code>
+                <p className="text-sm text-(--status-info-fg)">
+                  Use <code className="bg-(--status-info-bg) px-1.5 py-0.5 rounded-sm font-mono text-xs">{'{{VARIABLE_NAME}}'}</code> in your workflow nodes.
+                  For example: <code className="bg-(--status-info-bg) px-1.5 py-0.5 rounded-sm font-mono text-xs">{'{{BASE_URL}}/api/users'}</code>
                 </p>
               </div>
             </div>

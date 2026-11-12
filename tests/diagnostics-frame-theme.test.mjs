@@ -75,7 +75,17 @@ try {
   await app.send('Network.setExtraHTTPHeaders', { headers: { 'X-App-Token': backend.token } });
   await dismissWhatsNew(app);
   const ev = (s) => app.evaluate(s);
-  const clickNav = (label) => ev(`(() => { const b = Array.from(document.querySelectorAll('button')).find((el) => el.textContent.trim() === ${JSON.stringify(label)}); if (!b) return false; b.click(); return true; })()`);
+  const clickNav = async (label) => {
+    const direct = await ev(`(() => { const b = Array.from(document.querySelectorAll('button')).find((el) => el.textContent.trim() === ${JSON.stringify(label)}); if (!b) return false; b.click(); return true; })()`);
+    if (direct) { await sleep(1500); return true; }
+    // a page the rail could not fit sits in its "..." menu
+    const opened = await ev(`(() => { const more = document.querySelector('[data-testid="rail-more"]'); if (!more) return false; more.click(); return true; })()`);
+    if (!opened) return false;
+    await sleep(300);
+    const viaMenu = await ev(`(() => { const b = Array.from(document.querySelectorAll('[data-testid="rail-more-menu"] button')).find((el) => el.textContent.trim() === ${JSON.stringify(label)}); if (!b) return false; b.click(); return true; })()`);
+    await sleep(1500);
+    return viaMenu;
+  };
   await ev(`localStorage.setItem('diagnosticsReportsDirectory', ${JSON.stringify(FIXTURE_ROOT)})`);
   await clickNav('Tools'); await sleep(500);
   await clickNav('Diagnostics');

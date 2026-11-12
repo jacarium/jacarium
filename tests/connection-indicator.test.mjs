@@ -183,7 +183,7 @@ try {
   await act(async () => { icon().click(); });
   await flush(80);
   check('4. a click synchronises now: the transport was called, the state is online', transportCalls.length > 0 && state() === 'online' && /Connected to your home server/.test(title()) && /in sync/.test(title()), `${transportCalls.length} ${state()} ${title()}`);
-  check('4. online uses a green cloud', /text-green/.test(icon()?.className || ''));
+  check('4. online uses the success colour (the --chart-good role: green in the default themes, the palette\'s own under a colour-vision palette)', /chart-good|status-success/.test(icon()?.className || ''), icon()?.className);
 
   // ---- 5. the gate pauses synchronisation: update required ----
   gateVerdict = { ok: false, reason: 'Synchronisation paused: versions do not match' };

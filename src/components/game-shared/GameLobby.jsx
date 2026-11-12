@@ -87,7 +87,7 @@ export default function GameLobby({
                 onClick={handleSaveLobbyName}
                 className="p-1 hover:bg-os-card-secondary rounded-sm transition-colors"
               >
-                <Check size={18} className="text-green-600" />
+                <Check size={18} className="text-(--chart-good)" />
               </button>
             </>
           ) : (

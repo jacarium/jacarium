@@ -284,12 +284,12 @@ export default function AskAIPopup({
       >
         {/* Header */}
         <div
-          className="px-3 py-2 border-b border-os-border flex items-center justify-between bg-linear-to-r from-purple-50 to-purple-100 cursor-grab active:cursor-grabbing"
+          className="px-3 py-2 border-b border-os-border flex items-center justify-between bg-linear-to-r from-(--status-brand-bg) to-(--status-brand-border) cursor-grab active:cursor-grabbing"
           onMouseDown={handleDragStart}
         >
           <div className="flex items-center gap-2">
-            <Bot size={16} className="text-purple-600" />
-            <span className="text-sm font-semibold text-purple-900">Ask AI About This</span>
+            <Bot size={16} className="text-(--brand-accent)" />
+            <span className="text-sm font-semibold text-(--status-brand-fg)">Ask AI About This</span>
           </div>
           <div className="flex items-center gap-1">
             {response && !loading && (
@@ -303,7 +303,7 @@ export default function AskAIPopup({
                 className="btn btn-brand-ghost p-1"
                 title="Clear response"
               >
-                <Trash2 size={14} className="text-purple-700" />
+                <Trash2 size={14} className="text-(--status-brand-fg)" />
               </button>
             )}
             <button
@@ -311,7 +311,7 @@ export default function AskAIPopup({
               className="btn btn-brand-ghost p-1"
               title="Close"
             >
-              <X size={14} className="text-purple-700" />
+              <X size={14} className="text-(--status-brand-fg)" />
             </button>
           </div>
         </div>
@@ -338,7 +338,7 @@ export default function AskAIPopup({
               }}
               placeholder="e.g., Explain this, Fix this code, Summarize..."
               disabled={loading || backendStatus === 'offline'}
-              className="w-full px-2 py-1.5 text-sm border border-purple-300 rounded-sm bg-os-card focus:outline-hidden focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:bg-os-card-secondary disabled:text-os-text-secondary"
+              className="w-full px-2 py-1.5 text-sm border border-(--status-brand-border) rounded-sm bg-os-card focus:outline-hidden focus:border-(--os-blue) focus:ring-1 focus:ring-(--os-blue) disabled:bg-os-card-secondary disabled:text-os-text-secondary"
             />
           </div>
 
@@ -351,7 +351,7 @@ export default function AskAIPopup({
               value={editableSelectedText}
               onChange={(e) => setEditableSelectedText(e.target.value)}
               disabled={loading}
-              className="w-full h-full px-2 py-2 border border-os-border rounded-sm bg-os-card-secondary font-mono text-xs resize-none focus:outline-hidden focus:border-purple-500 disabled:opacity-75"
+              className="w-full h-full px-2 py-2 border border-os-border rounded-sm bg-os-card-secondary font-mono text-xs resize-none focus:outline-hidden focus:border-(--os-blue) disabled:opacity-75"
             />
           </div>
 
@@ -373,7 +373,7 @@ export default function AskAIPopup({
                 />
                 {loading && !response && (
                   <div className="absolute inset-0 flex items-center justify-center bg-os-card/75 rounded-sm">
-                    <RefreshCw size={20} className="text-purple-600 animate-spin" />
+                    <RefreshCw size={20} className="text-(--brand-accent) animate-spin" />
                   </div>
                 )}
               </div>
@@ -384,7 +384,7 @@ export default function AskAIPopup({
                 </p>
               )}
               {selectedResponse && !loading && (
-                <p className="text-xs text-purple-600 mt-1 shrink-0">
+                <p className="text-xs text-(--brand-accent) mt-1 shrink-0">
                   {selectedResponse.length} characters selected
                 </p>
               )}

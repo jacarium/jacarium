@@ -53,14 +53,19 @@ export function useLocalStorage(key, initialValue, writeDebounceMs = 0) {
     };
   }, [writeDebounceMs, flushPendingWrite]);
 
-  // Return a wrapped version of useState's setter function that persists to localStorage
-  const setValue = useCallback((value) => {
+  // Return a wrapped version of useState's setter function that persists to localStorage.
+  // `options.persist` false: the state changes, the stored value does not (a temporary view - zen mode's overlays -
+  // that the real layout must not remember; the caller restores the real value afterwards).
+  const setValue = useCallback((value, options = {}) => {
+    const persist = options.persist !== false;
     try {
       setStoredValue(prevValue => {
         // Allow value to be a function so we have same API as useState
         const valueToStore = value instanceof Function ? value(prevValue) : value;
 
-        if (writeDebounceMs > 0) {
+        if (!persist) {
+          // the state alone: a pending debounced write of an earlier, real value still lands
+        } else if (writeDebounceMs > 0) {
           // Defer only the localStorage write; the React state update stays synchronous
           pendingWriteRef.current = { value: valueToStore };
           if (writeTimerRef.current) {

@@ -217,10 +217,10 @@ export default function WorkflowList({
                   <Loader size={12} className="text-os-text-muted animate-spin" />
                 )}
                 {centralServerStatus === 'online' && (
-                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                  <div className="w-2 h-2 rounded-full bg-(--chart-good)"></div>
                 )}
                 {centralServerStatus === 'offline' && (
-                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                  <div className="w-2 h-2 rounded-full bg-(--chart-bad)"></div>
                 )}
               </div>
             )}

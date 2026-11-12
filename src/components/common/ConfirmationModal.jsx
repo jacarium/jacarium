@@ -29,14 +29,14 @@ export default function ConfirmationModal({
   const getIcon = () => {
     switch (type) {
       case 'warning':
-        return <AlertTriangle size={48} className="text-orange-500 mx-auto mb-3" />;
+        return <AlertTriangle size={48} className="text-(--chart-warn) mx-auto mb-3" />;
       case 'alert':
       case 'info':
-        return <Info size={48} className="text-blue-500 mx-auto mb-3" />;
+        return <Info size={48} className="text-os-blue mx-auto mb-3" />;
       case 'success':
-        return <CheckCircle size={48} className="text-green-500 mx-auto mb-3" />;
+        return <CheckCircle size={48} className="text-(--chart-good) mx-auto mb-3" />;
       default:
-        return <AlertTriangle size={48} className="text-purple-600 mx-auto mb-3" />;
+        return <AlertTriangle size={48} className="text-(--brand-accent) mx-auto mb-3" />;
     }
   };
 
@@ -51,19 +51,19 @@ export default function ConfirmationModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-os-modal rounded-lg shadow-xl w-96 max-w-[90vw]">
+      <div role="dialog" aria-modal="true" aria-label={title} className="bg-os-modal rounded-lg shadow-xl w-96 max-w-[90vw]" data-ra-area data-testid="confirmation-modal">
         <div className="p-6">
           <div className="text-center mb-6">
             {getIcon()}
             <h3 className="text-xl font-semibold mb-2 text-os-text-primary">{title}</h3>
-            <p className="text-sm text-os-text-secondary whitespace-pre-wrap">{message}</p>
+            <p className="ra-reading ra-reading-sm text-sm text-os-text-secondary whitespace-pre-wrap">{message}</p>
           </div>
 
           <div className={`flex gap-3 ${isAlertOnly ?'justify-center':''}`}>
             {!isAlertOnly && (
               <button
                 onClick={onClose}
-                className="flex-1 px-4 py-2 bg-os-divider hover:bg-os-border text-os-text-primary rounded-sm transition-colors"
+                className="flex-1 btn btn-secondary"
               >
                 {cancelText}
               </button>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { loadOverrides } from '../shortcuts/store';
 import PageShortcuts from '../shortcuts/PageShortcuts';
@@ -64,6 +64,13 @@ import MoreSheet from './mobile/MoreSheet';
 import MobileSettingsHost from './mobile/MobileSettingsHost';
 import MobileMenuChrome from './mobile/MobileMenuChrome';
 import { ForcedDrawerScope } from './mobile/MobileDrawer';
+import { useAppReadingAids, useZenMode } from './common/ReadingAidsSurface';
+import ZenGoTo, { ZEN_SHOW_PANELS_EVENT } from './common/ZenGoTo';
+import { ZEN_SHOW_SIDEBAR_EVENT } from './ResizableSidebar';
+import { ZEN_CHANGED_EVENT, loadReadingAids, reducesMotion, saveReadingAids, stepTextScale, zenMode } from '../utils/readingAids';
+import { cycleProfile } from '../utils/readingAidProfiles';
+import ReadingRuler from './common/ReadingRuler';
+import useHiddenImages from '../hooks/useHiddenImages';
 
 // Page-level components are lazy-loaded so each page ships in its own chunk.
 // In Electron the chunks load from local disk, so the win is deferred JS
@@ -138,6 +145,45 @@ export default function JQLBuilder({ standalone }) {
   const [templateRefreshKey, setTemplateRefreshKey] = useState(0);
   const [currentPage, setCurrentPage] = useState(standalone || 'documents');
   const { isMobile } = useMobile();
+  // the reading aids (Settings > Accessibility): the app-wide options on <html>, the ruler overlay, hidden images
+  const readingAids = useAppReadingAids();
+  useHiddenImages(readingAids.hideImages);
+  // text size (Settings > Accessibility): larger / smaller step through the stops, reset goes back to 100 %
+  // zen mode (Settings > Accessibility) on every page: the rail, the page's sidebar and the panels step aside and the
+  // page's main content stays; Esc leaves it unless a dialog is open to take the key, the shortcut toggles it. A mode
+  // of the moment: it is not remembered, and it stays on across pages until left.
+  const zen = useZenMode();
+  useEffect(() => {
+    if (!zen) return undefined;
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('[role="dialog"]')) return;
+      zenMode.set(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zen]);
+  useShortcut('reading.zen', () => { zenMode.toggle(); return true; });
+  // zen's edge pull-outs by keyboard: the sidebar (left) and the panels (right); never while typing in a field or the
+  // editor (a bound Mod+Shift+Arrow would otherwise steal the selection). Outside zen "Show sidebar" toggles the
+  // page's sidebar column, as the rail's Toggle sidebar does; "Show panels" is zen's alone (the rail and the panel
+  // shortcuts open the panels outside it)
+  const typing = (e) => { const t = e && e.target; return !!(t && t.closest && t.closest('input, textarea, select, [contenteditable="true"], .cm-editor')); };
+  useShortcut('reading.showSidebar', () => { window.dispatchEvent(new CustomEvent(zenMode.on ? ZEN_SHOW_SIDEBAR_EVENT : 'toggleInnerSidebar')); return true; }, { when: (e) => !typing(e) });
+  useShortcut('reading.showPanels', () => { if (!zenMode.on) return false; window.dispatchEvent(new CustomEvent(ZEN_SHOW_PANELS_EVENT)); return true; }, { when: (e) => !typing(e) });
+  // the reading aids' shortcuts (Settings > Shortcuts > Reading): each flips its setting, as the Accessibility page would
+  const flipAid = (key) => () => { saveReadingAids({ [key]: !loadReadingAids()[key] }); return true; };
+  useShortcut('reading.ruler', flipAid('ruler'));
+  useShortcut('reading.highContrast', flipAid('highContrast'));
+  useShortcut('reading.greyscale', flipAid('greyscale'));
+  useShortcut('reading.hideImages', flipAid('hideImages'));
+  useShortcut('reading.highlightLinks', flipAid('highlightLinks'));
+  useShortcut('reading.reduceMotion', () => { saveReadingAids({ reduceMotion: reducesMotion(loadReadingAids()) ? 'off' : 'on' }); return true; });   // flips what is in effect (Follow system included)
+  useShortcut('reading.textLarger', () => { saveReadingAids({ textScale: stepTextScale(loadReadingAids(), 1) }); return true; });
+  useShortcut('reading.textSmaller', () => { saveReadingAids({ textScale: stepTextScale(loadReadingAids(), -1) }); return true; });
+  useShortcut('reading.textReset', () => { saveReadingAids({ textScale: 100 }); return true; });
+  // the accessibility profiles: next / previous card, wrapping around
+  useShortcut('reading.profileNext', () => { cycleProfile(1); return true; });
+  useShortcut('reading.profilePrev', () => { cycleProfile(-1); return true; });
   const [activeTemplateId, setActiveTemplateId] = useState(savedSession?.activeTemplateId || null);
   const [sortFields, setSortFields] = useState(savedSession?.sortFields || []);
   const [invalidProject, setInvalidProject] = useState(null);
@@ -159,10 +205,32 @@ export default function JQLBuilder({ standalone }) {
   const [copiedRule, setCopiedRule] = useState(null);
 
   // Sidebar state (persisted across page changes)
-  const [isChatSidebarOpen, setIsChatSidebarOpen] = useLocalStorage('chatSidebarOpen', false);
-  const [isNotificationSidebarOpen, setIsNotificationSidebarOpen] = useLocalStorage('notificationSidebarOpen', false);
-  const [isDraftSidebarOpen, setIsDraftSidebarOpen] = useLocalStorage('draftSidebarOpen', false);
-  const [isAIChatSidebarOpen, setIsAIChatSidebarOpen] = useLocalStorage('aiChatSidebarOpen', false);
+  const [isChatSidebarOpen, setIsChatSidebarOpenStored] = useLocalStorage('chatSidebarOpen', false);
+  const [isNotificationSidebarOpen, setIsNotificationSidebarOpenStored] = useLocalStorage('notificationSidebarOpen', false);
+  const [isDraftSidebarOpen, setIsDraftSidebarOpenStored] = useLocalStorage('draftSidebarOpen', false);
+  const [isAIChatSidebarOpen, setIsAIChatSidebarOpenStored] = useLocalStorage('aiChatSidebarOpen', false);
+  // Zen mode's overlays are temporary views: a panel opened, closed or shown from the "Navigation" overlay changes the
+  // state (the panel's content must exist to show inside the overlay) but never the stored layout; entering zen
+  // snapshots the four panels, leaving zen restores the snapshot exactly - whatever happened in zen. Switching pages
+  // in zen is a real navigation and stays. The page sidebar's state is never touched by zen (its overlay is its own).
+  const setIsChatSidebarOpen = useCallback((v, o) => setIsChatSidebarOpenStored(v, { persist: !zenMode.on, ...(o || {}) }), [setIsChatSidebarOpenStored]);
+  const setIsNotificationSidebarOpen = useCallback((v, o) => setIsNotificationSidebarOpenStored(v, { persist: !zenMode.on, ...(o || {}) }), [setIsNotificationSidebarOpenStored]);
+  const setIsDraftSidebarOpen = useCallback((v, o) => setIsDraftSidebarOpenStored(v, { persist: !zenMode.on, ...(o || {}) }), [setIsDraftSidebarOpenStored]);
+  const setIsAIChatSidebarOpen = useCallback((v, o) => setIsAIChatSidebarOpenStored(v, { persist: !zenMode.on, ...(o || {}) }), [setIsAIChatSidebarOpenStored]);
+  const panelStateRef = useRef(null);
+  panelStateRef.current = { chat: isChatSidebarOpen, notification: isNotificationSidebarOpen, draft: isDraftSidebarOpen, aiChat: isAIChatSidebarOpen };
+  const zenSnapshotRef = useRef(null);
+  useEffect(() => {
+    const onZen = (e) => {
+      const on = e && e.detail ? !!e.detail.on : zenMode.on;
+      if (on) { zenSnapshotRef.current = { ...panelStateRef.current }; return; }
+      const snap = zenSnapshotRef.current; zenSnapshotRef.current = null;
+      if (!snap) return;
+      setIsChatSidebarOpenStored(snap.chat); setIsNotificationSidebarOpenStored(snap.notification); setIsDraftSidebarOpenStored(snap.draft); setIsAIChatSidebarOpenStored(snap.aiChat);
+    };
+    window.addEventListener(ZEN_CHANGED_EVENT, onZen);
+    return () => window.removeEventListener(ZEN_CHANGED_EVENT, onZen);
+  }, [setIsChatSidebarOpenStored, setIsNotificationSidebarOpenStored, setIsDraftSidebarOpenStored, setIsAIChatSidebarOpenStored]);
   // Which side of the window Team Chat / Quick Notes / AI Chat sit on,
   // chosen from the rail's right-click menu ("Open on the right" / "Move to
   // the left") and REMEMBERED per device (localStorage `panelSide.<panel>`,
@@ -297,6 +365,7 @@ export default function JQLBuilder({ standalone }) {
   const togglePanel = (key, event) => {
     const side = event?.detail?.side;
     if (side === 'left' || side === 'right') { openPanel(key, side); return; }
+    if (event?.detail?.open === true) { openPanel(key, panelSidesRef.current[key] === 'right' ? 'right' : 'left'); return; }   // open, not toggle (zen's Panels menu)
     setters[key]((prev) => {
       const next = !prev;
       // opening: on the remembered side (the left closes the other left panels)
@@ -329,9 +398,9 @@ export default function JQLBuilder({ standalone }) {
 
   // Listen for notification sidebar toggle
   useEffect(() => {
-    function handleToggleNotificationSidebar() {
+    function handleToggleNotificationSidebar(event) {
       setIsNotificationSidebarOpen(prev => {
-        const newState = !prev;
+        const newState = event?.detail?.open === true ? true : !prev;   // open, not toggle (zen's Panels menu)
         // If opening notification, close the other LEFT panels (a panel on the right stays)
         if (newState) {
           for (const key of Object.keys(panelSidesRef.current)) {
@@ -1274,6 +1343,7 @@ export default function JQLBuilder({ standalone }) {
   // that normally owns it is not rendered.
   return (
     <div className="min-h-screen bg-os-masthead font-text text-os-text-primary">
+      {readingAids.ruler && <ReadingRuler lines={readingAids.rulerLines} mode={readingAids.rulerMode} />}
       <div className={isMobile ? 'sc-mobile-root flex flex-col h-screen overflow-hidden' : 'flex h-screen'}>
 
         {/* Compact Sidebar - hidden in standalone mode and in the phone layout */}
@@ -1329,7 +1399,7 @@ export default function JQLBuilder({ standalone }) {
         {/* Main Canvas */}
         <Suspense fallback={<PageLoadingFallback />}>
         {currentPage === 'documents' ? (
-          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden">
+          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden" data-ra-area>
             <div className="h-full bg-os-canvas overflow-hidden">
               <DocumentsPage
                 key="documents-page"
@@ -1342,53 +1412,53 @@ export default function JQLBuilder({ standalone }) {
             </div>
           </div>
         ) : currentPage === 'calendars' ? (
-          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden">
+          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden" data-ra-area>
             <div className="h-full bg-os-canvas overflow-hidden">
               <CalendarsPage />
             </div>
           </div>
         ) : currentPage === 'diagnostics' ? (
-          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden">
+          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden" data-ra-area>
             <div className="h-full bg-os-canvas overflow-hidden">
               <DiagnosticsPage onNavigate={handlePageChange} />
             </div>
           </div>
         ) : currentPage === 'workflow' ? (
-          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden">
+          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden" data-ra-area>
             <div className="h-full bg-os-canvas overflow-hidden">
               <WorkflowBuilder />
             </div>
           </div>
         ) : currentPage === 'kanban' ? (
-          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden">
+          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden" data-ra-area>
             <div className="h-full bg-os-canvas overflow-hidden">
               <KanbanPage />
             </div>
           </div>
         ) : currentPage === 'tasks' ? (
-          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden">
+          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden" data-ra-area>
             <div className="h-full bg-os-canvas overflow-hidden">
               <TasksPage />
             </div>
           </div>
         ) : currentPage === 'reports' ? (
-          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden">
+          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden" data-ra-area>
             <div className="h-full bg-os-canvas overflow-hidden">
               <TaskReportsPage />
             </div>
           </div>
         ) : currentPage === 'tools' ? (
-          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden">
+          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden" data-ra-area>
             <div className="h-full bg-os-canvas overflow-hidden">
               <ToolsPage />
             </div>
           </div>
         ) : currentPage === 'ai-chat' ? (
-          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden">
+          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden" data-ra-area>
             <AIChatPage />
           </div>
         ) : (
-          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden">
+          <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden" data-ra-area>
             <div className="h-full bg-os-canvas overflow-hidden">
               <SearchPage
                 onTemplateSelect={handleTemplateSelect}
@@ -1412,18 +1482,18 @@ export default function JQLBuilder({ standalone }) {
 
                     {/* Info Banners */}
                     {invalidProject && (
-                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm p-3 mb-4">
+                      <div className="bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm p-3 mb-4">
                         <div className="flex items-start gap-3">
-                          <AlertCircle className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" size={20} />
+                          <AlertCircle className="text-(--chart-bad) shrink-0 mt-0.5" size={20} />
                           <div className="flex-1">
-                            <p className="text-sm font-medium text-red-800 dark:text-red-200">Invalid Project</p>
-                            <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                            <p className="text-sm font-medium text-(--status-danger-fg)">Invalid Project</p>
+                            <p className="text-xs text-(--status-danger-fg) mt-1">
                               Project "{invalidProject.name}" (Key: {invalidProject.key}) is no longer recognized by Jira.
                               {invalidProject.error && ` Error: ${invalidProject.error}`}
                             </p>
                             {suggestedProjects.length > 0 && (
                               <div className="mt-2">
-                                <p className="text-xs text-red-700 dark:text-red-300 font-semibold mb-1.5">Did you mean one of these?</p>
+                                <p className="text-xs text-(--status-danger-fg) font-semibold mb-1.5">Did you mean one of these?</p>
                                 <div className="flex flex-wrap gap-2">
                                   {suggestedProjects.slice(0, 3).map(proj => (
                                     <button
@@ -1449,12 +1519,12 @@ export default function JQLBuilder({ standalone }) {
                     )}
 
                     {selectedProject && projectMetadata && !invalidProject && (
-                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-sm p-3 mb-4">
+                      <div className="bg-(--status-info-bg) border border-(--status-info-border) rounded-sm p-3 mb-4">
                         <div className="flex items-start gap-3">
                           <AlertCircle className="text-os-blue shrink-0 mt-0.5" size={20} />
                           <div className="flex-1">
-                            <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Context-Aware Mode</p>
-                            <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                            <p className="text-sm font-medium text-(--status-info-fg)">Context-Aware Mode</p>
+                            <p className="text-xs text-(--status-info-fg) mt-1">
                               Showing only Status and Issue Type options valid for project: <span className="font-mono font-semibold">{selectedProject}</span>
                             </p>
                           </div>
@@ -1471,13 +1541,13 @@ export default function JQLBuilder({ standalone }) {
                       />
                     )}
                     {error && jiraConfigured !== false && (
-                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm p-3 mb-4">
+                      <div className="bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm p-3 mb-4">
                         <div className="flex items-start gap-3">
-                          <AlertCircle className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" size={20} />
+                          <AlertCircle className="text-(--chart-bad) shrink-0 mt-0.5" size={20} />
                           <div className="flex-1">
-                            <p className="text-sm font-medium text-red-800 dark:text-red-200">Connection Error</p>
-                            <p className="text-xs text-red-700 dark:text-red-300 mt-1">{error}</p>
-                            <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                            <p className="text-sm font-medium text-(--status-danger-fg)">Connection Error</p>
+                            <p className="text-xs text-(--status-danger-fg) mt-1">{error}</p>
+                            <p className="text-xs text-(--status-danger-fg) mt-1">
                               {error.includes('cooldown') ?
                                 'Please wait for the cooldown to finish.' :
                                 'Make sure you\'ve set VITE_JIRA_PAT in your .env file with a valid Personal Access Token.'
@@ -1713,6 +1783,9 @@ export default function JQLBuilder({ standalone }) {
           </div>
         )}
         </Suspense>
+        {/* zen: the way to the pages and the panels (the right-edge tab, "Navigation"), the same place on every page; the way
+            out is the Zen label in the status corner (StatusCorner > ZenBadge), which also announces the chords */}
+        {zen && !isMobile && <ZenGoTo currentPage={currentPage} onPageChange={handlePageChange} />}
 
         {/* The phone layout's bottom bar, its "More" sheet and Settings host */}
         {isMobile && !standalone && (
@@ -1764,8 +1837,8 @@ export default function JQLBuilder({ standalone }) {
 
       {/* Import Shared Query Modal */}
       {importQueryModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-os-modal rounded-lg shadow-xl w-full max-w-md mx-4">
+        <div className="sc-modal-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div role="dialog" aria-modal="true" aria-label="Dialog" className="sc-modal-panel bg-os-modal rounded-lg shadow-xl w-full max-w-md mx-4">
             <div className="p-4 border-b border-os-border">
               <h3 className="text-lg font-semibold text-os-text-primary">Import Shared Query</h3>
             </div>
@@ -1776,7 +1849,7 @@ export default function JQLBuilder({ standalone }) {
               <textarea
                 id="import-shared-input"
                 placeholder="Paste shared query state here..."
-                className="w-full h-32 px-3 py-2 border border-os-input-border focus:outline-hidden focus:ring-2 focus:ring-blue-500 font-mono text-sm bg-os-input-bg text-os-text-primary"
+                className="w-full h-32 px-3 py-2 border border-os-input-border focus:outline-hidden focus:ring-2 focus:ring-os-blue/40 font-mono text-sm bg-os-input-bg text-os-text-primary"
                 autoFocus
               />
             </div>

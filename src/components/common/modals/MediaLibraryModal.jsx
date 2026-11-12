@@ -632,7 +632,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
         {/* Header */}
         <div className="p-4 border-b border-os-border flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <ImageIcon size={18} className="text-blue-600" />
+            <ImageIcon size={18} className="text-(--chart-info)" />
             <h2 className="text-sm font-text font-semibold text-os-text-primary uppercase tracking-wide">
               Media Library
             </h2>
@@ -699,7 +699,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
                   data-testid="media-upload-drop"
                   className={`rounded-lg border border-dashed border-os-border px-4 py-2 w-full max-w-2xl flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-os-text-secondary transition-colors ${
  dragOver
- ?'bg-blue-50 dark:bg-blue-900/20'
+ ?'bg-(--status-info-bg)'
  :''
  }`}
                 >
@@ -716,7 +716,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
                 data-testid="media-upload-drop"
                 className={`rounded-lg p-12 text-center transition-colors w-full max-w-2xl ${
  dragOver
- ?'bg-blue-50 dark:bg-blue-900/20'
+ ?'bg-(--status-info-bg)'
  :''
  }`}
               >
@@ -776,7 +776,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
                                 spellCheck={false}
                               />
                             </Field>
-                            <p className="text-[11px] text-os-text-muted mt-1 flex items-center gap-1">
+                            <p className="text-2xs text-os-text-muted mt-1 flex items-center gap-1">
                               {row.source === 'paste' && <ClipboardPaste size={11} className="shrink-0" />}
                               {formatSize(row.file.size)} · {row.file.type}
                             </p>
@@ -792,7 +792,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
               {recentlyUploaded.length > 0 && (
                 <div className="w-full max-w-2xl">
                   <div className="flex items-center gap-2 mb-2">
-                    <Check size={14} className="text-green-600" />
+                    <Check size={14} className="text-(--chart-good)" />
                     <p className="text-sm font-medium text-os-text-primary">
                       Uploaded {recentlyUploaded.length} image{recentlyUploaded.length === 1 ? '' : 's'}
                     </p>
@@ -813,7 +813,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
                           />
                         </div>
                         <div className="p-1.5 bg-os-modal flex items-center gap-1">
-                          <Check size={12} className="text-green-600 shrink-0" />
+                          <Check size={12} className="text-(--chart-good) shrink-0" />
                           <p className="text-xs text-os-text-primary truncate" title={item.filename}>
                             {item.filename}
                           </p>
@@ -836,13 +836,13 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search by filename or tag..."
-                    className="w-full pl-10 pr-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-modal text-os-text-primary"
+                    className="w-full pl-10 pr-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden text-sm bg-os-modal text-os-text-primary"
                   />
                 </div>
                 <select
                   value={usageFilter}
                   onChange={(e) => setUsageFilter(e.target.value)}
-                  className="px-2 py-2 border border-os-input-border rounded-sm text-sm bg-os-modal text-os-text-primary outline-hidden focus:ring-2 focus:ring-blue-500"
+                  className="px-2 py-2 border border-os-input-border rounded-sm text-sm bg-os-modal text-os-text-primary outline-hidden focus:ring-2 focus:ring-os-blue/40"
                   title="Filter by usage in documents"
                 >
                   <option value="all">All images</option>
@@ -852,7 +852,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="px-2 py-2 border border-os-input-border rounded-sm text-sm bg-os-modal text-os-text-primary outline-hidden focus:ring-2 focus:ring-blue-500"
+                  className="px-2 py-2 border border-os-input-border rounded-sm text-sm bg-os-modal text-os-text-primary outline-hidden focus:ring-2 focus:ring-os-blue/40"
                   title="Filter by file type"
                 >
                   <option value="all">All types</option>
@@ -864,7 +864,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
                   <select
                     value={tagFilter}
                     onChange={(e) => setTagFilter(e.target.value)}
-                    className="px-2 py-2 border border-os-input-border rounded-sm text-sm bg-os-modal text-os-text-primary outline-hidden focus:ring-2 focus:ring-blue-500"
+                    className="px-2 py-2 border border-os-input-border rounded-sm text-sm bg-os-modal text-os-text-primary outline-hidden focus:ring-2 focus:ring-os-blue/40"
                     title="Filter by tag"
                   >
                     <option value="all">All tags</option>
@@ -877,7 +877,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="px-2 py-2 border border-os-input-border rounded-sm text-sm bg-os-modal text-os-text-primary outline-hidden focus:ring-2 focus:ring-blue-500"
+                  className="px-2 py-2 border border-os-input-border rounded-sm text-sm bg-os-modal text-os-text-primary outline-hidden focus:ring-2 focus:ring-os-blue/40"
                   title="Sort order"
                 >
                   <option value="newest">Newest first</option>
@@ -909,8 +909,8 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
                   key={item.id}
                   className={`group relative border rounded-lg overflow-hidden transition-colors cursor-pointer ${
  isSelected
- ?'border-blue-600 ring-1 ring-blue-600'
- :'border-os-border hover:border-blue-500'
+ ?'border-os-blue ring-1 ring-os-blue'
+ :'border-os-border hover:border-os-blue'
  }`}
                 >
                   {/* Image */}
@@ -942,10 +942,10 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
 
                     {/* Usage badge */}
                     <span
-                      className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                      className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-3xs font-medium ${
  docs.length > 0
- ?'bg-green-600/90 text-white'
- :'bg-amber-500/90 text-white'
+ ?'bg-(--chart-good)/90 text-white'
+ :'bg-(--chart-warn)/90 text-white'
  }`}
                       title={
                         docs.length > 0
@@ -982,21 +982,21 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
                         {item.tags.slice(0, 2).map((tag) => (
                           <span
                             key={tag}
-                            className="px-1 py-0.5 bg-os-card-secondary rounded-sm text-[9px] text-os-text-secondary truncate max-w-[80px]"
+                            className="px-1 py-0.5 bg-os-card-secondary rounded-sm text-4xs text-os-text-secondary truncate max-w-[80px]"
                             title={tag}
                           >
                             {tag}
                           </span>
                         ))}
                         {item.tags.length > 2 && (
-                          <span className="text-[9px] text-os-text-muted">
+                          <span className="text-4xs text-os-text-muted">
                             +{item.tags.length - 2}
                           </span>
                         )}
                       </div>
                     )}
                     <div className="flex items-center justify-between mt-1">
-                      <p className="text-[10px] text-os-text-muted">
+                      <p className="text-3xs text-os-text-muted">
                         {new Date(item.uploadedAt).toLocaleDateString()} · {formatSize(item.size)}
                       </p>
                       {/* Three-dot menu button */}
@@ -1161,7 +1161,10 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
       {/* Image Preview Lightbox */}
       {previewImage && (
         <div
-          className="fixed inset-0 bg-black/90 flex items-center justify-center z-60"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image preview"
+          className="sc-modal-backdrop sc-modal-panel fixed inset-0 bg-black/90 flex items-center justify-center z-60"
           data-testid="media-preview"
           onClick={() => setPreviewImage(null)}
         >
@@ -1193,7 +1196,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
                 </span>
               </p>
             ) : (
-              <p className="text-xs text-amber-300 mt-1">Not used by any document</p>
+              <p className="text-xs text-(--chart-warn) mt-1">Not used by any document</p>
             )}
           </div>
 
@@ -1223,16 +1226,16 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
       {/* Tag Editor */}
       {tagEditor && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-70"
+          className="sc-modal-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-70"
           data-testid="media-tag-editor"
           onClick={() => setTagEditor(null)}
         >
           <div
-            className="bg-os-modal rounded-lg shadow-xl w-96 max-w-[90vw] p-4"
+            role="dialog" aria-modal="true" aria-label="Dialog" className="sc-modal-panel bg-os-modal rounded-lg shadow-xl w-96 max-w-[90vw] p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 mb-3">
-              <Tag size={16} className="text-blue-600" />
+              <Tag size={16} className="text-(--chart-info)" />
               <h3 className="text-sm font-semibold text-os-text-primary truncate">
                 Tags for {tagEditor.item.filename}
               </h3>
@@ -1246,7 +1249,7 @@ export default function MediaLibraryModal({ isOpen, onClose, onSelectImage, retu
               }}
               placeholder="e.g. screenshots, networking, openshift"
               autoFocus
-              className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-modal text-os-text-primary"
+              className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden text-sm bg-os-modal text-os-text-primary"
             />
             <p className="text-xs text-os-text-muted mt-2">
               Separate tags with commas

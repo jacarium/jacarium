@@ -46,26 +46,26 @@ export default function ConfirmationModal({
   const typeConfig = {
     danger: {
       icon: Trash2,
-      iconColor: 'text-red-600',
-      iconBg: 'bg-red-100',
+      iconColor: 'text-(--chart-bad)',
+      iconBg: 'bg-(--status-danger-bg)',
       variant: 'dangerSolid',
     },
     warning: {
       icon: AlertTriangle,
-      iconColor: 'text-orange-600',
-      iconBg: 'bg-orange-100',
+      iconColor: 'text-(--chart-warn)',
+      iconBg: 'bg-(--status-warning-bg)',
       variant: 'warning',
     },
     info: {
       icon: AlertCircle,
-      iconColor: 'text-blue-600',
-      iconBg: 'bg-blue-100',
+      iconColor: 'text-(--chart-info)',
+      iconBg: 'bg-(--status-info-bg)',
       variant: 'primary',
     },
     success: {
       icon: CheckCircle,
-      iconColor: 'text-green-600',
-      iconBg: 'bg-green-100',
+      iconColor: 'text-(--chart-good)',
+      iconBg: 'bg-(--status-success-bg)',
       variant: 'success',
     },
   };
@@ -97,6 +97,8 @@ export default function ConfirmationModal({
     <BaseModal
       isOpen={isOpen}
       onClose={handleCancel}
+      testId="confirmation-modal"
+      ariaLabel={title}
       className="max-w-md w-full rounded-lg"
       // Confirmations can be opened from inside always-on-top floating widgets
       // (e.g. the FloatingQuiz game window at z-index 2147483647). BaseModal
@@ -118,7 +120,7 @@ export default function ConfirmationModal({
             <h3 className="text-lg font-semibold text-os-text-primary mb-2">
               {title}
             </h3>
-            <div className="text-sm text-os-text-secondary">
+            <div className="ra-reading ra-reading-sm text-sm text-os-text-secondary">
               {message}
             </div>
 
@@ -127,7 +129,7 @@ export default function ConfirmationModal({
               <div className="mt-3">
                 <p className="text-sm text-os-text-primary mb-2">
                   To confirm, type{' '}
-                  <code className="bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded-xs text-red-700 dark:text-red-300 font-semibold">
+                  <code className="bg-(--status-danger-bg) px-2 py-1 rounded-xs text-(--status-danger-fg) font-semibold">
                     {confirmPhrase}
                   </code>{' '}
                   below:
@@ -137,7 +139,7 @@ export default function ConfirmationModal({
                   value={typedPhrase}
                   onChange={(e) => setTypedPhrase(e.target.value)}
                   placeholder={`Type: ${confirmPhrase}`}
-                  className={`${FIELD_CLASS} focus:border-red-500 focus-visible:ring-red-500/40`}
+                  className={`${FIELD_CLASS} focus:border-(--chart-bad) focus-visible:ring-(--chart-bad)/40`}
                   autoFocus
                 />
               </div>

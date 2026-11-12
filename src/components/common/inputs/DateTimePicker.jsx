@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useDropdownMenu } from '../../../hooks/useContextMenu';
+import { usePopupPosition } from '../../../hooks/usePopupPosition.js';
 
 /**
  * DateTimePicker - Custom date and time picker
@@ -22,6 +23,9 @@ export default function DateTimePicker({
 }) {
   const [viewDate, setViewDate] = useState(new Date());
   const { isOpen, position, menuRef, closeMenu, toggleMenu } = useDropdownMenu();
+  // under the field when it fits, above it when not, inside the window either way (the shared popup placement)
+  const panelRef = useRef(null);
+  usePopupPosition(panelRef, { open: isOpen && !!position.anchor, anchor: () => position.anchor, deps: [position.anchor], side: 'below', align: 'start', gap: position.offset != null ? position.offset : 4 });
 
   // Parse the value prop to a Date object
   const selectedDateTime = value ? new Date(value) : null;
@@ -181,6 +185,7 @@ export default function DateTimePicker({
       {/* Picker Dropdown */}
       {isOpen && (
         <div
+          ref={panelRef}
           className="fixed z-9999 bg-os-card border border-os-border rounded-lg shadow-lg p-3 min-w-[320px]"
           style={{
             top: `${position.top}px`,

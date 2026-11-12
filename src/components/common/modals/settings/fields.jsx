@@ -15,7 +15,7 @@ import { settingsFieldLabel } from './fieldCatalog';
 function ProvenanceTag({ tag }) {
   if (!tag) return null;
   const { tag: text, detail } = typeof tag === 'string' ? { tag, detail: null } : tag;
-  return <span className="sc-provenance ml-2 text-[11px] font-normal text-os-text-muted" data-testid="provenance-tag" data-provenance={text}>{text}{detail ? <>: <span className="font-mono">{detail}</span></> : null}</span>;
+  return <span className="sc-provenance ml-2 text-2xs font-normal text-os-text-muted" data-testid="provenance-tag" data-provenance={text}>{text}{detail ? <>: <span className="font-mono">{detail}</span></> : null}</span>;
 }
 
 export function Field({ forKey, label, ...props }) {

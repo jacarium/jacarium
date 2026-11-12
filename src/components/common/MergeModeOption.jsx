@@ -12,7 +12,7 @@ export default function MergeModeOption({ checked, disabled = false, onChange, l
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 accent-blue-600"
+        className="mt-0.5 accent-os-blue"
       />
       <span>
         <span className="block text-sm font-medium text-os-text-primary">{label}</span>

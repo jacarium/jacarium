@@ -240,7 +240,7 @@ Bob Johnson,bob@example.com,35,Chicago`
 
         {/* Error */}
         {error && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm text-sm text-red-600 dark:text-red-400">
+          <div className="p-3 bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm text-sm text-(--status-danger-fg)">
             {error}
           </div>
         )}

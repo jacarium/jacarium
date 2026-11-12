@@ -133,9 +133,9 @@ export default function CategorySection({
             >
               <div className="flex items-center gap-1.5 min-w-0">
                 {isCloudCategory && (
-                  <Cloud size={12} className="text-purple-600 shrink-0" />
+                  <Cloud size={12} className="text-(--brand-accent) shrink-0" />
                 )}
-                <span className={`text-sm font-medium truncate ${isCloudCategory ?'text-purple-700':'text-os-text-primary'}`}>
+                <span className={`text-sm font-medium truncate ${isCloudCategory ?'text-(--status-brand-fg)':'text-os-text-primary'}`}>
                   {categoryName}
                 </span>
               </div>

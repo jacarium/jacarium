@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import BaseModal from '../common/modals/BaseModal';
 import { X, Save } from 'lucide-react';
 import { getAllCategoryIcons } from '../../utils/categoryIcons';
 
@@ -31,15 +32,8 @@ export default function IconPickerModal({ isOpen, onClose, onSelect, currentIcon
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 font-text"
-      onClick={onClose}
-    >
-      <div
-        className="bg-os-modal shadow-lg max-w-lg w-full border border-os-border rounded-sm max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={handleKeyPress}
-      >
+    <BaseModal isOpen onClose={onClose} className="bg-os-modal shadow-lg max-w-lg w-full border border-os-border rounded-sm max-h-[90vh] overflow-y-auto font-text" ariaLabel="Select Category Icon">
+      <div onKeyDown={handleKeyPress}>
         {/* Header */}
         <div className="p-4 border-b border-os-border bg-os-modal flex items-center justify-between sticky top-0 z-10">
           <h2 className="text-sm font-text font-semibold text-os-text-primary uppercase tracking-wide">
@@ -119,6 +113,6 @@ export default function IconPickerModal({ isOpen, onClose, onSelect, currentIcon
           </div>
         </div>
       </div>
-    </div>
+    </BaseModal>
   );
 }

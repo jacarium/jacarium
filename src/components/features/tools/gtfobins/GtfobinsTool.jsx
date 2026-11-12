@@ -291,7 +291,7 @@ export default function GtfobinsTool() {
                     key={fn.funcId}
                     className={`flex items-center gap-2 pl-3 pr-2 py-1.5 rounded border text-sm transition-colors ${
  active
- ?'bg-blue-50 dark:bg-blue-900/20 border-os-blue text-os-blue font-medium'
+ ?'bg-(--status-info-bg) border-os-blue text-os-blue font-medium'
  :'bg-os-card border-os-border text-os-text-secondary hover:bg-os-card-secondary'
  }`}
                   >
@@ -320,7 +320,7 @@ export default function GtfobinsTool() {
                           setDeleteTarget({ type: 'function', item: fn });
                         }}
                         title="Delete function"
-                        className="p-0.5 rounded-sm text-os-text-muted hover:text-red-600 transition-colors"
+                        className="p-0.5 rounded-sm text-os-text-muted hover:text-(--chart-bad) transition-colors"
                       >
                         <Trash2 size={12} />
                       </button>
@@ -476,7 +476,7 @@ export default function GtfobinsTool() {
                                 key={fid}
                                 className={`px-1.5 py-0.5 rounded text-xs border ${
  matched
- ?'bg-blue-50 dark:bg-blue-900/20 border-os-blue text-os-blue font-medium'
+ ?'bg-(--status-info-bg) border-os-blue text-os-blue font-medium'
  :'bg-os-card border-os-border text-os-text-secondary'
  }`}
                               >

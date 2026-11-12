@@ -24,7 +24,7 @@ function Row({ label, checked, onClick, testId }) {
   );
 }
 function Head({ children }) {
-  return <div className="px-4 pt-2 pb-1 text-[11px] font-semibold tracking-[0.06em] uppercase text-os-text-secondary">{children}</div>;
+  return <div className="px-4 pt-2 pb-1 text-2xs font-semibold tracking-[0.06em] uppercase text-os-text-secondary">{children}</div>;
 }
 
 export default function MobileTaskFilters({ statusFilter, setStatusFilter, projectFilter, setProjectFilter, tagFilter, setTagFilter, projects = [], tags = [], onClose }) {

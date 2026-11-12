@@ -75,19 +75,13 @@ export default function EnvVariablesModal({ isOpen, onClose }) {
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50 z-40"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
-      <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-        <div className="bg-os-modal rounded-lg shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+      {/* Backdrop and modal: one dimming layer, a click on it (not on the panel) closes */}
+      <div className="sc-modal-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+        <div role="dialog" aria-modal="true" aria-label="Environment variables" className="sc-modal-panel bg-os-modal rounded-lg shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-os-border">
             <div className="flex items-center gap-2">
-              <Settings size={20} className="text-purple-600" />
+              <Settings size={20} className="text-(--brand-accent)" />
               <h2 className="text-lg font-semibold">Environment Variables</h2>
             </div>
             <button
@@ -125,7 +119,7 @@ export default function EnvVariablesModal({ isOpen, onClose }) {
                         type="text"
                         value={value}
                         onChange={(e) => handleUpdateVariable(key, e.target.value)}
-                        className="w-full px-2 py-1 text-sm border border-os-input-border rounded-sm focus:outline-hidden focus:border-purple-500 font-mono"
+                        className="w-full px-2 py-1 text-sm border border-os-input-border rounded-sm focus:outline-hidden focus:border-(--os-blue) font-mono"
                       />
                     </div>
                   </div>
@@ -134,7 +128,7 @@ export default function EnvVariablesModal({ isOpen, onClose }) {
                     className="btn btn-danger-ghost p-1.5"
                     title="Remove variable"
                   >
-                    <Trash2 size={16} className="text-red-600" />
+                    <Trash2 size={16} className="text-(--chart-bad)" />
                   </button>
                 </div>
               ))}
@@ -156,7 +150,7 @@ export default function EnvVariablesModal({ isOpen, onClose }) {
                   onChange={(e) => setNewKey(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleAddVariable()}
                   placeholder="Variable name (e.g., API_URL)"
-                  className="flex-1 px-3 py-2 text-sm border border-os-input-border rounded-sm focus:outline-hidden focus:border-purple-500 font-mono"
+                  className="flex-1 px-3 py-2 text-sm border border-os-input-border rounded-sm focus:outline-hidden focus:border-(--os-blue) font-mono"
                 />
                 <input
                   type="text"
@@ -164,7 +158,7 @@ export default function EnvVariablesModal({ isOpen, onClose }) {
                   onChange={(e) => setNewValue(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleAddVariable()}
                   placeholder="Value"
-                  className="flex-1 px-3 py-2 text-sm border border-os-input-border rounded-sm focus:outline-hidden focus:border-purple-500 font-mono"
+                  className="flex-1 px-3 py-2 text-sm border border-os-input-border rounded-sm focus:outline-hidden focus:border-(--os-blue) font-mono"
                 />
                 <button
                   onClick={handleAddVariable}

@@ -570,7 +570,9 @@ export default function DocumentEditor({
         if (img.tagName === 'IMG' && img.src) {
           // Create lightbox overlay
           const lightbox = window.document.createElement('div');
-          lightbox.className = 'fixed inset-0 bg-black/90 flex items-center justify-center z-100';
+          lightbox.className = 'sc-modal-backdrop sc-modal-panel fixed inset-0 bg-black/90 flex items-center justify-center z-100';
+          // a dialog like every modal: named for screen readers, found by zen's Esc rule and the reading ruler
+          lightbox.setAttribute('role', 'dialog'); lightbox.setAttribute('aria-modal', 'true'); lightbox.setAttribute('aria-label', 'Image preview');
           lightbox.style.cursor = 'pointer';
 
           // Create close button
@@ -3040,7 +3042,7 @@ export default function DocumentEditor({
           data-testid="editor-mode-toggle"
           className={`sc-editor-mode p-1.5 rounded-sm transition-colors ${
  previewAllDocuments
- ?'bg-orange-500 text-white'
+ ?'bg-(--chart-warn) text-white'
  : previewMode
  ?'btn-selected'
  :'hover:bg-os-card-secondary'
@@ -3132,6 +3134,7 @@ export default function DocumentEditor({
             onContextMenu={handlePreviewContextMenu}
             onScroll={handlePreviewScroll}
             className="markdown-preview h-full px-6 py-4 overflow-y-auto bg-os-card"
+            tabIndex={0}
             dangerouslySetInnerHTML={previewInnerHtml}
           />
         ) : (
@@ -3139,7 +3142,7 @@ export default function DocumentEditor({
             <div className="relative flex-1 h-full overflow-hidden">
             {/* Auto-typing indicator */}
             {isAutoTyping && (
-              <div className="absolute top-2 right-2 z-10 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-sm shadow-lg flex items-center gap-2">
+              <div className="absolute top-2 right-2 z-10 px-3 py-1.5 bg-(--chart-good) text-white text-xs font-medium rounded-sm shadow-lg flex items-center gap-2">
                 <Type size={14} className="animate-pulse" />
                 Auto-typing...
               </div>
@@ -3199,12 +3202,12 @@ export default function DocumentEditor({
           >
             {/* Header */}
             <div
-              className="px-3 py-2 border-b border-os-border flex items-center justify-between bg-linear-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 cursor-grab active:cursor-grabbing"
+              className="px-3 py-2 border-b border-os-border flex items-center justify-between bg-linear-to-r from-(--status-brand-bg) to-(--status-brand-border) cursor-grab active:cursor-grabbing"
               onMouseDown={handleQuickAIDragStart}
             >
               <div className="flex items-center gap-2">
-                <Bot size={16} className="text-purple-600 dark:text-purple-300" />
-                <span className="text-sm font-semibold text-purple-900 dark:text-purple-200">Quick AI</span>
+                <Bot size={16} className="text-(--brand-accent)" />
+                <span className="text-sm font-semibold text-(--status-brand-fg)">Quick AI</span>
               </div>
               <div className="flex items-center gap-1">
                 {quickAIResponse && !quickAILoading && (
@@ -3218,7 +3221,7 @@ export default function DocumentEditor({
                     className="btn btn-brand-ghost p-1"
                     title="Clear response"
                   >
-                    <Trash2 size={14} className="text-purple-700 dark:text-purple-300" />
+                    <Trash2 size={14} className="text-(--status-brand-fg)" />
                   </button>
                 )}
                 <button
@@ -3226,7 +3229,7 @@ export default function DocumentEditor({
                   className="btn btn-brand-ghost p-1"
                   title="Close"
                 >
-                  <X size={14} className="text-purple-700 dark:text-purple-300" />
+                  <X size={14} className="text-(--status-brand-fg)" />
                 </button>
               </div>
             </div>
@@ -3257,7 +3260,7 @@ export default function DocumentEditor({
                   }}
                   placeholder="for loop in bash, sort function..."
                   disabled={quickAILoading || backendStatus === 'offline'}
-                  className="w-full px-2 py-1.5 text-sm border border-purple-300 rounded-sm bg-os-input-bg text-os-text-primary focus:outline-hidden focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full px-2 py-1.5 text-sm border border-(--status-brand-border) rounded-sm bg-os-input-bg text-os-text-primary focus:outline-hidden focus:border-(--os-blue) focus:ring-1 focus:ring-(--os-blue) disabled:opacity-60 disabled:cursor-not-allowed"
                 />
                 <p className="text-xs text-os-text-secondary mt-1">Enter to submit • Esc to cancel</p>
               </div>
@@ -3276,7 +3279,7 @@ export default function DocumentEditor({
                     />
                     {quickAILoading && !quickAIResponse && (
                       <div className="absolute inset-0 flex items-center justify-center bg-os-card/75 rounded-sm">
-                        <RefreshCw size={20} className="text-purple-600 animate-spin" />
+                        <RefreshCw size={20} className="text-(--brand-accent) animate-spin" />
                       </div>
                     )}
                   </div>
@@ -3293,7 +3296,7 @@ export default function DocumentEditor({
                     </p>
                   )}
                   {quickAISelectedText && !quickAILoading && (
-                    <p className="text-xs text-purple-600 mt-1">
+                    <p className="text-xs text-(--brand-accent) mt-1">
                       {quickAISelectedText.length} characters selected
                     </p>
                   )}
@@ -3415,10 +3418,10 @@ export default function DocumentEditor({
             className="fixed w-96 flex flex-col bg-os-card border border-os-border rounded-lg shadow-2xl overflow-hidden"
             style={{ zIndex: 2147483647 }}
           >
-            <div className="px-3 py-2 bg-purple-50 dark:bg-purple-900/20">
+            <div className="px-3 py-2 bg-(--status-brand-bg)">
               <div className="flex items-center gap-2">
-                <BookTemplate size={14} className="text-purple-600 dark:text-purple-300" />
-                <span className="text-xs font-medium text-purple-900 dark:text-purple-200">
+                <BookTemplate size={14} className="text-(--brand-accent)" />
+                <span className="text-xs font-medium text-(--status-brand-fg)">
                   Commands and templates {slashMenu.query && `- "${slashMenu.query}"`}
                 </span>
               </div>
@@ -3436,18 +3439,19 @@ export default function DocumentEditor({
                 filteredTemplates.map((template, idx) => (
                   <div key={template.id}>
                   {(idx === 0 || !!filteredTemplates[idx - 1].builtin !== !!template.builtin) && (
-                    <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-[0.06em] text-os-text-muted" data-slash-group={template.builtin ? 'builtin' : 'templates'}>
+                    <div className="px-3 pt-2 pb-1 text-2xs font-semibold tracking-[0.06em] text-os-text-muted" data-slash-group={template.builtin ? 'builtin' : 'templates'}>
                       {template.builtin ? 'BUILT-IN' : 'TEMPLATES'}
                     </div>
                   )}
                   <div
                     data-slash-entry={template.id}
+                    aria-selected={idx === slashMenu.selectedIndex}
                     onMouseEnter={() => setSlashMenu(prev => ({ ...prev, selectedIndex: idx }))}
                     onClick={() => insertTemplate(template)}
                     className={`w-full px-3 py-2 text-left transition-colors border-b border-os-border dark:border-os-sidebar-hover last:border-b-0 cursor-pointer ${
  idx === slashMenu.selectedIndex
- ?'bg-purple-100 dark:bg-purple-900/30'
- :'hover:bg-purple-50 dark:hover:bg-purple-900/20'
+ ?'bg-(--status-brand-bg)'
+ :'hover:bg-(--status-brand-border)'
  }`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -3465,7 +3469,7 @@ export default function DocumentEditor({
                             {template.tags.slice(0, 3).map((tag, i) => (
                               <span
                                 key={i}
-                                className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-sm"
+                                className="text-xs px-1.5 py-0.5 bg-(--status-brand-bg) text-(--status-brand-fg) rounded-sm"
                               >
                                 {tag}
                               </span>
@@ -3533,7 +3537,7 @@ export default function DocumentEditor({
 
           {/* Read-only warning for replace mode */}
           {showReplace && (locked || !isOwner || (document?.inCloud && !isOnline) || serverCopyUnavailable) && (
-            <div className="mb-2 px-2 py-1.5 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-200 text-xs rounded-sm flex items-center gap-1.5">
+            <div className="mb-2 px-2 py-1.5 bg-(--status-warning-bg) text-(--status-warning-fg) text-xs rounded-sm flex items-center gap-1.5">
               <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>

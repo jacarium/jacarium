@@ -205,16 +205,16 @@ export default function ExportProgressModal({ isOpen, onClose, job }) {
         {/* Header */}
         <div className="flex items-start gap-4 mb-4">
           <div className={`p-3 rounded-full shrink-0 ${
- status ==='success'?'bg-green-100':
- status ==='error'?'bg-red-100':
-'bg-blue-100'
+ status ==='success'?'bg-(--status-success-bg)':
+ status ==='error'?'bg-(--status-danger-bg)':
+'bg-(--status-info-bg)'
  }`}>
             {status === 'success' ? (
-              <CheckCircle size={24} className="text-green-600" />
+              <CheckCircle size={24} className="text-(--chart-good)" />
             ) : status === 'error' ? (
-              <XCircle size={24} className="text-red-600" />
+              <XCircle size={24} className="text-(--chart-bad)" />
             ) : (
-              <Download size={24} className="text-blue-600" />
+              <Download size={24} className="text-(--chart-info)" />
             )}
           </div>
           <div className="flex-1 min-w-0">
@@ -248,11 +248,11 @@ export default function ExportProgressModal({ isOpen, onClose, job }) {
             </div>
             <div className="w-full bg-os-card-secondary rounded-full h-2 overflow-hidden">
               {progress.indeterminate && status === 'exporting' ? (
-                <div className="h-full w-full bg-blue-600/60 animate-pulse" />
+                <div className="h-full w-full bg-os-blue/60 animate-pulse" />
               ) : (
                 <div
                   className={`h-full transition-all duration-300 ${
- status ==='success'?'bg-green-600':'bg-blue-600'
+ status ==='success'?'bg-(--chart-good)':'bg-os-blue'
  }`}
                   style={{ width: `${status === 'success' ? 100 : progress.percent}%` }}
                 />
@@ -263,7 +263,7 @@ export default function ExportProgressModal({ isOpen, onClose, job }) {
 
         {/* Error Summary */}
         {status === 'error' && errorMessage && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm text-sm text-red-700 dark:text-red-300 wrap-break-word">
+          <div className="mb-4 p-3 bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm text-sm text-(--status-danger-fg) wrap-break-word">
             {errorMessage}
           </div>
         )}

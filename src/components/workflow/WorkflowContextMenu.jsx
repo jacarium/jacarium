@@ -1,11 +1,11 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { isSharedWorkflow, isSharedByMe } from '../../utils/workflowSharing';
 import { MenuItemIcon } from '../common/menus/MenuItemIcon';
-import { isMobileLayout } from '../../utils/mobile';
+import { usePopupPosition } from '../../hooks/usePopupPosition.js';
 
 const ITEM_CLASS = 'w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2';
 // Destructive items (Delete) are red in every menu of the app
-const DANGER_ITEM_CLASS = ITEM_CLASS.replace('text-os-text-primary', 'text-red-600');
+const DANGER_ITEM_CLASS = ITEM_CLASS.replace('text-os-text-primary', 'text-(--chart-bad)');
 const Divider = () => <div className="border-t border-os-border my-1"></div>;
 
 /**
@@ -82,7 +82,7 @@ export default function WorkflowContextMenu({
   readOnly = false
 }) {
   const menuRef = useRef(null);
-  const [position, setPosition] = useState({ x: menu.x, y: menu.y });
+  const position = { x: menu.x, y: menu.y };
 
   // Close on outside click
   useEffect(() => {
@@ -103,24 +103,9 @@ export default function WorkflowContextMenu({
     };
   }, [onClose]);
 
-  // Correct the position using the real rendered menu size
-  useLayoutEffect(() => {
-    if (!menuRef.current) return;
-    // on a phone the menu is a bottom sheet placed by the stylesheet (src/mobile.css), not by x/y
-    if (isMobileLayout()) return;
-    const menuRect = menuRef.current.getBoundingClientRect();
-    const margin = 10;
-    let { x, y } = position;
-    if (menuRect.right > window.innerWidth - margin) {
-      x = Math.max(margin, x - (menuRect.right - window.innerWidth + margin));
-    }
-    if (menuRect.bottom > window.innerHeight - margin) {
-      y = Math.max(margin, y - (menuRect.bottom - window.innerHeight + margin));
-    }
-    if (x !== position.x || y !== position.y) {
-      setPosition({ x, y });
-    }
-  }, [position]);
+  // Inside the window from the menu's real size: below / right of the pointer when it fits, flipped above / left when
+  // not, clamped and scrolling inside otherwise (the shared popup placement; on a phone MobileMenuChrome places it)
+  usePopupPosition(menuRef, { open: true, anchor: () => ({ left: position.x, top: position.y }), deps: [position.x, position.y] });
 
   const run = (action) => () => {
     action?.();

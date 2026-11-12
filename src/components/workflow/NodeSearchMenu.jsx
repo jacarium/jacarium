@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Search } from 'lucide-react';
 import { rankNodes } from './nodeSearch';
 import useScrollSelectedIntoView from '../../hooks/useScrollSelectedIntoView';
+import { usePopupPosition } from '../../hooks/usePopupPosition.js';
 
 /**
  * A floating "pick a node type" menu with a search box: the list behind the
@@ -31,6 +32,13 @@ export default function NodeSearchMenu({ position, categories, onSelect, onClose
   }, []);
 
   useScrollSelectedIntoView(listRef, selectedIndex);
+
+  // Inside the window from its real size, never taller than 500px: below / right of the pointer when it fits, flipped
+  // above / left when not, capped and its list scrolling otherwise (the shared popup placement, src/hooks/usePopupPosition.js)
+  const menuRef = useRef(null);
+  const px = position ? position.x : 0;
+  const py = position ? position.y : 0;
+  usePopupPosition(menuRef, { open: !!position, anchor: () => ({ left: px, top: py }), deps: [px, py], cap: 500 });
 
   if (!position) return null;
 
@@ -77,12 +85,12 @@ export default function NodeSearchMenu({ position, categories, onSelect, onClose
 
       {/* Menu */}
       <div
+        ref={menuRef}
         className="fixed z-50 bg-os-card rounded-lg shadow-xl border border-os-border flex flex-col"
         style={{
           left: `${position.x}px`,
           top: `${position.y}px`,
-          width: '300px',
-          maxHeight: '500px'
+          width: '300px'
         }}
       >
         {/* Search Input */}

@@ -19,14 +19,14 @@ function Row({ icon: Icon, label, testId, onClick, divider = false, current = fa
   return (
     <button type="button" role="menuitem" data-testid={testId} aria-current={current ? 'page' : undefined} onClick={onClick} className={`${ROW} ${divider ? 'border-t border-os-border' : ''}`}>
       <Icon size={22} className="text-os-text-secondary shrink-0" />
-      <div className="flex-1 text-[15px] font-medium">{label}</div>
+      <div className="flex-1 text-[0.9375rem] font-medium">{label}</div>
       {chevron && <ChevronRight size={16} className="text-os-text-muted shrink-0" />}
     </button>
   );
 }
 
 function Heading({ children, first = false }) {
-  return <div className={`px-4 pb-1.5 text-[12px] font-semibold tracking-[0.06em] text-os-text-secondary ${first ? '' : 'pt-3 border-t border-os-border mt-1'}`}>{children}</div>;
+  return <div className={`px-4 pb-1.5 text-[0.75rem] font-semibold tracking-[0.06em] text-os-text-secondary ${first ? '' : 'pt-3 border-t border-os-border mt-1'}`}>{children}</div>;
 }
 
 export default function MoreSheet({ currentPage, onPageChange, onSignOut = null }) {

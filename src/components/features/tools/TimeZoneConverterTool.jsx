@@ -542,7 +542,7 @@ export default function TimeZoneConverterTool() {
                   className="btn btn-danger-ghost p-1 shrink-0"
                   title="Remove timezone"
                 >
-                  <Trash2 size={12} className="text-red-600 dark:text-red-400" />
+                  <Trash2 size={12} className="text-(--chart-bad)" />
                 </button>
               </div>
               <div className="text-2xl font-mono font-semibold text-os-text-primary">

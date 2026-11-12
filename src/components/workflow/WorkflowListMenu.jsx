@@ -77,7 +77,7 @@ export default function WorkflowListMenu({
           </button>
           <button
             onClick={run(onBulkDelete)}
-            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-os-card-secondary flex items-center gap-2"
+            className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
           >
             <MenuItemIcon action="delete" danger />
             Delete Selected

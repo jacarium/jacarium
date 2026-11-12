@@ -111,3 +111,23 @@ today - re-date `EVENTS` in `content.mjs` when the month moves on).
 or customer names, no real hostnames (use `*.example.test`), no ticket or case
 numbers. `bash scripts/privacy-scan.sh --tracked` runs over it like over any
 other tracked file.
+
+## Accessibility screenshots (README)
+
+`scripts/screenshots/accessibility.mjs` makes the README's Accessibility
+pictures from the same synthetic content, each with a ready-made profile of
+Settings > Accessibility applied (`src/utils/readingAidProfiles.js`): the
+Settings page, the Dyslexia friendly, Low vision and Focus profiles on the
+first runbook in Preview, and the Green-weak palette on the Diagnostics
+charts of the synthetic sosreport (`tests/helpers/diagnostics-driver/make_fixture.py`,
+documentation-range addresses only). It needs no backend beyond that one
+shot, runs the Vite dev server on a spare port (5243, `--port`) and headless
+Chromium through playwright-core with a fresh profile, answers every API
+request inside the page, and writes `docs/screenshots/a11y-<id>.webp` at
+1440x900 @2x (`cwebp -q 82 -metadata none`; `--png` writes PNG, also the
+fallback without cwebp).
+
+```sh
+npm run screenshots:accessibility                       # all five, into docs/screenshots/
+node scripts/screenshots/accessibility.mjs --only dyslexia,focus --out /tmp/a11y
+```

@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Edit, Loader, Timer, X, Copy, AlertCircle } from 'lucide-react';
+import { usePopupPosition } from '../hooks/usePopupPosition.js';
 import { getTemplates, getCategories, deleteTemplate, saveTemplate, updateTemplate, renameCategory } from '../templates/jqlTemplates';
 import { getEngineTemplates, getEngineCategories, createEngineTemplate, updateEngineTemplate, deleteEngineTemplate } from '../utils/engineTemplates';
 import { useImportFlow } from '../hooks/useImportFlow';
@@ -69,6 +70,8 @@ export default function SearchPage({
     return saved !== null ? JSON.parse(saved) : true;
   });
   const contextMenuRef = useRef(null);
+  // the sidebar's context menu stays inside the window (the shared popup placement: flip, clamp, scroll inside)
+  usePopupPosition(contextMenuRef, { open: contextMenu.visible, anchor: () => ({ left: contextMenu.x, top: contextMenu.y }), deps: [contextMenu.x, contextMenu.y] });
 
   // Engine templates state
   const [engineTemplates, setEngineTemplates] = useState([]);
@@ -787,12 +790,12 @@ export default function SearchPage({
         {!statusBannerDismissed && (
           <>
             {loadingMetadata ? (
-              <div className="bg-blue-50 border-b border-blue-200 px-6 py-3">
+              <div className="bg-(--status-info-bg) border-b border-(--status-info-border) px-6 py-3">
                 <div className="flex items-start gap-3">
-                  <Loader size={20} className="text-blue-600 shrink-0 mt-0.5 animate-spin" />
+                  <Loader size={20} className="text-(--chart-info) shrink-0 mt-0.5 animate-spin" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-blue-800">Syncing with Jira</p>
-                    <p className="text-xs text-blue-700 mt-1">
+                    <p className="text-sm font-medium text-(--status-info-fg)">Syncing with Jira</p>
+                    <p className="text-xs text-(--status-info-fg) mt-1">
                       Fetching latest metadata from Jira...
                     </p>
                   </div>
@@ -801,17 +804,17 @@ export default function SearchPage({
                     className="btn btn-quiet p-1"
                     title="Dismiss"
                   >
-                    <X size={16} className="text-blue-600" />
+                    <X size={16} className="text-(--chart-info)" />
                   </button>
                 </div>
               </div>
             ) : cooldown > 0 ? (
-              <div className="bg-yellow-50 border-b border-yellow-200 px-6 py-3">
+              <div className="bg-(--status-warning-bg) border-b border-(--status-warning-border) px-6 py-3">
                 <div className="flex items-start gap-3">
-                  <Timer size={20} className="text-yellow-600 shrink-0 mt-0.5" />
+                  <Timer size={20} className="text-(--chart-warn) shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-yellow-800">Rate Limit Cooldown</p>
-                    <p className="text-xs text-yellow-700 mt-1">
+                    <p className="text-sm font-medium text-(--status-warning-fg)">Rate Limit Cooldown</p>
+                    <p className="text-xs text-(--status-warning-fg) mt-1">
                       API calls are paused. Please wait <span className="font-semibold">{cooldown}</span> seconds before trying again.
                     </p>
                   </div>
@@ -820,17 +823,17 @@ export default function SearchPage({
                     className="btn btn-warning-ghost p-1"
                     title="Dismiss"
                   >
-                    <X size={16} className="text-yellow-600" />
+                    <X size={16} className="text-(--chart-warn)" />
                   </button>
                 </div>
               </div>
             ) : jiraStatus === 'error' ? (
-              <div className="bg-red-50 dark:bg-red-900/20 px-6 py-3">
+              <div className="bg-(--status-danger-bg) px-6 py-3">
                 <div className="flex items-start gap-3">
-                  <AlertCircle size={20} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                  <AlertCircle size={20} className="text-(--chart-bad) shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-red-800 dark:text-red-200">Disconnected from Jira</p>
-                    <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                    <p className="text-sm font-medium text-(--status-danger-fg)">Disconnected from Jira</p>
+                    <p className="text-xs text-(--status-danger-fg) mt-1">
                       Unable to connect to Jira. Please check your connection and authentication.
                     </p>
                   </div>
@@ -839,7 +842,7 @@ export default function SearchPage({
                     className="btn btn-danger-ghost p-1"
                     title="Dismiss"
                   >
-                    <X size={16} className="text-red-600" />
+                    <X size={16} className="text-(--chart-bad)" />
                   </button>
                 </div>
               </div>
@@ -870,7 +873,7 @@ export default function SearchPage({
       {/* Change Category Modal */}
       {showChangeCategoryModal && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          className="sc-modal-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50"
           onClick={() => {
             setShowChangeCategoryModal(false);
             setTemplateToChangeCategory(null);
@@ -879,7 +882,7 @@ export default function SearchPage({
           }}
         >
           <div
-            className="bg-os-card rounded-lg shadow-xl w-full max-w-md mx-4"
+            role="dialog" aria-modal="true" aria-label="Dialog" className="sc-modal-panel bg-os-card rounded-lg shadow-xl w-full max-w-md mx-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 border-b border-os-border">
@@ -1063,7 +1066,7 @@ export default function SearchPage({
                   handleDelete(contextMenu.target.id, e);
                   setContextMenu({ visible: false, x: 0, y: 0, type: null, target: null });
                 }}
-                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-os-card-secondary flex items-center gap-2"
+                className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
               >
                 <MenuItemIcon action="delete" danger />
                 Delete Template
@@ -1095,7 +1098,7 @@ export default function SearchPage({
                 onClick={() => {
                   handleDeleteEngineTemplate(contextMenu.target);
                 }}
-                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-os-card-secondary flex items-center gap-2"
+                className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
               >
                 <MenuItemIcon action="delete" danger />
                 Delete Search

@@ -118,7 +118,7 @@ try {
   await pickFile('words.json', '["delta", "beta", 5]', 'application/json');
   check('2. a JSON array file: "1 word added, 1 already there, 1 skipped", list refreshed', text('[data-testid="spellcheck-words-result"]') === '1 word added, 1 already there, 1 skipped' && listed().includes('delta'), text('[data-testid="spellcheck-words-result"]'));
   await pickFile('nothing.txt', 'two words\n');
-  check('2. a file with nothing usable: a warning, "0 words added, 1 skipped", nothing added', text('[data-testid="spellcheck-words-result"]') === '0 words added, 1 skipped' && q('[data-testid="spellcheck-words-result"]').className.includes('amber'), text('[data-testid="spellcheck-words-result"]'));
+  check('2. a file with nothing usable: a warning, "0 words added, 1 skipped", nothing added', text('[data-testid="spellcheck-words-result"]') === '0 words added, 1 skipped' && q('[data-testid="spellcheck-words-result"]').className.includes('status-warning'), text('[data-testid="spellcheck-words-result"]'));
   await unmount();
 
   // ---- 3. an empty dictionary ----

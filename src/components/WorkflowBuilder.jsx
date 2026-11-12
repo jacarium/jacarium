@@ -465,7 +465,7 @@ export default function WorkflowBuilder() {
 
             {/* Read-only banner for a workflow shared by someone else, without write access */}
             {currentWorkflow?.inCloud && !isOwner && (
-              <div className="px-4 py-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-200 text-sm flex items-center gap-2">
+              <div className="px-4 py-2 bg-(--status-brand-bg) text-(--status-brand-fg) text-sm flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
@@ -475,7 +475,7 @@ export default function WorkflowBuilder() {
             )}
 
             {/* Canvas (grab cursor while Space is held: see useWorkflowCanvas) */}
-            <div className={`flex-1 ${spaceHeld ? 'workflow-space-pan' : ''}`} onDoubleClick={isOwner ? onCanvasDoubleClick : undefined}>
+            <div className={`flex-1 ${spaceHeld ? 'workflow-space-pan' : ''}`} onDoubleClick={isOwner ? onCanvasDoubleClick : undefined} data-icons-fixed>
               <ReactFlow
               key={currentWorkflow.cloudLastUpdated ? `${currentWorkflow.id}-${currentWorkflow.cloudLastUpdated}` : currentWorkflow.id}
               nodes={nodes}
@@ -568,7 +568,7 @@ export default function WorkflowBuilder() {
       {/* Split View Resizer */}
       {splitViewEnabled && (
         <div
-          className="shrink-0 border-r border-os-border cursor-col-resize hover:border-blue-400 transition-colors"
+          className="shrink-0 border-r border-os-border cursor-col-resize hover:border-os-blue transition-colors"
           onMouseDown={handleSplitDragStart}
           style={{
             zIndex: 10
@@ -627,8 +627,8 @@ export default function WorkflowBuilder() {
 
       {/* Environment Variables Modal */}
       {showEnvVariables && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-os-card rounded-lg shadow-xl w-full max-w-4xl mx-4 h-[80vh] overflow-hidden">
+        <div className="sc-modal-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div role="dialog" aria-modal="true" aria-label="Dialog" className="sc-modal-panel bg-os-card rounded-lg shadow-xl w-full max-w-4xl mx-4 h-[80vh] overflow-hidden">
             <EnvironmentVariables onClose={() => setShowEnvVariables(false)} />
           </div>
         </div>

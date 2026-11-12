@@ -238,16 +238,16 @@ export default function QuickWorkflow({
         onMouseDown={handleMouseDown}
       >
         {/* Header */}
-        <div className="drag-handle flex items-center justify-between p-3 border-b border-os-border bg-linear-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 cursor-grab active:cursor-grabbing rounded-t-lg">
+        <div className="drag-handle flex items-center justify-between p-3 border-b border-os-border bg-linear-to-r from-(--status-brand-bg) to-(--status-brand-border) cursor-grab active:cursor-grabbing rounded-t-lg">
           <div className="flex items-center gap-2">
-            <Workflow size={16} className="text-purple-600 dark:text-purple-300" />
-            <span className="text-sm font-semibold text-purple-900 dark:text-purple-200">Quick Workflow</span>
+            <Workflow size={16} className="text-(--brand-accent)" />
+            <span className="text-sm font-semibold text-(--status-brand-fg)">Quick Workflow</span>
           </div>
           <button
             onClick={handleClose}
             className="btn btn-brand-ghost p-1"
           >
-            <X size={16} className="text-purple-700 dark:text-purple-300" />
+            <X size={16} className="text-(--status-brand-fg)" />
           </button>
         </div>
 
@@ -270,13 +270,13 @@ export default function QuickWorkflow({
                       className="w-full flex items-center justify-between px-3 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary rounded-sm transition-colors group"
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <Workflow size={14} className="text-purple-600 dark:text-purple-300 shrink-0" />
+                        <Workflow size={14} className="text-(--brand-accent) shrink-0" />
                         <span className="truncate">{workflow.title}</span>
                         {workflow.category && (
                           <span className="text-xs text-os-text-muted">({workflow.category})</span>
                         )}
                       </div>
-                      <ChevronRight size={14} className="text-os-text-muted group-hover:text-purple-600 dark:group-hover:text-purple-300 shrink-0" />
+                      <ChevronRight size={14} className="text-os-text-muted group-hover:text-(--brand-accent) shrink-0" />
                     </button>
                   ))
                 )}
@@ -288,7 +288,7 @@ export default function QuickWorkflow({
               {/* Workflow Info */}
               <div className="mb-4 pb-3 border-b border-os-border">
                 <div className="flex items-center gap-2">
-                  <Workflow size={16} className="text-purple-600 dark:text-purple-300" />
+                  <Workflow size={16} className="text-(--brand-accent)" />
                   <span className="font-medium text-sm text-os-text-primary">{selectedWorkflow.title}</span>
                 </div>
                 <button
@@ -297,7 +297,7 @@ export default function QuickWorkflow({
                     setResult(null);
                     setError(null);
                   }}
-                  className="text-xs text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200 mt-1"
+                  className="text-xs text-(--brand-accent) hover:text-(--status-brand-fg) mt-1"
                 >
                   ← Choose different workflow
                 </button>
@@ -317,7 +317,7 @@ export default function QuickWorkflow({
                           type="text"
                           value={inputs[key]}
                           onChange={(e) => setInputs(prev => ({ ...prev, [key]: e.target.value }))}
-                          className="w-full px-2 py-1 text-sm border border-os-input-border bg-os-input-bg text-os-text-primary rounded-sm focus:outline-hidden focus:border-purple-500"
+                          className="w-full px-2 py-1 text-sm border border-os-input-border bg-os-input-bg text-os-text-primary rounded-sm focus:outline-hidden focus:border-(--os-blue)"
                           placeholder={`Enter ${key}... (or leave empty to use connected value)`}
                         />
                       </div>
@@ -339,7 +339,7 @@ export default function QuickWorkflow({
 
               {/* Error */}
               {error && (
-                <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm text-sm text-red-700 dark:text-red-300">
+                <div className="mt-4 p-3 bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm text-sm text-(--status-danger-fg)">
                   <div className="font-medium mb-1">Error:</div>
                   <div className="text-xs">{error}</div>
                 </div>
@@ -349,8 +349,8 @@ export default function QuickWorkflow({
               {result !== null && result !== undefined && (
                 <div className="mt-4">
                   <div className="text-xs text-os-text-secondary mb-2">Result:</div>
-                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-sm">
-                    <pre className="text-xs text-green-900 dark:text-green-300 whitespace-pre-wrap wrap-break-word font-mono">
+                  <div className="p-3 bg-(--status-success-bg) border border-(--status-success-border) rounded-sm">
+                    <pre className="text-xs text-(--status-success-fg) whitespace-pre-wrap wrap-break-word font-mono">
                       {formatNodeValue(result)}
                     </pre>
                   </div>

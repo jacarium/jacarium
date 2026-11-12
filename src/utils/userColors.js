@@ -2,6 +2,7 @@
  * User Color Utility
  * Generates consistent colors for different users based on their machine ID
  */
+import { paint } from './dataColour.js';
 
 /**
  * Generate a consistent color for a user based on their ID
@@ -10,7 +11,7 @@
  */
 export function getUserBorderColor(userId) {
   if (!userId) {
-    return 'border-purple-600'; // Default purple for unknown users
+    return 'border-(--brand-accent)'; // Default purple for unknown users
   }
 
   // Hash the userId to get a consistent number
@@ -24,24 +25,9 @@ export function getUserBorderColor(userId) {
   hash = Math.abs(hash);
 
   // Define a palette of distinct, vibrant colors
-  const colors = [
-    'border-blue-600',      // Blue
-    'border-green-600',     // Green
-    'border-yellow-600',    // Yellow
-    'border-red-600',       // Red
-    'border-indigo-600',    // Indigo
-    'border-pink-600',      // Pink
-    'border-teal-600',      // Teal
-    'border-orange-600',    // Orange
-    'border-cyan-600',      // Cyan
-    'border-lime-600',      // Lime
-    'border-rose-600',      // Rose
-    'border-violet-600',    // Violet
-    'border-amber-600',     // Amber
-    'border-emerald-600',   // Emerald
-    'border-fuchsia-600',   // Fuchsia
-    'border-sky-600',       // Sky
-  ];
+  // the categorical set of the charts (--chart-cat-1..8: one colour per category everywhere; the colour-vision
+  // palettes replace it with an Okabe-Ito order), so a collaborator's colour follows the palette too
+  const colors = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `border-(--chart-cat-${n})`);
 
   // Select color based on hash
   return colors[hash % colors.length];
@@ -53,8 +39,13 @@ export function getUserBorderColor(userId) {
  * @returns {object} - Style object with borderLeftColor
  */
 export function getUserBorderStyle(userId) {
+  return paint(getUserColor(userId), 'borderLeftColor');   // display: a colour-vision palette maps it (src/utils/dataColour.js)
+}
+
+/** The user's colour as a hex value (data: the Yjs awareness colour others see; use getUserBorderStyle / paint() to display it). */
+export function getUserColor(userId) {
   if (!userId) {
-    return { borderLeftColor: '#9333ea' }; // Purple-600
+    return '#9333ea'; // Purple-600
   }
 
   // Hash the userId
@@ -85,7 +76,7 @@ export function getUserBorderStyle(userId) {
     '#0284c7', // Sky-600
   ];
 
-  return { borderLeftColor: colors[hash % colors.length] };
+  return colors[hash % colors.length];
 }
 
 /**
@@ -93,10 +84,6 @@ export function getUserBorderStyle(userId) {
  * @param {string} userId - The user's machine ID
  * @returns {string} - Hex color code
  */
-export function getUserColor(userId) {
-  const style = getUserBorderStyle(userId);
-  return style.borderLeftColor;
-}
 
 /**
  * Get subtle/pastel version of user color for backgrounds

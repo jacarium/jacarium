@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useEffect, useRef, useState } from 'react';
+import { scrollBehavior } from '../../utils/readingAids';
 import { Play, Globe, Terminal, Scale, GitBranch, Timer, Database, Variable, Code2, Eye, Flag, List, Repeat, Shuffle, ListOrdered, StickyNote, Lightbulb, Lock, Square, Eraser, Loader2, Check, X, Link } from 'lucide-react';
 import { NODE_CATEGORIES } from '../workflow/workflowNodeCategories';
 import { ANNOTATION_TYPES, DATA_NODE_TYPES, describe, labelFor, linearize, pinName, summarize } from '../../utils/workflowReader';
@@ -56,7 +57,7 @@ const STATUS = {
 
 function Chip({ text: t }) {
   if (!t) return null;
-  return <span className={`px-[7px] py-[2px] rounded-xs font-mono text-[12px] font-medium ${CHIP[t] || 'bg-os-card-secondary text-os-text-secondary'}`}>{t}</span>;
+  return <span className={`px-[7px] py-[2px] rounded-xs font-mono text-[0.75rem] font-medium ${CHIP[t] || 'bg-os-card-secondary text-os-text-secondary'}`}>{t}</span>;
 }
 
 /** The content lines of a card: all of them, the card grows to fit; a long line wraps (wrap) or scrolls sideways. */
@@ -64,7 +65,7 @@ function Lines({ lines, mono, wrap, testId }) {
   if (!lines.length) return null;
   const mode = wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'whitespace-pre overflow-x-auto';
   return (
-    <div data-testid={testId} className={`min-w-0 text-[12px] leading-[1.45] ${mono ? `font-mono text-os-terminal-text ${mode}` : 'font-text whitespace-pre-wrap break-words'}`}>
+    <div data-testid={testId} className={`min-w-0 text-[0.75rem] leading-[1.45] ${mono ? `font-mono text-os-terminal-text ${mode}` : 'font-text whitespace-pre-wrap break-words'}`}>
       {lines.join('\n')}
     </div>
   );
@@ -77,8 +78,8 @@ function NodeCard({ entry, jump, lit }) {
   if (ANNOTATION_TYPES.includes(node.type)) {
     return (
       <div data-testid="mobile-workflow-note" className="rounded-sm border border-[var(--mob-note-border)] bg-[var(--mob-note-bg)] px-[10px] py-2 flex flex-col gap-1 mb-[14px]">
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.06em] text-[var(--mob-note-title)]"><Icon size={12} />{node.type === 'idea' ? 'IDEA' : 'NOTE'}</div>
-        <div className="font-text text-[13px] leading-[1.4] text-[var(--mob-note-text)] whitespace-pre-wrap">{node.data?.text || 'Empty'}</div>
+        <div className="flex items-center gap-1.5 text-2xs font-semibold tracking-[0.06em] text-[var(--mob-note-title)]"><Icon size={12} />{node.type === 'idea' ? 'IDEA' : 'NOTE'}</div>
+        <div className="font-text text-[0.8125rem] leading-[1.4] text-[var(--mob-note-text)] whitespace-pre-wrap">{node.data?.text || 'Empty'}</div>
       </div>
     );
   }
@@ -92,27 +93,27 @@ function NodeCard({ entry, jump, lit }) {
         <span className="truncate">{title}</span>
         <span className="flex-1" />
         {status ? (
-          <span data-testid="mobile-workflow-node-status" className={`inline-flex items-center gap-1 font-normal text-[12px] ${status.chip}`}>
+          <span data-testid="mobile-workflow-node-status" className={`inline-flex items-center gap-1 font-normal text-[0.75rem] ${status.chip}`}>
             <status.Icon size={13} className={status.spin ? 'animate-spin' : ''} />{status.label}
           </span>
         ) : (
-          <span className="font-normal text-[12px] text-os-text-muted truncate">{DESCRIPTIONS[node.type] || ''}</span>
+          <span className="font-normal text-[0.75rem] text-os-text-muted truncate">{DESCRIPTIONS[node.type] || ''}</span>
         )}
       </div>
       {(chip || lines.length > 0) && (
-        <div className="px-3 pt-2 pb-[10px] flex items-start gap-2 text-[12px]">
+        <div className="px-3 pt-2 pb-[10px] flex items-start gap-2 text-[0.75rem]">
           <Chip text={chip} />
           <Lines lines={lines} mono={mono} wrap={wrap} testId="mobile-workflow-node-body" />
         </div>
       )}
       {output.length > 0 && (
-        <div data-testid="mobile-workflow-node-output" className={`mx-3 mb-[10px] px-2 py-1.5 rounded-xs text-[12px] font-mono whitespace-pre-wrap break-all ${node.data?.status === 'error' ? 'bg-[var(--mob-delete-bg)] text-[var(--mob-delete-text)]' : 'bg-os-card-secondary text-os-terminal-text'}`}>
+        <div data-testid="mobile-workflow-node-output" className={`mx-3 mb-[10px] px-2 py-1.5 rounded-xs text-[0.75rem] font-mono whitespace-pre-wrap break-all ${node.data?.status === 'error' ? 'bg-[var(--mob-delete-bg)] text-[var(--mob-delete-text)]' : 'bg-os-card-secondary text-os-terminal-text'}`}>
           {output.join('\n')}
         </div>
       )}
       {inputs.length > 0 && (
-        <div data-testid="mobile-workflow-node-inputs" className="px-3 pb-[8px] flex flex-col gap-1 text-[12px]">
-          <div className="text-[11px] font-semibold tracking-[0.06em] text-os-text-muted">INPUTS</div>
+        <div data-testid="mobile-workflow-node-inputs" className="px-3 pb-[8px] flex flex-col gap-1 text-[0.75rem]">
+          <div className="text-2xs font-semibold tracking-[0.06em] text-os-text-muted">INPUTS</div>
           {inputs.map(({ node: source, handle }, i) => {
             const SourceIcon = ICONS[source.type] || Square;
             const value = summarize(source).body;
@@ -120,7 +121,7 @@ function NodeCard({ entry, jump, lit }) {
               <button type="button" key={`${source.id}-${handle}-${i}`} data-testid="mobile-workflow-input" data-source-id={source.id} onClick={() => jump?.(source.id)} aria-label={`${pinName(node.type, handle)} from ${source.data?.label || labelFor(source.type)}`}
                 className="min-h-[44px] w-full px-[10px] py-[6px] rounded-sm border border-os-border bg-os-card-secondary inline-flex items-center gap-[6px] min-w-0 text-left text-os-text-primary">
                 <Link size={12} className="shrink-0 text-os-text-secondary" />
-                <span className="font-mono text-[11px] text-os-text-secondary shrink-0">{pinName(node.type, handle)} ←</span>
+                <span className="font-mono text-2xs text-os-text-secondary shrink-0">{pinName(node.type, handle)} ←</span>
                 <SourceIcon size={13} className="shrink-0 text-os-text-secondary" />
                 <span className="font-semibold shrink-0">{source.data?.label || labelFor(source.type)}</span>
                 {value ? <span className="font-mono text-[var(--os-code-string)] [overflow-wrap:anywhere] min-w-0">{JSON.stringify(value)}</span> : null}
@@ -133,9 +134,9 @@ function NodeCard({ entry, jump, lit }) {
         <div className="flex flex-col">
           {outlets.map((outlet, i) => (
             <div key={outlet.handle} className={`flex items-center gap-[10px] px-3 py-[10px] ${i < outlets.length - 1 ? 'border-b border-os-border' : ''}`}>
-              <span className={`w-[46px] shrink-0 font-mono text-[11px] font-medium ${OUTLET_COLOR[outlet.caption] || 'text-os-text-secondary'}`}>{outlet.caption}</span>
+              <span className={`w-[46px] shrink-0 font-mono text-2xs font-medium ${OUTLET_COLOR[outlet.caption] || 'text-os-text-secondary'}`}>{outlet.caption}</span>
               {outlet.targets.length === 0 ? (
-                <span className="text-[12px] text-os-text-muted">nothing connected</span>
+                <span className="text-[0.75rem] text-os-text-muted">nothing connected</span>
               ) : outlet.targets.map((target) => {
                 const TargetIcon = ICONS[target.type] || Square;
                 const s = summarize(target);
@@ -144,7 +145,7 @@ function NodeCard({ entry, jump, lit }) {
                     <TargetIcon size={14} className="text-os-text-secondary shrink-0" />
                     <span className="font-semibold whitespace-nowrap shrink-0">{target.data?.label || labelFor(target.type)}</span>
                     {s.chip ? <span className="shrink-0"><Chip text={s.chip} /></span> : null}
-                    {s.body ? <span className="font-mono text-[11px] text-os-text-secondary whitespace-nowrap overflow-hidden text-ellipsis min-w-0">{s.body}</span> : null}
+                    {s.body ? <span className="font-mono text-2xs text-os-text-secondary whitespace-nowrap overflow-hidden text-ellipsis min-w-0">{s.body}</span> : null}
                   </span>
                 );
               })}
@@ -170,7 +171,7 @@ export default function MobileWorkflowView({ nodes = [], edges = [] }) {
   useEffect(() => {
     if (!running || handScrolled.current || !scroller.current) return;
     const card = scroller.current.querySelector(`[data-testid="mobile-workflow-node"][data-status="processing"]`);
-    if (card && typeof card.scrollIntoView === 'function') card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (card && typeof card.scrollIntoView === 'function') card.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
   }, [running]);
   const byHand = () => { if (anyRun) handScrolled.current = true; };
   // a tap on an input chip: the source node's card scrolls into view and lights up for a moment
@@ -180,13 +181,13 @@ export default function MobileWorkflowView({ nodes = [], edges = [] }) {
   const jump = (id) => {
     const card = scroller.current?.querySelector(`[data-testid="mobile-workflow-node"][data-node-id="${id}"]`);
     if (!card) return;
-    if (typeof card.scrollIntoView === 'function') card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (typeof card.scrollIntoView === 'function') card.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
     setLit(id);
     clearTimeout(litTimer.current);
     litTimer.current = setTimeout(() => setLit(null), 1400);
   };
   return (
-    <div ref={scroller} data-testid="mobile-workflow-view" onTouchMove={byHand} onWheel={byHand} className="sc-workflow-reader flex-1 min-h-0 overflow-y-auto flex flex-col text-[13px] text-os-text-primary">
+    <div ref={scroller} data-testid="mobile-workflow-view" onTouchMove={byHand} onWheel={byHand} className="sc-workflow-reader flex-1 min-h-0 overflow-y-auto flex flex-col text-[0.8125rem] text-os-text-primary">
       {items.map((entry, i) => {
         const annotation = ANNOTATION_TYPES.includes(entry.node.type);
         const next = items[i + 1];
@@ -218,7 +219,7 @@ export function MobileWorkflowToolbar({ isExecuting, onRun, onStop, onClear }) {
       <button type="button" aria-label="Stop workflow" data-testid="mobile-workflow-stop" onClick={onStop} disabled={!isExecuting} className="w-10 h-10 flex items-center justify-center disabled:text-os-text-muted"><Square size={19} /></button>
       {onClear && <button type="button" aria-label="Clear node outputs" title="Clear node outputs" data-testid="mobile-workflow-clear" onClick={onClear} disabled={isExecuting} className="w-10 h-10 flex items-center justify-center disabled:text-os-text-muted"><Eraser size={19} /></button>}
       <span className="flex-1" />
-      <span data-testid="mobile-workflow-readonly" className="h-7 px-[10px] rounded-xs border border-os-border inline-flex items-center gap-1.5 text-[12px] text-os-text-secondary"><Lock size={13} />View only · edit on desktop</span>
+      <span data-testid="mobile-workflow-readonly" className="h-7 px-[10px] rounded-xs border border-os-border inline-flex items-center gap-1.5 text-[0.75rem] text-os-text-secondary"><Lock size={13} />View only · edit on desktop</span>
     </div>
   );
 }

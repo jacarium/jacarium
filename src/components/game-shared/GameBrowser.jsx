@@ -50,14 +50,14 @@ export default function GameBrowser({
 
       {/* Central Server Connection Warning */}
       {!isCentralServerConnected && (
-        <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4">
+        <div className="bg-(--status-warning-bg) border border-(--status-warning-border) rounded-lg p-4 mb-4">
           <div className="flex items-start gap-2">
-            <Server size={16} className="text-yellow-600 dark:text-yellow-400 mt-0.5" />
+            <Server size={16} className="text-(--chart-warn) mt-0.5" />
             <div>
-              <h4 className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 mb-1">
+              <h4 className="text-sm font-semibold text-(--status-warning-fg) mb-1">
                 Central Server Offline
               </h4>
-              <p className="text-xs text-yellow-700 dark:text-yellow-300">
+              <p className="text-xs text-(--status-warning-fg)">
                 Multiplayer and game browsing require connection to the central server. You can still play in single player mode.
               </p>
             </div>
@@ -89,7 +89,7 @@ export default function GameBrowser({
           </button>
         </div>
         {!isCentralServerConnected && (
-          <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2 flex items-center gap-1">
+          <p className="text-xs text-(--chart-warn) mt-2 flex items-center gap-1">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
@@ -110,7 +110,7 @@ export default function GameBrowser({
                     <div className="text-xs font-medium text-os-text-primary">
                       {game.lobbyName || `${modeTitle} Game`}
                     </div>
-                    <span className="text-xs bg-yellow-500/20 text-yellow-600 px-2 py-0.5 rounded-sm">
+                    <span className="text-xs bg-(--status-warning-bg) text-(--status-warning-fg) px-2 py-0.5 rounded-sm">
                       {game.status === 'lobby' ? 'In Lobby' : 'Playing'}
                     </span>
                   </div>
@@ -145,7 +145,7 @@ export default function GameBrowser({
                     <div className="text-xs font-medium text-os-text-primary">
                       {game.lobbyName || `${modeTitle} Game`}
                     </div>
-                    <span className="text-xs bg-blue-500/20 text-blue-600 px-2 py-0.5 rounded-sm">
+                    <span className="text-xs bg-os-blue/20 text-(--chart-info) px-2 py-0.5 rounded-sm">
                       Open
                     </span>
                   </div>

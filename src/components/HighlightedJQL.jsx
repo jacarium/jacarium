@@ -17,25 +17,25 @@ export default function HighlightedJQL({ jql }) {
         switch (part.type) {
           case 'keyword':
             return (
-              <span key={index} className="text-yellow-400 font-bold">
+              <span key={index} className="text-(--chart-warn) font-bold">
                 {part.text}
               </span>
             );
           case 'string':
             return (
-              <span key={index} className="text-green-400">
+              <span key={index} className="text-(--chart-good)">
                 {part.text}
               </span>
             );
           case 'function':
             return (
-              <span key={index} className="text-blue-400">
+              <span key={index} className="text-(--chart-info)">
                 {part.text}
               </span>
             );
           case 'field':
             return (
-              <span key={index} className="text-cyan-400">
+              <span key={index} className="text-(--chart-info)">
                 {part.text}
               </span>
             );

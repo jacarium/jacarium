@@ -441,7 +441,7 @@ try {
     if (!(await inDrawer(tp, 'Kubernetes upgrade runbook').isVisible().catch(() => false))) await expand(tp, 'Runbooks');
     await inDrawer(tp, 'Kubernetes upgrade runbook').click(); await tp.waitForTimeout(600);
     await closeOverlays(tp);
-    const header = await tp.evaluate(() => { const { text, q } = window.__measure; const h = q('[data-testid="mobile-page-header"]'); return { title: text(h?.querySelector('.font-semibold')), subtitle: text(h?.querySelector('.text-\\[12px\\]')), open: text(q('[data-testid="tabs-overflow"]')), sidebar: text(q('[data-testid="mobile-open-sidebar"]')) }; });
+    const header = await tp.evaluate(() => { const { text, q } = window.__measure; const h = q('[data-testid="mobile-page-header"]'); return { title: text(h?.querySelector('.font-semibold')), subtitle: text(h?.querySelector('.text-\\[0\\.75rem\\]')), open: text(q('[data-testid="tabs-overflow"]')), sidebar: text(q('[data-testid="mobile-open-sidebar"]')) }; });
     check(`${theme}: the page header's title, subtitle and "N open" reach 4.5:1, the sidebar button 3:1`, header.title >= 4.5 && header.subtitle >= 4.5 && header.open >= 4.5 && header.sidebar >= 3, JSON.stringify(header));
     await tp.locator('[data-testid="tabs-overflow"]').first().click(); await tp.waitForTimeout(400);
     const chrome = await tp.evaluate(() => { const { surface, q } = window.__measure; const lum = ({ r, g, b }) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };

@@ -47,6 +47,7 @@ export const GROUPS = [
   { id: 'workflow', label: 'Workflow' },
   { id: 'jql', label: 'JQL' },
   { id: 'panels', label: 'Panels' },
+  { id: 'reading', label: 'Reading' },
 ];
 
 export const SCOPES = {
@@ -101,6 +102,27 @@ export const ACTIONS = [
   { id: 'panel.aiChat', label: 'Open AI Chat', group: 'panels', scope: 'global', owner: 'renderer', defaults: same(null) },
   { id: 'panel.quickNotes', label: 'Open Quick Notes', group: 'panels', scope: 'global', owner: 'renderer', defaults: same(null) },
   { id: 'panel.teamChat', label: 'Open Team Chat', group: 'panels', scope: 'global', owner: 'renderer', defaults: same(null) },
+  // --- Reading aids (Settings > Accessibility): toggles for the Documents page. Zen mode has a chord (Mod+Shift+E is
+  // free of the browser, the OS and the registry); the others are unassigned until a reader binds the ones they use ---
+  { id: 'reading.zen', label: 'Zen mode', group: 'reading', scope: 'global', owner: 'renderer', defaults: same('Mod+Shift+KeyE') },
+  { id: 'reading.ruler', label: 'Reading ruler', group: 'reading', scope: 'global', owner: 'renderer', defaults: same(null) },
+  { id: 'reading.highContrast', label: 'High contrast', group: 'reading', scope: 'global', owner: 'renderer', defaults: same(null) },
+  { id: 'reading.greyscale', label: 'Greyscale', group: 'reading', scope: 'global', owner: 'renderer', defaults: same(null) },
+  { id: 'reading.hideImages', label: 'Hide images', group: 'reading', scope: 'global', owner: 'renderer', defaults: same(null) },
+  { id: 'reading.highlightLinks', label: 'Highlighted links', group: 'reading', scope: 'global', owner: 'renderer', defaults: same(null) },
+  { id: 'reading.reduceMotion', label: 'Reduce motion', group: 'reading', scope: 'global', owner: 'renderer', defaults: same(null) },
+  // zen's edge pull-outs: the sidebar (left) and the panels (right). Mod+Alt+[ and ] are free of the OS lists, of the
+  // browsers (Mod+Shift+[ ] switch browser tabs in web mode) and of CodeMirror (Mod+[ ] indent); Mod+Shift+Arrow
+  // chords select text in every field, so they are not defaults - a reader may still bind them, with that caveat
+  { id: 'reading.showSidebar', label: 'Show sidebar / sections', group: 'reading', scope: 'global', owner: 'renderer', defaults: same('Mod+Alt+BracketLeft') },
+  { id: 'reading.showPanels', label: 'Show navigation (pages and panels)', group: 'reading', scope: 'global', owner: 'renderer', defaults: same('Mod+Alt+BracketRight') },
+  // text size, everywhere; unassigned: Mod+Equal / Mod+Minus / Mod+Digit0 belong to the desktop's zoom
+  { id: 'reading.textLarger', label: 'Increase text size', group: 'reading', scope: 'global', owner: 'renderer', defaults: same(null) },
+  { id: 'reading.textSmaller', label: 'Decrease text size', group: 'reading', scope: 'global', owner: 'renderer', defaults: same(null) },
+  { id: 'reading.textReset', label: 'Reset text size', group: 'reading', scope: 'global', owner: 'renderer', defaults: same(null) },
+  // the accessibility profiles (Settings > Accessibility), unassigned
+  { id: 'reading.profileNext', label: 'Next accessibility profile', group: 'reading', scope: 'global', owner: 'renderer', defaults: same(null) },
+  { id: 'reading.profilePrev', label: 'Previous accessibility profile', group: 'reading', scope: 'global', owner: 'renderer', defaults: same(null) },
 ];
 
 /** Former action ids: a stored override under one of these is kept under the new id. */

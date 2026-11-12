@@ -250,7 +250,7 @@ export default function UsersSettings({ server = null }) {
                       <td className="py-1.5 pr-2 font-mono">{u.username}{me?.id === u.id ? ' (you)' : ''}</td>
                       <td className="py-1.5 pr-2">{u.displayName}</td>
                       <td className="py-1.5 pr-2">{u.role === 'admin' ? 'administrator' : 'user'}{lastAdmin(u) ? <span className="text-os-text-muted"> (last)</span> : ''}</td>
-                      <td className="py-1.5 pr-2">{u.disabled ? <span className="text-red-600 dark:text-red-400">disabled</span> : u.mustChangePassword ? <span className="text-amber-600">must change password</span> : 'active'}</td>
+                      <td className="py-1.5 pr-2">{u.disabled ? <span className="text-(--chart-bad)">disabled</span> : u.mustChangePassword ? <span className="text-(--chart-warn)">must change password</span> : 'active'}</td>
                       <td className="py-1.5 text-right whitespace-nowrap space-x-1">
                         <Button className="px-2 py-1" disabled={busy} onClick={() => { setResetFor(u.id); setResetPassword(''); }} title="Set a new password">Password</Button>
                         <Button className="px-2 py-1" disabled={busy || lastAdmin(u) || me?.id === u.id} onClick={() => toggleRole(u)}

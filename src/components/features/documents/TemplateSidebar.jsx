@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { BookTemplate, ChevronRight, Menu, X, CheckSquare } from 'lucide-react';
 import { useImportFlow } from '../../../hooks/useImportFlow';
+import { usePopupPosition } from '../../../hooks/usePopupPosition.js';
 import ImportFlow from '../../common/ImportFlow';
 import { EmptyState } from '../../ui';
 import { MenuItemIcon } from '../../common/menus/MenuItemIcon';
@@ -28,6 +29,9 @@ export default function TemplateSidebar({
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const menuRef = useRef(null);
   const dropdownMenuRef = useRef(null);
+  // the Templates menu under its button: inside the window, above the button when there is no room below, right-aligned
+  // (the shared popup placement, from the menu's real size)
+  usePopupPosition(dropdownMenuRef, { open: showMenu, anchor: () => (menuRef.current ? menuRef.current.getBoundingClientRect() : null), side: 'below', align: 'end', gap: 4 });
 
   // Import flow hook
   const importFlow = useImportFlow({
@@ -202,7 +206,7 @@ export default function TemplateSidebar({
                     >
                       <span className="text-sm text-os-text-primary font-medium truncate">{cat}</span>
                       <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-xs text-os-text-muted">{categoryTemplates.length}</span>
+                        <span className="text-xs text-os-text-muted tabular-nums">{categoryTemplates.length}</span>
                         <ChevronRight
                           size={14}
                           className={`text-os-text-secondary transition-transform ${
@@ -263,7 +267,7 @@ export default function TemplateSidebar({
                                   {template.tags.map((tag, idx) => (
                                     <span
                                       key={idx}
-                                      className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-sm"
+                                      className="text-xs px-1.5 py-0.5 bg-(--status-brand-bg) text-(--status-brand-fg) rounded-sm"
                                     >
                                       {tag}
                                     </span>

@@ -236,13 +236,13 @@ export default function ReportsSidebar({
                   return (
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <Filter size={14} className={isActiveFilter ?"text-purple-600":"text-os-text-muted"} />
+                        <Filter size={14} className={isActiveFilter ?"text-(--brand-accent)":"text-os-text-muted"} />
                         <div className="flex-1 min-w-0">
-                          <span className={`text-sm block truncate ${isActiveFilter ?"text-purple-600":"text-os-text-primary"}`}>
+                          <span className={`text-sm block truncate ${isActiveFilter ?"text-(--brand-accent)":"text-os-text-primary"}`}>
                             {report.name}
                           </span>
                           {report.filter && (
-                            <span className={`text-xs block truncate font-mono ${isActiveFilter ?"text-purple-500":"text-os-text-muted"}`}>
+                            <span className={`text-xs block truncate font-mono ${isActiveFilter ?"text-(--brand-accent)":"text-os-text-muted"}`}>
                               {report.filter}
                             </span>
                           )}
@@ -258,7 +258,7 @@ export default function ReportsSidebar({
                   const isActiveFilter = activeFilter && activeFilter.reportId === report.id;
                   return `group relative px-4 py-2.5 cursor-pointer transition-colors border-l-4 ${
                     isActiveFilter
-                      ? 'border-purple-600 bg-purple-50 dark:bg-purple-900/20'
+                      ? 'border-(--brand-accent) bg-(--status-brand-bg)'
                       : 'border-transparent hover:bg-os-card-secondary'
                   }`;
                 },
@@ -322,7 +322,7 @@ export default function ReportsSidebar({
                   handleDelete(contextMenu.target);
                   closeContextMenu();
                 }}
-                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-os-card-secondary flex items-center gap-2"
+                className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
               >
                 <MenuItemIcon action="delete" danger />
                 Delete Filter

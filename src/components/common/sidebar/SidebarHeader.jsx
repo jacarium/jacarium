@@ -54,10 +54,10 @@ export default function SidebarHeader({
           <Loader size={12} className="animate-spin text-os-text-muted shrink-0" title={statusTitle || 'Checking...'} />
         )}
         {status === 'online' && (
-          <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" title={statusTitle || 'Online'} />
+          <div className="w-2 h-2 rounded-full bg-(--chart-good) shrink-0" title={statusTitle || 'Online'} />
         )}
         {status === 'offline' && (
-          <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" title={statusTitle || 'Offline'} />
+          <div className="w-2 h-2 rounded-full bg-(--chart-bad) shrink-0" title={statusTitle || 'Offline'} />
         )}
       </div>
 

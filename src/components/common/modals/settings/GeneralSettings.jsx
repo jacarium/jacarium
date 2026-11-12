@@ -568,7 +568,7 @@ function HomeServerSection({ runScope = null, onCopySettings = null, onLinked = 
           Desktop <span className="font-mono">{versions.desktop?.app}</span>, home server <span className="font-mono">{versions.server?.legacy ? 'before 3.0.0' : versions.server?.app || 'unknown'}</span>
           {versions.state === 'same' ? ' - the same version.' : versions.state === 'unreachable' ? ' - not reachable right now.' : ` - ${versions.message}`}
           {versions.downloadsUrl && versions.state !== 'unreachable' && (
-            <> <button type="button" onClick={() => (window.electronAPI?.openExternal ? window.electronAPI.openExternal(versions.downloadsUrl) : window.open(versions.downloadsUrl, '_blank', 'noopener'))} className="text-blue-600 dark:text-blue-400 hover:underline">Desktop downloads on the server</button></>
+            <> <button type="button" onClick={() => (window.electronAPI?.openExternal ? window.electronAPI.openExternal(versions.downloadsUrl) : window.open(versions.downloadsUrl, '_blank', 'noopener'))} className="text-(--chart-info) hover:underline">Desktop downloads on the server</button></>
           )}
         </p>
       )}

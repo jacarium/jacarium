@@ -72,7 +72,7 @@ check('every page that renders a phone component decides with useMobile()', offe
 const rowMenu = fs.readFileSync(path.join(REPO, 'src', 'components', 'mobile', 'RowMenuButton.jsx'), 'utf8');
 check('RowMenuButton renders nothing unless useMobile().isMobile', /if \(!isMobile[^)]*\) return null/.test(rowMenu));
 const resizable = fs.readFileSync(path.join(REPO, 'src', 'components', 'ResizableSidebar.jsx'), 'utf8');
-check('ResizableSidebar keeps its desktop rendering unless isMobile', /if \(isMobile\) \{/.test(resizable));
+check('ResizableSidebar keeps its desktop rendering unless isMobile (the phone drawer; a zen overlay panel is the exception, it is a desktop view)', /if \(isMobile && !overlay\) \{/.test(resizable));
 
 console.log(failed ? `\n${failed} check(s) failed` : '\nAll checks passed');
 process.exit(failed ? 1 : 0);

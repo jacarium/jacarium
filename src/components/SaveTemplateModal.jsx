@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import BaseModal from './common/modals/BaseModal';
 import { X, Save, Bug, CheckSquare, ShieldAlert, Lock, FileText, AlertCircle, Zap, Star, Bookmark, Flag, Target, AlertTriangle } from 'lucide-react';
 import { availableIcons } from '../templates/jqlTemplates';
 import { extractVariablesFromGroup, extractVariablesFromSortFields } from '../utils/templateVariables';
@@ -106,8 +107,7 @@ export default function SaveTemplateModal({ isOpen, onClose, onSave, currentJQL,
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 font-text">
-      <div className="bg-os-modal shadow-lg max-w-lg w-full border border-os-border rounded-sm max-h-[90vh] overflow-y-auto">
+    <BaseModal isOpen onClose={onClose} closeOnBackdropClick={false} className="bg-os-modal shadow-lg max-w-lg w-full border border-os-border rounded-sm max-h-[90vh] overflow-y-auto font-text" ariaLabel="Save as Template">
         {/* Header */}
         <div className="p-4 border-b border-os-border bg-os-modal flex items-center justify-between sticky top-0 z-10">
           <h2 className="text-sm font-text font-semibold text-os-text-primary uppercase tracking-wide">Save as Template</h2>
@@ -233,19 +233,19 @@ export default function SaveTemplateModal({ isOpen, onClose, onSave, currentJQL,
 
           {/* Variables Section */}
           {detectedVariables.length > 0 ? (
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-sm p-3">
+            <div className="bg-(--status-info-bg) border border-(--status-info-border) rounded-sm p-3">
               <div className="flex items-start gap-2">
-                <AlertCircle size={16} className="text-blue-700 dark:text-blue-300 mt-0.5 shrink-0" />
+                <AlertCircle size={16} className="text-(--status-info-fg) mt-0.5 shrink-0" />
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                  <p className="text-sm font-semibold text-(--status-info-fg) mb-2">
                     Template Variables Detected
                   </p>
-                  <p className="text-xs text-blue-800 dark:text-blue-200 mb-2">
+                  <p className="text-xs text-(--status-info-fg) mb-2">
                     This template contains {detectedVariables.length} variable{detectedVariables.length > 1 ? 's' : ''} that will be filled in when using the template:
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {detectedVariables.map(varName => (
-                      <code key={varName} className="px-2 py-1 bg-os-modal text-blue-900 dark:text-blue-100 text-xs rounded-sm border border-blue-300 dark:border-blue-800 font-mono">
+                      <code key={varName} className="px-2 py-1 bg-os-modal text-(--status-info-fg) text-xs rounded-sm border border-(--status-info-border) font-mono">
                         {`{{${varName}}}`}
                       </code>
                     ))}
@@ -299,7 +299,6 @@ export default function SaveTemplateModal({ isOpen, onClose, onSave, currentJQL,
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </BaseModal>
   );
 }

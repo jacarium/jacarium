@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { MoreVertical, User, Calendar, AlertCircle } from 'lucide-react';
 import InlineEdit from '../common/inputs/InlineEdit';
+import { paint, INK } from '../../utils/dataColour';
 import DatePicker from '../common/inputs/DatePicker';
 import { MenuItemIcon } from '../common/menus/MenuItemIcon';
 
 const priorityColors = {
-  low: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-  medium: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
-  high: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
-  urgent: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+  low: 'bg-(--status-info-bg) text-(--status-info-fg)',
+  medium: 'bg-(--status-warning-bg) text-(--status-warning-fg)',
+  high: 'bg-(--status-warning-border) text-(--status-warning-fg)',   // one step stronger than medium: the scale keeps its four steps inside the roles
+  urgent: 'bg-(--status-danger-bg) text-(--status-danger-fg)'
 };
 
 const priorityLabels = {
@@ -207,9 +208,9 @@ export default function KanbanCard({ card, onDelete, onDragStart, onRenameCard, 
   const primaryInteraction = interactingUsers[0];
   const borderStyle = hasInteractions
     ? {
-        borderColor: primaryInteraction.color,
+        ...paint(primaryInteraction.color, 'borderColor'),
         borderWidth: '2px',
-        boxShadow: `0 0 0 2px ${primaryInteraction.color}33`
+        boxShadow: '0 0 0 2px color-mix(in srgb, var(--dc) 20%, transparent)'
       }
     : {};
 
@@ -228,10 +229,7 @@ export default function KanbanCard({ card, onDelete, onDragStart, onRenameCard, 
             <div
               key={user.userId}
               className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shadow-xs"
-              style={{
-                backgroundColor: user.color,
-                color: '#fff'
-              }}
+              style={{ ...paint(user.color, 'backgroundColor'), color: INK }}
               title={`${user.userId} is ${user.action}`}
             >
               <div
@@ -289,7 +287,7 @@ export default function KanbanCard({ card, onDelete, onDragStart, onRenameCard, 
                     onDelete();
                     setShowMenu(false);
                   }}
-                  className="w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-os-card-secondary flex items-center gap-2"
+                  className="w-full px-3 py-1.5 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
                 >
                   <MenuItemIcon action="delete" danger />
                   Delete
@@ -310,7 +308,7 @@ export default function KanbanCard({ card, onDelete, onDragStart, onRenameCard, 
             onKeyDown={handleDescriptionKeyDown}
             onBlur={handleSaveDescription}
             autoFocus
-            className="w-full px-2 py-1.5 text-xs border border-os-blue rounded-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden resize-none bg-os-input-bg text-os-text-primary h-32 overflow-y-auto"
+            className="w-full px-2 py-1.5 text-xs border border-os-blue rounded-sm focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden resize-none bg-os-input-bg text-os-text-primary h-32 overflow-y-auto"
             placeholder="Add description... (Ctrl+Enter to save, Esc to cancel)"
           />
         </div>
@@ -322,7 +320,7 @@ export default function KanbanCard({ card, onDelete, onDragStart, onRenameCard, 
               onDoubleClick={handleDescriptionDoubleClick}
               title="Double-click to edit"
             >
-              <p className="text-xs text-os-text-muted whitespace-pre-wrap">
+              <p className="ra-reading ra-reading-xs text-xs text-os-text-muted whitespace-pre-wrap">
                 {card.description}
               </p>
             </div>
@@ -348,7 +346,7 @@ export default function KanbanCard({ card, onDelete, onDragStart, onRenameCard, 
             onKeyDown={handleTagsKeyDown}
             onBlur={handleSaveTags}
             autoFocus
-            className="w-full px-2 py-1.5 text-xs border border-os-blue rounded-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-hidden bg-os-input-bg text-os-text-primary"
+            className="w-full px-2 py-1.5 text-xs border border-os-blue rounded-sm focus:ring-1 focus:ring-os-blue/40 focus:border-os-blue outline-hidden bg-os-input-bg text-os-text-primary"
             placeholder="Add tags (comma-separated)..."
           />
         </div>
@@ -433,7 +431,7 @@ export default function KanbanCard({ card, onDelete, onDragStart, onRenameCard, 
                   setTimeout(() => handleSaveAssignee(), 150);
                 }}
                 autoFocus
-                className="px-2 py-0.5 text-xs border border-os-blue rounded-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-hidden w-32 bg-os-input-bg text-os-text-primary"
+                className="px-2 py-0.5 text-xs border border-os-blue rounded-sm focus:ring-1 focus:ring-os-blue/40 focus:border-os-blue outline-hidden w-32 bg-os-input-bg text-os-text-primary"
                 placeholder="@username or name"
               />
               {showAssigneeSuggestions && connectedUsers.length > 0 && (

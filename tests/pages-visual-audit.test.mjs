@@ -77,7 +77,17 @@ async function squareTabs() {
   }
   return { count: tabs.length, bad };
 }
-const clickNav = async (label) => { const ok = await ev(`(() => { const b = Array.from(document.querySelectorAll('nav button')).find((el) => el.textContent.trim() === ${JSON.stringify(label)}); if (!b) return false; b.click(); return true; })()`); await sleep(1500); return ok; };
+const clickNav = async (label) => {
+  const direct = await ev(`(() => { const b = Array.from(document.querySelectorAll('nav button')).find((el) => el.textContent.trim() === ${JSON.stringify(label)}); if (!b) return false; b.click(); return true; })()`);
+  if (direct) { await sleep(1500); return true; }
+  // a page the rail could not fit sits in its "..." menu
+  const opened = await ev(`(() => { const more = document.querySelector('[data-testid="rail-more"]'); if (!more) return false; more.click(); return true; })()`);
+  if (!opened) return false;
+  await sleep(300);
+  const viaMenu = await ev(`(() => { const b = Array.from(document.querySelectorAll('[data-testid="rail-more-menu"] button')).find((el) => el.textContent.trim() === ${JSON.stringify(label)}); if (!b) return false; b.click(); return true; })()`);
+  await sleep(1500);
+  return viaMenu;
+};
 const controls = () => ev(`(() => {
   const cs = (e) => getComputedStyle(e); const out = { bold: [], radius: [], iconText: [] };
   const KEEP = /lucide-(chevron|check|eye|x\b|grip)/i;   // functional icons (lucide names its svgs lucide-<icon>)
@@ -114,6 +124,12 @@ const controls = () => ev(`(() => {
 
 try {
   await dismissWhatsNew(app);
+  // the rail at an ordinary window with no reading aids: every page in the rail, no "..." (the overflow is for short
+  // windows and scaled interfaces; a "..." here is a regression of the room calculation)
+  await app.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+  await sleep(600);
+  const rail = await ev(`(() => { const labels = Array.from(document.querySelectorAll('nav.w-16 button')).map((b) => b.getAttribute('aria-label') || b.textContent.trim()); return { pages: ${JSON.stringify(APP_PAGES)}.filter((l) => labels.includes(l)).length, more: !!document.querySelector('[data-testid="rail-more"], [data-testid="rail-utility-more"]'), labels }; })()`);
+  check(`at 1400 x 900 with no reading aids the rail shows every page (${APP_PAGES.length}) with no "..."`, rail.pages === APP_PAGES.length && !rail.more, JSON.stringify(rail));
   for (const v of Object.keys(VARIANTS)) {
     await app.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
     await setVariant(v);

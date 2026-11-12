@@ -88,17 +88,17 @@ export default function CodeBlock({ entry, contexts = [] }) {
                   );
                 })}
                 {entry.version && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-os-blue border border-os-border">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-(--status-info-bg) text-os-blue border border-os-border">
                     version: {entry.version}
                   </span>
                 )}
                 {entry.from && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-os-blue border border-os-border">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-(--status-info-bg) text-os-blue border border-os-border">
                     inherits from: {entry.from}
                   </span>
                 )}
                 {entry.binary === false && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-os-border">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-(--status-warning-bg) text-(--status-warning-fg) border border-os-border">
                     not raw binary
                   </span>
                 )}
@@ -111,7 +111,7 @@ export default function CodeBlock({ entry, contexts = [] }) {
                 >
                   {copied ? (
                     <>
-                      <Check size={12} className="text-green-600" />
+                      <Check size={12} className="text-(--chart-good)" />
                       Copied!
                     </>
                   ) : (
@@ -147,7 +147,7 @@ export default function CodeBlock({ entry, contexts = [] }) {
             >
               {suidCopied ? (
                 <>
-                  <Check size={12} className="text-green-600" />
+                  <Check size={12} className="text-(--chart-good)" />
                   Copied!
                 </>
               ) : (

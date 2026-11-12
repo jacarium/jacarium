@@ -104,7 +104,7 @@ export default function JwtDecoderTool() {
           <textarea value={token} onChange={(e) => setToken(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." className="w-full h-32 px-3 py-2 bg-os-card border border-os-border rounded-sm text-os-text-primary font-mono text-sm resize-none focus:outline-hidden focus:ring-2 focus:ring-os-blue placeholder:text-os-text-muted" />
         </div>
         <button onClick={handleDecode} disabled={!token} className="btn btn-primary px-4 py-2 text-sm">Decode</button>
-        {error && <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm text-sm text-red-600 dark:text-red-400">{error}</div>}
+        {error && <div className="p-3 bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm text-sm text-(--status-danger-fg)">{error}</div>}
         <div>
           <label className="block text-sm text-os-text-primary mb-2">Header</label>
           <pre className="w-full px-3 py-2 bg-os-card border border-os-border rounded-sm text-os-text-primary font-mono text-xs overflow-auto min-h-[100px]">{header ? JSON.stringify(header, null, 2) : "JWT header will appear here..."}</pre>

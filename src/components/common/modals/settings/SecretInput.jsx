@@ -24,7 +24,7 @@ export function SecretInput({ settingKey, value, onChange, placeholder, classNam
         <button
           type="button"
           onClick={() => onClear(settingKey)}
-          className="sc-btn sc-btn-secondary px-2 text-xs text-os-text-secondary hover:text-red-600 dark:hover:text-red-400 bg-os-modal border border-os-input-border rounded-sm shrink-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40"
+          className="sc-btn sc-btn-secondary px-2 text-xs text-os-text-secondary hover:text-(--chart-bad) bg-os-modal border border-os-input-border rounded-sm shrink-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40"
           title="Forget the stored value"
         >
           Clear

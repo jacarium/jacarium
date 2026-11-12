@@ -101,7 +101,7 @@ html[data-mobile="true"] select { font-size: max(1em, 16px); }
 
 /* --- the drawers (the sidebar artboards) --------------------------------- */
 /* the sidebar header row: 12px uppercase title, 40px buttons */
-html[data-mobile="true"] .sc-mobile-drawer h2 { font-size: 12px; letter-spacing: 0.06em; }
+html[data-mobile="true"] .sc-mobile-drawer h2 { font-size: 0.75rem; letter-spacing: 0.06em; }
 html[data-mobile="true"] .sc-mobile-drawer .sc-row { min-height: 44px; }
 html[data-mobile="true"] .sc-mobile-drawer button.p-1\.5 { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
 /* the search field: 40px, 8px corners, the input surface */
@@ -115,13 +115,13 @@ html[data-mobile="true"] .sc-row-menu { display: inline-flex; }
    left/top/width are set there, as !important inline styles) over a
    dimmed scrim - the same items and handlers, 48px rows, 14px corners */
 html[data-mobile="true"] .sc-context-menu { border-radius: var(--radius-lg); padding-top: 6px; padding-bottom: 6px; min-width: 0; box-sizing: border-box; }
-html[data-mobile="true"] .sc-context-menu button { min-height: 48px; font-size: 15px; padding-left: 16px; padding-right: 16px; }
+html[data-mobile="true"] .sc-context-menu button { min-height: 48px; font-size: 0.9375rem; padding-left: 16px; padding-right: 16px; }
 html[data-mobile="true"] .sc-menu-scrim { position: fixed; inset: 0; background: rgba(8, 6, 14, 0.62); }
 /* the Tasks filter dropdown: 44px rows under small section headers */
 html[data-mobile="true"] .sc-filter-menu button { min-height: 44px; }
 /* a submenu (Move to Category) opens full width under its item, like the menu */
 html[data-mobile="true"] .sc-submenu { width: calc(100vw - 24px); max-height: 50vh; overflow-y: auto; border-radius: var(--radius-lg); box-sizing: border-box; }
-html[data-mobile="true"] .sc-submenu button { min-height: 44px; font-size: 15px; }
+html[data-mobile="true"] .sc-submenu button { min-height: 44px; font-size: 0.9375rem; }
 /* the connection indicator stays out of every dropdown, drawer, sheet and modal */
 html[data-mobile="true"] body:has(.sc-mobile-drawer, .sc-mobile-sheet, .sc-menu-scrim, .sc-modal-backdrop) .sc-status-corner { display: none; }
 
@@ -136,21 +136,21 @@ html[data-mobile="true"] .sc-editor-toolbar > button { min-width: 36px; width: a
 /* the edit/preview toggle follows the last group like any other control (no margin-left: auto) */
 html[data-mobile="true"] .sc-editor-toolbar > .sc-editor-mode { width: 36px; height: 36px; border-radius: var(--radius-sm); }
 /* the reader: Red Hat Text 16px/1.7 with 18px 20px around it; headings 28/22px with a rule under them */
-html[data-mobile="true"] .markdown-preview { padding: 18px 20px 24px; font-size: 16px; line-height: 1.7; }
-html[data-mobile="true"] .markdown-preview h1 { font-size: 28px; line-height: 1.25; margin: 0 0 14px; padding-bottom: 8px; }
-html[data-mobile="true"] .markdown-preview h2 { font-size: 22px; line-height: 1.25; margin: 20px 0 12px; padding-bottom: 6px; }
+html[data-mobile="true"] .markdown-preview { padding: 18px 20px 24px; font-size: 1rem; line-height: 1.7; }
+html[data-mobile="true"] .markdown-preview h1 { font-size: 1.75rem; line-height: 1.25; margin: 0 0 14px; padding-bottom: 8px; }
+html[data-mobile="true"] .markdown-preview h2 { font-size: 1.375rem; line-height: 1.25; margin: 20px 0 12px; padding-bottom: 6px; }
 html[data-mobile="true"] .markdown-preview .md-callout { padding: 10px 12px; margin-bottom: 14px; }
-html[data-mobile="true"] .markdown-preview .md-callout-title { font-size: 15px; }
+html[data-mobile="true"] .markdown-preview .md-callout-title { font-size: 0.9375rem; }
 html[data-mobile="true"] .markdown-preview .md-callout-icon { width: 18px; height: 18px; }
-html[data-mobile="true"] .markdown-preview pre { padding: 16px; border-radius: var(--radius-xs); font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
+html[data-mobile="true"] .markdown-preview pre { padding: 16px; border-radius: var(--radius-xs); font-size: 0.84375rem; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
 /* the AI chat bubbles keep the chat size on the phone too: the preview rules above are for documents (src/index.css .sc-chat-markdown) */
 html[data-mobile="true"] .sc-chat-markdown { padding: 0; font-size: var(--sc-chat-font); line-height: var(--sc-chat-line); }
 html[data-mobile="true"] .sc-chat-markdown h1 { font-size: 1.15em; line-height: 1.25; margin: 0.6em 0 0.3em; padding-bottom: 0; }
 html[data-mobile="true"] .sc-chat-markdown h2 { font-size: 1.1em; line-height: 1.25; margin: 0.6em 0 0.3em; padding-bottom: 0; }
 html[data-mobile="true"] .sc-chat-markdown pre { padding: 10px 12px; font-size: 92%; }
 /* the editor: 13.5px mono on 24px lines, a 40px gutter */
-html[data-mobile="true"] .sc-editor-cm.cm-editor { font-size: 13.5px; line-height: 24px; }
-html[data-mobile="true"] .sc-editor-cm .cm-scroller { line-height: 24px; }
+html[data-mobile="true"] .sc-editor-cm.cm-editor { font-size: 0.84375rem; line-height: 1.5rem; }
+html[data-mobile="true"] .sc-editor-cm .cm-scroller { line-height: 1.5rem; }
 html[data-mobile="true"] .sc-editor-cm .cm-gutters { min-width: 40px; }
 html[data-mobile="true"] .sc-editor-cm .cm-lineNumbers .cm-gutterElement { min-width: 40px; }
 
@@ -164,29 +164,20 @@ html[data-mobile="true"] .sc-task-list { padding: 12px 14px 0; }
 /* the sections keep the desktop's 24px inset off: the cards and the section
    headers sit at the list's 14px, the mockup's card margin */
 html[data-mobile="true"] .sc-task-list > .px-6 { padding-left: 0; padding-right: 0; }
-html[data-mobile="true"] .sc-task-section { font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--os-text-secondary); }
+html[data-mobile="true"] .sc-task-section { font-size: 0.75rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--os-text-secondary); }
 html[data-mobile="true"] .sc-task-card { border-radius: var(--radius-md); padding: 2px 0; }
 html[data-mobile="true"] .sc-task-card.sc-task-card-active { border-color: var(--mob-task-active-border); background: var(--mob-task-active-bg); }
-html[data-mobile="true"] .sc-task-card .sc-task-title { font-size: 15px; font-weight: 500; line-height: 1.35; }
+html[data-mobile="true"] .sc-task-card .sc-task-title { font-size: 0.9375rem; font-weight: 500; line-height: 1.35; }
 /* the unset actions (Wait, Repeat, Note) are faint placeholders on the desktop;
    on a phone they are plain secondary text, readable in every theme */
 html[data-mobile="true"] .sc-task-card .sc-task-meta .opacity-50 { opacity: 1; color: var(--os-text-secondary); }
-/* the chips' 600-level palette text (the desktop's) is under 4.5:1 on the
-   pale -50 chip backgrounds of the light theme: the light theme's phone uses
-   the 700 level of the same hues; the dark theme keeps its 400s */
-html[data-mobile="true"]:not(.dark) .sc-task-card .sc-task-meta .text-red-600 { color: #B91C1C; }
-html[data-mobile="true"]:not(.dark) .sc-task-card .sc-task-meta .text-orange-600 { color: #C2410C; }
-html[data-mobile="true"]:not(.dark) .sc-task-card .sc-task-meta .text-amber-600 { color: #B45309; }
-html[data-mobile="true"]:not(.dark) .sc-task-card .sc-task-meta .text-green-600 { color: #15803D; }
-html[data-mobile="true"]:not(.dark) .sc-task-card .sc-task-meta .text-yellow-600 { color: #854D0E; }
-html[data-mobile="true"]:not(.dark) .sc-task-card .sc-task-meta .text-blue-600 { color: #1D4ED8; }
-html[data-mobile="true"]:not(.dark) .sc-task-card .sc-task-meta .text-purple-600 { color: #6D28D9; }
-html[data-mobile="true"]:not(.dark) .sc-task-card .sc-task-meta .text-indigo-600 { color: #4338CA; }
+/* the task chips paint from the status-family tokens (the 800-level text on the 50-level tint, 7:1 in light), so
+   the phone needs no darker text of its own */
 /* a completed card is struck through, not faded: faded text reads in no theme */
 html[data-mobile="true"] .sc-task-card.opacity-60 { opacity: 1; }
 html[data-mobile="true"] .sc-task-card .sc-task-title.line-through { color: var(--os-text-secondary); }
-html[data-mobile="true"] .sc-task-card .sc-task-chip { height: 26px; padding: 0 7px; border-radius: var(--radius-xs); font-size: 12px; display: inline-flex; align-items: center; }
-html[data-mobile="true"] .sc-task-card .sc-task-action { height: 32px; border-radius: var(--radius-xs); font-size: 12px; display: inline-flex; align-items: center; padding: 0 10px; }
+html[data-mobile="true"] .sc-task-card .sc-task-chip { height: 26px; padding: 0 7px; border-radius: var(--radius-xs); font-size: 0.75rem; display: inline-flex; align-items: center; }
+html[data-mobile="true"] .sc-task-card .sc-task-action { height: 32px; border-radius: var(--radius-xs); font-size: 0.75rem; display: inline-flex; align-items: center; padding: 0 10px; }
 
 /* --- Kanban: one column per screen, swiped ------------------------------ */
 html[data-mobile="true"] .sc-kanban-columns { padding: 8px 0 0 16px; gap: 12px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
@@ -194,13 +185,13 @@ html[data-mobile="true"] .sc-kanban-columns::-webkit-scrollbar { display: none; 
 html[data-mobile="true"] .sc-kanban-column { scroll-snap-align: start; width: 318px; background: transparent; border-radius: var(--radius-none); }
 html[data-mobile="true"] .sc-kanban-column > .sc-kanban-column-header { padding: 0; height: 48px; }
 html[data-mobile="true"] .sc-kanban-column .sc-kanban-card { border-radius: var(--radius-md); padding: 14px; }
-html[data-mobile="true"] .sc-kanban-column .sc-kanban-card .sc-kanban-card-title { font-size: 15px; font-weight: 600; line-height: 1.35; }
+html[data-mobile="true"] .sc-kanban-column .sc-kanban-card .sc-kanban-card-title { font-size: 0.9375rem; font-weight: 600; line-height: 1.35; }
 
 /* --- Robin: bubbles and the composer ------------------------------------- */
 html[data-mobile="true"] .sc-chat-messages { padding: 14px 12px 0; }
 html[data-mobile="true"] .sc-chat-message { gap: 10px; }
 html[data-mobile="true"] .sc-chat-message > .sc-chat-avatar > div { width: 30px; height: 30px; }
-html[data-mobile="true"] .sc-chat-message .sc-chat-bubble { border-radius: var(--radius-md); padding: 10px 12px; font-size: 14px; line-height: 1.5; }
+html[data-mobile="true"] .sc-chat-message .sc-chat-bubble { border-radius: var(--radius-md); padding: 10px 12px; font-size: 0.875rem; line-height: 1.5; }
 /* the bubble's padding is the mockup's 10px 12px above: the desktop's inner p-4 would double it */
 html[data-mobile="true"] .sc-chat-bubble > .p-4, html[data-mobile="true"] .sc-chat-bubble > div > .p-4 { padding: 0; }
 html[data-mobile="true"] .sc-chat-composer { padding: 0; gap: 8px; }
@@ -210,6 +201,6 @@ html[data-mobile="true"] .sc-chat-composer textarea::placeholder { color: var(--
 html[data-mobile="true"] .sc-chat-composer > button { width: 52px; border-radius: var(--radius-md); padding: 0; }
 
 /* --- Workflows: the linear reader -------------------------------------- */
-html[data-mobile="true"] .sc-workflow-reader { padding: 14px 16px 24px; font-size: 13px; }
+html[data-mobile="true"] .sc-workflow-reader { padding: 14px 16px 24px; font-size: 0.8125rem; }
 /* the card an input chip was tapped for: lit for a moment */
 html[data-mobile="true"] .sc-workflow-card-lit { box-shadow: 0 0 0 3px var(--os-blue); border-color: var(--os-blue); }

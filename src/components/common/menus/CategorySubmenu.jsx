@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ChevronRight, Search } from 'lucide-react';
 import { MenuItemIcon } from './MenuItemIcon';
 import { isMobileLayout } from '../../../utils/mobile';
+import { usePopupPosition } from '../../../hooks/usePopupPosition.js';
 
 /**
  * CategorySubmenu - a context-menu row that opens a side submenu listing
@@ -42,11 +43,23 @@ export default function CategorySubmenu({
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [query, setQuery] = useState('');
+  const [anchor, setAnchor] = useState(null);   // the row's rectangle at opening (the desktop: the submenu opens beside it)
+  const rowRef = useRef(null);                  // the row itself: read live at each placement (the menu may shift after the submenu opened)
+  const menuRef = useRef(null);
+  // beside the row, to its left when the window has no room on the right, moved up and capped (scrolling inside)
+  // when the window is short - the shared popup placement from the submenu's real size (src/hooks/usePopupPosition.js);
+  // the phone's full-width sheet below keeps its own place
+  // the anchor is the row as it is now (a flipped submenu ends at the row's left edge, never over it)
+  usePopupPosition(menuRef, {
+    open: open && !!anchor,
+    anchor: () => (rowRef.current && rowRef.current.isConnected ? rowRef.current.getBoundingClientRect() : anchor),
+    deps: [anchor], side: 'right', gap: 0,
+  });
 
   function openAt(rowElement) {
+    rowRef.current = rowElement;
     const rect = rowElement.getBoundingClientRect();
-    const submenuWidth = 200; // min-width 180px + margin for safety
-    const submenuHeight = 300; // conservative: search input + scrollable category list
+    const submenuHeight = 300; // conservative: search input + scrollable category list (the phone's sheet)
 
     if (isMobileLayout()) {
       // a phone: full width (src/mobile.css .sc-submenu) under the item,
@@ -54,30 +67,15 @@ export default function CategorySubmenu({
       const half = Math.min(submenuHeight, window.innerHeight * 0.5);
       let y = rect.bottom + 4;
       if (y + half > window.innerHeight - 70) y = Math.max(10, rect.top - 4 - half);
+      setAnchor(null);
       setPos({ x: 12, y });
       setOpen(true);
       return;
     }
 
-    let x = rect.right;
-    // If opening to the right would overflow, open to the left of the parent item
-    if (x + submenuWidth > window.innerWidth - 10) {
-      x = rect.left - submenuWidth;
-    }
-    if (x < 10) {
-      x = 10;
-    }
-
-    let y = rect.top;
-    // Adjust if would overflow bottom edge
-    if (y + submenuHeight > window.innerHeight - 10) {
-      y = window.innerHeight - submenuHeight - 10;
-    }
-    if (y < 10) {
-      y = 10;
-    }
-
-    setPos({ x, y });
+    // the first paint beside the row; the shared placement takes over from the submenu's real size
+    setAnchor({ left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom });
+    setPos({ x: rect.right, y: rect.top });
     setOpen(true);
   }
 
@@ -111,6 +109,7 @@ export default function CategorySubmenu({
       </button>
       {open && (
         <div
+          ref={menuRef}
           role="menu"
           data-testid={testId ? `${testId}-submenu` : undefined}
           className="sc-submenu fixed bg-os-card border border-os-border rounded-sm shadow-lg py-1 z-60"

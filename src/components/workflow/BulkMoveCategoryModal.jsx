@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import BaseModal from '../common/modals/BaseModal';
 
 /**
  * "Move to Category" for the workflows selected in the list: pick one of the
@@ -12,8 +13,7 @@ export default function BulkMoveCategoryModal({ categories, onClose, onConfirm }
   const [showNewCategory, setShowNewCategory] = useState(false);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-os-card rounded-lg shadow-xl w-full max-w-md mx-4">
+    <BaseModal isOpen onClose={onClose} closeOnBackdropClick={false} className="bg-os-card rounded-lg shadow-xl w-full max-w-md mx-4" ariaLabel="Move to Category">
         <div className="p-6">
           <h3 className="text-lg font-semibold text-os-text-primary mb-4">Move to Category</h3>
           <div className="mb-4">
@@ -76,7 +76,6 @@ export default function BulkMoveCategoryModal({ categories, onClose, onConfirm }
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </BaseModal>
   );
 }

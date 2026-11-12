@@ -48,9 +48,9 @@ export default function PlayerList({
                 {player.connected === false ? (
                   <Globe size={16} className="text-os-text-secondary" title="Disconnected" />
                 ) : clientType === 'web' ? (
-                  <Globe size={16} className="text-green-500" title="Web Browser" />
+                  <Globe size={16} className="text-(--chart-good)" title="Web Browser" />
                 ) : (
-                  <Monitor size={16} className="text-blue-500" title="Desktop App" />
+                  <Monitor size={16} className="text-os-blue" title="Desktop App" />
                 )}
 
               {/* Player name */}
@@ -72,27 +72,27 @@ export default function PlayerList({
                 </span>
               )}
               {player.status === 'pending' && player.connected !== false && (
-                <span className="text-xs bg-yellow-500/20 text-yellow-600 px-1.5 py-0.5 rounded-sm">
+                <span className="text-xs bg-(--status-warning-bg) text-(--status-warning-fg) px-1.5 py-0.5 rounded-sm">
                   Pending
                 </span>
               )}
               {player.status === 'ready' && player.id !== currentMachineId && player.connected !== false && (
-                <span className="text-xs bg-green-500/20 text-green-600 px-1.5 py-0.5 rounded-sm">
+                <span className="text-xs bg-(--status-success-bg) text-(--status-success-fg) px-1.5 py-0.5 rounded-sm">
                   Ready
                 </span>
               )}
               {player.status === 'declined' && player.connected !== false && (
-                <span className="text-xs bg-red-500/20 text-red-600 px-1.5 py-0.5 rounded-sm">
+                <span className="text-xs bg-(--status-danger-bg) text-(--status-danger-fg) px-1.5 py-0.5 rounded-sm">
                   Declined
                 </span>
               )}
               {player.id === currentMachineId && player.connected !== false && (
-                <span className="text-xs bg-blue-500/20 text-blue-600 px-1.5 py-0.5 rounded-sm">
+                <span className="text-xs bg-os-blue/20 text-(--chart-info) px-1.5 py-0.5 rounded-sm">
                   You
                 </span>
               )}
               {(hostId ? player.id === hostId : players[0]?.id === player.id) && (
-                <span className="text-xs bg-purple-600 text-white px-1.5 py-0.5 rounded-sm">
+                <span className="text-xs bg-(--brand-accent) text-white px-1.5 py-0.5 rounded-sm">
                   Host
                 </span>
               )}

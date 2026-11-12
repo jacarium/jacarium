@@ -22,16 +22,16 @@ export default function ModeSelector({ onSelectMode }) {
       name: 'Grid',
       description: 'Grid quiz mode with 30 random questions',
       icon: Grid3x3,
-      color: 'text-yellow-500',
-      hoverColor: 'hover:border-yellow-500',
+      color: 'text-(--chart-warn)',
+      hoverColor: 'hover:border-(--chart-warn)',
     },
     {
       id: 'tiles',
       name: 'Tiles',
       description: 'Puzzle game - make all tiles the same',
       icon: Layers,
-      color: 'text-purple-500',
-      hoverColor: 'hover:border-purple-500',
+      color: 'text-(--brand-accent)',
+      hoverColor: 'hover:border-(--brand-accent)',
     },
   ];
 

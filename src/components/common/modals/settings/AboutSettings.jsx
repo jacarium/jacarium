@@ -43,6 +43,11 @@ const CREDITS = [
   { name: 'Red Hat Text', what: 'font', url: 'https://fonts.google.com/specimen/Red+Hat+Text', ...OFL },
   { name: 'Red Hat Mono', what: 'font', url: 'https://fonts.google.com/specimen/Red+Hat+Mono', ...OFL },
   { name: 'Sora', what: 'font', url: 'https://fonts.google.com/specimen/Sora', ...OFL },
+  // the reading fonts of Settings > Accessibility (src/utils/readingFonts.js), loaded when chosen
+  { name: 'Atkinson Hyperlegible', what: 'reading font (Settings > Accessibility)', url: 'https://www.brailleinstitute.org/freefont/', ...OFL },
+  { name: 'Lexend', what: 'reading font (Settings > Accessibility)', url: 'https://fonts.google.com/specimen/Lexend', ...OFL },
+  { name: 'OpenDyslexic', what: 'reading font (Settings > Accessibility)', url: 'https://opendyslexic.org', ...OFL },
+  { name: 'Atkinson Hyperlegible Mono', what: 'code font (Settings > Accessibility)', url: 'https://www.brailleinstitute.org/freefont/', ...OFL },
   // KaTeX renders the ```latex blocks (src/utils/latexBlocks.js); its fonts (Computer Modern, AMS) ship with it
   { name: 'KaTeX', what: 'maths in ```latex blocks, with its fonts', url: 'https://katex.org', licence: 'MIT', licenceUrl: 'https://github.com/KaTeX/KaTeX/blob/main/LICENSE' },
   // Font Awesome Free: the icons are CC BY 4.0 (this attribution is what the licence asks for), the fonts SIL OFL 1.1, the code MIT
@@ -109,7 +114,7 @@ function LicencesList() {
               {p.url && <ExternalLink href={p.url} className="brand-link">{p.url}</ExternalLink>}
               {p.texts.length === 0 && <p className="text-os-text-muted">No licence file in the package; its licence is the one declared above.</p>}
               {p.texts.map((t) => (
-                <pre key={t.file} className="whitespace-pre-wrap font-mono text-[11px] leading-snug p-2 rounded-sm bg-os-card-secondary border border-os-border max-h-64 overflow-y-auto"><span className="text-os-text-muted">{t.file}</span>{'\n'}{t.text}</pre>
+                <pre key={t.file} className="whitespace-pre-wrap font-mono text-2xs leading-snug p-2 rounded-sm bg-os-card-secondary border border-os-border max-h-64 overflow-y-auto"><span className="text-os-text-muted">{t.file}</span>{'\n'}{t.text}</pre>
               ))}
             </div>
           </details>

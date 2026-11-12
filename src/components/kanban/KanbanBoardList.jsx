@@ -606,7 +606,7 @@ export default function KanbanBoardList({
  selectionMode && selectedBoards.includes(board.id)
  ?'text-os-text-primary'
  : isCloudBoard && isActive
- ?'text-purple-700'
+ ?'text-(--status-brand-fg)'
  : isActive
  ?'text-os-blue'
  :'text-os-text-muted'
@@ -616,7 +616,7 @@ export default function KanbanBoardList({
  selectionMode && selectedBoards.includes(board.id)
  ?'text-os-text-primary'
  : isCloudBoard && isActive
- ?'text-purple-700'
+ ?'text-(--status-brand-fg)'
  : isActive
  ?'text-os-blue'
  :'text-os-text-primary'
@@ -628,9 +628,9 @@ export default function KanbanBoardList({
                       {board.inCloud && (
                         <div className="flex items-center gap-0.5" title={board.ownerId === currentMachineId ? 'Shared with the team by you' : `Shared with the team by ${board.ownerId || 'Unknown'}`}>
                           {board.ownerId === currentMachineId && (
-                            <Crown size={10} className="text-purple-600" />
+                            <Crown size={10} className="text-(--brand-accent)" />
                           )}
-                          <Cloud size={12} className="text-purple-600" />
+                          <Cloud size={12} className="text-(--brand-accent)" />
                         </div>
                       )}
                     </div>
@@ -648,9 +648,9 @@ export default function KanbanBoardList({
                 // Cloud boards get purple background with dynamic border color
                 if (isCloudBoard && !selectionMode) {
                   if (isActive) {
-                    return 'group relative px-4 py-3 cursor-pointer transition-colors border-l-4 bg-purple-100 hover:bg-purple-200';
+                    return 'group relative px-4 py-3 cursor-pointer transition-colors border-l-4 bg-(--status-brand-bg) hover:bg-(--status-brand-border)';
                   } else {
-                    return 'group relative px-4 py-3 cursor-pointer transition-colors border-l-4 bg-purple-50 hover:bg-purple-100';
+                    return 'group relative px-4 py-3 cursor-pointer transition-colors border-l-4 bg-(--status-brand-bg) hover:bg-(--status-brand-border)';
                   }
                 }
 
@@ -659,7 +659,7 @@ export default function KanbanBoardList({
                   group relative px-4 py-3 cursor-pointer transition-colors border-l-4
                   ${
                     isActive && !selectionMode
-                      ? 'bg-blue-50 border-os-blue'
+                      ? 'bg-(--status-info-bg) border-os-blue'
                       : 'hover:bg-os-card-secondary border-transparent'
                   }
                 `;
@@ -806,7 +806,7 @@ export default function KanbanBoardList({
                   onBoardDelete(contextMenu.target);
                   closeContextMenu();
                 }}
-                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-os-card-secondary flex items-center gap-2"
+                className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
               >
                 <MenuItemIcon action="delete" danger />
                 Delete Board
@@ -899,7 +899,7 @@ export default function KanbanBoardList({
                   onBulkDelete && onBulkDelete();
                   closeContextMenu();
                 }}
-                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-os-card-secondary flex items-center gap-2"
+                className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
               >
                 <MenuItemIcon action="delete" danger />
                 Delete Selected

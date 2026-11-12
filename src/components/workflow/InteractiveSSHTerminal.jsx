@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import BaseModal from '../common/modals/BaseModal';
 import { X, Terminal, ChevronRight, ChevronLeft } from 'lucide-react';
 import useSSHSession from '../../hooks/useSSHSession';
 import useSSHTabCompletion from '../../hooks/useSSHTabCompletion';
@@ -8,7 +9,7 @@ import SSHSessionStatus from './ssh/SSHSessionStatus';
 import { stripAnsi } from './ssh/sshTerminalText';
 
 const LINE_CLASS = {
-  error: 'text-red-500',
+  error: 'text-(--chart-bad)',
   system: 'text-os-text-muted',
   input: 'text-os-blue'
 };
@@ -243,8 +244,7 @@ export default function InteractiveSSHTerminal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-os-card rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col border border-os-border">
+    <BaseModal isOpen onClose={onCancel} closeOnBackdropClick={false} className="bg-os-card rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col border border-os-border" ariaLabel="SSH terminal">
         {/* Header - only in modal mode */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-os-border bg-os-card-secondary">
           <div className="flex items-center gap-2">
@@ -266,7 +266,6 @@ export default function InteractiveSSHTerminal({
           </button>
         </div>
         {terminalContentUI}
-      </div>
-    </div>
+    </BaseModal>
   );
 }

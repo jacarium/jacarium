@@ -59,8 +59,8 @@ export default function ExportJsonModal({
     <BaseModal isOpen={isOpen} onClose={close} className="max-w-3xl w-full rounded-lg">
       <div className="p-6 max-h-[80vh] overflow-y-auto" data-testid={testId}>
         <div className="flex items-start gap-4 mb-4">
-          <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900/30 shrink-0">
-            <FileJson size={24} className="text-blue-600 dark:text-blue-300" />
+          <div className="p-3 rounded-full bg-(--status-info-bg) shrink-0">
+            <FileJson size={24} className="text-(--chart-info)" />
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="text-lg font-semibold text-os-text-primary mb-1">{title}</h3>

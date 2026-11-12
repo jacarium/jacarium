@@ -19,6 +19,8 @@ import chartUmdSource from '../../node_modules/chart.js/dist/chart.umd.js?raw';
 // app's one highlight.js entry point (its json and yaml grammars), so no second copy of highlight.js is shipped.
 import jsYamlSource from '../../node_modules/js-yaml/dist/js-yaml.min.js?raw';
 import { highlightCode } from '../utils/codeHighlight';
+import { useReadingAids } from './common/ReadingAidsSurface';
+import { readingFontFaceCss } from '../utils/readingFontFaces';
 // The shared frame script (the busy state and the chart helper every plugin uses): one file, inlined into every
 // tab's frame after Chart.js and the theme bridge; the standalone Flask dashboard links the same file.
 import diagnosticsUiSource from '../../backend/static/diagnostics-ui.js?raw';
@@ -31,6 +33,9 @@ import diagnosticsUiSource from '../../backend/static/diagnostics-ui.js?raw';
 // effect has applied the class on a page reload / session restore). The
 // whole set is mirrored onto the frame's <html> so the tokens resolve inside
 // the frame exactly as outside (Jacaranda violet vs neutral grey, light).
+// the chosen reading font's faces as CSS (src/utils/readingFonts.js readingFontFaceCss), kept current by the page below
+let readingFontCss = '';
+
 function appTheme() {
   if (typeof document === 'undefined') return { dark: false, theme: null, darkVariant: null, gradient: null, vars: {} };
   const root = document.documentElement;
@@ -39,6 +44,8 @@ function appTheme() {
   for (let i = 0; i < root.style.length; i++) { const n = root.style[i]; if (n.startsWith('--')) vars[n] = root.style.getPropertyValue(n); }
   return {
     dark: root.classList.contains('dark'),
+    classes: Array.from(root.classList).filter((c) => c.startsWith('ra-')),   // the reading aids (src/utils/readingAids.js): the frame's <html> carries them too
+    readingFontCss,   // the chosen reading font's @font-face rules (data: URLs): a frame is its own document and has no face otherwise
     theme: root.getAttribute('data-theme'),
     darkVariant: root.getAttribute('data-dark-variant'),
     gradient: root.getAttribute('data-gradient'),
@@ -158,13 +165,15 @@ function buildDiagnosticsSrcDoc(fragmentHtml, theme, tabKey, backendCss = '') {
   // the inline custom properties of the parent's <html> (a custom theme's tokens) go into the frame's <html> too,
   // so its first paint has them (the theme bridge keeps them current afterwards)
   const inlineVars = Object.entries(theme.vars || {}).filter(([n, v]) => /^--[a-z0-9-]+$/i.test(n) && typeof v === 'string' && v.length < 200 && !/[;{}<>]/.test(v)).map(([n, v]) => `${n}: ${v}`).join('; ');
-  const htmlAttrs = `${theme.dark ? ' class="dark"' : ''}${theme.theme ? ` data-theme="${escapeAttr(theme.theme)}"` : ''}${theme.darkVariant ? ` data-dark-variant="${escapeAttr(theme.darkVariant)}"` : ''}${theme.gradient ? ` data-gradient="${escapeAttr(theme.gradient)}"` : ''}${inlineVars ? ` style="${escapeAttr(inlineVars)}"` : ''}`;
+  const htmlClasses = [theme.dark ? 'dark' : '', ...(theme.classes || []).filter((c) => /^ra-[a-z-]+$/.test(c))].filter(Boolean).join(' ');
+  const htmlAttrs = `${htmlClasses ? ` class="${htmlClasses}"` : ''}${theme.theme ? ` data-theme="${escapeAttr(theme.theme)}"` : ''}${theme.darkVariant ? ` data-dark-variant="${escapeAttr(theme.darkVariant)}"` : ''}${theme.gradient ? ` data-gradient="${escapeAttr(theme.gradient)}"` : ''}${inlineVars ? ` style="${escapeAttr(inlineVars)}"` : ''}`;
 
   return `<!doctype html>
 <html${htmlAttrs}>
 <head>
 <meta charset="utf-8">
-<style>${appStyles}</style>${inlineBackendCss ? `\n<style id="diagnostics-styles-inline">${inlineBackendCss}</style>` : ''}
+<style>${appStyles}</style>
+<style id="ra-reading-font">${theme.readingFontCss || ''}</style>${inlineBackendCss ? `\n<style id="diagnostics-styles-inline">${inlineBackendCss}</style>` : ''}
 <style>
   /* Keep the frame visually transparent so the parent card shows through,
      matching the previous inline-injected rendering (which had no background
@@ -198,7 +207,7 @@ ${getDiagnosticsCodeScriptTags()}
   var cache = {};
   window.diagnosticsThemeColor = function (role) {
     if (cache[role]) return cache[role];
-    var value = getComputedStyle(document.documentElement).getPropertyValue(TOKENS[role] || TOKENS.text).trim();
+    var value = getComputedStyle(document.body || document.documentElement).getPropertyValue(TOKENS[role] || TOKENS.text).trim();   // <body>: the high-contrast / palette tokens live there
     cache[role] = value || (role === 'grid' || role === 'border' ? '#808080' : role === 'tooltip' || role === 'surface' || role === 'card' ? '#f0f0f0' : '#1f2937');
     return cache[role];
   };
@@ -206,6 +215,7 @@ ${getDiagnosticsCodeScriptTags()}
   // of the charts already drawn (axis ticks/grid, legend, title, tooltip -
   // never a dataset's own colour) when the theme changes. Chart text is the
   // primary text token, like the templates ask for themselves.
+  var chartAnimation;   // Chart.js's own animation default, kept for Reduce motion Off
   function applyThemeToCharts() {
     cache = {};
     var Chart = window.Chart;
@@ -214,6 +224,10 @@ ${getDiagnosticsCodeScriptTags()}
     var grid = window.diagnosticsThemeColor('grid');
     Chart.defaults.color = muted;
     Chart.defaults.borderColor = grid;
+    // Reduce motion (the parent's ra-reduce-motion class, mirrored on this frame's <html>): charts draw in place
+    var still = document.documentElement.classList.contains('ra-reduce-motion');
+    if (chartAnimation === undefined) chartAnimation = Chart.defaults.animation;
+    Chart.defaults.animation = still ? false : chartAnimation;
     var instances = Chart.instances ? Object.values(Chart.instances) : [];
     // chart.options is Chart.js's resolver proxy: reading a missing
     // sub-object returns a proxy over the defaults, and writing that proxy
@@ -242,6 +256,7 @@ ${getDiagnosticsCodeScriptTags()}
         t.titleColor = window.diagnosticsThemeColor('text');
         t.bodyColor = window.diagnosticsThemeColor('text');
         t.borderColor = grid;
+        o.animation = still ? false : chartAnimation;
         chart.update('none');
       } catch (e) { /* a chart mid-destroy: leave it */ }
     });
@@ -363,6 +378,72 @@ ${normalizeFragmentHtml(fragmentHtml)}
       } catch (e) { /* parent cross-origin postMessage is always permitted */ }
     }
   }
+  // The reading ruler (Settings > Accessibility; src/components/common/ReadingRuler.jsx) lives in the parent, which
+  // never sees a pointer over this opaque-origin frame and cannot measure its text. So the frame measures: the line
+  // box under the pointer (caretRangeFromPoint: the text's own line, so tables, cells, paragraphs, findings and log
+  // lines all snap), or under the keyboard focus, in frame coordinates, posted to the parent only when it changes
+  // (rAF-throttled). The parent draws its one overlay over the frame's box from it. The first text line is posted on
+  // load, so a tab switch (a new document) re-initialises the band; the parent keeps the last band when the pointer
+  // leaves, as elsewhere. Nothing is drawn here; no capability is used beyond postMessage.
+  (function () {
+    var raf = 0, px = -1, py = -1, last = null;
+    function lineHeightOf(el) { var lh = parseFloat(getComputedStyle(el).lineHeight); return isFinite(lh) && lh > 0 ? lh : 0; }
+    function lineAt(x, y) {
+      var node = null, offset = 0;
+      if (document.caretRangeFromPoint) { var r = document.caretRangeFromPoint(x, y); if (r) { node = r.startContainer; offset = r.startOffset; } }
+      else if (document.caretPositionFromPoint) { var p = document.caretPositionFromPoint(x, y); if (p) { node = p.offsetNode; offset = p.offset; } }
+      if (!node || node.nodeType !== 3) return null;
+      var range = document.createRange(); var at = Math.min(offset, node.length);
+      range.setStart(node, at); range.setEnd(node, at);
+      var rect = range.getClientRects()[0] || range.getBoundingClientRect();
+      if (!rect || !rect.height) return null;
+      var lh = lineHeightOf(node.parentElement); var height = lh > rect.height ? lh : rect.height;
+      var top = rect.top + rect.height / 2 - height / 2;
+      // the text must be the line under the pointer: over a chart or a blank part caretRangeFromPoint answers with the
+      // nearest text far away, which is not where the reader is looking
+      if (y < top - 2 || y > top + height + 2) return null;
+      return { top: top, height: height };
+    }
+    // non-text content (a chart's canvas, an image, an svg, empty space): a band of the local line height centred on
+    // the pointer, following it freely; snapping resumes over text
+    function freeLine(x, y) {
+      var el = document.elementFromPoint(x, y);
+      var lh = el ? lineHeightOf(el) : 0;
+      if (!lh && el && el.parentElement) lh = lineHeightOf(el.parentElement);
+      if (!lh) lh = lineHeightOf(document.body) || 20;
+      return { top: y - lh / 2, height: lh };
+    }
+    function post(line) {
+      if (!line || !isFinite(line.top) || !(line.height > 0)) return;
+      if (last && Math.abs(last.top - line.top) < 0.5 && Math.abs(last.height - line.height) < 0.5) return;
+      last = line;
+      try { parent.postMessage({ __diagnosticsIframe: true, type: 'ruler', tab: TAB_KEY, top: line.top, height: line.height }, '*'); } catch (e) { /* parent postMessage is always permitted */ }
+    }
+    function fromPointer() { raf = 0; if (px < 0) return; post(lineAt(px, py) || freeLine(px, py)); }
+    document.addEventListener('pointermove', function (e) { if (e.pointerType === 'touch') return; px = e.clientX; py = e.clientY; if (!raf) raf = requestAnimationFrame(fromPointer); }, { passive: true });
+    document.addEventListener('scroll', function () { if (px >= 0 && !raf) raf = requestAnimationFrame(fromPointer); }, { capture: true, passive: true });   // an inner scroller under the pointer
+    // the keyboard: the focused element's first line, or the caret's line
+    function fromFocus() {
+      var sel = document.getSelection(); var el = document.activeElement;
+      if (sel && sel.rangeCount && sel.isCollapsed && sel.anchorNode && sel.anchorNode.nodeType === 3) {
+        var rr = sel.getRangeAt(0).getClientRects()[0]; if (rr && rr.height) { var lh0 = lineHeightOf(sel.anchorNode.parentElement); var h0 = lh0 > rr.height ? lh0 : rr.height; post({ top: rr.top + rr.height / 2 - h0 / 2, height: h0 }); return; }
+      }
+      if (el && el !== document.body && el !== document.documentElement) {
+        var r = el.getBoundingClientRect(); if (!r.height) return;
+        var lh = lineHeightOf(el) || r.height; post({ top: r.top, height: Math.min(r.height, lh * 1.5 > r.height ? r.height : lh) });
+      }
+    }
+    document.addEventListener('focusin', fromFocus);
+    document.addEventListener('selectionchange', function () { if (!raf) raf = requestAnimationFrame(function () { raf = 0; fromFocus(); }); });
+    // the first text line of the content, so the band has a place before any pointer (and after a tab switch)
+    function initial() {
+      var root = document.getElementById('diagnostics-content') || document.body; if (!root) return;
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: function (n) { return /\\S/.test(n.nodeValue) && n.parentElement && !/^(SCRIPT|STYLE)$/.test(n.parentElement.tagName) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP; } });
+      var n = walker.nextNode();
+      while (n) { var range = document.createRange(); range.selectNodeContents(n); var rect = range.getClientRects()[0]; if (rect && rect.height && rect.width) { var lh = lineHeightOf(n.parentElement); var h = lh > rect.height ? lh : rect.height; post({ top: rect.top + rect.height / 2 - h / 2, height: h }); return; } n = walker.nextNode(); }
+    }
+    if (document.readyState === 'complete') initial(); else window.addEventListener('load', initial);
+  })();
   // Live theme sync: the parent changes the theme on ITS documentElement, which
   // this opaque-origin frame can never observe. The parent postMessages the
   // current theme (the dark class and the attributes the tokens are keyed on)
@@ -410,6 +491,13 @@ ${normalizeFragmentHtml(fragmentHtml)}
     set('data-gradient', d.gradient);
     if (d.dark) html.classList.add('dark');
     else html.classList.remove('dark');
+    // the reading aids' classes (ra-*), exactly the parent's
+    var wanted = Array.isArray(d.classes) ? d.classes.filter(function (c) { return /^ra-[a-z-]+$/.test(c); }) : [];
+    Array.prototype.slice.call(html.classList).forEach(function (c) { if (c.indexOf('ra-') === 0 && wanted.indexOf(c) < 0) html.classList.remove(c); });
+    wanted.forEach(function (c) { html.classList.add(c); });
+    // the reading font's faces (a frame has none of the app's lazily loaded @font-face rules)
+    var fontStyle = document.getElementById('ra-reading-font');
+    if (fontStyle && typeof d.readingFontCss === 'string' && fontStyle.textContent !== d.readingFontCss) fontStyle.textContent = d.readingFontCss;
     // the inline custom properties of the app's <html>: applied here, the ones gone since removed
     if (d.vars && typeof d.vars === 'object') {
       var names = Object.keys(d.vars);
@@ -559,6 +647,20 @@ export default function DiagnosticsPage() {
     return () => window.removeEventListener('innerSidebarVisibilityChange', handleInnerSidebarVisibilityChange);
   }, []);
 
+  // the reading font and the code font (Settings > Accessibility): their faces go to the frame as data: URLs once
+  // loaded here (the report's monospace parts read --font-mono, which the code font's variable feeds)
+  const readingAids = useReadingAids();
+  useEffect(() => {
+    let live = true;
+    Promise.all([readingFontFaceCss(readingAids.font), readingFontFaceCss(readingAids.codeFont)]).then(([text, code]) => {
+      if (!live) return;
+      readingFontCss = [text, code].filter(Boolean).join('\n');
+      const frame = iframeRef.current;
+      if (frame && frame.contentWindow) frame.contentWindow.postMessage({ __diagnosticsTheme: true, ...appTheme() }, '*');
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [readingAids.font, readingAids.codeFont]);
+
   // Bridge the app's theme to the sandboxed diagnostics iframe. The frame has
   // an opaque origin and cannot see the parent's <html class="dark">, so we
   // watch it here and push changes in via postMessage (no iframe reload, so
@@ -607,6 +709,15 @@ export default function DiagnosticsPage() {
       const frame = iframeRef.current;
       if (!frame || event.source !== frame.contentWindow) return;
       const data = event.data;
+      // the reading ruler's line under the frame's pointer or focus (frame coordinates): a finite box of a sane size,
+      // handed to the parent's ReadingRuler, which draws its one overlay over this frame
+      if (data && data.__diagnosticsIframe && data.type === 'ruler') {
+        const top = Number(data.top); const height = Number(data.height);
+        if (Number.isFinite(top) && Number.isFinite(height) && height > 0 && height <= 400 && Math.abs(top) <= 1e6) {
+          window.dispatchEvent(new CustomEvent('diagnosticsFrameRuler', { detail: { frame, top, height } }));
+        }
+        return;
+      }
       if (data && data.__diagnosticsIframe && data.type === 'height') {
         frame.style.height = `${data.height}px`;
         const wanted = pendingScrollRef.current;
@@ -1083,6 +1194,7 @@ export default function DiagnosticsPage() {
         ref={iframeRef}
         title="Diagnostics content"
         data-tab={activeSubTab || activeTab}
+        data-ra-frame
         sandbox="allow-scripts allow-downloads"
         srcDoc={iframeSrcDoc}
         onLoad={() => {
@@ -1113,6 +1225,7 @@ export default function DiagnosticsPage() {
         storageKey="diagnosticsPage-sidebar-width"
         position="right"
         className="bg-os-card flex flex-col"
+        zenLabel="Sections"
       >
       {(width) => (
         <DiagnosticsSidebar
@@ -1139,12 +1252,12 @@ export default function DiagnosticsPage() {
         {isMobile && <MobilePageHeader title="Diagnostics" />}
         {/* Report load error (the folder browser is the only way in) */}
         {error && (
-          <div className="bg-red-50 px-6 py-3" data-testid="diagnostics-load-error">
+          <div className="bg-(--status-danger-bg) px-6 py-3" data-testid="diagnostics-load-error">
             <div className="flex items-start gap-3">
-              <AlertCircle size={20} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+              <AlertCircle size={20} className="text-(--chart-bad) shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-red-800 dark:text-red-200">Could not load the report</p>
-                <p className="text-xs text-red-700 dark:text-red-300 mt-1">{error}</p>
+                <p className="text-sm font-medium text-(--status-danger-fg)">Could not load the report</p>
+                <p className="text-xs text-(--status-danger-fg) mt-1">{error}</p>
               </div>
               <button
                 onClick={() => setError('')}
@@ -1157,15 +1270,15 @@ export default function DiagnosticsPage() {
         )}
         {/* Backend Status Warning */}
         {backendStatus === 'offline' && !backendBannerDismissed && (
-          <div className="bg-red-50 px-6 py-3">
+          <div className="bg-(--status-danger-bg) px-6 py-3">
             <div className="flex items-start gap-3">
-              <AlertCircle size={20} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+              <AlertCircle size={20} className="text-(--chart-bad) shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-red-800 dark:text-red-200">Backend Service Not Running</p>
-                <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                <p className="text-sm font-medium text-(--status-danger-fg)">Backend Service Not Running</p>
+                <p className="text-xs text-(--status-danger-fg) mt-1">
                   The Flask backend is not responding. Start it with:
                 </p>
-                <code className="block mt-2 text-xs bg-red-100 text-red-900 dark:text-red-200 px-3 py-2 rounded-sm font-mono">
+                <code className="block mt-2 text-xs bg-(--status-danger-bg) text-(--status-danger-fg) px-3 py-2 rounded-sm font-mono">
                   cd backend && source venv/bin/activate && python app.py
                 </code>
               </div>
@@ -1184,7 +1297,7 @@ export default function DiagnosticsPage() {
                   onClick={() => setBackendBannerDismissed(true)}
                   className="btn btn-danger-ghost p-1"
                 >
-                  <X size={16} className="text-red-600 dark:text-red-400" />
+                  <X size={16} className="text-(--chart-bad)" />
                 </button>
               </div>
             </div>
@@ -1274,8 +1387,8 @@ export default function DiagnosticsPage() {
                               </span>
                               <span className={`text-xs px-2 py-0.5 rounded shrink-0 ${
  report.type ==='sosreport'
- ?'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
- :'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-200'
+ ?'bg-(--status-info-bg) text-(--status-info-fg)'
+ :'bg-(--status-success-bg) text-(--status-success-fg)'
  }`}>
                                 {report.type}
                               </span>

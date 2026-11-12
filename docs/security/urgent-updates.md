@@ -624,3 +624,16 @@ curl-minimal and libcurl-minimal - the base carries exactly the versions the ass
 glibc-common and glibc-minimal-langpack: this base still has glibc 2.34-283.el9_8, the lane's 2.34-284.el9_8.4
 (RHSA-2026:95618, 2026-11-08 above) is newer than it. tests/container_reproducible.test.py's allow-list of the
 packages raised past the base is the three glibc packages now.
+
+## 2026-11-12 - Electron 45.2.3, the ordinary lane (not an urgent update; recorded here because the Electron line is tracked here)
+
+**Electron 45.2.2 -> 45.2.3** through the normal install (`npm install --save-exact electron@45.2.3`, .npmrc
+min-release-age=7 untouched): published 2026-11-04 21:39 UTC, past the seven-day rule since 2026-11-11
+21:39 UTC. The release is two commits over 45.2.2: "Backported fixes from upstream ANGLE, Chromium, Dawn,
+FFmpeg, minigbm, PDFium, Skia and V8" (#55592, 120 cherry-picks, no advisory named) and a documentation
+change (#55600). No API change; the runtime reports the same Chromium 156.0.8078.80 and Node 24.22.2.
+Publisher electron-nightly (as 45.2.2), a registry signature, no provenance (Electron publishes none);
+`npm audit signatures` ok, `npm audit` 0 vulnerabilities; the tarball keeps its nine files. Lockfile: electron's
+own entry and the root pin alone. The spell-check dictionaries follow (`--repin` at the default seven days,
+the asset 7.2 days old; docs/security/spellcheck-dictionaries.md): a new zip digest (`f4692e1b…`), every file
+inside byte for byte the 45.2.2 pin's. **Not 45.3.0**: inside its seven days.

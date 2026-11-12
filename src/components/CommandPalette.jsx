@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import useScrollSelectedIntoView from '../hooks/useScrollSelectedIntoView';
-import { Search, FileText, Zap, RefreshCw, ChevronRight, Clock, Hash, Plus, Activity, Link2 } from 'lucide-react';
+import { Search, FileText, Zap, RefreshCw, ChevronRight, Clock, Hash, Plus, Activity, Link2, Focus } from 'lucide-react';
 import { getDocuments } from '../utils/documents';
+import { zenMode } from '../utils/readingAids';
 import { getTemplates } from '../templates/jqlTemplates';
 import { getEngineTemplates } from '../utils/engineTemplates';
 
@@ -103,6 +104,18 @@ export default function CommandPalette({ isOpen, onClose, onNavigate, onRefreshJ
           command: '/documents',
           action: () => {
             onNavigate('documents');
+            onClose();
+          }
+        },
+        {
+          id: 'zen',
+          type: 'command',
+          icon: Focus,
+          title: zenMode.on ? 'Leave zen mode' : 'Zen mode',
+          subtitle: zenMode.on ? 'Bring the rail, the sidebar and the panels back' : 'This page alone: no rail, sidebar or panels (Esc leaves)',
+          command: '/zen',
+          action: () => {
+            zenMode.toggle();
             onClose();
           }
         },
@@ -273,11 +286,11 @@ export default function CommandPalette({ isOpen, onClose, onNavigate, onRefreshJ
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-[15vh] px-4"
+      className="sc-modal-backdrop fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-[15vh] px-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl bg-os-card rounded-lg shadow-2xl overflow-hidden border border-os-border"
+        role="dialog" aria-modal="true" aria-label="Command palette" className="sc-modal-panel w-full max-w-2xl bg-os-card rounded-lg shadow-2xl overflow-hidden border border-os-border"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Input: a proper boxed field (the app's input surface, border
@@ -338,16 +351,16 @@ export default function CommandPalette({ isOpen, onClose, onNavigate, onRefreshJ
  }`}
                   >
                     <div className={`p-2 rounded ${
- result.type ==='command'?'bg-purple-100':
- result.type ==='template'?'bg-green-100':
- result.type ==='engine'?'bg-orange-100':
-'bg-blue-100'
+ result.type ==='command'?'bg-(--status-brand-bg)':
+ result.type ==='template'?'bg-(--status-success-bg)':
+ result.type ==='engine'?'bg-(--status-warning-bg)':
+'bg-(--status-info-bg)'
  }`}>
                       <IconComponent size={16} className={
- result.type ==='command'?'text-purple-600':
- result.type ==='template'?'text-green-600':
- result.type ==='engine'?'text-orange-600':
-'text-blue-600'
+ result.type ==='command'?'text-(--brand-accent)':
+ result.type ==='template'?'text-(--chart-good)':
+ result.type ==='engine'?'text-(--chart-warn)':
+'text-(--chart-info)'
  } />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -395,8 +408,8 @@ export default function CommandPalette({ isOpen, onClose, onNavigate, onRefreshJ
  isSelected ?'bg-os-blue/10':'hover:bg-os-card-secondary'
  }`}
                   >
-                    <div className="p-2 rounded-sm bg-green-100">
-                      <Zap size={16} className="text-green-600" />
+                    <div className="p-2 rounded-sm bg-(--status-success-bg)">
+                      <Zap size={16} className="text-(--chart-good)" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-os-text-primary truncate">
@@ -423,31 +436,31 @@ export default function CommandPalette({ isOpen, onClose, onNavigate, onRefreshJ
                 <div className="flex items-center gap-3">
                   <Hash size={16} className="text-os-text-muted" />
                   <span className="text-sm text-os-text-secondary">
-                    <code className="text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-sm">/search</code> - Go to Search
+                    <code className="text-(--status-brand-fg) bg-(--status-brand-bg) px-1.5 py-0.5 rounded-sm">/search</code> - Go to Search
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Hash size={16} className="text-os-text-muted" />
                   <span className="text-sm text-os-text-secondary">
-                    <code className="text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-sm">/docs</code> - Go to Documents
+                    <code className="text-(--status-brand-fg) bg-(--status-brand-bg) px-1.5 py-0.5 rounded-sm">/docs</code> - Go to Documents
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Hash size={16} className="text-os-text-muted" />
                   <span className="text-sm text-os-text-secondary">
-                    <code className="text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-sm">/diagnostics</code> - Analyze diagnostics data
+                    <code className="text-(--status-brand-fg) bg-(--status-brand-bg) px-1.5 py-0.5 rounded-sm">/diagnostics</code> - Analyze diagnostics data
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Hash size={16} className="text-os-text-muted" />
                   <span className="text-sm text-os-text-secondary">
-                    <code className="text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-sm">/new</code> - Create new document
+                    <code className="text-(--status-brand-fg) bg-(--status-brand-bg) px-1.5 py-0.5 rounded-sm">/new</code> - Create new document
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Hash size={16} className="text-os-text-muted" />
                   <span className="text-sm text-os-text-secondary">
-                    <code className="text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-sm">/sync</code> - Refresh Jira metadata
+                    <code className="text-(--status-brand-fg) bg-(--status-brand-bg) px-1.5 py-0.5 rounded-sm">/sync</code> - Refresh Jira metadata
                   </span>
                 </div>
               </div>

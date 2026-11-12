@@ -69,7 +69,7 @@ const LoadingGame = ({ message = "Loading..." }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center w-full h-full">
+    <div className="flex flex-col items-center justify-center w-full h-full" data-icons-fixed>
       {/* Header */}
       <div className="mb-6 text-center">
         <p className="text-sm text-os-text-secondary mb-4">{message}</p>
@@ -79,7 +79,7 @@ const LoadingGame = ({ message = "Loading..." }) => {
             <span className="font-bold">{moves}</span>
           </div>
           {isWon && (
-            <div className="text-green-600 dark:text-green-400 font-bold">
+            <div className="text-(--chart-good) font-bold">
               Completed in {moves} moves
             </div>
           )}
@@ -102,7 +102,7 @@ const LoadingGame = ({ message = "Loading..." }) => {
                 className={`
                   w-16 h-16 rounded-lg border-2 transition-all duration-200
                   ${cell
-                    ? 'bg-yellow-400 border-yellow-500 shadow-lg shadow-yellow-500/50'
+                    ? 'bg-(--chart-warn) border-(--chart-warn) shadow-lg shadow-(--chart-warn)/50'
                     : 'bg-gray-700 border-gray-600 dark:bg-gray-800 dark:border-gray-700'
                   }
                   ${!isWon ? 'hover:scale-105 active:scale-95 cursor-pointer' : 'cursor-default'}

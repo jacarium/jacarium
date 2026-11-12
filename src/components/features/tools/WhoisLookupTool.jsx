@@ -91,13 +91,13 @@ export default function WhoisLookupTool() {
           </div>
         </div>
         {!whoisAvailable && (
-          <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-sm text-sm text-amber-800 dark:text-amber-200 flex items-start gap-2">
+          <div className="p-3 bg-(--status-warning-bg) border border-(--status-warning-border) rounded-sm text-sm text-(--status-warning-fg) flex items-start gap-2">
             <Monitor size={16} className="shrink-0 mt-0.5" />
             <span>{desktopOnly('WHOIS lookup')}.</span>
           </div>
         )}
         {error && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm text-sm text-red-600 dark:text-red-400">
+          <div className="p-3 bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm text-sm text-(--status-danger-fg)">
             {error}
           </div>
         )}

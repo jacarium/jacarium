@@ -85,6 +85,8 @@ export default function BaseModal({
   zIndex = 50,
   trapFocus = false,
   returnFocusTo = null,
+  testId,
+  ariaLabel
 }) {
   const panelRef = useRef(null);
   const returnFocusRef = useRef(null);
@@ -120,6 +122,7 @@ export default function BaseModal({
 
     function handleEscape(e) {
       if (e.key === 'Escape') {
+        e.stopPropagation();   // the key is spent here: a listener on window (zen mode's Esc) must not act on it too
         if (onEscape) onEscape();
         else onClose();
       }
@@ -171,9 +174,14 @@ export default function BaseModal({
     >
       <div
         ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={ariaLabel}
         tabIndex={trapFocus ? -1 : undefined}
-        className={`bg-os-modal shadow-lg border border-os-border ${trapFocus ? 'focus:outline-hidden' : ''} ${className}`}
+        className={`sc-modal-panel bg-os-modal shadow-lg border border-os-border ${trapFocus ? 'focus:outline-hidden' : ''} ${className}`}
         onClick={(e) => e.stopPropagation()}
+        data-testid={testId}
+        data-ra-area
       >
         {children}
       </div>

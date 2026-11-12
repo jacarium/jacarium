@@ -23,7 +23,7 @@ export default function HomeServerVersionNotice() {
       role={paused ? 'alert' : 'status'}
       data-testid="home-server-version-notice"
       data-state={check.state}
-      className={`pointer-events-auto max-w-md rounded-sm border px-3 py-2 text-xs shadow-sm ${paused ?'bg-amber-50 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-100':'bg-os-modal border-os-border text-os-text-secondary'}`}
+      className={`pointer-events-auto max-w-md rounded-sm border px-3 py-2 text-xs shadow-sm ${paused ?'bg-(--status-warning-bg) border-(--status-warning-border) text-(--status-warning-fg)':'bg-os-modal border-os-border text-os-text-secondary'}`}
     >
       <div className="flex items-start gap-2">
         {paused && <AlertTriangle size={14} className="mt-0.5 shrink-0" />}
@@ -31,7 +31,7 @@ export default function HomeServerVersionNotice() {
           <p className="font-medium text-os-text-primary">{check.title}</p>
           <p className="mt-0.5">{check.message}</p>
           {check.downloadsUrl && (check.state === 'server-newer' || (paused && check.server?.protocol > check.desktop?.protocol)) && (
-            <button type="button" onClick={() => open(check.downloadsUrl)} className="mt-1 inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline">
+            <button type="button" onClick={() => open(check.downloadsUrl)} className="mt-1 inline-flex items-center gap-1 text-(--chart-info) hover:underline">
                Download the matching desktop app from your home server
             </button>
           )}

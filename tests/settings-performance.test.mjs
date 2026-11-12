@@ -33,7 +33,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ---------------------------------------------------------------------------
 const modal = read('src/components/common/modals/SettingsModal.jsx');
 const panel = read('src/components/common/modals/settings/PerformanceSettings.jsx');
-check('the rail: Performance right after Theme, before Integrations', /\{ id: 'theme', label: 'Theme' \},\s*\{ id: 'performance', label: 'Performance' \},\s*\{ id: 'integrations'/.test(modal));
+check('the rail: Performance right after Theme, before Integrations', /\{ id: 'theme', label: 'Theme' \},\s*\{ id: 'performance', label: 'Performance' \},\s*\{ id: 'accessibility', label: 'Accessibility' \},\s*\{ id: 'integrations'/.test(modal));
 check("the 'performance' tab renders PerformanceSettings; openAppSettings('performance') reaches it (the opener's tab goes to initialTab as it is)", /activeTab === 'performance' && <PerformanceSettings \/>/.test(modal) && /'performance'/.test(read('src/utils/openSettings.js')) && /setAppSettingsTab\(event\?\.detail\?\.tab \|\| 'general'\)/.test(read('src/components/CompactSidebar.jsx')));
 check('the panel reads and writes /api/settings/parallel through the backend (never the browser\'s own cores)', /\/api\/settings\/parallel/.test(panel) && /method: 'PUT'/.test(panel) && !/hardwareConcurrency/.test(panel));
 check('the backend registers the blueprint; General no longer carries the section', /app\.register_blueprint\(parallel_settings_api\)/.test(read('backend/app.py')) && !/PerformanceSection|parallel-workers/.test(read('src/components/common/modals/settings/GeneralSettings.jsx')));
@@ -124,7 +124,7 @@ window.electronAPI = {
 const dialog = (tab) => React.createElement(NotificationProvider, null, React.createElement(ThemeProvider, null, React.createElement(SettingsModal, { key: tab + Math.random(), isOpen: true, onClose: () => {}, initialTab: tab })));
 await render(dialog('performance'));
 const rail = $$('[data-testid="settings-modal"] .sc-rail-tab').map((t) => t.textContent.trim());
-check("the dialog opened at 'performance': Performance in the rail after Theme, its panel shown", rail.join() === 'General,Editor,Theme,Performance,Integrations,AI Providers,Shortcuts,Debug,About' && !!$('[data-testid="performance-section"]'), rail.join());
+check("the dialog opened at 'performance': Performance in the rail after Theme, its panel shown", rail.join() === 'General,Editor,Theme,Performance,Accessibility,Integrations,AI Providers,Shortcuts,Debug,About' && !!$('[data-testid="performance-section"]'), rail.join());
 check('the desktop: "This computer has 12 cores; Auto uses 8." - the backend\'s machine', text('parallel-cores') === 'This computer has 12 cores; Auto uses 8.', text('parallel-cores'));
 const opts = $$('[data-testid="parallel-workers"] option').map((o) => `${o.value}=${o.textContent}`);
 check('the choices: Auto (8 processes), 1 (off: one process), 2 to 12 processes; Auto selected', opts[0] === 'auto=Auto (8 processes)' && opts[1] === '1=1 (off: one process)' && opts[2] === '2=2 processes' && opts.at(-1) === '12=12 processes' && opts.length === 13 && $('[data-testid="parallel-workers"]').value === 'auto' && !$('[data-testid="parallel-workers"]').disabled, opts.join(' | '));

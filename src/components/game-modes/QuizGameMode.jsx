@@ -743,8 +743,8 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
                           : 'bg-os-card border-os-border hover:bg-os-card-secondary hover:border-os-border'
                       }`}
                     >
-                      <Icon size={14} className={isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-os-text-secondary'} />
-                      <span className={`text-xs ${isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-os-text-primary'}`}>
+                      <Icon size={14} className={isSelected ? 'text-(--chart-info)' : 'text-os-text-secondary'} />
+                      <span className={`text-xs ${isSelected ? 'text-(--status-info-fg)' : 'text-os-text-primary'}`}>
                         {quizType.title}
                       </span>
                       {isSelected && <span className="ml-auto text-xs">✓</span>}
@@ -760,7 +760,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
         {quizMode === 'ai-generated' && (
           <div className="bg-os-card-secondary rounded-lg p-4 border border-os-border mb-4">
             <h3 className="text-sm font-semibold text-os-text-primary mb-3 flex items-center gap-2">
-              <Sparkles size={14} className="text-purple-600" />
+              <Sparkles size={14} className="text-(--brand-accent)" />
               AI Quiz Generator
             </h3>
 
@@ -812,7 +812,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
                   value={aiTopicName}
                   onChange={(e) => setAiTopicName(e.target.value)}
                   placeholder="e.g., Docker Networking"
-                  className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-purple-500"
+                  className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-(--os-blue)"
                 />
               </div>
             )}
@@ -827,7 +827,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
                     value={aiDocUrl}
                     onChange={(e) => setAiDocUrl(e.target.value)}
                     placeholder="https://docs.example.com/guide"
-                    className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-purple-500"
+                    className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-(--os-blue)"
                   />
                 </div>
                 <div className="mb-3">
@@ -837,7 +837,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
                     value={aiUrlTopic}
                     onChange={(e) => setAiUrlTopic(e.target.value)}
                     placeholder="e.g., Authentication"
-                    className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-purple-500"
+                    className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-(--os-blue)"
                   />
                 </div>
               </>
@@ -852,7 +852,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
                     type="file"
                     accept=".txt,.md,.json,.yaml,.yml"
                     onChange={(e) => setAiSelectedFile(e.target.files[0])}
-                    className="w-full text-xs text-os-text-secondary file:mr-2 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:text-xs file:bg-purple-50 file:text-purple-700 dark:file:bg-purple-950 dark:file:text-purple-300"
+                    className="w-full text-xs text-os-text-secondary file:mr-2 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:text-xs file:bg-(--status-brand-bg) file:text-(--status-brand-fg)"
                   />
                   {aiSelectedFile && (
                     <p className="text-xs text-os-text-muted mt-1">{aiSelectedFile.name}</p>
@@ -865,7 +865,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
                     value={aiFileTopic}
                     onChange={(e) => setAiFileTopic(e.target.value)}
                     placeholder="e.g., Configuration"
-                    className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-purple-500"
+                    className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-(--os-blue)"
                   />
                 </div>
               </>
@@ -937,7 +937,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
           <div className="bg-os-card-secondary rounded-lg p-4 border border-os-border mb-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-os-text-primary flex items-center gap-2">
-                <FolderOpen size={14} className="text-blue-600" />
+                <FolderOpen size={14} className="text-(--chart-info)" />
                 Custom Quizzes
               </h3>
               <button
@@ -1017,18 +1017,18 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
             <span className="text-xs font-medium text-os-text-muted">
               Question {currentQuestionIndex + 1} / {quizQuestions.length}
             </span>
-            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-sm font-medium dark:bg-blue-950 dark:text-blue-400">
+            <span className="text-xs bg-(--status-info-bg) text-(--status-info-fg) px-2 py-0.5 rounded-sm font-medium">
               {currentQuestion.category}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 text-orange-600">
+            <div className="flex items-center gap-1.5 text-(--chart-warn)">
               <Clock size={14} />
               <span className="font-bold text-sm">{localTimeRemaining}s</span>
             </div>
             <button
               onClick={quitToModeSelect}
-              className="p-1 hover:bg-red-500/10 text-red-600 dark:text-red-400 rounded-sm transition-colors"
+              className="p-1 hover:bg-(--status-danger-bg) text-(--chart-bad) rounded-sm transition-colors"
               title="Quit Game"
             >
               <X size={16} />
@@ -1042,21 +1042,21 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
         </div>
 
         {/* Points */}
-        <div className="flex items-center justify-between mb-3 bg-green-50 border border-green-200 p-2 rounded-sm dark:bg-green-950 dark:border-green-800">
+        <div className="flex items-center justify-between mb-3 bg-(--status-success-bg) border border-(--status-success-border) p-2 rounded-sm">
           <span className="text-xs font-medium text-os-text-primary">Points available:</span>
-          <span className="text-lg font-bold text-green-600">{currentPoints}</span>
+          <span className="text-lg font-bold text-(--chart-good)">{currentPoints}</span>
         </div>
 
         {/* Hints */}
         {hintsRevealed > 0 && !showingAnswer && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-sm p-2.5 mb-3 dark:bg-yellow-950 dark:border-yellow-800">
-            <h4 className="text-xs font-semibold text-yellow-800 dark:text-yellow-200 mb-1.5 flex items-center gap-1.5">
+          <div className="bg-(--status-warning-bg) border border-(--status-warning-border) rounded-sm p-2.5 mb-3">
+            <h4 className="text-xs font-semibold text-(--status-warning-fg) mb-1.5 flex items-center gap-1.5">
               <Lightbulb size={12} />
               Hints:
             </h4>
             <ul className="list-disc list-inside space-y-0.5">
               {currentQuestion.hints.slice(0, hintsRevealed).map((hint, i) => (
-                <li key={i} className="text-yellow-700 dark:text-yellow-300 text-xs">{hint}</li>
+                <li key={i} className="text-(--status-warning-fg) text-xs">{hint}</li>
               ))}
             </ul>
           </div>
@@ -1064,12 +1064,12 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
 
         {/* Correct Answer Display */}
         {showingAnswer && (isSinglePlayer ? currentQuestion.answer : revealedAnswer) && (
-          <div className="bg-blue-50 border-2 border-blue-400 rounded-sm p-3 mb-3 animate-pulse dark:bg-blue-950 dark:border-blue-800">
+          <div className="bg-(--status-info-bg) border-2 border-os-blue rounded-sm p-3 mb-3 animate-pulse">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-semibold text-blue-800 dark:text-blue-300">Correct Answer:</h4>
-              <span className="text-xs text-blue-600 dark:text-blue-400">Moving to next question...</span>
+              <h4 className="text-xs font-semibold text-(--status-info-fg)">Correct Answer:</h4>
+              <span className="text-xs text-(--chart-info)">Moving to next question...</span>
             </div>
-            <p className="text-lg font-bold text-blue-900 dark:text-blue-200 font-mono text-center">
+            <p className="text-lg font-bold text-(--status-info-fg) font-mono text-center">
               {isSinglePlayer ? currentQuestion.answer : revealedAnswer}
             </p>
           </div>
@@ -1086,7 +1086,7 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
               onKeyPress={(e) => e.key === 'Enter' && myAnswer.trim() && !hasAnsweredCurrentQuestion && submitAnswer()}
               placeholder={hasAnsweredCurrentQuestion ? "Answer submitted" : "Type your answer here..."}
               disabled={hasAnsweredCurrentQuestion}
-              className="w-full px-3 py-2 border-2 border-os-border rounded-sm focus:border-blue-500 focus:outline-hidden text-sm font-mono text-os-text-primary placeholder:text-os-text-muted bg-os-input-bg disabled:bg-os-card-secondary disabled:cursor-not-allowed select-text"
+              className="w-full px-3 py-2 border-2 border-os-border rounded-sm focus:border-os-blue focus:outline-hidden text-sm font-mono text-os-text-primary placeholder:text-os-text-muted bg-os-input-bg disabled:bg-os-card-secondary disabled:cursor-not-allowed select-text"
               autoFocus={!hasAnsweredCurrentQuestion}
             />
           </div>
@@ -1136,10 +1136,10 @@ export default function QuizGameMode({ onBack, currentMachineId, isCentralServer
                       <span className="text-xs bg-gray-500/20 text-gray-400 px-1.5 py-0.5 rounded-sm">Disconnected</span>
                     )}
                     {player.id === currentMachineId && player.connected !== false && (
-                      <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-sm dark:bg-blue-950 dark:text-blue-400">You</span>
+                      <span className="text-xs bg-(--status-info-bg) text-(--status-info-fg) px-1.5 py-0.5 rounded-sm">You</span>
                     )}
                     {hasAnswered && player.connected !== false && (
-                      <span className="text-xs bg-green-50 text-green-600 px-1.5 py-0.5 rounded-sm dark:bg-green-950 dark:text-green-400">✓ Answered</span>
+                      <span className="text-xs bg-(--status-success-bg) text-(--status-success-fg) px-1.5 py-0.5 rounded-sm">✓ Answered</span>
                     )}
                   </div>
                   <span className="text-sm font-bold text-os-text-primary">{player.score}</span>

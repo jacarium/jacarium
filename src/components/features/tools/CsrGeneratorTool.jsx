@@ -214,13 +214,13 @@ export default function CsrGeneratorTool() {
         </div>
 
         {loading && (
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-sm text-sm text-blue-600 dark:text-blue-400">
+          <div className="p-3 bg-(--status-info-bg) border border-(--status-info-border) rounded-sm text-sm text-(--status-info-fg)">
             Generating keys... This may take a few seconds for larger key sizes.
           </div>
         )}
 
         {error && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm text-sm text-red-600 dark:text-red-400">
+          <div className="p-3 bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm text-sm text-(--status-danger-fg)">
             {error}
           </div>
         )}

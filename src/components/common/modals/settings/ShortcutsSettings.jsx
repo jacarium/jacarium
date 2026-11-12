@@ -62,16 +62,16 @@ export default function ShortcutsSettings() {
       <div key={action.id} className="flex items-center gap-3 py-2 border-b border-os-border last:border-b-0" data-testid={`shortcut-row-${action.id}`} data-chord={chord || ''}>
         <div className="flex-1 min-w-0">
           <span className="block text-xs text-os-text-primary truncate">{action.label}</span>
-          {action.scope !== 'global' && <span className="block text-[11px] text-os-text-muted truncate">{SCOPES[action.scope]}</span>}
+          {action.scope !== 'global' && <span className="block text-2xs text-os-text-muted truncate">{SCOPES[action.scope]}</span>}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {chord ? (
-            <kbd className="px-1.5 py-0.5 text-[11px] font-mono text-os-text-primary border border-os-border rounded-sm bg-os-card-secondary" data-testid={`shortcut-chord-${action.id}`}>{label(chord)}</kbd>
+            <kbd className="px-1.5 py-0.5 text-2xs font-mono text-os-text-primary border border-os-border rounded-sm bg-os-card-secondary" data-testid={`shortcut-chord-${action.id}`}>{label(chord)}</kbd>
           ) : (
-            <span className="text-[11px] text-os-text-muted" data-testid={`shortcut-chord-${action.id}`}>Unassigned</span>
+            <span className="text-2xs text-os-text-muted" data-testid={`shortcut-chord-${action.id}`}>Unassigned</span>
           )}
-          {aliases.length > 0 && <span className="text-[11px] text-os-text-muted">or {aliases.join(', ')}</span>}
-          {!rebindable && <span className="text-[11px] text-os-text-muted" data-testid={`shortcut-fixed-${action.id}`}>fixed</span>}
+          {aliases.length > 0 && <span className="text-2xs text-os-text-muted">or {aliases.join(', ')}</span>}
+          {!rebindable && <span className="text-2xs text-os-text-muted" data-testid={`shortcut-fixed-${action.id}`}>fixed</span>}
         </div>
         <div className="flex items-center gap-1 shrink-0 w-44 justify-end">
           {rebindable && <Button size="sm" variant="ghost" onClick={() => setRecordingFor(action.id)} data-testid={`shortcut-change-${action.id}`}>Change</Button>}

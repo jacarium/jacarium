@@ -179,7 +179,7 @@ export default function EventTemplateSidebar({
               closeContextMenu();
               onDeleteTemplate && onDeleteTemplate(template);
             }}
-            className="w-full px-4 py-2 text-left text-sm hover:bg-os-card-secondary flex items-center gap-2 text-red-600 dark:text-red-400"
+            className="w-full px-4 py-2 text-left text-sm hover:bg-os-card-secondary flex items-center gap-2 text-(--chart-bad)"
           >
             <MenuItemIcon action="delete" danger />
             Delete Template

@@ -76,10 +76,10 @@ export default function AIContextDialog({ context, onSave, onCancel, reload, ord
       <div key={t.id} className="flex items-center justify-between gap-3 py-1" data-testid={`ctx-type-${t.id}`}>
         <div className="min-w-0">
           <span className="text-xs text-os-text-primary">{t.label}</span>
-          <span className="text-[11px] text-os-text-muted"> {count ? `${count} found` : 'none found'}</span>
+          <span className="text-2xs text-os-text-muted"> {count ? `${count} found` : 'none found'}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[11px] text-os-text-muted">{on ? 'Hide all' : 'Send all'}</span>
+          <span className="text-2xs text-os-text-muted">{on ? 'Hide all' : 'Send all'}</span>
           <Toggle checked={on} disabled={!policy.enabled || edited} onChange={(v) => setPolicy({ types: { [t.id]: v } })} testId={`ctx-type-toggle-${t.id}`} />
         </div>
       </div>
@@ -148,7 +148,7 @@ export default function AIContextDialog({ context, onSave, onCancel, reload, ord
           <div className="flex items-center justify-between gap-3" data-testid="ctx-redaction-switch">
             <div>
               <span className="text-xs text-os-text-primary">Hide private values</span>
-              <span className="block text-[11px] text-os-text-muted">{policy.enabled ? `${hiddenCount} of ${findings.length} finding${findings.length === 1 ? '' : 's'} hidden` : 'Off for this chat - the context goes to the AI provider as it is'}</span>
+              <span className="block text-2xs text-os-text-muted">{policy.enabled ? `${hiddenCount} of ${findings.length} finding${findings.length === 1 ? '' : 's'} hidden` : 'Off for this chat - the context goes to the AI provider as it is'}</span>
             </div>
             <Toggle checked={policy.enabled} disabled={edited} onChange={(v) => { if (v) setPolicy({ enabled: true }); else setConfirmOff(true); }} testId="ctx-redaction-toggle" />
           </div>

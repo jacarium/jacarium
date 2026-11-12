@@ -190,7 +190,7 @@ const FloatingTiles = ({ onClose, currentMachineId, playerName }) => {
                 className={`
                   w-12 h-12 rounded border-2 transition-all duration-200
                   ${cell
-                    ? 'bg-blue-500 border-blue-600 shadow-lg shadow-blue-500/50'
+                    ? 'bg-os-blue border-os-blue shadow-lg shadow-os-blue/50'
                     : 'bg-gray-600 border-gray-500 dark:bg-gray-700 dark:border-gray-600'
                   }
                   ${isMyGrid ? 'hover:scale-105 active:scale-95 cursor-pointer' : 'cursor-default'}
@@ -205,8 +205,8 @@ const FloatingTiles = ({ onClose, currentMachineId, playerName }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-os-card rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="sc-modal-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div role="dialog" aria-modal="true" aria-label="Tiles" className="sc-modal-panel bg-os-card rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-os-border">
           <div className="flex items-center gap-2">
@@ -321,7 +321,7 @@ const FloatingTiles = ({ onClose, currentMachineId, playerName }) => {
                     key={player.id}
                     className="flex items-center gap-2 p-3 bg-os-bg rounded-sm"
                   >
-                    {player.id === players[0]?.id && <Crown size={16} className="text-yellow-500" />}
+                    {player.id === players[0]?.id && <Crown size={16} className="text-(--chart-warn)" />}
                     <span className="text-os-text-primary">{player.name}</span>
                     {player.id === currentMachineId && (
                       <span className="text-xs text-os-text-secondary">(You)</span>

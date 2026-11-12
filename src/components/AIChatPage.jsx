@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import DropdownPanel from './common/menus/DropdownPanel';
+import { usePopupPosition } from '../hooks/usePopupPosition.js';
 import { scopedKey } from '../utils/accountStorage';
+import { scrollBehavior } from '../utils/readingAids';
 import { AI_DEFAULT_MAX_TOKENS, AI_IDLE_TIMEOUT_MS, CONTINUE_PROMPT, readWithIdleTimeout, truncationMessage } from '../utils/aiStream';
 import { Bot, Send, MessageSquare, Plus, RefreshCw, ChevronDown, Search, Code2, Download, Database, Clock, User, AlertTriangle, Menu } from 'lucide-react';
 import { getBackendUrl, apiFetch } from '../utils/backendUrl';
@@ -81,6 +84,8 @@ export default function AIChatPage() {
   const inputRef = useRef(null);
   const modelSelectorRef = useRef(null);
   const contextMenuRef = useRef(null);
+  // the conversation menu stays inside the window (the shared popup placement: flip, clamp, scroll inside)
+  usePopupPosition(contextMenuRef, { open: !!contextMenu, anchor: () => (contextMenu ? { left: contextMenu.x, top: contextMenu.y } : null), deps: [contextMenu && contextMenu.x, contextMenu && contextMenu.y] });
   const messagesContainerRef = useRef(null);
   const abortControllerRef = useRef(null);
   const sidebarMenuRef = useRef(null);
@@ -211,7 +216,7 @@ export default function AIChatPage() {
   useEffect(() => {
     // Only auto-scroll if user hasn't scrolled up
     if (!userScrolledUp) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: scrollBehavior() });
     }
   }, [messages, userScrolledUp]);
 
@@ -986,7 +991,7 @@ export default function AIChatPage() {
                             clearAllConversations();
                             setShowSidebarMenu(false);
                           }}
-                          className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-os-card-secondary flex items-center gap-2"
+                          className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
                         >
                           <MenuItemIcon action="delete" danger />
                           Clear All Conversations
@@ -1043,7 +1048,7 @@ export default function AIChatPage() {
                         }
                       }}
                       autoFocus
-                      className="w-full px-2 py-1 text-xs border border-blue-500 rounded-sm bg-os-input-bg text-os-text-primary font-text focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
+                      className="w-full px-2 py-1 text-xs border border-os-blue rounded-sm bg-os-input-bg text-os-text-primary font-text focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden"
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
@@ -1103,7 +1108,7 @@ export default function AIChatPage() {
                 <div className="relative">
                   <button
                     onClick={() => setShowModelSelector(!showModelSelector)}
-                    className="flex items-center gap-1 text-[10px] text-os-text-muted hover:text-os-text-primary transition-colors"
+                    className="flex items-center gap-1 text-3xs text-os-text-muted hover:text-os-text-primary transition-colors"
                   >
                     <span>{currentModelOption?.label || 'Select model'}</span>
                     <ChevronDown size={10} />
@@ -1111,17 +1116,14 @@ export default function AIChatPage() {
 
                 {/* Model Selector Dropdown */}
                 {showModelSelector && (
-                  <div
-                    ref={modelSelectorRef}
-                    className="absolute top-full left-0 mt-1 bg-os-card border border-os-border rounded-lg shadow-lg z-50 min-w-[280px] max-h-[400px] flex flex-col"
-                  >
+                  <DropdownPanel ref={modelSelectorRef} cap={400} className="bg-os-card border border-os-border rounded-lg shadow-lg z-50 min-w-[280px] flex flex-col">
                     <div className="flex items-center gap-2 px-3 py-2 border-b border-os-border">
                       <input
                         type="text"
                         value={modelSearchQuery}
                         onChange={(e) => setModelSearchQuery(e.target.value)}
                         placeholder="Search models..."
-                        className="flex-1 px-2 py-1 text-xs border border-os-input-border rounded-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-hidden bg-os-input-bg text-os-text-primary"
+                        className="flex-1 px-2 py-1 text-xs border border-os-input-border rounded-sm focus:ring-1 focus:ring-os-blue/40 focus:border-os-blue outline-hidden bg-os-input-bg text-os-text-primary"
                         onClick={(e) => e.stopPropagation()}
                       />
                       <button
@@ -1156,7 +1158,7 @@ export default function AIChatPage() {
                         >
                           <div className="flex items-center gap-2">
                             {option.provider === 'ssh' && (
-                              <div className={`w-2 h-2 rounded-full ${sshConnected ?'bg-green-500':'bg-red-500'}`} />
+                              <div className={`w-2 h-2 rounded-full ${sshConnected ?'bg-(--chart-good)':'bg-(--chart-bad)'}`} />
                             )}
                             <span>{option.label}</span>
                           </div>
@@ -1171,11 +1173,11 @@ export default function AIChatPage() {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </DropdownPanel>
                 )}
                 </div>
               ) : (
-                <span className="text-[10px] text-os-text-muted">No AI models configured</span>
+                <span className="text-3xs text-os-text-muted">No AI models configured</span>
               )}
 
               {/* Dataset indicator - Only show for Ollama (fully local) */}
@@ -1186,7 +1188,7 @@ export default function AIChatPage() {
                 return docCount > 0 ? (
                   <button
                     onClick={() => setShowDatasetModal(true)}
-                    className="flex items-center gap-1 text-[10px] text-os-text-muted hover:text-blue-500 transition-colors"
+                    className="flex items-center gap-1 text-3xs text-os-text-muted hover:text-os-blue transition-colors"
                     title="Manage datasets"
                   >
                     <span>
@@ -1227,11 +1229,11 @@ export default function AIChatPage() {
 
         {/* Backend Status Banner */}
         {backendStatus === 'offline' && (
-          <div className="px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-200 text-sm flex items-center justify-between gap-2 border-b border-red-200 dark:border-red-800">
+          <div className="px-4 py-2 bg-(--status-danger-bg) text-(--status-danger-fg) text-sm flex items-center justify-between gap-2 border-b border-(--status-danger-border)">
             <span>AI backend offline</span>
             <button
               onClick={checkBackendHealth}
-              className="text-red-700 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200"
+              className="text-(--status-danger-fg) hover:text-(--status-danger-fg)"
               title="Retry connection"
             >
               <RefreshCw size={14} />
@@ -1242,12 +1244,12 @@ export default function AIChatPage() {
         {/* External Provider Warning: only once the configured models are known
             (the settings in force come from that list), never for Ollama / SSH */}
         {modelsLoaded && !noModelsConfigured && aiSettings.provider !== 'ollama' && aiSettings.provider !== 'ssh' && (
-          <div className="px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 text-xs border-b border-yellow-200 dark:border-yellow-800">
+          <div className="px-4 py-3 bg-(--status-warning-bg) text-(--status-warning-fg) text-xs border-b border-(--status-warning-border)">
             <div className="flex items-start gap-2">
               <AlertTriangle size={16} className="shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium mb-1">Using External AI Provider</p>
-                <p className="text-yellow-700 dark:text-yellow-300">
+                <p className="text-(--status-warning-fg)">
                   You are using a third-party AI service. Please comply with their terms and conditions.
                   Do not share confidential, personal, or sensitive information in your conversations.
                 </p>
@@ -1270,7 +1272,7 @@ export default function AIChatPage() {
             <div className="flex flex-col items-center justify-center h-full max-w-6xl mx-auto">
               {/* Welcome Header */}
               <div className="text-center mb-12">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-linear-to-br from-blue-500 to-purple-600 mb-6">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-linear-to-br from-(--os-blue) to-(--brand-accent) mb-6">
                   <Bot size={40} className="text-white" />
                 </div>
                 <h2 className="text-2xl font-semibold text-os-text-primary mb-2">
@@ -1286,12 +1288,12 @@ export default function AIChatPage() {
                 {/* Datasets Card - Only show for Ollama (fully local) */}
                 {aiSettings.provider === 'ollama' && (
                   <div
-                    className="bg-os-card border border-os-border rounded-lg p-6 hover:border-blue-500 transition-colors cursor-pointer"
+                    className="bg-os-card border border-os-border rounded-lg p-6 hover:border-os-blue transition-colors cursor-pointer"
                     onClick={() => setShowDatasetModal(true)}
                   >
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                      <Database size={20} className="text-blue-500" />
+                    <div className="w-10 h-10 rounded-lg bg-os-blue/10 flex items-center justify-center">
+                      <Database size={20} className="text-os-blue" />
                     </div>
                     <h3 className="text-sm font-semibold text-os-text-primary">Datasets</h3>
                   </div>
@@ -1305,8 +1307,8 @@ export default function AIChatPage() {
                     const totalCount = documentIds.length;
                     return totalCount > 0 ? (
                       <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400">
-                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                        <div className="flex items-center gap-2 text-xs text-(--chart-info)">
+                          <div className="w-2 h-2 rounded-full bg-os-blue"></div>
                           <span>{totalCount} dataset{totalCount !== 1 ? 's' : ''} selected</span>
                         </div>
                       </div>
@@ -1335,12 +1337,12 @@ export default function AIChatPage() {
                 )}
 
                 {/* Recent Threads Card - Span both columns if Datasets is hidden */}
-                <div className={`bg-os-card border border-os-border rounded-lg p-6 hover:border-green-500 transition-colors cursor-pointer ${
+                <div className={`bg-os-card border border-os-border rounded-lg p-6 hover:border-(--chart-good) transition-colors cursor-pointer ${
  aiSettings.provider !=='ollama'?'md:col-span-2':''
  }`}>
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                      <Clock size={20} className="text-green-500" />
+                    <div className="w-10 h-10 rounded-lg bg-(--status-success-bg) flex items-center justify-center">
+                      <Clock size={20} className="text-(--chart-good)" />
                     </div>
                     <h3 className="text-sm font-semibold text-os-text-primary">Recent Threads</h3>
                   </div>
@@ -1357,7 +1359,7 @@ export default function AIChatPage() {
                         <MessageSquare size={14} className="text-os-text-muted shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs text-os-text-primary truncate">{conv.name}</p>
-                          <p className="text-[10px] text-os-text-muted">{conv.messages.length} messages</p>
+                          <p className="text-3xs text-os-text-muted">{conv.messages.length} messages</p>
                         </div>
                       </button>
                     ))}
@@ -1387,8 +1389,8 @@ export default function AIChatPage() {
                     <div className="sc-chat-avatar shrink-0">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
  msg.role ==='user'
- ?'bg-blue-600'
- :'bg-linear-to-br from-blue-500 to-purple-600'
+ ?'bg-os-blue'
+ :'bg-linear-to-br from-(--os-blue) to-(--brand-accent)'
  }`}>
                         {msg.role === 'user' ? (
                           <User size={18} className="text-white" />
@@ -1418,7 +1420,7 @@ export default function AIChatPage() {
                             <SubTabs className="px-4 pt-2" active={msg.activeTab || 'reply'}
                               tabs={[
                                 { id: 'reply', label: 'Reply' },
-                                { id: 'thinking', label: `Thinking${msg.thinkingDuration ? ` (${msg.thinkingDuration.toFixed(1)}s)` : ''}`, activeClassName: 'border-yellow-500 text-yellow-600 dark:text-yellow-400' },
+                                { id: 'thinking', label: `Thinking${msg.thinkingDuration ? ` (${msg.thinkingDuration.toFixed(1)}s)` : ''}`, activeClassName: 'border-(--chart-warn) text-(--chart-warn)' },
                               ]}
                               onChange={(id) => {
                                 setConversations(prev => prev.map(conv => {
@@ -1446,7 +1448,7 @@ export default function AIChatPage() {
                             </div>
                           )}
                           {msg.thinking && (msg.activeTab === 'thinking' || !msg.content || !msg.content.trim()) ? (
-                            <div className="text-xs text-os-text-primary whitespace-pre-wrap wrap-break-word">
+                            <div className="ra-reading ra-reading-xs text-xs text-os-text-primary whitespace-pre-wrap wrap-break-word">
                               {msg.thinking}
                             </div>
                           ) : msg.content && msg.content.trim() ? (
@@ -1505,13 +1507,13 @@ export default function AIChatPage() {
               }}
               placeholder={noModelsConfigured ? 'No AI models configured...' : backendStatus === 'offline' ? 'AI backend offline...' : !modelsLoaded ? 'Loading models...' : 'Type your message...'}
               disabled={isLoading || backendStatus === 'offline' || noModelsConfigured}
-              className="flex-1 px-4 py-3 border border-os-border resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-input-bg text-os-text-primary disabled:bg-os-card-secondary disabled:text-os-text-muted"
+              className="flex-1 px-4 py-3 border border-os-border resize-none focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden text-sm bg-os-input-bg text-os-text-primary disabled:bg-os-card-secondary disabled:text-os-text-muted"
               rows={isMobile ? 1 : 3}
             />
             {isLoading ? (
               <button
                 onClick={handleStopGeneration}
-                className="px-6 bg-red-700/80 text-white hover:bg-red-800/90 transition-colors flex items-center justify-center gap-2"
+                className="px-6 bg-(--chart-bad)/80 text-white hover:bg-(--chart-bad)/90 transition-colors flex items-center justify-center gap-2"
               >
                 <div className="w-3 h-3 bg-os-card rounded-xs"></div>
                 <span className="text-sm">Stop</span>
@@ -1542,7 +1544,7 @@ export default function AIChatPage() {
               setShowDeleteModal(true);
               setContextMenu(null);
             }}
-            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-os-card-secondary flex items-center gap-2"
+            className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
           >
             <MenuItemIcon action="delete" danger />
             Delete Chat

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import BaseModal from './common/modals/BaseModal';
 import { X, AlertCircle } from 'lucide-react';
 import { parseJQL } from '../utils/jqlParser';
 
@@ -33,8 +34,7 @@ export default function ImportJQLModal({ isOpen, onClose, onImport }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 font-text">
-      <div className="bg-os-modal shadow-lg max-w-2xl w-full border border-os-border rounded-sm">
+    <BaseModal isOpen onClose={onClose} closeOnBackdropClick={false} className="bg-os-modal shadow-lg max-w-2xl w-full border border-os-border rounded-sm font-text" ariaLabel="Import JQL">
         {/* Header */}
         <div className="p-4 border-b border-os-border bg-os-modal flex items-center justify-between">
           <h2 className="text-sm font-text font-semibold text-os-text-primary uppercase tracking-wide">Import JQL</h2>
@@ -65,14 +65,14 @@ export default function ImportJQLModal({ isOpen, onClose, onImport }) {
           </div>
 
           {error && (
-            <div className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm p-3">
+            <div className="flex items-start gap-2 text-sm text-(--status-danger-fg) bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm p-3">
               <AlertCircle size={16} className="mt-0.5 shrink-0" />
               <div>{error}</div>
             </div>
           )}
 
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-sm p-3">
-            <p className="text-xs text-blue-800 dark:text-blue-200">
+          <div className="bg-(--status-info-bg) border border-(--status-info-border) rounded-sm p-3">
+            <p className="text-xs text-(--status-info-fg)">
               <strong>Supported features:</strong>
               <br />
               • Nested groups with parentheses: <span className="font-mono">(A AND B) OR (C AND D)</span>
@@ -101,7 +101,6 @@ export default function ImportJQLModal({ isOpen, onClose, onImport }) {
             Import
           </button>
         </div>
-      </div>
-    </div>
+    </BaseModal>
   );
 }

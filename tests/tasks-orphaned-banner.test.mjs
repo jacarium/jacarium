@@ -227,9 +227,9 @@ H.mount('tasks');
 let b = await waitFor(banner, 15000);
 check('banner shows with the plural wording and the count across ALL instances',
   !!b && b.textContent.includes('4 Tasks in TaskWarrior not belonging to any TaskWarrior instance.'), b?.textContent);
-check('it is the shared Documents notice strip (same tinted classes, icon, role=status)',
+check('it is the shared Documents notice strip (the warning tone role classes, icon, role=status)',
   !!b && b.getAttribute('role') === 'status' && b.dataset.tone === 'warning' &&
-  ['px-4', 'py-2', 'bg-amber-50', 'dark:bg-amber-900/20', 'text-amber-700', 'dark:text-amber-200', 'text-sm', 'flex', 'items-center', 'gap-2'].every((c) => b.classList.contains(c)) &&
+  ['px-4', 'py-2', 'bg-(--status-warning-bg)', 'text-(--status-warning-fg)', 'text-sm', 'flex', 'items-center', 'gap-2'].every((c) => b.classList.contains(c)) &&
   !!b.querySelector('svg path'), b?.className);
 let btn = cleanBtn();
 check('"Clean it?" is an underlined text-style button (no box), keyboard focusable, with a visible focus style',
@@ -290,15 +290,15 @@ report('\n--- 4. the Documents editor banners still render through the shared st
 /* ================================================================== */
 H.mount('banner', { tone: 'readonly', title: 'Read-only:', text: 'This document is shared by another team member. You can view but not edit.' });
 const probe = await waitFor(() => document.querySelector('[data-testid="probe-banner"]'));
-check('NoticeBanner readonly tone = the original read-only banner classes, bold lead-in, message, and the action button',
-  !!probe && ['px-4', 'py-2', 'bg-purple-50', 'dark:bg-purple-900/20', 'text-purple-700', 'dark:text-purple-200', 'text-sm', 'flex', 'items-center', 'gap-2'].every((c) => probe.classList.contains(c)) &&
+check('NoticeBanner readonly tone = the brand tint role classes, bold lead-in, message, and the action button',
+  !!probe && ['px-4', 'py-2', 'bg-(--status-brand-bg)', 'text-(--status-brand-fg)', 'text-sm', 'flex', 'items-center', 'gap-2'].every((c) => probe.classList.contains(c)) &&
   probe.querySelector('span.font-medium')?.textContent === 'Read-only:' && probe.textContent.includes('shared by another team member') &&
   probe.querySelector('[data-testid="probe-action"]')?.classList.contains('underline'), probe?.className);
 H.mount('editor', { document: { id: 1, title: 'Synthetic cloud doc', content: 'body', category: 'General', inCloud: true, ownerId: 'someone-else@machine', updatedAt: Date.now() }, isOnline: false });
 const offline = await waitFor(() => document.querySelector('[data-testid="document-offline-banner"]'), 15000);
-check('DocumentEditor: the offline read-only banner renders via NoticeBanner with its original text and orange classes',
+check('DocumentEditor: the offline read-only banner renders via NoticeBanner with its original text and the offline tone (the warning family\'s stronger tint)',
   !!offline && offline.textContent.includes('Offline - Read Only') && offline.textContent.includes('Shared documents require an online connection for editing') &&
-  offline.classList.contains('bg-orange-50') && offline.classList.contains('dark:text-orange-200'), offline?.className);
+  offline.classList.contains('bg-(--status-warning-border)') && offline.classList.contains('text-(--status-warning-fg)'), offline?.className);
 H.unmount();
 
 report(`\n${total - failures}/${total} checks passed`);

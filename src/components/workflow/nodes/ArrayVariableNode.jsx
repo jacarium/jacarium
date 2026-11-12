@@ -61,7 +61,7 @@ function ArrayVariableNode({ data, isConnectable }) {
         />
 
         {!isValid && (
-          <div className="text-xs text-red-600 mt-1">Invalid JSON array</div>
+          <div className="text-xs text-(--chart-bad) mt-1">Invalid JSON array</div>
         )}
 
         <DataOutputPin isConnectable={isConnectable} label="Array value" />

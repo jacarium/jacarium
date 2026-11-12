@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import BaseModal from '../../../common/modals/BaseModal';
 import { X } from 'lucide-react';
 
 /**
@@ -26,8 +27,7 @@ export default function FunctionEditModal({ func, onSave, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-os-modal shadow-lg max-w-md w-full border border-os-border rounded-sm">
+    <BaseModal isOpen onClose={onClose} closeOnBackdropClick={false} className="bg-os-modal shadow-lg max-w-md w-full border border-os-border rounded-sm" ariaLabel="Edit function">
         <div className="p-4 border-b border-os-border flex items-center justify-between">
           <h2 className="text-sm font-semibold text-os-text-primary uppercase tracking-wide">
             {isNew ? 'New Function' : `Edit ${func.label}`}
@@ -38,7 +38,7 @@ export default function FunctionEditModal({ func, onSave, onClose }) {
         </div>
         <div className="p-6 space-y-4">
           {error && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm text-sm text-red-600 dark:text-red-400">
+            <div className="p-3 bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm text-sm text-(--status-danger-fg)">
               {error}
             </div>
           )}
@@ -87,7 +87,6 @@ export default function FunctionEditModal({ func, onSave, onClose }) {
             Save
           </button>
         </div>
-      </div>
-    </div>
+    </BaseModal>
   );
 }

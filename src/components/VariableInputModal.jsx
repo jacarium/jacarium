@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import BaseModal from './common/modals/BaseModal';
 import { X, FileText, AlertCircle } from 'lucide-react';
 
 export default function VariableInputModal({ isOpen, onClose, onApply, variables, templateName }) {
@@ -61,8 +62,7 @@ export default function VariableInputModal({ isOpen, onClose, onApply, variables
   if (!isOpen || !variables || variables.length === 0) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 font-text">
-      <div className="bg-os-modal shadow-lg max-w-2xl w-full border border-os-border rounded-sm max-h-[90vh] overflow-y-auto">
+    <BaseModal isOpen onClose={onClose} closeOnBackdropClick={false} className="bg-os-modal shadow-lg max-w-2xl w-full border border-os-border rounded-sm max-h-[90vh] overflow-y-auto font-text" ariaLabel="Template Variables">
         {/* Header */}
         <div className="p-4 border-b border-os-border bg-os-modal flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-2">
@@ -81,9 +81,9 @@ export default function VariableInputModal({ isOpen, onClose, onApply, variables
 
         {/* Body */}
         <div className="p-6 space-y-4 bg-os-modal">
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-sm p-3 flex items-start gap-2">
-            <AlertCircle size={16} className="text-blue-700 dark:text-blue-300 mt-0.5 shrink-0" />
-            <div className="text-sm text-blue-800 dark:text-blue-200">
+          <div className="bg-(--status-info-bg) border border-(--status-info-border) rounded-sm p-3 flex items-start gap-2">
+            <AlertCircle size={16} className="text-(--status-info-fg) mt-0.5 shrink-0" />
+            <div className="text-sm text-(--status-info-fg)">
               <strong>{templateName || 'This template'}</strong> contains variables. Please provide values below.
             </div>
           </div>
@@ -101,11 +101,11 @@ export default function VariableInputModal({ isOpen, onClose, onApply, variables
                   onChange={(e) => handleChange(varName, e.target.value)}
                   placeholder={`Enter value for {{${varName}}}`}
                   className={`w-full px-3 py-2 border ${
- errors[varName] ?'border-red-500':'border-os-input-border'
+ errors[varName] ?'border-(--chart-bad)':'border-os-input-border'
  } focus:ring-2 focus:ring-os-blue focus:border-os-blue outline-hidden text-sm bg-os-modal text-os-text-primary placeholder:text-os-text-muted font-mono`}
                 />
                 {errors[varName] && (
-                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors[varName]}</p>
+                  <p className="text-xs text-(--chart-bad) mt-1">{errors[varName]}</p>
                 )}
                 <p className="text-xs text-os-text-muted mt-1">
                   Variable placeholder: <code className="bg-os-card-secondary px-1 py-0.5 rounded-sm">{`{{${varName}}}`}</code>
@@ -145,7 +145,6 @@ export default function VariableInputModal({ isOpen, onClose, onApply, variables
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </BaseModal>
   );
 }

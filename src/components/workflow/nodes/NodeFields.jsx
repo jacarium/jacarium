@@ -10,8 +10,8 @@ import { formatNodeValue } from '../workflowNodeUtils';
 
 /** Focus-ring colour per node accent; full class names so Tailwind keeps them. */
 const RING_CLASS = {
-  purple: 'focus:ring-purple-500',
-  red: 'focus:ring-red-500'
+  purple: 'focus:ring-(--brand-accent)',
+  red: 'focus:ring-(--chart-bad)'
 };
 
 /** Label + control, stacked. */
@@ -88,7 +88,7 @@ export function OutputActions({ expanded, onToggleExpanded, copied, onCopy }) {
         title="Copy to clipboard"
       >
         {copied ? (
-          <Check size={12} className="text-green-500" />
+          <Check size={12} className="text-(--chart-good)" />
         ) : (
           <Copy size={12} className="text-os-text-secondary" />
         )}

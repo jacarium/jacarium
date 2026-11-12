@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import DropdownPanel from './menus/DropdownPanel';
 import { scopedKey } from '../../utils/accountStorage';
+import { scrollBehavior } from '../../utils/readingAids';
 import { AI_DEFAULT_MAX_TOKENS, AI_PROBE_TIMEOUT_MS, CONTINUE_PROMPT, truncationMessage } from '../../utils/aiStream';
 import { Bot, Trash2, Plus, Edit2, AlertCircle, RefreshCw, Code2, X, ChevronDown, FileJson, FileText, Trello, GitBranch, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import SidebarHeader from './sidebar/SidebarHeader';
@@ -433,7 +435,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: scrollBehavior() });
   }, [messages]);
 
   // Focus input when editing header
@@ -773,6 +775,8 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
       minWidth={350}
       maxWidth={600}
       storageKey="aiChatSidebarWidth"
+      zenPanelId="aiChat"
+      zenPanelLabel="AI Chat"
       side={side}
       canvasMinWidth={480}
       testId="panel-ai-chat"
@@ -793,7 +797,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
                     if (e.key === 'Enter') handleRenameConversation(editingConversationName);
                     if (e.key === 'Escape') setEditingHeader(false);
                   }}
-                  className="px-2 py-1 border border-blue-500 rounded-sm text-sm bg-os-input-bg text-os-text-primary"
+                  className="px-2 py-1 border border-os-blue rounded-sm text-sm bg-os-input-bg text-os-text-primary"
                 />
               ) : (
                 <div className="flex flex-col w-full">
@@ -811,13 +815,13 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
 
                   {/* Model indicator */}
                   {noModelsConfigured ? (
-                    <span className="text-[10px] text-os-text-muted font-normal mt-0.5">
+                    <span className="text-3xs text-os-text-muted font-normal mt-0.5">
                       No AI models configured
                     </span>
                   ) : (
                     <button
                       onClick={() => setShowModelSelector(!showModelSelector)}
-                      className="flex items-center gap-1 text-[10px] text-os-text-muted font-normal hover:text-os-text-primary transition-colors mt-0.5"
+                      className="flex items-center gap-1 text-3xs text-os-text-muted font-normal hover:text-os-text-primary transition-colors mt-0.5"
                     >
                       <span>{currentModelOption?.label || 'Select model'}</span>
                       <ChevronDown size={10} />
@@ -878,10 +882,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
 
           {/* Model Selector Dropdown - Positioned outside header to avoid clipping */}
           {showModelSelector && (
-            <div
-              ref={modelSelectorRef}
-              className="absolute top-full left-4 mt-1 bg-os-card border border-os-border rounded-lg shadow-lg z-50 min-w-[280px] max-h-[400px] flex flex-col"
-            >
+            <DropdownPanel ref={modelSelectorRef} cap={400} className="bg-os-card border border-os-border rounded-lg shadow-lg z-50 min-w-[280px] flex flex-col">
               {/* Search and refresh header */}
               <div className="flex items-center gap-2 px-3 py-2 border-b border-os-border">
                 <input
@@ -889,7 +890,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
                   value={modelSearchQuery}
                   onChange={(e) => setModelSearchQuery(e.target.value)}
                   placeholder="Search models..."
-                  className="flex-1 px-2 py-1 text-xs border border-os-input-border rounded-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-hidden bg-os-input-bg text-os-text-primary"
+                  className="flex-1 px-2 py-1 text-xs border border-os-input-border rounded-sm focus:ring-1 focus:ring-os-blue/40 focus:border-os-blue outline-hidden bg-os-input-bg text-os-text-primary"
                   onClick={(e) => e.stopPropagation()}
                 />
                 <button
@@ -925,7 +926,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
                 >
                   <div className="flex items-center gap-2">
                     {option.provider === 'ssh' && (
-                      <div className={`w-2 h-2 rounded-full ${sshConnected ?'bg-green-500':'bg-red-500'}`} title={sshConnected ? 'SSH Connected' : 'SSH Disconnected'} />
+                      <div className={`w-2 h-2 rounded-full ${sshConnected ?'bg-(--chart-good)':'bg-(--chart-bad)'}`} title={sshConnected ? 'SSH Connected' : 'SSH Disconnected'} />
                     )}
                     <span>{option.label}</span>
                   </div>
@@ -940,22 +941,22 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
                 </div>
               )}
               </div>
-            </div>
+            </DropdownPanel>
           )}
         </div>
 
         {/* Backend Status Banner */}
         {backendStatus === 'offline' && !backendBannerDismissed && (
-          <div className="px-4 py-2 bg-red-50 text-red-700 dark:text-red-200 text-sm flex items-center justify-between gap-2">
+          <div className="px-4 py-2 bg-(--status-danger-bg) text-(--status-danger-fg) text-sm flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <AlertCircle size={14} className="dark:text-red-300" />
+              <AlertCircle size={14} className="" />
               <span>AI backend offline</span>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={checkBackendHealth}
                 disabled={checkingBackend}
-                className="text-red-700 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200 disabled:opacity-50"
+                className="text-(--status-danger-fg) hover:text-(--status-danger-fg) disabled:opacity-50"
                 title="Check the AI backend again"
                 aria-label="Check the AI backend again"
               >
@@ -963,7 +964,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
               </button>
               <button
                 onClick={() => setBackendBannerDismissed(true)}
-                className="text-red-700 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200"
+                className="text-(--status-danger-fg) hover:text-(--status-danger-fg)"
               >
                 <X size={14} />
               </button>
@@ -1022,7 +1023,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {noModelsConfigured ? (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-              <AlertCircle size={48} className="text-red-600 dark:text-red-400 mb-4" />
+              <AlertCircle size={48} className="text-(--chart-bad) mb-4" />
               <p className="text-sm text-os-text-primary font-medium">No AI Models Configured</p>
               <p className="text-xs text-os-text-muted mt-1">Configure AI providers in Application Settings to use AI Chat</p>
             </div>
@@ -1059,7 +1060,7 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
                         style={MESSAGE_MARKDOWN_STYLE}
                       />
                     ) : (
-                      <div className="whitespace-pre-wrap text-sm wrap-break-word overflow-hidden" style={{
+                      <div className="ra-reading ra-reading-sm whitespace-pre-wrap text-sm wrap-break-word overflow-hidden" style={{
                         overflowWrap: 'break-word',
                         wordWrap: 'break-word',
                         wordBreak: 'break-word'
@@ -1092,20 +1093,20 @@ export default function AIChatSidebar({ isOpen, side = 'left' }) {
             const r = renderContext(ctx, privacyLists, { ordinal: contexts.length > 1 ? i + 1 : null });
             const ContextIcon = getContextIcon(ctx.kind);
             return (
-              <div key={ctx.id} className={`mb-2 flex items-center justify-between p-2 rounded-sm text-xs border ${r.empty ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'}`} data-testid="ai-context-chip" data-context-id={ctx.id} data-empty={r.empty ? 'true' : 'false'}>
+              <div key={ctx.id} className={`mb-2 flex items-center justify-between p-2 rounded-sm text-xs border ${r.empty ? 'bg-(--status-danger-bg) border-(--status-danger-border)' : 'bg-(--status-info-bg) border-(--status-info-border)'}`} data-testid="ai-context-chip" data-context-id={ctx.id} data-empty={r.empty ? 'true' : 'false'}>
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <ContextIcon size={14} className="text-blue-600 dark:text-blue-300 shrink-0" />
-                  <span className="text-blue-800 dark:text-blue-200 font-medium truncate">{ctx.kind === 'selection' ? `Selection: ${ctx.title}` : ctx.kind === 'kanban' ? `Board: ${ctx.title}` : ctx.kind === 'workflow' ? `Workflow: ${ctx.title}` : `Document: ${ctx.title}`}</span>
+                  <ContextIcon size={14} className="text-(--chart-info) shrink-0" />
+                  <span className="text-(--status-info-fg) font-medium truncate">{ctx.kind === 'selection' ? `Selection: ${ctx.title}` : ctx.kind === 'kanban' ? `Board: ${ctx.title}` : ctx.kind === 'workflow' ? `Workflow: ${ctx.title}` : `Document: ${ctx.title}`}</span>
                   {r.empty
-                    ? <span className="text-red-700 dark:text-red-300 truncate" data-testid="ai-context-error" title={ctx.error || 'No content loaded'}>{'\u00b7'} {ctx.error || 'No content loaded - not sent'}</span>
-                    : <span className="text-blue-700/70 dark:text-blue-300/70 shrink-0" data-testid="ai-context-summary">{r.edited ? '\u00b7 edited' : r.hidden ? `\u00b7 ${r.hidden} hidden` : ''}</span>}
+                    ? <span className="text-(--status-danger-fg) truncate" data-testid="ai-context-error" title={ctx.error || 'No content loaded'}>{'\u00b7'} {ctx.error || 'No content loaded - not sent'}</span>
+                    : <span className="text-(--status-info-fg)/70 shrink-0" data-testid="ai-context-summary">{r.edited ? '\u00b7 edited' : r.hidden ? `\u00b7 ${r.hidden} hidden` : ''}</span>}
                 </div>
                 <div className="flex items-center gap-1">
                   <button type="button" onClick={() => setEditingContextId(ctx.id)} className="btn btn-quiet p-1 shrink-0" title="What the AI receives" aria-label="What the AI receives" data-testid="ai-context-eye">
-                    <Eye size={14} className="text-blue-600 dark:text-blue-300" />
+                    <Eye size={14} className="text-(--chart-info)" />
                   </button>
                   <button type="button" onClick={() => removeContext(ctx.id)} className="btn btn-quiet p-1 shrink-0" title="Remove context" aria-label="Remove context" data-testid="ai-context-remove">
-                    <X size={14} className="text-blue-600 dark:text-blue-300" />
+                    <X size={14} className="text-(--chart-info)" />
                   </button>
                 </div>
               </div>

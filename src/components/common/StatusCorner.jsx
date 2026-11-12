@@ -1,6 +1,7 @@
 import DebugStatusBar from './DebugStatusBar';
 import ConnectionIndicator from './ConnectionIndicator';
 import HomeServerVersionNotice from './HomeServerVersionNotice';
+import ZenBadge from './ZenBadge';
 
 // The bottom-right status corner shared by every window: the home-server
 // version notice, the debug status bar (FPS / CPU / memory, Settings >
@@ -23,6 +24,7 @@ export default function StatusCorner() {
     >
       <HomeServerVersionNotice />
       <DebugStatusBar />
+      <ZenBadge />
       <ConnectionIndicator />
     </div>
   );

@@ -47,7 +47,7 @@ css.split('\n').forEach((line, i) => {
   const v = m[1].trim();
   // a token may carry its px fallback (var(--radius-sm, 8px): a sheet loaded on its own still rounds), and the
   // fallback must be the token's own value, so it cannot drift from the scale
-  const tokens = v.replace(/ 0\b/g, '').split(/\s+(?=var\()/);
+  const tokens = v.replace(/(?:^| )0\b/g, '').trim().split(/\s+(?=var\()/);   // the square corners of a one-sided round (0 first or last)
   if (tokens.every((t) => { const tm = /^var\((--radius(?:-\w+)?)(?:, (\d+px))?\)$/.exec(t); return tm && (!tm[2] || tm[2] === resolveRadius(tm[1])); }) || v === '0' || /^(9999px|50%|calc\(infinity \* 1px\))$/.test(v)) return;
   if (/\.markdown-preview mark/.test(css.split('\n').slice(Math.max(0, i - 6), i).join('\n')) && v === '2px') return;
   literal.push(`${i + 1}: ${v}`);

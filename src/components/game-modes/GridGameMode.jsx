@@ -1310,8 +1310,8 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                       : 'bg-os-card border-os-border hover:bg-os-card-secondary'
                   }`}
                 >
-                  <Icon size={14} className={isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-os-text-secondary'} />
-                  <span className={`text-xs ${isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-os-text-primary'}`}>
+                  <Icon size={14} className={isSelected ? 'text-(--chart-info)' : 'text-os-text-secondary'} />
+                  <span className={`text-xs ${isSelected ? 'text-(--status-info-fg)' : 'text-os-text-primary'}`}>
                     {quizType.title}
                   </span>
                   {isSelected && <span className="ml-auto text-xs">✓</span>}
@@ -1344,7 +1344,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                       setAiGridCategories(updated);
                     }}
                     placeholder={`e.g., ${['Basics', 'Advanced', 'Security', 'Performance', 'Deployment', 'Debugging'][index]}`}
-                    className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-purple-500"
+                    className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-(--os-blue)"
                   />
                 </div>
 
@@ -1410,7 +1410,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                         setAiGridCategories(updated);
                       }}
                       placeholder="e.g., Kubernetes Basics"
-                      className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-purple-500"
+                      className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-(--os-blue)"
                     />
                   </div>
                 )}
@@ -1429,7 +1429,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                           setAiGridCategories(updated);
                         }}
                         placeholder="https://docs.example.com/api"
-                        className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-purple-500"
+                        className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-(--os-blue)"
                       />
                     </div>
                     <div className="mb-3">
@@ -1443,7 +1443,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                           setAiGridCategories(updated);
                         }}
                         placeholder="e.g., Authentication"
-                        className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-purple-500"
+                        className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-(--os-blue)"
                       />
                     </div>
                   </>
@@ -1462,7 +1462,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                           updated[index].file = e.target.files[0] || null;
                           setAiGridCategories(updated);
                         }}
-                        className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-purple-500"
+                        className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-(--os-blue)"
                       />
                       {category.file && (
                         <p className="text-xs text-os-text-secondary mt-1">{category.file.name}</p>
@@ -1479,7 +1479,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                           setAiGridCategories(updated);
                         }}
                         placeholder="e.g., Chapter 3"
-                        className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-purple-500"
+                        className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-border rounded-sm focus:outline-hidden focus:border-(--os-blue)"
                       />
                     </div>
                   </>
@@ -1555,7 +1555,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
           <div className="bg-os-card-secondary rounded-lg p-4 border border-os-border mb-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-os-text-primary flex items-center gap-2">
-                <FolderOpen size={14} className="text-blue-600" />
+                <FolderOpen size={14} className="text-(--chart-info)" />
                 Custom Grids
               </h3>
               <button
@@ -1650,16 +1650,16 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
           <div></div>
           <div className="flex items-center gap-2">
             <div className={`flex items-center gap-1 px-2 py-1 rounded ${
-              (localGameTime || gridState.gameTimeRemaining) <= 30 ? 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400 animate-pulse' :
-              (localGameTime || gridState.gameTimeRemaining) <= 60 ? 'bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400' :
-              'bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400'
+              (localGameTime || gridState.gameTimeRemaining) <= 30 ? 'bg-(--status-danger-bg) text-(--status-danger-fg) animate-pulse' :
+              (localGameTime || gridState.gameTimeRemaining) <= 60 ? 'bg-(--status-warning-bg) text-(--status-warning-fg)' :
+              'bg-(--status-info-bg) text-(--status-info-fg)'
             }`}>
               <Clock size={14} />
               <span className="text-sm font-bold">{formatTime(localGameTime || gridState.gameTimeRemaining)}</span>
             </div>
             <button
               onClick={quitToModeSelect}
-              className="p-1 hover:bg-red-500/10 text-red-600 dark:text-red-400 rounded-sm transition-colors"
+              className="p-1 hover:bg-(--status-danger-bg) text-(--chart-bad) rounded-sm transition-colors"
               title="Quit Game"
             >
               <X size={16} />
@@ -1673,7 +1673,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
           <div className="grid grid-cols-6 gap-2">
             {categories.map(category => (
               <div key={category.id} className="text-center">
-                <span className="text-[11px] font-semibold text-os-text-secondary">{category.title}</span>
+                <span className="text-2xs font-semibold text-os-text-secondary">{category.title}</span>
               </div>
             ))}
           </div>
@@ -1732,7 +1732,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                     isDisconnected
                       ? 'bg-os-card-secondary border-os-border opacity-60'
                       : isSelector
-                      ? 'bg-blue-50 border-blue-500 dark:bg-blue-950 animate-pulse'
+                      ? 'bg-(--status-info-bg) border-os-blue animate-pulse'
                       : 'bg-os-card-secondary border-os-border'
                   }`}
                 >
@@ -1740,10 +1740,10 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                     {isDisconnected && <Globe size={10} className="text-gray-500" />}
                     <span className="text-xs font-medium text-os-text-primary">{player.name}</span>
                     {isDisconnected && (
-                      <span className="text-[10px] bg-gray-500/20 text-gray-400 px-1 py-0.5 rounded-sm">DC</span>
+                      <span className="text-3xs bg-gray-500/20 text-gray-400 px-1 py-0.5 rounded-sm">DC</span>
                     )}
                     {isMe && !isDisconnected && (
-                      <span className="text-[10px] bg-blue-50 text-blue-600 px-1 py-0.5 rounded-sm dark:bg-blue-950 dark:text-blue-400">You</span>
+                      <span className="text-3xs bg-(--status-info-bg) text-(--status-info-fg) px-1 py-0.5 rounded-sm">You</span>
                     )}
                   </div>
                   <span className="text-sm font-bold text-os-text-secondary">{player.score}</span>
@@ -1775,14 +1775,14 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-os-text-muted">{gridState.currentTile.categoryTitle}</span>
-            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-sm font-medium dark:bg-blue-950 dark:text-blue-400">
+            <span className="text-xs bg-(--status-info-bg) text-(--status-info-fg) px-2 py-0.5 rounded-sm font-medium">
               {points} pts
             </span>
           </div>
           <div className="flex items-center gap-2">
             {!gridState.typingInProgress && (
               <>
-                <div className="flex items-center gap-1.5 text-orange-600">
+                <div className="flex items-center gap-1.5 text-(--chart-warn)">
                   <Clock size={14} />
                   <span className="font-bold text-sm">{localQuestionTime || gridState.timeRemaining}s</span>
                 </div>
@@ -1790,16 +1790,16 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
               </>
             )}
             <div className={`flex items-center gap-1 ${
-              (localGameTime || gridState.gameTimeRemaining) <= 30 ? 'text-red-600 animate-pulse' :
-              (localGameTime || gridState.gameTimeRemaining) <= 60 ? 'text-orange-600' :
-              'text-green-600'
+              (localGameTime || gridState.gameTimeRemaining) <= 30 ? 'text-(--chart-bad) animate-pulse' :
+              (localGameTime || gridState.gameTimeRemaining) <= 60 ? 'text-(--chart-warn)' :
+              'text-(--chart-good)'
             }`}>
               <Clock size={12} />
               <span className="text-xs font-medium">{formatTime(localGameTime || gridState.gameTimeRemaining)}</span>
             </div>
             <button
               onClick={quitToModeSelect}
-              className="p-1 hover:bg-red-500/10 text-red-600 dark:text-red-400 rounded-sm transition-colors"
+              className="p-1 hover:bg-(--status-danger-bg) text-(--chart-bad) rounded-sm transition-colors"
               title="Quit Game"
             >
               <X size={16} />
@@ -1831,29 +1831,29 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
           if (gridState.lastCorrectAnswerer && gridState.lastCorrectAnswerer !== 'none') {
             const winner = players.find(p => p.id === gridState.lastCorrectAnswerer);
             return (
-              <div className="bg-green-50 border border-green-200 rounded-sm p-3 mb-3 dark:bg-green-950 dark:border-green-800">
+              <div className="bg-(--status-success-bg) border border-(--status-success-border) rounded-sm p-3 mb-3">
                 <div className="flex items-center justify-between mb-1">
-                  <h4 className="text-xs font-semibold text-green-800 dark:text-green-300">Correct Answer</h4>
-                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-sm dark:bg-green-900 dark:text-green-300">
+                  <h4 className="text-xs font-semibold text-(--status-success-fg)">Correct Answer</h4>
+                  <span className="text-xs bg-(--status-success-bg) text-(--status-success-fg) px-2 py-0.5 rounded-sm">
                     {winner?.name}
                   </span>
                 </div>
-                <p className="text-lg font-bold text-green-900 dark:text-green-200 font-mono">{question.answer}</p>
+                <p className="text-lg font-bold text-(--status-success-fg) font-mono">{question.answer}</p>
               </div>
             );
           }
           if (gridState.lastCorrectAnswerer === null) {
             return (
-              <div className="bg-red-50 border border-red-200 rounded-sm p-3 mb-3 dark:bg-red-950 dark:border-red-800">
-                <h4 className="text-xs font-semibold text-red-800 dark:text-red-300 mb-1">Correct Answer</h4>
-                <p className="text-lg font-bold text-red-900 dark:text-red-200 font-mono">{question.answer}</p>
+              <div className="bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm p-3 mb-3">
+                <h4 className="text-xs font-semibold text-(--status-danger-fg) mb-1">Correct Answer</h4>
+                <p className="text-lg font-bold text-(--status-danger-fg) font-mono">{question.answer}</p>
               </div>
             );
           }
           return (
-            <div className="bg-blue-50 border border-blue-200 rounded-sm p-3 mb-3 dark:bg-blue-950 dark:border-blue-800">
-              <h4 className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Correct Answer</h4>
-              <p className="text-lg font-bold text-blue-900 dark:text-blue-200 font-mono">{question.answer}</p>
+            <div className="bg-(--status-info-bg) border border-(--status-info-border) rounded-sm p-3 mb-3">
+              <h4 className="text-xs font-semibold text-(--status-info-fg) mb-1">Correct Answer</h4>
+              <p className="text-lg font-bold text-(--status-info-fg) font-mono">{question.answer}</p>
             </div>
           );
         })()}
@@ -1872,11 +1872,11 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
             {gridState.incorrectAnswers && gridState.incorrectAnswers.length > 0 && (
               <div className="mt-3 space-y-2">
                 {gridState.incorrectAnswers.map((ia, idx) => (
-                  <div key={idx} className="bg-red-50 border border-red-200 rounded-sm p-2 dark:bg-red-950 dark:border-red-800">
-                    <div className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1">
+                  <div key={idx} className="bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm p-2">
+                    <div className="text-xs font-semibold text-(--status-danger-fg) mb-1">
                       {ia.playerName} guessed:
                     </div>
-                    <div className="text-sm text-red-600 dark:text-red-300 font-mono">
+                    <div className="text-sm text-(--chart-bad) font-mono">
                       {ia.answer}
                     </div>
                   </div>
@@ -1897,8 +1897,8 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
         {hasBuzzer && !gridState.showingAnswer && (
           <div className="mb-3">
             {!amIBuzzing && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-sm p-2 text-center dark:bg-yellow-950 dark:border-yellow-800">
-                <p className="text-xs font-medium text-yellow-800 dark:text-yellow-300">
+              <div className="bg-(--status-warning-bg) border border-(--status-warning-border) rounded-sm p-2 text-center">
+                <p className="text-xs font-medium text-(--status-warning-fg)">
                   {players.find(p => p.id === gridState.currentBuzzer)?.name} is answering...
                 </p>
               </div>
@@ -1912,7 +1912,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                   onChange={(e) => setMyAnswer(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && myAnswer.trim() && submitGridAnswer()}
                   placeholder="Type your answer here..."
-                  className="w-full px-3 py-2 border-2 border-os-border rounded-sm focus:border-blue-500 focus:outline-hidden text-sm font-mono text-os-text-primary placeholder:text-os-text-muted bg-os-input-bg select-text mb-2"
+                  className="w-full px-3 py-2 border-2 border-os-border rounded-sm focus:border-os-blue focus:outline-hidden text-sm font-mono text-os-text-primary placeholder:text-os-text-muted bg-os-input-bg select-text mb-2"
                   autoFocus
                 />
                 <button
@@ -1925,11 +1925,11 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                 {gridState.incorrectAnswers && gridState.incorrectAnswers.length > 0 && (
                   <div className="mt-3 space-y-2">
                     {gridState.incorrectAnswers.map((ia, idx) => (
-                      <div key={idx} className="bg-red-50 border border-red-200 rounded-sm p-2 dark:bg-red-950 dark:border-red-800">
-                        <div className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1">
+                      <div key={idx} className="bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm p-2">
+                        <div className="text-xs font-semibold text-(--status-danger-fg) mb-1">
                           {ia.playerName} guessed:
                         </div>
-                        <div className="text-sm text-red-600 dark:text-red-300 font-mono">
+                        <div className="text-sm text-(--chart-bad) font-mono">
                           {ia.answer}
                         </div>
                       </div>
@@ -2106,8 +2106,8 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
 
       {/* Save Grid Name Modal - Available at all times */}
       {showSaveGridModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-os-card rounded-lg p-6 max-w-md w-full mx-4 border border-os-border">
+        <div className="sc-modal-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div role="dialog" aria-modal="true" aria-label="Game" className="sc-modal-panel bg-os-card rounded-lg p-6 max-w-md w-full mx-4 border border-os-border">
             <h3 className="text-lg font-semibold text-os-text-primary mb-4">Save Custom Grid</h3>
             <div className="mb-4">
               <label className="block text-sm font-medium text-os-text-secondary mb-2">Grid Name</label>
@@ -2115,7 +2115,7 @@ export default function GridGameMode({ onBack, currentMachineId, isCentralServer
                 type="text"
                 value={saveGridName}
                 onChange={(e) => setSaveGridName(e.target.value)}
-                className="w-full px-3 py-2 bg-os-card-secondary border border-os-border rounded-sm text-os-text-primary focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-os-card-secondary border border-os-border rounded-sm text-os-text-primary focus:outline-hidden focus:ring-2 focus:ring-os-blue/40"
                 placeholder="Enter grid name..."
                 autoFocus
                 onKeyPress={(e) => {

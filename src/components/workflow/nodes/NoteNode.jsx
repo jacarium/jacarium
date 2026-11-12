@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { paint } from '../../../utils/dataColour';
 import { NodeResizer } from 'reactflow';
 import { StickyNote } from 'lucide-react';
 import { LinkHandles } from './NodeComponents';
@@ -25,7 +26,7 @@ function NoteNode({ data, isConnectable, selected }) {
   return (
     <div
       className="workflow-node workflow-note h-full w-full min-w-[180px] min-h-[110px] flex flex-col rounded-lg border-2 shadow-lg"
-      style={{ backgroundColor: color.tint, borderColor: selected ? color.solid : color.border }}
+      style={{ ...paint(color.solid), backgroundColor: 'color-mix(in srgb, var(--dc) 16%, transparent)', borderColor: selected ? 'var(--dc)' : 'color-mix(in srgb, var(--dc) 70%, transparent)' }}
     >
       <NodeResizer
         isVisible={selected && !isReadOnly}
@@ -33,14 +34,14 @@ function NoteNode({ data, isConnectable, selected }) {
         minHeight={110}
         lineClassName="border-transparent!"
         handleClassName="w-2.5! h-2.5! rounded-xs! border-0!"
-        handleStyle={{ backgroundColor: color.solid }}
+        handleStyle={{ backgroundColor: 'var(--dc)' }}
       />
 
-      <LinkHandles color={color.solid} isConnectable={isConnectable} />
+      <LinkHandles color="var(--dc)" isConnectable={isConnectable} />
 
       {/* Header / drag strip */}
       <div className="flex items-center gap-2 px-2.5 pt-2 pb-1 cursor-grab active:cursor-grabbing">
-        <StickyNote size={14} style={{ color: color.solid }} />
+        <StickyNote size={14} style={{ color: 'var(--dc)' }} />
         <span className="text-xs font-semibold text-os-text-secondary uppercase tracking-wide">Note</span>
         {!isReadOnly && (
           <div className="ml-auto flex items-center gap-1">
@@ -53,7 +54,7 @@ function NoteNode({ data, isConnectable, selected }) {
                 className={`nodrag w-3 h-3 rounded-full transition-transform hover:scale-125 ${
                   key === colorKey ? 'ring-2 ring-offset-1 ring-offset-transparent' : 'opacity-70'
                 }`}
-                style={{ backgroundColor: NOTE_COLORS[key].solid, ['--tw-ring-color']: NOTE_COLORS[key].solid }}
+                style={paint(NOTE_COLORS[key].solid, 'backgroundColor', '--tw-ring-color')}
               />
             ))}
           </div>

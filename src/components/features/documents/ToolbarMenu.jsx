@@ -123,7 +123,7 @@ export default function ToolbarMenu({ open, onClose, anchorRef, items, label, te
     >
       {items.map((item, i) => {
         if (item.heading) {
-          return <div key={`h-${i}`} role="presentation" className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-[0.06em] text-os-text-muted">{item.heading}</div>;
+          return <div key={`h-${i}`} role="presentation" className="px-3 pt-2 pb-1 text-2xs font-semibold tracking-[0.06em] text-os-text-muted">{item.heading}</div>;
         }
         const { Icon } = item;
         const radio = item.kind === 'radio';

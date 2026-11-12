@@ -1,8 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { BringToFront, SendToBack, ChevronUp, ChevronDown, Unplug, Unlink } from 'lucide-react';
-
-const MENU_WIDTH = 200;
-const MENU_HEIGHT = 250;
+import { usePopupPosition } from '../../hooks/usePopupPosition.js';
 
 /** Layer actions, top to bottom; `action` values are those of reorderNode(). */
 const LAYER_ACTIONS = [
@@ -67,9 +65,11 @@ export default function NodeContextMenu({ position, onAction, onClose, hasExecPi
     };
   }, [onClose]);
 
-  // Keep the menu inside the viewport
-  const left = Math.max(0, Math.min(position.x, window.innerWidth - MENU_WIDTH));
-  const top = Math.max(0, Math.min(position.y, window.innerHeight - MENU_HEIGHT));
+  // Inside the window from its real size: below / right of the pointer when it fits, flipped above / left when it does
+  // not, clamped and scrolling inside otherwise (the shared popup placement, src/hooks/usePopupPosition.js)
+  usePopupPosition(menuRef, { open: true, anchor: () => ({ left: position.x, top: position.y }), deps: [position.x, position.y] });
+  const left = position.x;
+  const top = position.y;
 
   return (
     <div

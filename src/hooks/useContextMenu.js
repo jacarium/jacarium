@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import { isMobileLayout } from '../utils/mobile';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { usePopupPosition } from './usePopupPosition.js';
 
 /**
  * Custom hook for managing context menu state and behavior
@@ -15,6 +15,12 @@ export function useContextMenu() {
   });
 
   const contextMenuRef = useRef(null);
+
+  // Inside the window, whatever the menu's markup: the pages that draw their own menu div (ref={contextMenuRef},
+  // left / top from x / y) get the shared placement here - below / right of the pointer when it fits, flipped above /
+  // left when not, clamped and scrolling inside otherwise, re-measured as it renders and resizes. A menu drawn with
+  // <ContextMenu> places itself the same way (the same answer, written twice at most).
+  usePopupPosition(contextMenuRef, { open: contextMenu.visible, anchor: () => ({ left: contextMenu.x, top: contextMenu.y }), deps: [contextMenu.x, contextMenu.y] });
 
   /**
    * Open context menu at cursor position
@@ -35,28 +41,8 @@ export function useContextMenu() {
     });
   }, []);
 
-  // Keep the menu on-screen: measure its actual rendered size once open and
-  // nudge left/up only if it truly overflows the viewport, rather than
-  // pre-guessing a worst-case size (which caused small menus to render far
-  // from the cursor unnecessarily).
-  useLayoutEffect(() => {
-    if (!contextMenu.visible || !contextMenuRef.current) return;
-    // on a phone the menu is a bottom sheet placed by the stylesheet (src/mobile.css), not by x/y
-    if (isMobileLayout()) return;
-    const menuRect = contextMenuRef.current.getBoundingClientRect();
-    const margin = 10;
-    let x = contextMenu.x;
-    let y = contextMenu.y;
-    if (menuRect.right > window.innerWidth - margin) {
-      x = Math.max(margin, x - (menuRect.right - window.innerWidth + margin));
-    }
-    if (menuRect.bottom > window.innerHeight - margin) {
-      y = Math.max(margin, y - (menuRect.bottom - window.innerHeight + margin));
-    }
-    if (x !== contextMenu.x || y !== contextMenu.y) {
-      setContextMenu((prev) => ({ ...prev, x, y }));
-    }
-  }, [contextMenu.visible, contextMenu.x, contextMenu.y]);
+  // The menu stays inside the window on its own: ContextMenu places itself from x / y with the shared popup
+  // placement (src/hooks/usePopupPosition.js - flip, clamp, scroll inside), re-measured as it renders and resizes.
 
   /**
    * Close context menu
@@ -168,6 +154,11 @@ export function useDropdownMenu() {
 
     const pos = {
       top,
+      // the button's rectangle and the alignment: HamburgerMenu (and the pickers) place themselves from these with the
+      // shared popup placement, measured once rendered; top / left / right below are the first guess from the estimates
+      anchor: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+      align,
+      offset,
     };
 
     if (align === 'right') {

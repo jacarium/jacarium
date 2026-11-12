@@ -147,10 +147,10 @@ export default function InlineEdit({
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
           placeholder={placeholder}
-          className={`w-full px-2 py-1 border ${isInvalid ?'border-red-500':'border-os-input-border'} rounded-sm outline-hidden focus:ring-2 focus:ring-os-blue bg-os-input-bg text-os-text-primary ${inputClassName}`}
+          className={`w-full px-2 py-1 border ${isInvalid ?'border-(--chart-bad)':'border-os-input-border'} rounded-sm outline-hidden focus:ring-2 focus:ring-os-blue bg-os-input-bg text-os-text-primary ${inputClassName}`}
         />
         {isInvalid && (
-          <p className="text-xs text-red-600 mt-1">{invalidMessage}</p>
+          <p className="text-xs text-(--chart-bad) mt-1">{invalidMessage}</p>
         )}
       </div>
 

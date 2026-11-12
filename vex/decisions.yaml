@@ -530,3 +530,24 @@ decisions:
       device_code validation is never reached.
     decided_by: maintainer
     decided_on: 2026-11-06
+
+  # ---- util-linux 2.37.4-25.el9 in the base image (util-linux, util-linux-core, libblkid, libmount, libuuid,
+  # libsmartcols, libfdisk). CVE-2026-53613 (Red Hat: Important; fixed in RHSA-2026:97522, util-linux
+  # 2.37.4-28.el9_9, released 2026-11-10 - inside the two-day security lane at the 4.4.0 release) is a TOCTOU in
+  # the setuid mount program: a *restricted non-root* mount request, authorised by a `user` / `users` entry in
+  # /etc/fstab whose target has an attacker-writable ancestor, can be redirected with renameat2(RENAME_EXCHANGE).
+  # The upgrade follows through the security lane or the next base image.
+  - id: CVE-2026-53613
+    status: not_affected
+    justification: vulnerable_code_cannot_be_controlled_by_adversary
+    versions: ['>=4.4.0']
+    components: [pkg:rpm/redhat/util-linux@2.37.4-25.el9, pkg:rpm/redhat/util-linux-core@2.37.4-25.el9, pkg:rpm/redhat/libblkid@2.37.4-25.el9, pkg:rpm/redhat/libmount@2.37.4-25.el9, pkg:rpm/redhat/libuuid@2.37.4-25.el9, pkg:rpm/redhat/libsmartcols@2.37.4-25.el9, pkg:rpm/redhat/libfdisk@2.37.4-25.el9]
+    impact: >-
+      The flaw is only reachable through a restricted non-root mount that /etc/fstab authorises with a user or
+      users entry. The image's /etc/fstab is empty, so the mount program refuses every unprivileged request
+      before the vulnerable path; nothing in Jacarium runs mount or umount (the backend, the central server and
+      Caddy never mount), the container runs as uid 1001 and is not given CAP_SYS_ADMIN, so even the setuid
+      mount binary the base image ships cannot mount anything there. The libraries (libblkid, libmount, libuuid)
+      are not affected: the defect is in the mount program's fstab-target check.
+    decided_by: maintainer
+    decided_on: 2026-11-12

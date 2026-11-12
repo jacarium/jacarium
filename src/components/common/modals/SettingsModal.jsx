@@ -11,6 +11,7 @@ import GeneralSettings from './settings/GeneralSettings';
 import ThemeSettings from './settings/ThemeSettings';
 import DebugSettings from './settings/DebugSettings';
 import EditorSettings from './settings/EditorSettings';
+import AccessibilitySettings from './settings/AccessibilitySettings';
 import PerformanceSettings from './settings/PerformanceSettings';
 import IntegrationsSettings from './settings/IntegrationsSettings';
 import AIProvidersSettings from './settings/AIProvidersSettings';
@@ -111,9 +112,6 @@ export default function SettingsModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [machineId, setMachineId] = useState('');
-  // Placeholder until the real value arrives over IPC; matches the
-  // main process's first-run default (INITIAL_DEFAULT_ZOOM in main.cjs).
-  const [zoomFactor, setZoomFactorState] = useState(0.9);
   // Debug status bar toggle; default off, mirrored from the main process.
   const [debugBarEnabled, setDebugBarEnabledState] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -285,31 +283,7 @@ export default function SettingsModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, scope]);
 
-  // UI zoom lives in the main process (which owns webContents zoom and
-  // persists the chosen factor across restarts). Mirror it here so the
-  // General tab shows the live value, and stay subscribed while the modal
-  // is open so the Cmd/Ctrl +/-/0 menu shortcuts don't leave the dropdown
-  // showing a stale percentage. Unlike the env-file settings above, zoom
-  // applies immediately - it does not go through the Save button.
-  useEffect(() => {
-    if (!isOpen || !window.electronAPI?.getZoomFactor) return;
-    window.electronAPI.getZoomFactor()
-      .then(setZoomFactorState)
-      .catch(() => {});
-    const cleanup = window.electronAPI.onZoomFactorChanged?.(setZoomFactorState);
-    return cleanup;
-  }, [isOpen]);
-
-  async function handleZoomChange(factor) {
-    setZoomFactorState(factor);
-    try {
-      await window.electronAPI?.setZoomFactor?.(factor);
-    } catch (err) {
-      console.error('[Settings] Failed to set zoom factor:', err);
-    }
-  }
-
-  // The debug status bar toggle mirrors the zoom pattern above: the main
+  // The debug status bar toggle: the main
   // process owns and persists the state, and it applies live to every
   // window - it does not go through the Save button. Stay subscribed while
   // the modal is open so a toggle flipped in another window's Settings
@@ -485,6 +459,7 @@ export default function SettingsModal({
               { id: 'editor', label: 'Editor' },
               { id: 'theme', label: 'Theme' },
               { id: 'performance', label: 'Performance' },
+              { id: 'accessibility', label: 'Accessibility' },
               { id: 'integrations', label: SETTINGS_FIELDS.integrations.tab },
               { id: 'ai', label: SETTINGS_FIELDS.ai.tab },
               ...(isMobile ? [] : [{ id: 'shortcuts', label: 'Shortcuts' }]),
@@ -513,7 +488,7 @@ export default function SettingsModal({
         </div>
 
         {/* Right Content Area */}
-        <div className="flex-1 p-4 sm:p-6 space-y-6 overflow-y-auto" data-testid="settings-body">
+        <div className="flex-1 p-4 sm:p-6 space-y-6 overflow-y-auto" data-testid="settings-body" data-ra-area>
           {/* Error */}
           {error && (
             <Note tone="danger" icon={AlertCircle}>{error}</Note>
@@ -526,8 +501,9 @@ export default function SettingsModal({
           ) : (
             <>
               {activeTab === 'editor' && <EditorSettings />}
+              {activeTab === 'accessibility' && <AccessibilitySettings />}
               {activeTab === 'theme' && (
-                <ThemeSettings theme={theme} setTheme={setTheme} zoomFactor={zoomFactor} setZoomFactor={handleZoomChange} />
+                <ThemeSettings theme={theme} setTheme={setTheme} />
               )}
               {activeTab === 'performance' && <PerformanceSettings />}
               {activeTab === 'debug' && (

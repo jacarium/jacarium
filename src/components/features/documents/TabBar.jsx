@@ -5,6 +5,7 @@ import { useMobile } from '../../../contexts/MobileContext';
 import MobilePageHeader from '../../mobile/MobilePageHeader';
 import { useCloseDrawerOn } from '../../../hooks/useCloseDrawerOn';
 import useWheelScrollsStrip from '../../../hooks/useWheelScrollsStrip';
+import { usePopupPosition } from '../../../hooks/usePopupPosition.js';
 
 /**
  * TabBar - Document tabs component
@@ -88,22 +89,23 @@ export default function TabBar({
     return () => observer.disconnect();
   }, [tabs]);
 
-  // the desktop panel is portalled to the body: place it from the button's
-  // rect, and keep it there while the window or the sidebar resizes
+  // the desktop panel is portalled to the body: its first paint hangs under the button, right-aligned (menuPos);
+  // the shared popup placement then keeps it there - or above the button in a short window, capped and scrolling
+  // when neither fits - through resizes of the window and the sidebar (src/hooks/usePopupPosition.js)
   useEffect(() => {
     if (!menuOpen || isMobile) return undefined;
-    const place = () => {
-      const button = menuRef.current?.querySelector('[data-testid="tabs-overflow"]');
-      if (!button) return;
-      const rect = button.getBoundingClientRect();
-      setMenuPos({ top: rect.bottom + 1, right: Math.max(0, window.innerWidth - rect.right) });
-    };
-    place();
-    window.addEventListener('resize', place);
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place);
-    if (observer && stripRef.current) observer.observe(stripRef.current);
-    return () => { window.removeEventListener('resize', place); observer?.disconnect(); };
+    const button = menuRef.current?.querySelector('[data-testid="tabs-overflow"]');
+    if (!button) return undefined;
+    const rect = button.getBoundingClientRect();
+    setMenuPos({ top: rect.bottom + 1, right: Math.max(0, window.innerWidth - rect.right) });
+    return undefined;
   }, [menuOpen, isMobile]);
+  usePopupPosition(panelRef, {
+    open: menuOpen && !isMobile,
+    anchor: () => { const button = menuRef.current?.querySelector('[data-testid="tabs-overflow"]'); return button ? button.getBoundingClientRect() : null; },
+    deps: [tabs.length],
+    side: 'below', align: 'end', gap: 1, margin: 0,   // flush with the window's edge, like the strip it hangs from
+  });
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -284,7 +286,7 @@ export default function TabBar({
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         className={isMobile
-          ? 'flex items-center gap-1 h-10 px-2 text-[13px] text-os-text-secondary whitespace-nowrap'
+          ? 'flex items-center gap-1 h-10 px-2 text-[0.8125rem] text-os-text-secondary whitespace-nowrap'
           : 'flex items-center gap-1 px-2 min-w-8 min-h-8 text-xs text-os-text-secondary hover:bg-os-card-secondary transition-colors whitespace-nowrap rounded-none'}
         title="All open documents"
       >
@@ -304,7 +306,7 @@ export default function TabBar({
           ref={panelRef}
           role="menu"
           data-testid="tabs-overflow-menu"
-          className="fixed z-40 min-w-[220px] max-w-[calc(100vw-16px)] max-h-[60vh] overflow-y-auto bg-os-card border border-os-border shadow-lg py-1 rounded-none"
+          className="fixed z-40 min-w-[220px] max-w-[calc(100vw-16px)] overflow-y-auto bg-os-card border border-os-border shadow-lg py-1 rounded-none"
           style={{ top: menuPos.top, right: menuPos.right }}
         >
           {menuRows}
@@ -413,9 +415,9 @@ export default function TabBar({
         className={`
  flex-1 h-full flex items-center justify-center transition-colors
  ${dragOverEnd ? (draggedTab?.tab.inCloud
- ?'bg-purple-50 border-l-2 border-l-purple-600'
+ ?'bg-(--status-brand-bg) border-l-2 border-l-purple-600'
  : paneId ==='right'
- ?'bg-green-50 border-l-2 border-l-green-600'
+ ?'bg-(--status-success-bg) border-l-2 border-l-green-600'
  :'bg-os-blue/10 border-l-2 border-l-os-blue') :''}
 `}
         style={{ minHeight: '38px' }}

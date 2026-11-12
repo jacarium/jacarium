@@ -54,13 +54,13 @@ function ComparisonNode({ data, isConnectable }) {
         {/* Show result if available */}
         {result !== undefined && result !== null && (
           <div className={`text-xs font-semibold px-2 py-1.5 rounded ${
-            result ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+            result ? 'bg-(--status-success-bg) text-(--status-success-fg) border border-(--status-success-border)' : 'bg-(--status-danger-bg) text-(--status-danger-fg) border border-(--status-danger-border)'
           }`}>
             Result: {result ? 'True' : 'False'}
           </div>
         )}
 
-        <NodeError error={data.error} className="dark:text-red-300 dark:bg-red-900/20" />
+        <NodeError error={data.error} className="" />
 
         <DataOutputPin isConnectable={isConnectable} label="Boolean result" />
       </div>

@@ -38,7 +38,7 @@ export default function WorkflowRow({
   if (isEditing) {
     return (
       <div
-        className="w-full flex items-center gap-2 px-4 py-3 text-sm border-l-4 border-os-blue bg-blue-50"
+        className="w-full flex items-center gap-2 px-4 py-3 text-sm border-l-4 border-os-blue bg-(--status-info-bg)"
         style={ownerStyle}
       >
         <Workflow size={14} className="text-os-blue shrink-0" />
@@ -74,11 +74,11 @@ export default function WorkflowRow({
  isSelected
  ?'bg-os-blue/10 border-os-blue'
  : isActive && isShared
- ?'bg-purple-100 hover:bg-purple-200'
+ ?'bg-(--status-brand-bg) hover:bg-(--status-brand-border)'
  : isActive
- ?'bg-blue-50 border-os-blue'
+ ?'bg-(--status-info-bg) border-os-blue'
  : isShared
- ?'bg-purple-50 hover:bg-purple-100'
+ ?'bg-(--status-brand-bg) hover:bg-(--status-brand-border)'
  :'border-transparent hover:bg-os-card-secondary'
  }`}
       style={ownerStyle}
@@ -97,7 +97,7 @@ export default function WorkflowRow({
  isSelected
  ?'text-os-text-primary'
  : isActive && isShared
- ?'text-purple-700'
+ ?'text-(--status-brand-fg)'
  : isActive
  ?'text-os-blue'
  :'text-os-text-muted'
@@ -107,7 +107,7 @@ export default function WorkflowRow({
  isSelected
  ?'text-os-text-primary'
  : isActive && isShared
- ?'text-purple-700'
+ ?'text-(--status-brand-fg)'
  : isActive
  ?'text-os-blue'
  :'text-os-text-primary'
@@ -119,9 +119,9 @@ export default function WorkflowRow({
           {isShared && (
             <div className="flex items-center gap-0.5" title={isMine ? 'Shared with the team by you' : `Shared with the team by ${workflow.ownerId || 'Unknown'}`}>
               {isMine && (
-                <Crown size={10} className="text-purple-600" />
+                <Crown size={10} className="text-(--brand-accent)" />
               )}
-              <Cloud size={12} className="text-purple-600" />
+              <Cloud size={12} className="text-(--brand-accent)" />
             </div>
           )}
           {/* a phone has no right-click: the chevron opens the same menu */}

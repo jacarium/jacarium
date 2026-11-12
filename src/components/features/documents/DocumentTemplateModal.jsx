@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import BaseModal from '../../common/modals/BaseModal';
 import { X, Save } from 'lucide-react';
 import { useNotifications } from '../../../contexts/NotificationContext';
 
@@ -110,8 +111,7 @@ export default function DocumentTemplateModal({ isOpen, onClose, onSave, templat
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 font-text">
-      <div className="bg-os-modal shadow-lg max-w-2xl w-full border border-os-border rounded-sm max-h-[90vh] overflow-y-auto">
+    <BaseModal isOpen onClose={onClose} closeOnBackdropClick={false} className="bg-os-modal shadow-lg max-w-2xl w-full border border-os-border rounded-sm max-h-[90vh] overflow-y-auto font-text" ariaLabel="Document template">
         {/* Header */}
         <div className="p-4 border-b border-os-border bg-os-modal flex items-center justify-between sticky top-0 z-10">
           <h2 className="text-sm font-text font-semibold text-os-text-primary uppercase tracking-wide">
@@ -257,7 +257,6 @@ export default function DocumentTemplateModal({ isOpen, onClose, onSave, templat
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </BaseModal>
   );
 }

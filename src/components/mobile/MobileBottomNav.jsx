@@ -16,7 +16,7 @@ export default function MobileBottomNav({ currentPage, onPageChange, panel = nul
   const { toggleMore, moreOpen, closeSidebar, closeMore } = useMobile();
   const morePage = MORE_PAGES.find((p) => p.page === currentPage);
   const moreActive = moreOpen || !!morePage || !!panel;
-  const slot = 'flex flex-col items-center justify-center gap-0.5 rounded-sm text-[10px] min-h-[52px]';
+  const slot = 'flex flex-col items-center justify-center gap-0.5 rounded-sm text-3xs min-h-[52px]';
   // the five slots are one list: the four pages and "More" (its icon and
   // label are data like the pages', its tap opens the sheet)
   const slots = [...PRIMARY_PAGES.map((p) => ({ ...p, active: currentPage === p.page && !moreOpen && !panel, onClick: () => { closeSidebar(); closeMore(); onPageChange(p.page); }, more: false })),

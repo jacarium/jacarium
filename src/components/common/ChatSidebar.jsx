@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { paint } from '../../utils/dataColour';
 import { MessageSquare, User, FileText, Trello, Brain, Check, X, GitBranch } from 'lucide-react';
 import SidebarHeader from './sidebar/SidebarHeader';
+import { scrollBehavior } from '../../utils/readingAids';
 import ResizableSidebar from '../ResizableSidebar';
 import { ChatSendButton, chatComposerInputClass, CHAT_COMPOSER_ROWS } from '../ui/primitives';
 import { sendChatMessage, isWebSocketConnected } from '../../utils/cloudWebSocket';
@@ -56,7 +58,7 @@ export default function ChatSidebar({ isOpen, side = 'left' }) {
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: scrollBehavior() });
   }, [messages]);
 
   function handleInputChange(e) {
@@ -443,6 +445,8 @@ export default function ChatSidebar({ isOpen, side = 'left' }) {
       minWidth={250}
       maxWidth={500}
       storageKey="chat-sidebar-width"
+      zenPanelId="chat"
+      zenPanelLabel="Team Chat"
       side={side}
       canvasMinWidth={480}
       testId="panel-team-chat"
@@ -471,10 +475,10 @@ export default function ChatSidebar({ isOpen, side = 'left' }) {
                 if (msg.type === 'quiz-challenge') {
                   const gameType = msg.gameId?.startsWith('grid-') ? 'Grid' :
                                    msg.gameId?.startsWith('tiles-') ? 'Tiles' : 'Quiz';
-                  const iconColor = msg.gameId?.startsWith('grid-') ? 'text-yellow-500' :
-                                    msg.gameId?.startsWith('tiles-') ? 'text-purple-500' : 'text-os-blue';
-                  const borderColor = msg.gameId?.startsWith('grid-') ? 'border-yellow-500' :
-                                      msg.gameId?.startsWith('tiles-') ? 'border-purple-500' : 'border-os-blue';
+                  const iconColor = msg.gameId?.startsWith('grid-') ? 'text-(--chart-warn)' :
+                                    msg.gameId?.startsWith('tiles-') ? 'text-(--brand-accent)' : 'text-os-blue';
+                  const borderColor = msg.gameId?.startsWith('grid-') ? 'border-(--chart-warn)' :
+                                      msg.gameId?.startsWith('tiles-') ? 'border-(--brand-accent)' : 'border-os-blue';
 
                   return (
                     <div key={index} className="flex flex-col items-center my-2">
@@ -525,7 +529,7 @@ export default function ChatSidebar({ isOpen, side = 'left' }) {
                     <div className="flex items-baseline gap-2 mb-1">
                       <span
                         className="text-xs font-semibold"
-                        style={{ color: userColor }}
+                        style={paint(userColor, 'color')}
                       >
                         {msg.username}
                       </span>
@@ -535,9 +539,9 @@ export default function ChatSidebar({ isOpen, side = 'left' }) {
                     </div>
                     <div
                       className="max-w-[80%] px-3 py-2 rounded-lg text-white"
-                      style={{ backgroundColor: userColorDark }}
+                      style={paint(userColorDark, 'backgroundColor')}
                     >
-                      <p className="text-sm whitespace-pre-wrap wrap-break-word">
+                      <p className="ra-reading ra-reading-sm text-sm whitespace-pre-wrap wrap-break-word">
                         {mentionParts.map((part, partIndex) => {
                           if (part.type === 'document') {
                             return (
@@ -589,7 +593,7 @@ export default function ChatSidebar({ isOpen, side = 'left' }) {
                             return (
                               <span
                                 key={partIndex}
-                                className={`inline-flex items-center gap-1 font-bold ${part.isCurrentUser ?'bg-yellow-300 text-os-text-primary px-1 rounded-sm':''}`}
+                                className={`inline-flex items-center gap-1 font-bold ${part.isCurrentUser ?'bg-(--chart-warn) text-os-text-primary px-1 rounded-sm':''}`}
                               >
                                 <User size={12} className="inline" />
                                 {part.userName}

@@ -62,12 +62,12 @@ export default function IbanValidatorTool() {
           {result ? (
             result.isValid ? (
               <div className="space-y-4">
-                <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-sm">
+                <div className="p-4 bg-(--status-success-bg) border border-(--status-success-border) rounded-sm">
                   <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-(--chart-good)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
-                    <span className="text-sm font-medium text-green-800 dark:text-green-300">Valid IBAN</span>
+                    <span className="text-sm font-medium text-(--status-success-fg)">Valid IBAN</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-3">
@@ -92,12 +92,12 @@ export default function IbanValidatorTool() {
                 </div>
               </div>
             ) : (
-              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm">
+              <div className="p-4 bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm">
                 <div className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-(--chart-bad)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                   </svg>
-                  <span className="text-sm font-medium text-red-800 dark:text-red-300">Invalid IBAN</span>
+                  <span className="text-sm font-medium text-(--status-danger-fg)">Invalid IBAN</span>
                 </div>
               </div>
             )

@@ -26,7 +26,7 @@ function BooleanVariableNode({ data, isConnectable }) {
       <div className="p-3">
         <DataInputPin isConnectable={isConnectable} label="Condition (optional)" />
 
-        <div className="mt-2 text-xs text-os-text-secondary dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 rounded-sm border border-blue-200 dark:border-blue-800">
+        <div className="mt-2 text-xs text-os-text-secondary bg-(--status-info-bg) px-2 py-1.5 rounded-sm border border-(--status-info-border)">
           💡 Connect data input to use dynamic value, or toggle manually
         </div>
 

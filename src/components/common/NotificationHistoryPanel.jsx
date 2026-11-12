@@ -29,24 +29,24 @@ export default function NotificationHistoryPanel({ isOpen, onClose, anchorEl }) 
   const getIcon = (type) => {
     switch (type) {
       case 'error':
-        return <AlertCircle size={16} className="text-red-600" />;
+        return <AlertCircle size={16} className="text-(--chart-bad)" />;
       case 'success':
-        return <CheckCircle size={16} className="text-green-600" />;
+        return <CheckCircle size={16} className="text-(--chart-good)" />;
       case 'confirm':
-        return <Info size={16} className="text-purple-600" />;
+        return <Info size={16} className="text-(--brand-accent)" />;
       default:
-        return <Cloud size={16} className="text-purple-600" />;
+        return <Cloud size={16} className="text-(--brand-accent)" />;
     }
   };
 
   const getIconBgColor = (type) => {
     switch (type) {
       case 'error':
-        return 'bg-red-100';
+        return 'bg-(--status-danger-bg)';
       case 'success':
-        return 'bg-green-100';
+        return 'bg-(--status-success-bg)';
       default:
-        return 'bg-purple-100';
+        return 'bg-(--status-brand-bg)';
     }
   };
 
@@ -76,7 +76,7 @@ export default function NotificationHistoryPanel({ isOpen, onClose, anchorEl }) 
         {history.length > 0 && (
           <button
             onClick={clearHistory}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-os-text-muted hover:text-red-400 hover:bg-red-900/30 rounded-sm transition-colors"
+            className="flex items-center gap-1 px-2 py-1 text-xs text-os-text-muted hover:text-(--chart-bad) hover:bg-(--status-danger-bg) rounded-sm transition-colors"
             title="Clear all notifications"
           >
             Clear All

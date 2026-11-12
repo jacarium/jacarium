@@ -121,7 +121,7 @@ export default function DebugStatusBar() {
     <div
       role="status"
       aria-label="Debug status bar"
-      className="flex items-center gap-4 px-3 py-1 bg-os-card border border-os-border rounded-sm shadow-xs font-mono text-[11px] leading-4 text-os-text-secondary"
+      className="flex items-center gap-4 px-3 py-1 bg-os-card border border-os-border rounded-sm shadow-xs font-mono text-2xs leading-4 text-os-text-secondary"
     >
       <Stat label="FPS">{fps ?? '--'}</Stat>
       <Stat label="this window">

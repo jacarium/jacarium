@@ -153,6 +153,12 @@ H.mountColumn('left');
 await waitFor(() => $('[data-testid="col"]'));
 const col = () => $('[data-testid="col"]');
 const handle = () => col().querySelector('.cursor-col-resize');
+const chromeScale = () => parseFloat(document.documentElement.style.getPropertyValue('--ra-chrome-scale')) || 1;
+const stored = () => Number(col().getAttribute('data-width'));
+// jsdom lays nothing out: the column's rect follows its inline width, `calc(<stored>px * var(--ra-chrome-scale, 1))`
+const measure = () => { const el = col(); if (!el.__measured) { el.__measured = true; el.getBoundingClientRect = () => { const m = /calc\(([0-9.]+)px \* var\(--ra-chrome-scale, 1\)\)/.exec(el.style.width); const w = m ? Number(m[1]) * chromeScale() : 0; return { x: 0, y: 0, left: 0, top: 0, width: w, height: 0, right: w, bottom: 0 }; }; } return el.getBoundingClientRect().width; };
+const rendered = () => measure();
+const near = (a, b, tol = 0.01) => Math.abs(a - b) <= tol;
 check('on the left: no order-last, the handle on the right edge, the width stored under the plain key', !col().classList.contains('order-last') && handle().className.includes('right-0') && col().getAttribute('data-side') === 'left' && window.localStorage.getItem('test-panel-width') === '300', col().className);
 // a layout for the clamp: the row is 1200 wide, the column 300, the page the rest
 const setLayout = (pageWidth) => { Object.defineProperty($('[data-testid="page"]'), 'clientWidth', { get: () => pageWidth, configurable: true }); };
@@ -167,24 +173,45 @@ const drag = async (fromX, toX) => {
   await sleep(30);
 };
 await drag(300, 400); await sleep(20);
-check('a drag resizes it (300 -> 400) and stores the width', col().style.width === '400px' && window.localStorage.getItem('test-panel-width') === '400');
+check('a drag resizes it (300 -> 400) and stores the width; the rendered width follows (scale 1)', stored() === 400 && rendered() === 400 && window.localStorage.getItem('test-panel-width') === '400', `${stored()} ${rendered()}`);
 setLayout(500); // the page has 500 px left: only 20 px of growth keep it at 480
 await drag(400, 900); await sleep(20);
-check('a drag never pushes the page under 480 px (500 px of page -> 20 px of growth, not 500)', col().style.width === '420px', col().style.width);
+check('a drag never pushes the page under 480 px (500 px of page -> 20 px of growth, not 500)', stored() === 420 && rendered() === 420, `${stored()} ${rendered()}`);
 // move to the right: its own width, the handle on the left edge, after the page
 window.localStorage.setItem('test-panel-widthRight', '350');
 setLayout(900);
 H.mountColumn('right'); await sleep(30);
-check('moved to the right (same instance): order-last, the handle on the left edge, the right-side width (350) in force', col().classList.contains('order-last') && handle().className.includes('left-0') && col().getAttribute('data-side') === 'right' && col().style.width === '350px', `${col().className} ${col().style.width}`);
+check('moved to the right (same instance): order-last, the handle on the left edge, the right-side width (350) in force', col().classList.contains('order-last') && handle().className.includes('left-0') && col().getAttribute('data-side') === 'right' && stored() === 350 && rendered() === 350, `${col().className} ${col().style.width}`);
 await drag(0, -50); await sleep(20);
-check('on the right the handle drags the other way (leftwards grows) and stores under <key>Right, the left width untouched', col().style.width === '400px' && window.localStorage.getItem('test-panel-widthRight') === '400' && window.localStorage.getItem('test-panel-width') === '420', `${col().style.width} ${window.localStorage.getItem('test-panel-widthRight')}`);
+check('on the right the handle drags the other way (leftwards grows) and stores under <key>Right, the left width untouched', stored() === 400 && rendered() === 400 && window.localStorage.getItem('test-panel-widthRight') === '400' && window.localStorage.getItem('test-panel-width') === '420', `${col().style.width} ${window.localStorage.getItem('test-panel-widthRight')}`);
 H.mountColumn('left'); await sleep(30);
-check('back on the left: the left width (420) again', col().style.width === '420px' && !col().classList.contains('order-last'));
+check('back on the left: the left width (420) again', stored() === 420 && rendered() === 420 && !col().classList.contains('order-last'));
 // opening into too little room
 window.localStorage.setItem('test-panel-width', '600');
 H.unmount(); await sleep(30);
 H.mountColumn('left', true); await waitFor(() => $('[data-testid="col"]'));
-check('a column that opens into too little room gives the page its 480 px back (no measurable page here: untouched)', col().style.width === '600px');
+check('a column that opens into too little room gives the page its 480 px back (no measurable page here: untouched)', stored() === 600 && rendered() === 600);
+// ---- the interface scaled (Settings > Accessibility, "Scale the interface too": --ra-chrome-scale 1.5 on <html>): the
+//      stored width stays unscaled px, the column renders at stored x 1.5, the handle tracks the pointer, the page's
+//      480 px floor holds on rendered px
+document.documentElement.style.setProperty('--ra-chrome-scale', '1.5');
+window.localStorage.setItem('test-panel-width', '300'); window.localStorage.setItem('test-panel-widthRight', '350');
+H.unmount(); await sleep(30);
+H.mountColumn('left', true); await waitFor(() => $('[data-testid="col"]'));
+check('at 1.5: a stored 300 renders at 450', stored() === 300 && rendered() === 450, `${stored()} ${rendered()}`);
+setLayout(900);
+await drag(450, 600); await sleep(20);   // the pointer moves 150 rendered px
+check('at 1.5: a drag of 150 pointer px grows the stored width by 100 (300 -> 400) and the rendered width by 150 (450 -> 600): the handle tracks the pointer', near(stored(), 400) && near(rendered(), 600) && near(Number(window.localStorage.getItem('test-panel-width')), 400), `${stored()} ${rendered()}`);
+setLayout(500);   // 500 rendered px of page: 20 rendered px of growth keep it at 480
+await drag(600, 1200); await sleep(20);
+check('at 1.5: the page keeps its 480 px on rendered px (20 rendered px of growth = 13.33 stored)', near(stored(), 400 + 20 / 1.5, 0.05) && near(rendered(), 620, 0.05), `${stored()} ${rendered()}`);
+setLayout(900);
+H.mountColumn('right'); await sleep(30);
+check('at 1.5, on the right: the right width (350) renders at 525', stored() === 350 && rendered() === 525, `${stored()} ${rendered()}`);
+await drag(0, -75); await sleep(20);
+check('at 1.5, on the right: 75 pointer px leftwards grow the stored width by 50 (350 -> 400), rendered 600', near(stored(), 400) && near(rendered(), 600), `${stored()} ${rendered()}`);
+document.documentElement.style.removeProperty('--ra-chrome-scale');
+check('back at scale 1 the same stored width renders unscaled (400)', near(rendered(), 400), `${rendered()}`);
 check('the panels pass canvasMinWidth 480; a page\'s own list sidebar does not (ResizableSidebar defaults to no floor)', ['AIChatSidebar', 'DraftSidebar', 'ChatSidebar'].every((f) => /canvasMinWidth=\{480\}/.test(fs.readFileSync(path.join(REPO, `src/components/common/${f}.jsx`), 'utf8'))) && /canvasMinWidth = null/.test(fs.readFileSync(path.join(REPO, 'src/components/ResizableSidebar.jsx'), 'utf8')) && !/canvasMinWidth/.test(fs.readFileSync(path.join(REPO, 'src/components/features/documents/DocumentSidebar.jsx'), 'utf8')));
 H.unmount();
 

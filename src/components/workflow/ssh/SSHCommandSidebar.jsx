@@ -264,7 +264,7 @@ export default function SSHCommandSidebar({ visible, onInsertCommand }) {
                         className="p-1 hover:bg-os-card-secondary rounded-sm"
                         title="Delete"
                       >
-                        <Trash2 size={12} className="text-red-500" />
+                        <Trash2 size={12} className="text-(--chart-bad)" />
                       </button>
                     </div>
                   </div>

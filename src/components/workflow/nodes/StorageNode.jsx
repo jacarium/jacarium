@@ -41,7 +41,7 @@ function StorageNode({ data, isConnectable }) {
         <NodeHint>💡 Store value in a variable. Retrieve with Get Variable node.</NodeHint>
 
         {savedCount > 0 && (
-          <div className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-sm">
+          <div className="text-xs text-(--status-success-fg) bg-(--status-success-bg) px-2 py-1 rounded-sm">
             ✓ Stored as <code className="font-mono font-semibold">{variableName}</code>
           </div>
         )}

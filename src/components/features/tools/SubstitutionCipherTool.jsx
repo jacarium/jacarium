@@ -318,7 +318,7 @@ export default function SubstitutionCipherTool() {
             Derive Key
           </button>
           {deriveWarning && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm text-sm text-red-600 dark:text-red-400">
+            <div className="p-3 bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm text-sm text-(--status-danger-fg)">
               {deriveWarning}
             </div>
           )}
@@ -380,11 +380,11 @@ export default function SubstitutionCipherTool() {
                     key={cipherChar}
                     className={`flex flex-col items-center justify-center px-2 py-1 rounded border ${
  isDuplicate
- ?'border-red-400 dark:border-red-700 bg-red-50 dark:bg-red-900/20'
+ ?'border-(--status-danger-border) bg-(--status-danger-bg)'
  :'border-os-border'
  }`}
                   >
-                    <span className="h-3 text-[10px] leading-3 text-os-text-muted text-center">
+                    <span className="h-3 text-3xs leading-3 text-os-text-muted text-center">
                       {distanceLabel}
                     </span>
                     <div className="flex items-center justify-center gap-1">

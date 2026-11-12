@@ -11,6 +11,7 @@ import TemplateSidebar from './features/documents/TemplateSidebar';
 import DocumentSidebar from './features/documents/DocumentSidebar';
 import DocumentEditor from './features/documents/DocumentEditor';
 import TabBar from './features/documents/TabBar';
+import ReadingAidsSurface, { useZenMode } from './common/ReadingAidsSurface';
 import FindInFilesWindow from './features/documents/FindInFilesWindow';
 import DocumentTemplateModal from './features/documents/DocumentTemplateModal';
 import { requestEditorJumpToLine } from '../utils/openDocument';
@@ -70,6 +71,9 @@ export default function DocumentsPage({
   const { addNotification } = useNotifications();
   // The phone layout: the document list is a drawer, the tabs a header
   const { isMobile } = useMobile();
+  // zen mode (Settings > Accessibility, on every page - JQLBuilder owns the Esc and the shortcut): here the sidebar
+  // steps aside and the document is centred; the tab bar stays, as on every page (src/index.css html.zen-mode)
+  const zen = useZenMode();
 
   // State - drastically reduced from 40+ useState
   const [documents, setDocuments] = useState([]);
@@ -2946,12 +2950,17 @@ export default function DocumentsPage({
     <div className="flex h-full overflow-hidden font-text">
       {/* Combined Sidebar (Documents + Templates) */}
 
-      {(innerSidebarVisible || isMobile) && (
+      {/* in zen the sidebar is rendered too: ResizableSidebar then draws the left-edge tab and the zen side overlay (the
+          document list and the Templates section, resizable, closing when a document is chosen) instead of the column */}
+      {(innerSidebarVisible || isMobile || zen) && (
         <ResizableSidebar
           defaultWidth={250}
           minWidth={200}
           maxWidth={400}
           storageKey="document-sidebar-width"
+          testId="document-sidebar"
+          zenLabel="Documents"
+          zenCloseOn={currentDocumentId}
         >
           <VerticalResizableDivider
             defaultTopHeight={60}
@@ -3060,7 +3069,7 @@ export default function DocumentsPage({
                 className="flex flex-col h-full overflow-hidden min-w-0"
                 style={{ width: splitViewEnabled ? `${splitPosition}%` : '100%' }}
               >
-                {/* Tabs */}
+                {/* Tabs (in zen too, as on every page) */}
                 <TabBar
                   pageTitle="Documents"
                   tabs={openTabs}
@@ -3073,8 +3082,8 @@ export default function DocumentsPage({
                   paneId="left"
                 />
 
-                {/* Editor */}
-                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                {/* Editor (a reading-aids surface: Settings > Accessibility applies here) */}
+                <ReadingAidsSurface className="flex-1 flex flex-col min-h-0 overflow-hidden" testId="reading-aids-surface">
                   <DocumentEditor
                     documentId={currentDocument?.id}
                     document={currentDocument}
@@ -3095,14 +3104,14 @@ export default function DocumentsPage({
                     onOpenDocumentById={openDocumentById}
                     linkableDocuments={documents}
                   />
-                </div>
+                </ReadingAidsSurface>
               </div>
 
               {/* Draggable Divider - Only show if split view is enabled */}
               {splitViewEnabled && (
                 <div
                   onMouseDown={handleSplitDragStart}
-                  className="shrink-0 border-l border-os-border cursor-col-resize hover:border-blue-400 transition-colors"
+                  className="shrink-0 border-l border-os-border cursor-col-resize hover:border-os-blue transition-colors"
                   style={{
                     zIndex: isDraggingSplit ? 2147483647 : 10
                   }}
@@ -3129,8 +3138,8 @@ export default function DocumentsPage({
                 paneId="right"
               />
 
-              {/* Right Editor */}
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              {/* Right Editor (a reading-aids surface too) */}
+              <ReadingAidsSurface className="flex-1 flex flex-col min-h-0 overflow-hidden" testId="reading-aids-surface-right">
                 <DocumentEditor
                   documentId={rightPane.currentDocument?.id}
                   document={rightPane.currentDocument}
@@ -3149,7 +3158,7 @@ export default function DocumentsPage({
                   onOpenDocumentById={openDocumentById}
                   linkableDocuments={documents}
                 />
-              </div>
+              </ReadingAidsSurface>
             </div>
           )}
           </div>
@@ -3356,7 +3365,7 @@ export default function DocumentsPage({
                   handleDeleteTemplate(templateContextMenu.template.id);
                   setTemplateContextMenu({ visible: false, x: 0, y: 0, type: null, template: null, category: null });
                 }}
-                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-os-card-secondary flex items-center gap-2"
+                className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
               >
                 <MenuItemIcon action="delete" danger />
                 Delete Template
@@ -3374,7 +3383,7 @@ export default function DocumentsPage({
                   handleBulkTemplateDelete();
                   setTemplateContextMenu({ visible: false, x: 0, y: 0, type: null, template: null, category: null });
                 }}
-                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-os-card-secondary flex items-center gap-2"
+                className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
               >
                 <MenuItemIcon action="delete" danger />
                 Delete Selected
@@ -3459,20 +3468,20 @@ export default function DocumentsPage({
         // For locked docs, show custom modal with text input
         return (
           <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            className="sc-modal-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
             onClick={() => {
               setShowBulkDocumentDeleteModal(false);
               setBulkDeleteConfirmText('');
             }}
           >
             <div
-              className="bg-os-modal rounded-lg shadow-xl w-full max-w-md"
+              role="dialog" aria-modal="true" aria-label="Dialog" className="sc-modal-panel bg-os-modal rounded-lg shadow-xl w-full max-w-md"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-6">
                 <div className="flex items-start gap-4 mb-4">
-                  <div className="p-3 rounded-full bg-red-100 dark:bg-red-900/30 shrink-0">
-                    <Trash2 size={24} className="text-red-600" />
+                  <div className="p-3 rounded-full bg-(--status-danger-bg) shrink-0">
+                    <Trash2 size={24} className="text-(--chart-bad)" />
                   </div>
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-os-text-primary mb-2">
@@ -3483,13 +3492,13 @@ export default function DocumentsPage({
                         You are about to delete <strong>{selectedDocuments.length} document{selectedDocuments.length !== 1 ? 's' : ''}</strong>.
                       </p>
                       <p className="mb-2">
-                        <strong className="text-orange-600 dark:text-orange-400">{lockedDocs.length} {lockedDocs.length === 1 ? 'is' : 'are'} 🔒 LOCKED</strong>.
+                        <strong className="text-(--chart-warn)">{lockedDocs.length} {lockedDocs.length === 1 ? 'is' : 'are'} 🔒 LOCKED</strong>.
                       </p>
                       <p className="mb-2">
                         This action cannot be undone.
                       </p>
                       <p className="font-semibold">
-                        To confirm, type <code className="bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded-sm text-red-700 dark:text-red-300">I REALLY DO</code> below:
+                        To confirm, type <code className="bg-(--status-danger-bg) px-2 py-1 rounded-sm text-(--status-danger-fg)">I REALLY DO</code> below:
                       </p>
                     </div>
                     <input
@@ -3497,7 +3506,7 @@ export default function DocumentsPage({
                       value={bulkDeleteConfirmText}
                       onChange={(e) => setBulkDeleteConfirmText(e.target.value)}
                       placeholder="Type: I REALLY DO"
-                      className="w-full px-3 py-2 border border-os-input-border rounded-sm outline-hidden bg-os-input-bg text-os-text-primary placeholder:text-os-text-muted focus:border-red-500 focus:ring-2 focus:ring-red-500"
+                      className="w-full px-3 py-2 border border-os-input-border rounded-sm outline-hidden bg-os-input-bg text-os-text-primary placeholder:text-os-text-muted focus:border-(--chart-bad) focus:ring-2 focus:ring-(--chart-bad)"
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && bulkDeleteConfirmText === 'I REALLY DO') {
@@ -3538,11 +3547,11 @@ export default function DocumentsPage({
       {/* Bulk Document Move Modal */}
       {showBulkMoveModal && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          className="sc-modal-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           onClick={handleBulkMoveCancel}
         >
           <div
-            className="bg-os-card rounded-lg shadow-xl w-full max-w-md"
+            role="dialog" aria-modal="true" aria-label="Dialog" className="sc-modal-panel bg-os-card rounded-lg shadow-xl w-full max-w-md"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 border-b border-os-border">

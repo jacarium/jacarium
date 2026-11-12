@@ -88,7 +88,7 @@ function VisualizerNode({ data, isConnectable }) {
     try {
       text = JSON.stringify(displayData, null, 2);
     } catch {
-      return <div className="text-red-600 text-xs">Invalid JSON data</div>;
+      return <div className="text-(--chart-bad) text-xs">Invalid JSON data</div>;
     }
 
     return (

@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { paint } from '../../../utils/dataColour';
 import { Lightbulb } from 'lucide-react';
 import { LinkHandles } from './NodeComponents';
 import { NOTE_COLOR_KEYS, DEFAULT_NOTE_COLOR, getNoteColor } from './noteColors';
@@ -25,16 +26,16 @@ function IdeaNode({ data, isConnectable, selected }) {
   return (
     <div
       className="workflow-node workflow-idea min-w-[150px] flex items-center gap-2 rounded-full border-2 shadow-lg pl-2 pr-3 py-1.5 cursor-grab active:cursor-grabbing"
-      style={{ backgroundColor: color.tint, borderColor: selected ? color.solid : color.border }}
+      style={{ ...paint(color.solid), backgroundColor: 'color-mix(in srgb, var(--dc) 16%, transparent)', borderColor: selected ? 'var(--dc)' : 'color-mix(in srgb, var(--dc) 70%, transparent)' }}
     >
-      <LinkHandles color={color.solid} isConnectable={isConnectable} />
+      <LinkHandles color="var(--dc)" isConnectable={isConnectable} />
 
       <button
         type="button"
         onClick={handleCycleColor}
         title="Change colour"
         className="nodrag p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-        style={{ color: color.solid }}
+        style={{ color: 'var(--dc)' }}
       >
         <Lightbulb size={14} />
       </button>

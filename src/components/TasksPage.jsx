@@ -1193,14 +1193,14 @@ export default function TasksPage() {
 
         {/* TaskWarrior Not Installed Banner */}
         {(backendUnreachable || !taskWarriorInstalled) && !installBannerDismissed && (
-          <div className="bg-red-50 dark:bg-red-900/20 px-6 py-3">
+          <div className="bg-(--status-danger-bg) px-6 py-3">
             <div className="flex items-start gap-3">
-              <AlertCircle size={20} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+              <AlertCircle size={20} className="text-(--chart-bad) shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                <p className="text-sm font-medium text-(--status-danger-fg)">
                   {backendUnreachable ? 'Backend Service Not Reachable' : 'TaskWarrior Not Installed'}
                 </p>
-                <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                <p className="text-xs text-(--status-danger-fg) mt-1">
                   {backendUnreachable
                     ? 'The backend service did not answer, so tasks cannot be read or saved. Start it (or check its port) and retry.'
                     : 'Install Taskwarrior (the task command) to keep tasks in sync on this device: the account\'s tasks stay in the app until it is found. On macOS a Homebrew install (/opt/homebrew/bin) is picked up after a restart of the app.'}
@@ -1215,7 +1215,7 @@ export default function TasksPage() {
                       window.open(url, '_blank');
                     }
                   }}
-                  className="inline-flex items-center gap-1 mt-2 text-xs text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100 underline cursor-pointer"
+                  className="inline-flex items-center gap-1 mt-2 text-xs text-(--status-danger-fg) hover:text-(--status-danger-fg) underline cursor-pointer"
                 >
                   Download TaskWarrior
                 </button>
@@ -1233,7 +1233,7 @@ export default function TasksPage() {
                   onClick={() => setInstallBannerDismissed(true)}
                   className="btn btn-danger-ghost p-1"
                 >
-                  <X size={16} className="text-red-600 dark:text-red-400" />
+                  <X size={16} className="text-(--chart-bad)" />
                 </button>
               </div>
             </div>
@@ -1327,10 +1327,10 @@ export default function TasksPage() {
                   </span>
                 )}
                 {activeFilter && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700 rounded-sm">
-                    <Filter size={12} className="text-purple-600 dark:text-purple-400" />
-                    <span className="text-purple-700 dark:text-purple-300 font-medium">{activeFilter.filterName}</span>
-                    <button onClick={handleClearFilter} className="hover:text-purple-900 dark:hover:text-purple-100" title="Clear filter">
+                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-(--status-brand-bg) border border-(--status-brand-border) rounded-sm">
+                    <Filter size={12} className="text-(--brand-accent)" />
+                    <span className="text-(--status-brand-fg) font-medium">{activeFilter.filterName}</span>
+                    <button onClick={handleClearFilter} className="hover:text-(--status-brand-fg)" title="Clear filter">
                       <X size={12} />
                     </button>
                   </span>
@@ -1349,7 +1349,7 @@ export default function TasksPage() {
                 >
                   <Filter size={14} />
                   {isMobile && (statusFilter.length + (projectFilter ? 1 : 0) + (tagFilter ? 1 : 0)) > 0 && (
-                    <span data-testid="tasks-filter-count" className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-os-blue text-(--btn-primary-fg) text-[10px] font-semibold leading-4 text-center">{statusFilter.length + (projectFilter ? 1 : 0) + (tagFilter ? 1 : 0)}</span>
+                    <span data-testid="tasks-filter-count" className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-os-blue text-(--btn-primary-fg) text-3xs font-semibold leading-4 text-center">{statusFilter.length + (projectFilter ? 1 : 0) + (tagFilter ? 1 : 0)}</span>
                   )}
                 </button>
                 {isMobile && showFilters && (
@@ -1569,13 +1569,13 @@ export default function TasksPage() {
                       >
                         {activeTasks.every(t => selectedTasks.includes(t.id)) && <Check size={12} className="text-(--btn-primary-fg)" />}
                       </button>
-                      <Play className="w-3.5 h-3.5 text-green-600" />
+                      <Play className="w-3.5 h-3.5 text-(--chart-good)" />
                       <button
                         onClick={() => handleToggleSection('active')}
                         className="p-0 hover:bg-os-card-secondary rounded-sm transition-colors flex items-center gap-1"
                         title={expandedSections.active ? "Collapse section" : "Expand section"}
                       >
-                        <span className="text-[11px] font-medium text-os-text-muted uppercase tracking-wide">
+                        <span className="text-2xs font-medium text-os-text-muted uppercase tracking-wide">
                           Active ({activeTasks.length})
                         </span>
                         <ChevronRight size={14} className={`text-os-text-secondary transition-transform ${expandedSections.active ?'rotate-90':''}`} />
@@ -1626,7 +1626,7 @@ export default function TasksPage() {
                         className="p-0 hover:bg-os-card-secondary rounded-sm transition-colors flex items-center gap-1"
                         title={expandedSections.pending ? "Collapse section" : "Expand section"}
                       >
-                        <span className="text-[11px] font-medium text-os-text-muted uppercase tracking-wide">
+                        <span className="text-2xs font-medium text-os-text-muted uppercase tracking-wide">
                           Pending ({pendingTasks.length})
                         </span>
                         <ChevronRight size={14} className={`text-os-text-secondary transition-transform ${expandedSections.pending ?'rotate-90':''}`} />
@@ -1671,13 +1671,13 @@ export default function TasksPage() {
                       >
                         {waitingTasks.every(t => selectedTasks.includes(t.id)) && <Check size={12} className="text-(--btn-primary-fg)" />}
                       </button>
-                      <Clock className="w-3.5 h-3.5 text-amber-600" />
+                      <Clock className="w-3.5 h-3.5 text-(--chart-warn)" />
                       <button
                         onClick={() => handleToggleSection('waiting')}
                         className="p-0 hover:bg-os-card-secondary rounded-sm transition-colors flex items-center gap-1"
                         title={expandedSections.waiting ? "Collapse section" : "Expand section"}
                       >
-                        <span className="text-[11px] font-medium text-os-text-muted uppercase tracking-wide">
+                        <span className="text-2xs font-medium text-os-text-muted uppercase tracking-wide">
                           Waiting ({waitingTasks.length})
                         </span>
                         <ChevronRight size={14} className={`text-os-text-secondary transition-transform ${expandedSections.waiting ?'rotate-90':''}`} />
@@ -1722,13 +1722,13 @@ export default function TasksPage() {
                       >
                         {completedTasks.every(t => selectedTasks.includes(t.id)) && <Check size={12} className="text-(--btn-primary-fg)" />}
                       </button>
-                      <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                      <CheckCircle className="w-3.5 h-3.5 text-(--chart-good)" />
                       <button
                         onClick={() => handleToggleSection('completed')}
                         className="p-0 hover:bg-os-card-secondary rounded-sm transition-colors flex items-center gap-1"
                         title={expandedSections.completed ? "Collapse section" : "Expand section"}
                       >
-                        <span className="text-[11px] font-medium text-os-text-muted uppercase tracking-wide">
+                        <span className="text-2xs font-medium text-os-text-muted uppercase tracking-wide">
                           Completed ({completedTasks.length})
                         </span>
                         <ChevronRight size={14} className={`text-os-text-secondary transition-transform ${expandedSections.completed ?'rotate-90':''}`} />
@@ -1760,7 +1760,7 @@ export default function TasksPage() {
 
                 {/* Deleted tasks */}
                 {deletedTasks.length > 0 && (
-                  <div className={`px-6 py-4 bg-red-50/30 dark:bg-red-900/5 ${(activeTasks.length > 0 || pendingTasks.length > 0 || waitingTasks.length > 0 || completedTasks.length > 0) ?'border-t border-os-border':''}`}>
+                  <div className={`px-6 py-4 bg-(--status-danger-bg) ${(activeTasks.length > 0 || pendingTasks.length > 0 || waitingTasks.length > 0 || completedTasks.length > 0) ?'border-t border-os-border':''}`}>
                     <div className="flex items-center gap-2 mb-2.5">
                       <button
                         onClick={() => handleToggleSectionSelection(deletedTasks)}
@@ -1773,13 +1773,13 @@ export default function TasksPage() {
                       >
                         {deletedTasks.every(t => selectedTasks.includes(t.id)) && <Check size={12} className="text-(--btn-primary-fg)" />}
                       </button>
-                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                      <Trash2 className="w-3.5 h-3.5 text-(--chart-bad)" />
                       <button
                         onClick={() => handleToggleSection('deleted')}
                         className="p-0 hover:bg-os-card-secondary rounded-sm transition-colors flex items-center gap-1"
                         title={expandedSections.deleted ? "Collapse section" : "Expand section"}
                       >
-                        <span className="text-[11px] font-medium text-os-text-muted uppercase tracking-wide">
+                        <span className="text-2xs font-medium text-os-text-muted uppercase tracking-wide">
                           Deleted ({deletedTasks.length})
                         </span>
                         <ChevronRight size={14} className={`text-os-text-secondary transition-transform ${expandedSections.deleted ?'rotate-90':''}`} />

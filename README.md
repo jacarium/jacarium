@@ -163,6 +163,49 @@ On a phone:
 |---|---|---|---|
 | <img src="docs/screenshots/phone-documents.webp" alt="A Kubernetes upgrade runbook open on a phone" width="200"> | <img src="docs/screenshots/phone-tasks.webp" alt="Taskwarrior tasks on a phone, one active with a running timer" width="200"> | <img src="docs/screenshots/phone-kanban.webp" alt="Kanban board on a phone, one column per screen" width="200"> | <img src="docs/screenshots/phone-workflow.webp" alt="A health-check workflow in the phone's view-only reader" width="200"> |
 
+## Accessibility
+
+Settings > Accessibility holds the reading aids. A ready-made profile sets
+them all at once, and every option can still be changed on its own:
+
+- **Profiles**: Comfortable reading, Dyslexia friendly, Low vision, Focus,
+  Red-weak, Green-weak, Blue-weak and Calm; Default puts everything back.
+- **Text**: text size from 90 % to 200 % for all reading text, with "Scale
+  the interface too" for the controls; the reading fonts Atkinson
+  Hyperlegible, Lexend and OpenDyslexic, and Atkinson Hyperlegible Mono
+  for code; line height, letter, word and paragraph spacing; line width
+  (60 to 120 characters) and alignment.
+- **Reading ruler**: a one-, three- or five-line band that follows the
+  pointer and the caret, as a highlight or as a mask that dims everything
+  else; it works in documents, the Diagnostics report and every other
+  reading area.
+- **Colour**: high contrast; colour-vision palettes for red-, green- and
+  blue-weak vision (the Okabe-Ito palette for the accent, status, severity,
+  syntax and chart colours); saturation and greyscale.
+- **Motion and images**: reduce motion (follow the system, on or off), hide
+  images, underline links.
+- **Zen mode** hides the chrome for reading and writing; keyboard shortcuts
+  (Settings > Shortcuts) switch profiles, step the text size and toggle the
+  ruler and Zen mode.
+
+Reading preferences change how a document is shown to you, nothing else:
+Markdown and PDF export, sync and other people see the document unchanged.
+
+| | |
+|---|---|
+| ![A runbook in Preview with the Dyslexia friendly profile: Lexend, wider letters and words, a 70-character column and the reading ruler highlighting one line](docs/screenshots/a11y-dyslexia.webp) | ![The same runbook with the Low vision profile: text at 150 %, the interface scaled too, high contrast, Atkinson Hyperlegible, links underlined](docs/screenshots/a11y-low-vision.webp) |
+| ![The Focus profile: a three-line mask ruler over the runbook, colours toned down, images hidden](docs/screenshots/a11y-focus.webp) | ![Diagnostics charts of a synthetic sosreport with the Green-weak profile: the Okabe-Ito palette for the chart categories](docs/screenshots/a11y-colour-vision.webp) |
+
+![Settings > Accessibility: the ready-made profiles and the reading aids](docs/screenshots/a11y-settings.webp)
+
+Jacarium is designed to support WCAG 2.2 success criteria such as 1.4.1 Use
+of Color, 1.4.3 Contrast (Minimum), 1.4.4 Resize Text, 1.4.8 Visual
+Presentation, 1.4.12 Text Spacing and 2.3.3 Animation from Interactions. It
+has not been audited for conformance; if something is in your way, please
+[open an issue](https://github.com/jacarium/jacarium/issues). The screenshots
+above are reproducible with synthetic content:
+`npm run screenshots:accessibility`.
+
 ## Two ways to run it
 
 **Desktop app.** Download the app, run it, write your first note.
@@ -283,8 +326,10 @@ You should have received a copy of the GNU Affero General Public License along
 with this program (the [LICENSE](LICENSE) file). If not, see
 <https://www.gnu.org/licenses/>.
 
-The fonts (Red Hat Text, Red Hat Mono, Sora) are under the
-[SIL Open Font License](https://openfontlicense.org); the workflow canvas is
+The fonts (Red Hat Text, Red Hat Mono, Sora, and the reading and code fonts of
+Settings > Accessibility: Atkinson Hyperlegible, Lexend, OpenDyslexic,
+Atkinson Hyperlegible Mono) are
+under the [SIL Open Font License](https://openfontlicense.org); the workflow canvas is
 [React Flow](https://reactflow.dev) (MIT); the document editor is
 [CodeMirror](https://codemirror.net) (MIT), bound to live documents with
 [y-codemirror.next](https://github.com/yjs/y-codemirror.next) (MIT) on

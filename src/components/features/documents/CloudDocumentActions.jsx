@@ -82,7 +82,7 @@ export default function CloudDocumentActions({
           {uploading ? 'Syncing...' : 'Sync Changes'}
         </button>
       ) : inCloud && !isOwner ? (
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 text-purple-700 text-sm font-medium rounded-sm">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-(--status-brand-bg) text-(--status-brand-fg) text-sm font-medium rounded-sm">
           <Cloud size={14} />
           <span>Shared (Read-Only)</span>
         </div>

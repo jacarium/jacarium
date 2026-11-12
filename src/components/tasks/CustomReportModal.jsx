@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import BaseModal from '../common/modals/BaseModal';
 import { X } from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
 
@@ -64,8 +65,7 @@ export default function CustomReportModal({ isOpen, onClose, onSubmit, editingRe
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-os-card border border-os-border rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+    <BaseModal isOpen onClose={onClose} closeOnBackdropClick={false} className="bg-os-card border border-os-border rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" ariaLabel="Custom report">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-os-border">
           <h2 className="text-lg font-semibold text-os-text-primary">
@@ -168,7 +168,6 @@ export default function CustomReportModal({ isOpen, onClose, onSubmit, editingRe
             {editingReport ? 'Save Changes' : 'Create Filter'}
           </button>
         </div>
-      </div>
-    </div>
+    </BaseModal>
   );
 }

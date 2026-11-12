@@ -1,24 +1,5 @@
 import { useMemo, useState } from 'react';
-
-/**
- * Calculate if a hex color is light or dark
- * Returns true if the color is light (needs dark text)
- */
-function isLightColor(hexColor) {
-  // Remove # if present
-  const hex = hexColor.replace('#', '');
-
-  // Convert to RGB
-  const r = parseInt(hex.substr(0, 2), 16);
-  const g = parseInt(hex.substr(2, 2), 16);
-  const b = parseInt(hex.substr(4, 2), 16);
-
-  // Calculate relative luminance (ITU-R BT.709)
-  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-
-  // Return true if light (luminance > 0.5)
-  return luminance > 0.5;
-}
+import { paint, INK } from '../../../utils/dataColour';
 
 /**
  * WeekView - Week timeline calendar view
@@ -334,7 +315,6 @@ export default function WeekView({
   // Render timed event
   const renderTimedEvent = (event, dayIndex, eventLayout) => {
     const color = calendarColors[event.calendarId] || '#4285f4';
-    const textColor = isLightColor(color) ? '#000000' : '#ffffff';
     const style = getEventStyle(event, eventLayout);
     const startDate = new Date(event.startDateTime);
     const timeStr = startDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -351,8 +331,8 @@ export default function WeekView({
         style={{
           position: 'absolute',
           ...style,
-          backgroundColor: color,
-          color: textColor,
+          ...paint(color, 'backgroundColor'),
+          color: INK,
           zIndex: 10,
           boxSizing: 'border-box'
         }}
@@ -379,15 +359,14 @@ export default function WeekView({
   // Render all-day event
   const renderAllDayEvent = (event) => {
     const color = calendarColors[event.calendarId] || '#4285f4';
-    const textColor = isLightColor(color) ? '#000000' : '#ffffff';
 
     return (
       <div
         key={event.id}
         className="px-2 py-1 mb-1 text-xs rounded-sm truncate cursor-pointer hover:opacity-80 transition-opacity"
         style={{
-          backgroundColor: color,
-          color: textColor
+          ...paint(color, 'backgroundColor'),
+          color: INK
         }}
         onMouseDown={(e) => {
           e.stopPropagation();
@@ -520,7 +499,7 @@ export default function WeekView({
                 <div
                   key={index}
                   className={`border-r border-os-border last:border-r-0 px-1 py-1 min-h-[60px] ${
- isTodayCell ?'bg-blue-50 dark:bg-blue-900/20':''
+ isTodayCell ?'bg-(--status-info-bg)':''
  }`}
                 >
                   {isExpanded
@@ -529,7 +508,7 @@ export default function WeekView({
                   }
                   {dayEvents.allDay.length > 3 && (
                     <div
-                      className="px-2 text-xs text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
+                      className="px-2 text-xs text-(--chart-info) cursor-pointer hover:underline"
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleCellExpansion(dateKey);
@@ -560,11 +539,11 @@ export default function WeekView({
             <div
               key={index}
               className={`px-2 py-2 text-center border-r border-os-border last:border-r-0 ${
- isTodayCell ?'bg-blue-50 dark:bg-blue-900/20':''
+ isTodayCell ?'bg-(--status-info-bg)':''
  }`}
             >
               <div className="text-xs text-os-text-secondary">{dayName}</div>
-              <div className={`text-lg font-semibold ${isTodayCell ?'text-blue-600 dark:text-blue-400':'text-os-text-primary'}`}>
+              <div className={`text-lg font-semibold ${isTodayCell ?'text-(--chart-info)':'text-os-text-primary'}`}>
                 {dayNum}
               </div>
             </div>
@@ -600,7 +579,7 @@ export default function WeekView({
               <div
                 key={dayIndex}
                 className={`relative border-r border-os-border last:border-r-0 ${
- isTodayCell ?'bg-blue-50 dark:bg-blue-900/20':''
+ isTodayCell ?'bg-(--status-info-bg)':''
  }`}
                 style={{ height: `${24 * 60}px` }}
                 onMouseDown={(e) => handleMouseDown(e, dayIndex)}
@@ -644,7 +623,7 @@ export default function WeekView({
                   if (!previewStyle) return null;
                   return (
                     <div style={previewStyle}>
-                      <div className="px-2 py-1 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                      <div className="px-2 py-1 text-xs text-(--chart-info) font-medium">
                         New Event
                       </div>
                     </div>
@@ -657,8 +636,8 @@ export default function WeekView({
                     className="absolute left-0 right-0 flex items-center pointer-events-none z-20"
                     style={{ top: `${currentTimeTop}px` }}
                   >
-                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                    <div className="flex-1 h-0.5 bg-red-500"></div>
+                    <div className="w-2 h-2 rounded-full bg-(--chart-bad)"></div>
+                    <div className="flex-1 h-0.5 bg-(--chart-bad)"></div>
                   </div>
                 )}
               </div>

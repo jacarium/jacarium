@@ -1,4 +1,5 @@
 import { BaseEdge, getBezierPath } from 'reactflow';
+import { paint } from '../../../utils/dataColour';
 
 /**
  * Data-flow (and note "link") edge: thin coloured stroke, thicker with a soft
@@ -35,7 +36,7 @@ export default function DataEdge({
         <path
           className="workflow-edge-outline"
           d={edgePath}
-          style={{ fill: 'none', stroke, strokeOpacity: 0.3, strokeWidth: 8, strokeLinecap: 'round' }}
+          style={{ fill: 'none', ...paint(stroke, 'stroke'), strokeOpacity: 0.3, strokeWidth: 8, strokeLinecap: 'round' }}
         />
       )}
       <BaseEdge
@@ -45,7 +46,7 @@ export default function DataEdge({
         style={{
           ...style,
           strokeWidth: selected ? 3 : 2,
-          stroke,
+          ...paint(stroke, 'stroke'),
           strokeLinecap: 'round',
         }}
       />

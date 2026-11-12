@@ -1,24 +1,5 @@
 import { useMemo, useState } from 'react';
-
-/**
- * Calculate if a hex color is light or dark
- * Returns true if the color is light (needs dark text)
- */
-function isLightColor(hexColor) {
-  // Remove # if present
-  const hex = hexColor.replace('#', '');
-
-  // Convert to RGB
-  const r = parseInt(hex.substr(0, 2), 16);
-  const g = parseInt(hex.substr(2, 2), 16);
-  const b = parseInt(hex.substr(4, 2), 16);
-
-  // Calculate relative luminance (ITU-R BT.709)
-  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-
-  // Return true if light (luminance > 0.5)
-  return luminance > 0.5;
-}
+import { paint, INK } from '../../../utils/dataColour';
 
 /**
  * MonthView - Month grid calendar view
@@ -166,7 +147,6 @@ export default function MonthView({
   // Render event item
   const renderEvent = (event) => {
     const color = calendarColors[event.calendarId] || '#4285f4';
-    const textColor = isLightColor(color) ? '#000000' : '#ffffff';
     const startDate = new Date(event.startDateTime);
     const timeStr = event.isAllDay ? '' : startDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
@@ -175,8 +155,8 @@ export default function MonthView({
         key={event.id}
         className="px-1 py-0.5 mb-0.5 text-xs rounded-sm cursor-pointer hover:opacity-80 transition-opacity overflow-hidden"
         style={{
-          backgroundColor: color,
-          color: textColor
+          ...paint(color, 'backgroundColor'),
+          color: INK
         }}
         onClick={(e) => {
           e.stopPropagation();
@@ -225,7 +205,7 @@ export default function MonthView({
                     key={cellIndex}
                     className={`border-r border-os-border last:border-r-0 p-1 pb-2 flex flex-col ${
  !cell.isCurrentMonth ?'bg-os-card-secondary text-os-text-muted':''
- } ${isTodayCell ?'bg-blue-50 dark:bg-blue-900/20':''}`}
+ } ${isTodayCell ?'bg-(--status-info-bg)':''}`}
                     style={{ width: 'calc(100% / 7)', minHeight: '100px' }}
                     onDoubleClick={() => {
                       if (cell.isCurrentMonth && onEmptySlotDoubleClick) {
@@ -234,7 +214,7 @@ export default function MonthView({
                     }}
                   >
                     {/* Day number */}
-                    <div className={`text-sm font-medium mb-1 shrink-0 ${isTodayCell ?'text-blue-600 dark:text-blue-400 font-bold':''}`}>
+                    <div className={`text-sm font-medium mb-1 shrink-0 ${isTodayCell ?'text-(--chart-info) font-bold':''}`}>
                       {cell.day}
                     </div>
 
@@ -247,7 +227,7 @@ export default function MonthView({
                         }
                         {dayEvents.allDay.length > 2 && (
                           <div
-                            className="px-1 text-xs text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
+                            className="px-1 text-xs text-(--chart-info) cursor-pointer hover:underline"
                             onClick={(e) => {
                               e.stopPropagation();
                               toggleCellExpansion(dateKey);
@@ -267,7 +247,7 @@ export default function MonthView({
                       }
                       {dayEvents.timed.length > 3 && (
                         <div
-                          className="px-1 text-xs text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
+                          className="px-1 text-xs text-(--chart-info) cursor-pointer hover:underline"
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleCellExpansion(dateKey);

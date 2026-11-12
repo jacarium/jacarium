@@ -1,13 +1,14 @@
 import { useState } from 'react';
+import DropdownPanel from '../common/menus/DropdownPanel';
 import { CheckCircle, Circle, Trash2, FolderOpen, Tag, Calendar, AlertCircle, Cloud, Square, MessageSquare, Repeat, TrendingUp, Check, Clock } from 'lucide-react';
 import InlineEdit from '../common/inputs/InlineEdit';
 import DatePicker from '../common/inputs/DatePicker';
 import TaskTimer from './TaskTimer';
 
 const priorityColors = {
-  L: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-  M: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
-  H: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+  L: 'bg-(--status-info-bg) text-(--status-info-fg)',
+  M: 'bg-(--status-warning-bg) text-(--status-warning-fg)',
+  H: 'bg-(--status-danger-bg) text-(--status-danger-fg)'
 };
 
 const priorityLabels = {
@@ -233,11 +234,11 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
       } : undefined}
       className={`sc-task-card ${isActive ? 'sc-task-card-active' : ''} bg-os-card rounded-md border transition-all group relative hover:border-os-border-hover ${
  isSelected
- ?'border-os-blue/60 bg-blue-50/30 dark:bg-blue-500/5 shadow-xs'
+ ?'border-os-blue/60 bg-(--status-info-bg) dark:bg-os-blue/5 shadow-xs'
  : isCompleted
  ?'border-os-border'
  : isActive
- ?'border-green-500/30 bg-green-50/30 dark:bg-green-500/5'
+ ?'border-(--chart-good) bg-(--status-success-bg)'
  :'border-os-border'
  }`}
     >
@@ -256,7 +257,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
           data-testid="task-done-toggle"
         >
           {isCompleted ? (
-            <CheckCircle className="w-4 h-4 text-green-500" />
+            <CheckCircle className="w-4 h-4 text-(--chart-good)" />
           ) : (
             <Circle className={`w-4 h-4 text-os-text-muted ${!isReadOnly ? 'hover:text-os-blue transition-colors' : ''}`} />
           )}
@@ -282,7 +283,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
           ) : (
             <div className="flex items-center gap-1.5 mb-4">
               <p
-                className={`sc-task-title text-sm ${
+                className={`sc-task-title ra-reading ra-reading-sm text-sm ${
  isCompleted
  ?'line-through text-os-text-secondary'
  :`text-os-text-primary ${!isReadOnly ?'cursor-pointer hover:text-os-blue':''}`
@@ -293,7 +294,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                 {task.description}
               </p>
               {taskAge && (
-                <span className="text-[9px] px-1 py-0.5 rounded-sm bg-os-card-secondary text-os-text-secondary">
+                <span className="text-4xs px-1 py-0.5 rounded-sm bg-os-card-secondary text-os-text-secondary">
                   {taskAge}
                 </span>
               )}
@@ -301,7 +302,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
           )}
 
           {/* Metadata */}
-          <div className="sc-task-meta flex items-center gap-1 flex-wrap text-[10px]">
+          <div className="sc-task-meta flex items-center gap-1 flex-wrap text-3xs">
             {/* Project */}
             {isEditingProject ? (
               <div className="relative z-50">
@@ -315,7 +316,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                     setTimeout(() => handleSaveProject(), 150);
                   }}
                   autoFocus
-                  className="px-1.5 py-0.5 text-[11px] border border-os-blue rounded-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-hidden w-32 bg-os-input-bg text-os-text-primary"
+                  className="px-1.5 py-0.5 text-2xs border border-os-blue rounded-sm focus:ring-1 focus:ring-os-blue/40 focus:border-os-blue outline-hidden w-32 bg-os-input-bg text-os-text-primary"
                   placeholder="Project name"
                 />
                 {showProjectSuggestions && filteredProjects.length > 0 && (
@@ -324,7 +325,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                       className="fixed inset-0 z-100"
                       onClick={() => setShowProjectSuggestions(false)}
                     />
-                    <div className="absolute top-full left-0 mt-1 z-101 bg-os-card border border-os-border shadow-lg rounded-md py-1 min-w-[150px] max-h-[200px] overflow-y-auto">
+                    <DropdownPanel cap={200} className="z-101 bg-os-card border border-os-border shadow-lg rounded-md py-1 min-w-[150px]">
                       {filteredProjects.map((projectName) => (
                         <button
                           key={projectName}
@@ -338,13 +339,13 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                           {projectName}
                         </button>
                       ))}
-                    </div>
+                    </DropdownPanel>
                   </>
                 )}
               </div>
             ) : task.project ? (
               <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-sm flex items-center gap-0.5 bg-os-card-secondary text-os-text-secondary border border-os-border ${!isReadOnly ?'cursor-pointer hover:border-os-blue':''}`}
+                className={`text-3xs px-1.5 py-0.5 rounded-sm flex items-center gap-0.5 bg-os-card-secondary text-os-text-secondary border border-os-border ${!isReadOnly ?'cursor-pointer hover:border-os-blue':''}`}
                 onClick={handleProjectClick}
                 title={!isReadOnly ? "Click to edit" : ""}
               >
@@ -353,7 +354,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               </span>
             ) : !isReadOnly && (
               <span
-                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
+                className="text-2xs px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
                 onClick={handleProjectClick}
                 title="Click to set project"
               >
@@ -366,10 +367,10 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
             {task.priority ? (
               <div className="relative">
                 <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
- task.priority ==='H'?'bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20':
- task.priority ==='M'?'bg-yellow-500/10 text-yellow-800 dark:text-yellow-400 border border-yellow-500/20':
-'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20'
+                  className={`text-3xs px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
+ task.priority ==='H'?'bg-(--status-danger-bg) text-(--status-danger-fg) border border-(--chart-bad)':
+ task.priority ==='M'?'bg-(--status-warning-bg) text-(--status-warning-fg) border border-(--chart-warn)':
+'bg-os-blue/10 text-(--status-info-fg) border border-os-blue/20'
  } ${!isReadOnly ?'cursor-pointer hover:opacity-90':''}`}
                   onClick={handlePriorityClick}
                 >
@@ -379,7 +380,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                 {isEditingPriority && (
                   <>
                     <div className="fixed inset-0 z-100" onClick={() => setIsEditingPriority(false)} />
-                    <div className="absolute top-full left-0 mt-1 z-101 bg-os-card border border-os-border shadow-lg rounded-md py-1 min-w-[100px]">
+                    <DropdownPanel className="z-101 bg-os-card border border-os-border shadow-lg rounded-md py-1 min-w-[100px]">
                       {Object.entries(priorityLabels).map(([key, label]) => (
                         <button
                           key={key}
@@ -395,14 +396,14 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                       >
                         Clear
                       </button>
-                    </div>
+                    </DropdownPanel>
                   </>
                 )}
               </div>
             ) : !isReadOnly && (
               <div className="relative">
                 <span
-                  className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
+                  className="text-2xs px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
                   onClick={handlePriorityClick}
                   title="Click to set priority"
                 >
@@ -412,7 +413,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                 {isEditingPriority && (
                   <>
                     <div className="fixed inset-0 z-100" onClick={() => setIsEditingPriority(false)} />
-                    <div className="absolute top-full left-0 mt-1 z-101 bg-os-card border border-os-border shadow-lg rounded-md py-1 min-w-[100px]">
+                    <DropdownPanel className="z-101 bg-os-card border border-os-border shadow-lg rounded-md py-1 min-w-[100px]">
                       {Object.entries(priorityLabels).map(([key, label]) => (
                         <button
                           key={key}
@@ -428,7 +429,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                       >
                         Clear
                       </button>
-                    </div>
+                    </DropdownPanel>
                   </>
                 )}
               </div>
@@ -444,7 +445,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                   onKeyDown={handleTagsKeyDown}
                   onBlur={handleSaveTags}
                   autoFocus
-                  className="px-1.5 py-0.5 text-[11px] border border-os-blue rounded-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-hidden w-40 bg-os-input-bg text-os-text-primary"
+                  className="px-1.5 py-0.5 text-2xs border border-os-blue rounded-sm focus:ring-1 focus:ring-os-blue/40 focus:border-os-blue outline-hidden w-40 bg-os-input-bg text-os-text-primary"
                   placeholder="tag1, tag2, tag3"
                 />
               </div>
@@ -457,7 +458,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                 {task.tags.map((tag, index) => (
                   <span
                     key={index}
-                    className="text-[10px] px-1.5 py-0.5 bg-os-card-secondary text-os-text-secondary rounded-sm flex items-center gap-0.5 border border-os-border"
+                    className="text-3xs px-1.5 py-0.5 bg-os-card-secondary text-os-text-secondary rounded-sm flex items-center gap-0.5 border border-os-border"
                   >
                     <Tag size={8} />
                     {tag}
@@ -466,7 +467,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               </div>
             ) : !isReadOnly && (
               <span
-                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
+                className="text-2xs px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
                 onClick={handleTagsClick}
                 title="Click to add tags"
               >
@@ -491,7 +492,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               />
             ) : task.due ? (
               <span
-                className={`text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-orange-50 text-orange-700 border border-orange-200/50 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800/50 ${!isReadOnly ?'cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30':''}`}
+                className={`text-2xs px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-(--status-warning-bg) text-(--status-warning-fg) border border-(--status-warning-border) ${!isReadOnly ?'cursor-pointer hover:bg-(--status-warning-border)':''}`}
                 onClick={handleDueDateClick}
                 title={!isReadOnly ? "Click to edit due date" : ""}
               >
@@ -500,7 +501,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               </span>
             ) : !isReadOnly && (
               <span
-                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
+                className="text-2xs px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
                 onClick={handleDueDateClick}
                 title="Click to set due date"
               >
@@ -525,7 +526,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               />
             ) : task.wait ? (
               <span
-                className={`text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200/50 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50 ${!isReadOnly ?'cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/30':''}`}
+                className={`text-2xs px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-(--status-warning-bg) text-(--status-warning-fg) border border-(--status-warning-border) ${!isReadOnly ?'cursor-pointer hover:bg-(--status-warning-border)':''}`}
                 onClick={handleWaitDateClick}
                 title={!isReadOnly ? "Click to edit wait date" : ""}
               >
@@ -534,7 +535,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               </span>
             ) : !isReadOnly && (
               <span
-                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
+                className="text-2xs px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
                 onClick={handleWaitDateClick}
                 title="Click to set wait date"
               >
@@ -545,7 +546,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
 
             {/* Active Timer */}
             {isActive && (
-              <TaskTimer startTime={task.start} className="px-1.5 py-0.5 rounded-sm bg-green-50 border border-green-200/50 dark:bg-green-900/20 dark:border-green-800/50" />
+              <TaskTimer startTime={task.start} className="px-1.5 py-0.5 rounded-sm bg-(--status-success-bg) border border-(--status-success-border)" />
             )}
 
             {/* Start/Stop buttons */}
@@ -554,7 +555,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                 {isActive ? (
                   <button
                     onClick={handleStopTask}
-                    className="btn btn-danger-soft text-[11px] px-1.5 py-0.5 flex items-center gap-1"
+                    className="btn btn-danger-soft text-2xs px-1.5 py-0.5 flex items-center gap-1"
                     title="Stop task"
                   >
                     <Square size={11} />
@@ -563,7 +564,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                 ) : (
                   <button
                     onClick={handleStartTask}
-                    className="btn btn-success-soft text-[11px] px-1.5 py-0.5 flex items-center gap-1"
+                    className="btn btn-success-soft text-2xs px-1.5 py-0.5 flex items-center gap-1"
                     title="Start task"
                   >
                     Start
@@ -575,7 +576,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
             {/* Urgency (read-only, calculated by TaskWarrior) */}
             {task.urgency !== null && task.urgency !== undefined && task.urgency > 0 ? (
               <span
-                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-purple-50 text-purple-700 border border-purple-200/50 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800/50"
+                className="text-2xs px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-(--status-brand-bg) text-(--status-brand-fg) border border-(--status-brand-border)"
                 title="Urgency (calculated by TaskWarrior)"
               >
                 <TrendingUp size={11} />
@@ -583,7 +584,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
               </span>
             ) : (
               <span
-                className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary"
+                className="text-2xs px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary"
                 title="Urgency (calculated by TaskWarrior)"
               >
                 <TrendingUp size={11} />
@@ -595,7 +596,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
             {task.recur ? (
               <div className="relative">
                 <span
-                  className={`text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-200/50 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-800/50 ${!isReadOnly ?'cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30':''}`}
+                  className={`text-2xs px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-(--status-info-bg) text-(--status-info-fg) border border-(--status-info-border) ${!isReadOnly ?'cursor-pointer hover:bg-(--status-info-border)':''}`}
                   onClick={handleRecurClick}
                   title={!isReadOnly ? "Click to edit recurrence" : ""}
                 >
@@ -605,7 +606,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                 {isEditingRecur && (
                   <>
                     <div className="fixed inset-0 z-100" onClick={() => setIsEditingRecur(false)} />
-                    <div className="absolute top-full left-0 mt-1 z-101 bg-os-card border border-os-border shadow-lg rounded-md py-1 min-w-[140px] max-h-[300px] overflow-y-auto">
+                    <DropdownPanel cap={300} className="z-101 bg-os-card border border-os-border shadow-lg rounded-md py-1 min-w-[140px]">
                       <button
                         onClick={() => handleRecurSelect('daily')}
                         className="w-full px-3 py-1.5 text-left text-xs hover:bg-os-card-secondary flex items-center gap-2"
@@ -666,14 +667,14 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                       >
                         Clear
                       </button>
-                    </div>
+                    </DropdownPanel>
                   </>
                 )}
               </div>
             ) : !isReadOnly && (
               <div className="relative">
                 <span
-                  className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
+                  className="text-2xs px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
                   onClick={handleRecurClick}
                   title="Click to set recurrence"
                 >
@@ -683,7 +684,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                 {isEditingRecur && (
                   <>
                     <div className="fixed inset-0 z-100" onClick={() => setIsEditingRecur(false)} />
-                    <div className="absolute top-full left-0 mt-1 z-101 bg-os-card border border-os-border shadow-lg rounded-md py-1 min-w-[140px] max-h-[300px] overflow-y-auto">
+                    <DropdownPanel cap={300} className="z-101 bg-os-card border border-os-border shadow-lg rounded-md py-1 min-w-[140px]">
                       <button
                         onClick={() => handleRecurSelect('daily')}
                         className="w-full px-3 py-1.5 text-left text-xs hover:bg-os-card-secondary flex items-center gap-2"
@@ -744,7 +745,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                       >
                         Clear
                       </button>
-                    </div>
+                    </DropdownPanel>
                   </>
                 )}
               </div>
@@ -754,7 +755,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
             {!isReadOnly && (
               <div className="relative">
                 <span
-                  className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
+                  className="text-2xs px-1.5 py-0.5 rounded-sm flex items-center gap-1 text-os-text-secondary hover:text-os-blue cursor-pointer"
                   onClick={() => setShowNoteInput(!showNoteInput)}
                   title="Click to add note"
                 >
@@ -766,7 +767,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
 
             {/* Cloud indicator */}
             {task.inCloud && (
-              <span className="text-[11px] px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200/50 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800/50">
+              <span className="text-2xs px-1.5 py-0.5 rounded-sm flex items-center gap-1 bg-(--status-info-bg) text-(--status-info-fg) border border-(--status-info-border)">
                 <Cloud size={11} />
                 Shared
               </span>
@@ -777,7 +778,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
           {task.annotations && task.annotations.length > 0 && (
             <div className="mt-2 space-y-1">
               {task.annotations.map((annotation, index) => (
-                    <div key={index} className="flex items-start gap-1.5 text-[10px] group/annotation">
+                    <div key={index} className="flex items-start gap-1.5 text-3xs group/annotation">
                       {!isReadOnly && onDenotate && (
                         <button
                           onMouseDown={(e) => {
@@ -793,9 +794,9 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                       )}
                       <MessageSquare size={10} className="text-os-text-muted mt-0.5 shrink-0" />
                       <div className="flex-1">
-                        <p className="text-os-text-primary text-[10px] leading-relaxed whitespace-pre-wrap">{annotation.description}</p>
+                        <p className="ra-reading text-os-text-primary text-3xs leading-relaxed whitespace-pre-wrap">{annotation.description}</p>
                         {annotation.entry && (
-                          <p className="text-os-text-muted text-[9px] mt-0.5 opacity-60">
+                          <p className="text-os-text-muted text-4xs mt-0.5 opacity-60">
                             {new Date(annotation.entry).toLocaleString()}
                           </p>
                         )}
@@ -831,7 +832,7 @@ export default function TaskItem({ task, onUpdate, onDelete, onToggleComplete, o
                 placeholder="Add note (Ctrl+Enter to save)"
                 autoFocus
                 rows={8}
-                className="px-1.5 py-0.5 text-[11px] border border-os-blue rounded-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-hidden w-full bg-os-input-bg text-os-text-primary resize-none"
+                className="px-1.5 py-0.5 text-2xs border border-os-blue rounded-sm focus:ring-1 focus:ring-os-blue/40 focus:border-os-blue outline-hidden w-full bg-os-input-bg text-os-text-primary resize-none"
               />
             </div>
           )}

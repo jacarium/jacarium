@@ -126,13 +126,13 @@ export default function JQLTemplateSidebar({
               <Loader size={12} className="animate-spin text-os-text-muted shrink-0" />
             )}
             {!loadingMetadata && jiraStatus === 'connected' && (
-              <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" title="Connected to Jira" />
+              <div className="w-2 h-2 rounded-full bg-(--chart-good) shrink-0" title="Connected to Jira" />
             )}
             {!loadingMetadata && jiraStatus === 'error' && (
-              <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" title="Disconnected from Jira" />
+              <div className="w-2 h-2 rounded-full bg-(--chart-bad) shrink-0" title="Disconnected from Jira" />
             )}
             {!loadingMetadata && cooldown > 0 && (
-              <div className="w-2 h-2 rounded-full bg-yellow-500 shrink-0" title={`Rate limit cooldown: ${cooldown}s`} />
+              <div className="w-2 h-2 rounded-full bg-(--chart-warn) shrink-0" title={`Rate limit cooldown: ${cooldown}s`} />
             )}
           </div>
           <div className="relative shrink-0" ref={menuRef}>
@@ -256,7 +256,7 @@ export default function JQLTemplateSidebar({
                             onContextMenu={(e) => onTemplateContextMenu?.(e, template)}
                             className={`group relative px-4 py-3 cursor-pointer transition-colors ${
  isActive
- ?'bg-blue-50 border-l-4 border-os-blue'
+ ?'bg-(--status-info-bg) border-l-4 border-os-blue'
  :'hover:bg-os-card-secondary border-l-4 border-transparent'
  }`}
                           >

@@ -99,25 +99,25 @@ export function NodeHeader({
   children
 }) {
   return (
-    <div className={`workflow-node-header px-3 py-2 ${isShared ? 'bg-pink-50' : 'bg-[#151515]'} rounded-t-lg border-b flex items-center gap-2 relative`}>
+    <div className={`workflow-node-header px-3 py-2 ${isShared ? 'bg-(--status-brand-bg)' : 'bg-[#151515]'} rounded-t-lg border-b flex items-center gap-2 relative`}>
       {hasExecInput && <ExecInputPin isConnectable={isConnectable} />}
       {hasExecOutput && <ExecOutputPin isConnectable={isConnectable} />}
 
       <div className="flex items-center gap-2">
-        <Icon size={16} className={isShared ? 'text-pink-600' : 'text-white'} />
+        <Icon size={16} className={isShared ? 'text-(--brand-accent)' : 'text-white'} />
         <span className="text-sm font-semibold text-white">{title}</span>
       </div>
 
       {status === 'processing' && (
         <div className="ml-auto">
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+          <div className="w-2 h-2 bg-os-blue rounded-full animate-pulse"></div>
         </div>
       )}
       {status === 'complete' && (
-        <span className={`${children ? '' : 'ml-auto'} text-xs text-green-600`}>✓</span>
+        <span className={`${children ? '' : 'ml-auto'} text-xs text-(--chart-good)`}>✓</span>
       )}
       {status === 'error' && (
-        <span className={`${children ? '' : 'ml-auto'} text-xs text-red-600`}>✗</span>
+        <span className={`${children ? '' : 'ml-auto'} text-xs text-(--chart-bad)`}>✗</span>
       )}
 
       {children}
@@ -139,7 +139,7 @@ export function ExecOutputPinWithLabel({ id, label, isConnectable }) {
 export function NodeError({ error, className = '' }) {
   if (!error) return null;
   return (
-    <div className={`text-xs text-red-600 bg-red-50 px-2 py-1 rounded-sm ${className}`.trim()}>
+    <div className={`text-xs text-(--status-danger-fg) bg-(--status-danger-bg) px-2 py-1 rounded-sm ${className}`.trim()}>
       Error: {error}
     </div>
   );
@@ -148,7 +148,7 @@ export function NodeError({ error, className = '' }) {
 /** Short usage hint shown inside a node body. */
 export function NodeHint({ children, className = '' }) {
   return (
-    <div className={`text-xs text-os-text-muted bg-blue-50 px-2 py-1.5 rounded-sm border border-blue-200 ${className}`.trim()}>
+    <div className={`text-xs text-os-text-muted bg-(--status-info-bg) px-2 py-1.5 rounded-sm border border-(--status-info-border) ${className}`.trim()}>
       {children}
     </div>
   );

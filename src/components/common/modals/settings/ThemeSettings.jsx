@@ -11,19 +11,6 @@ import {
 } from '../../../../utils/customThemes';
 import { schemeStarter, starterForScheme, themeFromStarter } from '../../../../utils/themeStarters';
 
-// Available zoom factors (1 = 100%). Must stay in sync with ZOOM_STEPS in
-// electron/main.cjs, which owns the actual zoom state (Cmd/Ctrl +, - and 0
-// walk the same list there).
-const ZOOM_LEVELS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
-
-// The current factor can land between our steps (e.g. after clamping or a
-// value written by an older version), so snap the dropdown to the closest
-// step rather than showing a blank selection.
-function closestZoomLevel(factor) {
-  return ZOOM_LEVELS.reduce((best, level) =>
-    Math.abs(level - factor) < Math.abs(best - factor) ? level : best, ZOOM_LEVELS[0]);
-}
-
 const systemPrefersDark = () => typeof window === 'undefined' || !window.matchMedia || window.matchMedia('(prefers-color-scheme: dark)').matches;
 
 /** The built-in scheme on screen ('auto' resolved through the system). */
@@ -61,10 +48,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
  * SettingsModal, which keeps the same state it kept when these lived under
  * General.
  */
-export default function ThemeSettings({ theme, setTheme, zoomFactor, setZoomFactor }) {
-  // Zoom is only controllable in the desktop app (it goes through
-  // webContents in the Electron main process); hide it in web mode.
-  const zoomSupported = typeof window !== 'undefined' && !!window.electronAPI?.setZoomFactor;
+export default function ThemeSettings({ theme, setTheme }) {
   // the custom themes live in the ThemeContext; a panel rendered without the provider (a test) shows the gallery only
   const ctx = useThemeOptional();
   const customThemes = ctx ? ctx.customThemes : [];
@@ -196,15 +180,6 @@ export default function ThemeSettings({ theme, setTheme, zoomFactor, setZoomFact
             )}
           />
         </div>
-      )}
-      {zoomSupported && (
-        <Field label="UI Scale" hint="Applied immediately to all windows and remembered across restarts. The Cmd/Ctrl +, - and 0 keyboard shortcuts change the same setting.">
-          <Select value={String(closestZoomLevel(zoomFactor ?? 0.9))} onChange={(e) => setZoomFactor(Number(e.target.value))} data-testid="theme-ui-scale">
-            {ZOOM_LEVELS.map((level) => (
-              <option key={level} value={String(level)}>{Math.round(level * 100)}%</option>
-            ))}
-          </Select>
-        </Field>
       )}
       <ConfirmationModal
         isOpen={pendingScheme !== null}

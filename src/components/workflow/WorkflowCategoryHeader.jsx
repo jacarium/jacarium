@@ -29,7 +29,7 @@ export default function WorkflowCategoryHeader({
     return (
       <div
         className={`w-full flex items-center gap-2 px-2 py-2 text-sm transition-colors ${
- isDragOver ?'bg-os-blue' :'bg-blue-50/20'
+ isDragOver ?'bg-os-blue' :'bg-(--status-info-bg)'
  }`}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
@@ -75,7 +75,7 @@ export default function WorkflowCategoryHeader({
     >
       <Chevron size={16} className="text-os-text-secondary shrink-0" />
       <div className="flex items-center gap-1.5 flex-1 min-w-0">
-        <span className={`font-medium text-left truncate ${hasSharedWorkflows ?'text-purple-700':''}`}>
+        <span className={`font-medium text-left truncate ${hasSharedWorkflows ?'text-(--status-brand-fg)':''}`}>
           {category}
         </span>
       </div>

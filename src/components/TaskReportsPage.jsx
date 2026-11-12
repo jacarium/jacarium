@@ -322,8 +322,8 @@ export default function TaskReportsPage() {
 
       {/* Report Form Modal */}
       {showReportForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-os-card dark:bg-os-sidebar rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="sc-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div role="dialog" aria-modal="true" aria-label="Report" className="sc-modal-panel bg-os-card dark:bg-os-sidebar rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-os-border dark:border-os-sidebar-hover">
               <h2 className="text-lg font-semibold text-os-text-primary">
                 {editingReport ? 'Edit Custom Report' : 'Create Custom Report'}
@@ -469,7 +469,7 @@ function ReportCard({ report, isCustom, isExecuting, isExpanded, results, onExec
                 className="p-1 hover:bg-os-card-secondary dark:hover:bg-os-sidebar-hover rounded-sm transition-colors"
                 title="Delete"
               >
-                <Trash2 className="w-4 h-4 text-red-400" />
+                <Trash2 className="w-4 h-4 text-(--chart-bad)" />
               </button>
             </div>
           )}

@@ -203,7 +203,7 @@ export default function ImportDBModal({
             onDrop={handleDrop}
             className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
  isDragging
- ?'border-os-blue bg-blue-50 dark:bg-blue-900/20'
+ ?'border-os-blue bg-(--status-info-bg)'
  :'border-os-input-border hover:border-os-text-muted'
  }`}
           >
@@ -227,11 +227,11 @@ export default function ImportDBModal({
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-3">
-            <AlertCircle size={20} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+          <div className="bg-(--status-danger-bg) border border-(--status-danger-border) rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle size={20} className="text-(--chart-bad) shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-red-900 dark:text-red-200">Import Error</p>
-              <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
+              <p className="text-sm font-medium text-(--status-danger-fg)">Import Error</p>
+              <p className="text-sm text-(--status-danger-fg) mt-1">{error}</p>
             </div>
           </div>
         )}
@@ -239,11 +239,11 @@ export default function ImportDBModal({
         {/* Preview */}
         {importData && (
           <div className="space-y-4">
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-              <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+            <div className="bg-(--status-info-bg) border border-(--status-info-border) rounded-lg p-4">
+              <p className="text-sm font-medium text-(--status-info-fg) mb-2">
                 Import Summary:
               </p>
-              <div className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
+              <div className="space-y-2 text-sm text-(--status-info-fg)">
                 <div className="flex items-center gap-2">
                   <FileText size={14} />
                   <span>{importData.documents?.length || 0} documents</span>
@@ -322,7 +322,7 @@ export default function ImportDBModal({
                 )}
               </div>
               {importData.exportDate && (
-                <p className="text-xs text-blue-700 dark:text-blue-300 mt-3">
+                <p className="text-xs text-(--status-info-fg) mt-3">
                   Exported on: {new Date(importData.exportDate).toLocaleString()}
                 </p>
               )}
@@ -338,17 +338,17 @@ export default function ImportDBModal({
             />
 
             {mergeMode ? (
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex items-start gap-3">
-                <AlertCircle size={20} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+              <div className="bg-(--status-info-bg) border border-(--status-info-border) rounded-lg p-4 flex items-start gap-3">
+                <AlertCircle size={20} className="text-(--chart-info) shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">Merge Mode</p>
-                  <p className="text-sm text-blue-800 dark:text-blue-200 mt-1">
+                  <p className="text-sm font-medium text-(--status-info-fg)">Merge Mode</p>
+                  <p className="text-sm text-(--status-info-fg) mt-1">
                     Your existing data will be kept. Matching records have their empty
                     fields filled in from the import (and are replaced only when the
                     imported version is newer); new records are added.
                   </p>
                   {hasTaskwarriorTasks(importData) && (
-                    <p className="text-sm text-blue-800 dark:text-blue-200 mt-1">
+                    <p className="text-sm text-(--status-info-fg) mt-1">
                       TaskWarrior tasks are matched to your instances by name and applied
                       through the TaskWarrior CLI where it answers (new and newer tasks are
                       imported by uuid; tasks you deleted here are never brought back). Where
@@ -358,14 +358,14 @@ export default function ImportDBModal({
                 </div>
               </div>
             ) : (
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 flex items-start gap-3">
-                <AlertCircle size={20} className="text-yellow-600 dark:text-yellow-400 shrink-0 mt-0.5" />
+              <div className="bg-(--status-warning-bg) border border-(--status-warning-border) rounded-lg p-4 flex items-start gap-3">
+                <AlertCircle size={20} className="text-(--chart-warn) shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">Warning</p>
-                  <p className="text-sm text-yellow-800 dark:text-yellow-200 mt-1">
+                  <p className="text-sm font-medium text-(--status-warning-fg)">Warning</p>
+                  <p className="text-sm text-(--status-warning-fg) mt-1">
                     This will replace all existing data with the imported database. This action cannot be undone.
                   </p>
-                  <p className="text-sm text-yellow-800 dark:text-yellow-200 mt-1">
+                  <p className="text-sm text-(--status-warning-fg) mt-1">
                     TaskWarrior tasks: only the app's local task cache is replaced. Nothing is
                     deleted, purged or imported in your TaskWarrior data files; the Tasks page
                     re-syncs from the CLI when an instance opens.

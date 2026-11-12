@@ -67,14 +67,14 @@ export default function TextDiffTool() {
             {(text1 || text2) ? (
               diff.map((part, index) => {
                 const bgColor = part.added
-                  ? 'bg-green-100 dark:bg-green-900/30'
+                  ? 'bg-(--status-success-bg)'
                   : part.removed
-                  ? 'bg-red-100 dark:bg-red-900/30'
+                  ? 'bg-(--status-danger-bg)'
                   : '';
                 const textColor = part.added
-                  ? 'text-green-800 dark:text-green-300'
+                  ? 'text-(--status-success-fg)'
                   : part.removed
-                  ? 'text-red-800 dark:text-red-300'
+                  ? 'text-(--status-danger-fg)'
                   : 'text-os-text-primary';
 
                 return (

@@ -1098,11 +1098,11 @@ export default function DocumentSidebar({
  selectionMode && selectedDocuments.includes(doc.id)
  ?'text-os-text-primary'
  : isCloudDoc && (isInLeftPane || isInRightPane || isInBothPanes) && !selectionMode
- ?'text-purple-700'
+ ?'text-(--status-brand-fg)'
  : isInBothPanes && !selectionMode
  ?'text-os-blue'
  : isInRightPane && !selectionMode
- ?'text-green-600'
+ ?'text-(--chart-good)'
  : isInLeftPane && !selectionMode
  ?'text-os-blue'
  :'text-os-text-muted'
@@ -1112,11 +1112,11 @@ export default function DocumentSidebar({
  selectionMode && selectedDocuments.includes(doc.id)
  ?'text-os-text-primary'
  : isCloudDoc && (isInLeftPane || isInRightPane || isInBothPanes) && !selectionMode
- ?'text-purple-700'
+ ?'text-(--status-brand-fg)'
  : isInBothPanes && !selectionMode
  ?'text-os-blue'
  : isInRightPane && !selectionMode
- ?'text-green-600'
+ ?'text-(--chart-good)'
  : isInLeftPane && !selectionMode
  ?'text-os-blue'
  :'text-os-text-primary'
@@ -1128,13 +1128,13 @@ export default function DocumentSidebar({
                       {doc.inCloud && (
                         <div className="flex items-center gap-0.5" title={doc.ownerId === currentMachineId ? 'Shared with the team by you' : `Shared with the team by ${doc.ownerId || 'Unknown'}`}>
                           {doc.ownerId === currentMachineId && (
-                            <Crown size={10} className="text-purple-600" />
+                            <Crown size={10} className="text-(--brand-accent)" />
                           )}
-                          <Cloud size={12} className="text-purple-600" />
+                          <Cloud size={12} className="text-(--brand-accent)" />
                         </div>
                       )}
                       {doc.locked && (
-                        <Lock size={12} className="text-yellow-600" title="Locked" />
+                        <Lock size={12} className="text-(--chart-warn)" title="Locked" />
                       )}
                     </div>
                   </div>
@@ -1149,11 +1149,11 @@ export default function DocumentSidebar({
                 // Cloud documents get purple background with dynamic border color (unless in selection mode)
                 if (isCloudDoc && !selectionMode) {
                   if (isInBothPanes) {
-                    return 'group relative px-4 py-3 cursor-pointer transition-colors border-l-4 bg-purple-100 hover:bg-purple-200';
+                    return 'group relative px-4 py-3 cursor-pointer transition-colors border-l-4 bg-(--status-brand-bg) hover:bg-(--status-brand-border)';
                   } else if (isInLeftPane || isInRightPane) {
-                    return 'group relative px-4 py-3 cursor-pointer transition-colors border-l-4 bg-purple-100 hover:bg-purple-200';
+                    return 'group relative px-4 py-3 cursor-pointer transition-colors border-l-4 bg-(--status-brand-bg) hover:bg-(--status-brand-border)';
                   } else {
-                    return 'group relative px-4 py-3 cursor-pointer transition-colors border-l-4 bg-purple-50 hover:bg-purple-100';
+                    return 'group relative px-4 py-3 cursor-pointer transition-colors border-l-4 bg-(--status-brand-bg) hover:bg-(--status-brand-border)';
                   }
                 }
 
@@ -1176,9 +1176,9 @@ export default function DocumentSidebar({
                       : isInBothPanes && !selectionMode
                       ? 'border-os-blue'
                       : isInRightPane && !selectionMode
-                      ? 'bg-green-50 border-green-600'
+                      ? 'bg-(--status-success-bg) border-(--chart-good)'
                       : isInLeftPane && !selectionMode
-                      ? 'bg-blue-50 border-os-blue'
+                      ? 'bg-(--status-info-bg) border-os-blue'
                       : 'hover:bg-os-card-secondary border-transparent'
                   }
                 `;
@@ -1457,7 +1457,7 @@ export default function DocumentSidebar({
                     handleDeleteClick(contextMenu.target);
                     closeContextMenu();
                   }}
-                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-os-card-secondary flex items-center gap-2"
+                  className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
                 >
                   <MenuItemIcon action="delete" danger />
                   Delete Document
@@ -1578,7 +1578,7 @@ export default function DocumentSidebar({
                   onBulkDelete && onBulkDelete();
                   closeContextMenu();
                 }}
-                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-os-card-secondary flex items-center gap-2"
+                className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
               >
                 <MenuItemIcon action="delete" danger />
                 Delete Selected
@@ -1762,7 +1762,7 @@ export default function DocumentSidebar({
                         }
                         closeContextMenu();
                       }}
-                      className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-os-card-secondary flex items-center gap-2"
+                      className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
                     >
                       <MenuItemIcon action="delete" danger />
                       Delete Empty Category
@@ -1939,7 +1939,7 @@ export default function DocumentSidebar({
           message={
             <div>
               <p className="mb-2">
-                You are about to delete <strong>"{documentToDelete?.title}"</strong> which is <strong className="text-orange-600">🔒 LOCKED</strong>.
+                You are about to delete <strong>"{documentToDelete?.title}"</strong> which is <strong className="text-(--chart-warn)">🔒 LOCKED</strong>.
               </p>
               <p>
                 This action cannot be undone.
@@ -2050,11 +2050,11 @@ export default function DocumentSidebar({
             )}
 
             {base64Mode === 'import' && base64Error && (
-              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm flex items-start gap-2">
-                <AlertCircle size={16} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+              <div className="mb-4 p-3 bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm flex items-start gap-2">
+                <AlertCircle size={16} className="text-(--chart-bad) shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <div className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">Validation Error</div>
-                  <div className="text-sm text-red-700 dark:text-red-300">{base64Error}</div>
+                  <div className="text-sm font-medium text-(--status-danger-fg) mb-1">Validation Error</div>
+                  <div className="text-sm text-(--status-danger-fg)">{base64Error}</div>
                 </div>
               </div>
             )}

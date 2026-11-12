@@ -148,7 +148,7 @@ export default function EventDetailsModal({ isOpen, onClose, eventId, calendarId
               {event.description && (
                 <div className="pt-2 border-t border-os-border">
                   <p className="text-sm font-medium text-os-text-primary mb-2">Description</p>
-                  <p className="text-sm text-os-text-secondary whitespace-pre-wrap">
+                  <p className="ra-reading ra-reading-sm text-sm text-os-text-secondary whitespace-pre-wrap">
                     {event.description}
                   </p>
                 </div>

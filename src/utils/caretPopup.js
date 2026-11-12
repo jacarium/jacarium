@@ -8,8 +8,13 @@
  * hook (src/components/features/documents/useCaretPopup.js) measures the
  * caret, the popup and the window, and writes what this returns.
  *
+ * The caret popups' wrapper over the shared placement
+ * (src/utils/popupPlacement.js), which every menu and dropdown uses too:
+ * a wider gap (the caret's line stays readable), no horizontal flip.
+ *
  * Coordinates are viewport pixels (position: fixed).
  */
+import { placePopup } from './popupPlacement.js';
 
 /** The gap between the caret's line and the popup, and the popup's margin to the viewport's edges. */
 export const CARET_POPUP_GAP = 10;
@@ -25,21 +30,5 @@ export const CARET_POPUP_MARGIN = 8;
  * @returns {{left:number, top:number, maxHeight:number, placement:'below'|'above'}}
  */
 export function placeCaretPopup({ caret, popup, viewport, gap = CARET_POPUP_GAP, margin = CARET_POPUP_MARGIN }) {
-  const width = Math.max(0, popup.width || 0);
-  const height = Math.max(0, popup.height || 0);
-  // a caret scrolled past the window's edge (a resize, a scroll with the popup open) anchors at that edge
-  const clampY = (y) => Math.max(margin, Math.min(y, viewport.height - margin));
-  caret = { left: caret.left, top: clampY(caret.top), bottom: clampY(caret.bottom) };
-  const roomBelow = Math.max(0, viewport.height - caret.bottom - gap - margin);
-  const roomAbove = Math.max(0, caret.top - gap - margin);
-  let placement;
-  if (height <= roomBelow) placement = 'below';
-  else if (height <= roomAbove) placement = 'above';
-  else placement = roomAbove > roomBelow ? 'above' : 'below';
-  const room = placement === 'below' ? roomBelow : roomAbove;
-  const maxHeight = Math.max(0, Math.min(height, room));
-  const top = placement === 'below' ? caret.bottom + gap : caret.top - gap - maxHeight;
-  // never off the right edge; when the viewport is narrower than the popup, the margin on the left wins
-  const left = Math.max(margin, Math.min(caret.left, viewport.width - width - margin));
-  return { left: Math.round(left), top: Math.round(Math.max(margin, top)), maxHeight: Math.round(maxHeight), placement };
+  return placePopup({ anchor: { left: caret.left, right: caret.left, top: caret.top, bottom: caret.bottom }, popup, viewport, side: 'below', align: 'start', flip: false, gap, margin });
 }

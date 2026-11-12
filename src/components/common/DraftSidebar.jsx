@@ -252,6 +252,8 @@ export default function DraftSidebar({ isOpen, side = 'left' }) {
       minWidth={300}
       maxWidth={600}
       storageKey="draft-sidebar-width"
+      zenPanelId="draft"
+      zenPanelLabel="Quick Notes"
       side={side}
       canvasMinWidth={480}
       testId="panel-quick-notes"
@@ -275,7 +277,7 @@ export default function DraftSidebar({ isOpen, side = 'left' }) {
                 onBlur={handleTitleBlur}
                 onKeyDown={handleTitleKeyDown}
                 placeholder="Untitled"
-                className="flex-1 px-2 py-1 text-sm border border-purple-500 rounded-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-hidden bg-os-input-bg text-os-text-primary placeholder:text-os-text-muted"
+                className="flex-1 px-2 py-1 text-sm border border-(--brand-accent) rounded-sm focus:ring-2 focus:ring-(--brand-accent) focus:border-(--brand-accent) outline-hidden bg-os-input-bg text-os-text-primary placeholder:text-os-text-muted"
               />
             ) : (
               <div
@@ -287,7 +289,7 @@ export default function DraftSidebar({ isOpen, side = 'left' }) {
               </div>
             )}
             {hasUnsavedChanges && (
-              <span className="text-xs text-orange-600 font-medium">Unsaved</span>
+              <span className="text-xs text-(--chart-warn) font-medium">Unsaved</span>
             )}
           </div>
         </div>
@@ -401,7 +403,7 @@ export default function DraftSidebar({ isOpen, side = 'left' }) {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search documents..."
-              className="w-full px-3 py-2 text-sm border border-os-input-border rounded-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-hidden mb-2 bg-os-input-bg text-os-text-primary"
+              className="w-full px-3 py-2 text-sm border border-os-input-border rounded-sm focus:ring-2 focus:ring-(--brand-accent) focus:border-(--brand-accent) outline-hidden mb-2 bg-os-input-bg text-os-text-primary"
             />
             <div className="max-h-48 overflow-y-auto space-y-1">
               {filteredDocuments.map(doc => (

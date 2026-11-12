@@ -118,7 +118,7 @@ export default function BoardSettingsModal({ isOpen, onClose, onSave, board }) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="My Kanban Board"
-              className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-modal text-os-text-primary"
+              className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden text-sm bg-os-modal text-os-text-primary"
               required
             />
           </div>
@@ -133,7 +133,7 @@ export default function BoardSettingsModal({ isOpen, onClose, onSave, board }) {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Board description"
               rows={2}
-              className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-modal text-os-text-primary resize-none"
+              className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden text-sm bg-os-modal text-os-text-primary resize-none"
             />
           </div>
 
@@ -147,7 +147,7 @@ export default function BoardSettingsModal({ isOpen, onClose, onSave, board }) {
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               placeholder="General"
-              className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-modal text-os-text-primary"
+              className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden text-sm bg-os-modal text-os-text-primary"
             />
           </div>
         </div>
@@ -178,7 +178,7 @@ export default function BoardSettingsModal({ isOpen, onClose, onSave, board }) {
                   type="text"
                   value={column.title}
                   onChange={(e) => handleUpdateColumn(index, 'title', e.target.value)}
-                  className="flex-1 px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-modal text-os-text-primary"
+                  className="flex-1 px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden text-sm bg-os-modal text-os-text-primary"
                   placeholder="Column name"
                 />
 

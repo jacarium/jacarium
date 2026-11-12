@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import BaseModal from './common/modals/BaseModal';
 import { X, Save } from 'lucide-react';
 import { useNotifications } from '../contexts/NotificationContext';
 
@@ -47,8 +48,7 @@ export default function SaveQueryModal({ isOpen, onClose, onSave, currentJQL }) 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 font-text">
-      <div className="bg-os-modal shadow-xl max-w-md w-full border-4 border-rh-red">
+    <BaseModal isOpen onClose={onClose} closeOnBackdropClick={false} className="bg-os-modal shadow-xl max-w-md w-full border-4 border-rh-red font-text" ariaLabel="Save Query">
         {/* Header */}
         <div className="p-4 border-b-2 border-rh-border bg-rh-gray flex items-center justify-between">
           <h2 className="text-lg font-semibold text-os-text-primary">Save Query</h2>
@@ -103,7 +103,6 @@ export default function SaveQueryModal({ isOpen, onClose, onSave, currentJQL }) 
             {saving ? 'Saving...' : 'Save Query'}
           </button>
         </div>
-      </div>
-    </div>
+    </BaseModal>
   );
 }

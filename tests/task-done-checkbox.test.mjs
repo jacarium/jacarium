@@ -73,7 +73,7 @@ async function waitFor(fn, timeout = 8000) {
 const itemSrc = fs.readFileSync(path.join(REPO, 'src/components/tasks/TaskItem.jsx'), 'utf8');
 check('TaskItem imports CheckCircle and Circle from lucide-react and renders one of them inside the done button',
   /import \{[^}]*\bCheckCircle\b[^}]*\bCircle\b[^}]*\} from 'lucide-react'/.test(itemSrc) &&
-  /data-testid="task-done-toggle"\s*>\s*\{isCompleted \? \(\s*<CheckCircle className="w-4 h-4 text-green-500" \/>\s*\) : \(\s*<Circle className=\{`w-4 h-4 text-os-text-muted \$\{!isReadOnly \? 'hover:text-os-blue transition-colors' : ''\}`\} \/>/.test(itemSrc));
+  /data-testid="task-done-toggle"\s*>\s*\{isCompleted \? \(\s*<CheckCircle className="w-4 h-4 text-\(--chart-good\)" \/>\s*\) : \(\s*<Circle className=\{`w-4 h-4 text-os-text-muted \$\{!isReadOnly \? 'hover:text-os-blue transition-colors' : ''\}`\} \/>/.test(itemSrc));
 
 // ---------- bundle ----------
 const ENTRY = path.join(WORKDIR, 'entry.jsx');
@@ -193,8 +193,8 @@ const doneBtn = await waitFor(() => {
   if (filter) click(filter);
   return waitFor(() => toggles().find((b) => b.getAttribute('aria-pressed') === 'true') || null, 8000);
 })();
-check('the completed task\'s checkbox shows CheckCircle in green, reads "Mark as not done" and is pressed',
-  !!doneBtn && /lucide-circle-check/.test(iconOf(doneBtn)) && /text-green-500/.test(iconOf(doneBtn)) && doneBtn.getAttribute('aria-label') === 'Mark as not done' && doneBtn.getAttribute('aria-pressed') === 'true',
+check('the completed task\'s checkbox shows CheckCircle in the success colour (--chart-good), reads "Mark as not done" and is pressed',
+  !!doneBtn && /lucide-circle-check/.test(iconOf(doneBtn)) && /text-\(--chart-good\)/.test(iconOf(doneBtn)) && doneBtn.getAttribute('aria-label') === 'Mark as not done' && doneBtn.getAttribute('aria-pressed') === 'true',
   doneBtn ? `${iconOf(doneBtn)} ${doneBtn.getAttribute('aria-label')}` : `not found; toggles=${toggles().length} fetch=${fetchLog.slice(-3).join(',')}`);
 const cliCalls = fetchLog.filter((l) => /taskwarrior/.test(l)).length;
 check('the toggle also tried to sync the change to TaskWarrior (the CLI call, failing harmlessly without a backend)', cliCalls >= 1, fetchLog.join(','));
@@ -222,7 +222,7 @@ await sleep(50);
 /* ---------- 3. an editable item calls back ---------- */
 H.mount('item', { task: { id: 992, uuid: 'rw-1', description: 'Editable row', status: 'completed', entry: now, modified: now }, onToggleComplete: () => { toggled += 1; } });
 const rw = await waitFor(() => document.querySelector('[data-testid="task-done-toggle"]'));
-check('a completed editable item shows the green CheckCircle and is enabled', !!rw && !rw.disabled && /lucide-circle-check/.test(iconOf(rw)) && /text-green-500/.test(iconOf(rw)), rw ? iconOf(rw) : 'none');
+check('a completed editable item shows the CheckCircle in the success colour and is enabled', !!rw && !rw.disabled && /lucide-circle-check/.test(iconOf(rw)) && /text-\(--chart-good\)/.test(iconOf(rw)), rw ? iconOf(rw) : 'none');
 if (rw) click(rw);
 await sleep(50);
 check('clicking it calls onToggleComplete once', toggled === 1, toggled);

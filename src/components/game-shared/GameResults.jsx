@@ -57,18 +57,18 @@ export default function GameResults({
   const getModeColor = () => {
     switch (gameMode) {
       case 'quiz': return 'text-os-blue';
-      case 'grid': return 'text-yellow-500';
-      case 'tiles': return 'text-purple-500';
+      case 'grid': return 'text-(--chart-warn)';
+      case 'tiles': return 'text-(--brand-accent)';
       default: return 'text-os-blue';
     }
   };
 
   const getButtonColor = () => {
     switch (gameMode) {
-      case 'quiz': return 'bg-blue-600 hover:bg-blue-700';
-      case 'grid': return 'bg-yellow-600 hover:bg-yellow-700';
-      case 'tiles': return 'bg-purple-600 hover:bg-purple-700';
-      default: return 'bg-os-blue hover:bg-blue-600';
+      case 'quiz': return 'bg-os-blue hover:bg-os-blue-hover';
+      case 'grid': return 'bg-(--chart-warn) hover:bg-(--chart-warn)';
+      case 'tiles': return 'bg-(--brand-accent) hover:bg-(--brand-accent)';
+      default: return 'bg-os-blue hover:bg-os-blue-hover';
     }
   };
 
@@ -90,18 +90,18 @@ export default function GameResults({
         ) : hasMultipleWinners ? (
           <>
             <p className="text-sm text-os-text-secondary">
-              Winners: <span className="font-bold text-blue-600">{winners.map(w => w.name).join(', ')}</span>
+              Winners: <span className="font-bold text-(--chart-info)">{winners.map(w => w.name).join(', ')}</span>
             </p>
-            <p className="text-xl font-bold text-green-600 mt-1">
+            <p className="text-xl font-bold text-(--chart-good) mt-1">
               {topScore} {gameMode === 'tiles' ? 'moves' : 'points'}
             </p>
           </>
         ) : (
           <>
             <p className="text-sm text-os-text-secondary">
-              Winner: <span className="font-bold text-blue-600">{winners[0]?.name || 'Unknown'}</span>
+              Winner: <span className="font-bold text-(--chart-info)">{winners[0]?.name || 'Unknown'}</span>
             </p>
-            <p className="text-xl font-bold text-green-600 mt-1">
+            <p className="text-xl font-bold text-(--chart-good) mt-1">
               {topScore} {gameMode === 'tiles' ? 'moves' : 'points'}
             </p>
           </>
@@ -135,11 +135,11 @@ export default function GameResults({
               <div className="flex items-center gap-3">
                 <div className="w-6 text-center">
                   {idx === 0 ? (
-                    <Trophy size={16} className="text-yellow-500 inline" />
+                    <Trophy size={16} className="text-(--chart-warn) inline" />
                   ) : idx === 1 ? (
                     <Trophy size={14} className="text-os-text-muted inline" />
                   ) : idx === 2 ? (
-                    <Trophy size={12} className="text-orange-600 inline" />
+                    <Trophy size={12} className="text-(--chart-warn) inline" />
                   ) : (
                     <span className="text-xs text-os-text-muted">#{idx + 1}</span>
                   )}
@@ -148,7 +148,7 @@ export default function GameResults({
                   <div className="text-sm font-medium text-os-text-primary flex items-center gap-2 flex-wrap">
                     <span>{player.name}</span>
                     {player.id === currentMachineId && (
-                      <span className="text-xs bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-sm">
+                      <span className="text-xs bg-(--status-info-bg) text-(--status-info-fg) px-1.5 py-0.5 rounded-sm">
                         You
                       </span>
                     )}
@@ -158,7 +158,7 @@ export default function GameResults({
                       </span>
                     )}
                     {player.antiCheat && (
-                      <span className="text-xs bg-red-50 dark:bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-sm border border-red-500">
+                      <span className="text-xs bg-(--status-danger-bg) text-(--status-danger-fg) px-1.5 py-0.5 rounded-sm border border-(--chart-bad)">
                         Anti-cheat detected irregular user behaviour
                       </span>
                     )}
@@ -185,13 +185,13 @@ export default function GameResults({
 
       {/* Anti-cheat warnings (if any) */}
       {additionalData.antiCheatWarnings && additionalData.antiCheatWarnings.length > 0 && (
-        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-sm p-3 mb-4">
-          <h4 className="text-xs font-semibold text-red-800 dark:text-red-200 mb-2">
+        <div className="bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm p-3 mb-4">
+          <h4 className="text-xs font-semibold text-(--status-danger-fg) mb-2">
             Anti-Cheat Warnings:
           </h4>
           <div className="space-y-1">
             {additionalData.antiCheatWarnings.map((warning, idx) => (
-              <p key={idx} className="text-xs text-red-700 dark:text-red-300">
+              <p key={idx} className="text-xs text-(--status-danger-fg)">
                 {warning}
               </p>
             ))}
@@ -224,7 +224,7 @@ export default function GameResults({
                     <span className="text-xs font-bold text-os-text-muted">Q{idx + 1}</span>
                     <div className="flex-1">
                       <p className="text-xs font-medium text-os-text-primary mb-1">{q.question}</p>
-                      <p className="text-xs text-green-600 dark:text-green-400">
+                      <p className="text-xs text-(--chart-good)">
                         Answer: <span className="font-semibold">{q.answer}</span>
                       </p>
                       {correctPlayerNames.length > 0 ? (

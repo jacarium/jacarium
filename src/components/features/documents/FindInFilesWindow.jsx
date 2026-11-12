@@ -260,7 +260,7 @@ export default function FindInFilesWindow({
               spellCheck={false}
               autoComplete="off"
               aria-label="Find in files"
-              className={`w-full pl-8 pr-[132px] py-1.5 text-sm rounded-sm border bg-os-input-bg text-os-text-primary placeholder:text-os-text-muted outline-hidden focus:border-os-blue focus:ring-1 focus:ring-os-blue font-mono ${error ?'border-red-500':'border-os-input-border'}`}
+              className={`w-full pl-8 pr-[132px] py-1.5 text-sm rounded-sm border bg-os-input-bg text-os-text-primary placeholder:text-os-text-muted outline-hidden focus:border-os-blue focus:ring-1 focus:ring-os-blue font-mono ${error ?'border-(--chart-bad)':'border-os-input-border'}`}
             />
             <div className="absolute right-1.5 flex items-center gap-0.5">
               {query && (
@@ -303,7 +303,7 @@ export default function FindInFilesWindow({
             </select>
           </div>
           {error && (
-            <div className="mt-1 text-xs text-red-600 dark:text-red-400" data-find-error="true">{error}</div>
+            <div className="mt-1 text-xs text-(--chart-bad)" data-find-error="true">{error}</div>
           )}
         </div>
 
@@ -431,7 +431,7 @@ function highlightSegments(text, ranges, offset = 0) {
     if (s > cursor) segments.push(<span key={`t${i}`}>{text.slice(cursor, s)}</span>);
     if (e > s) {
       segments.push(
-        <mark key={`m${i}`} className="rounded-xs bg-yellow-200/90 dark:bg-yellow-400/30 text-os-text-primary">
+        <mark key={`m${i}`} className="rounded-xs bg-(--chart-warn)/35 text-os-text-primary">
           {text.slice(s, e)}
         </mark>
       );

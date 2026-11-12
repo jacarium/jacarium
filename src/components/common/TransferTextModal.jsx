@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import BaseModal from './modals/BaseModal';
 import { X } from 'lucide-react';
 
 /**
@@ -47,8 +48,7 @@ export default function TransferTextModal({ mode = 'export', format = 'base64', 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" data-testid={`transfer-modal-${format}`}>
-      <div className="bg-os-card rounded-lg shadow-xl w-full max-w-3xl mx-4 p-6">
+    <BaseModal isOpen onClose={onClose} closeOnBackdropClick={false} className="bg-os-card rounded-lg shadow-xl w-full max-w-3xl mx-4 p-6" ariaLabel={title} testId={`transfer-modal-${format}`}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-os-text-primary">{title}</h3>
           <button
@@ -74,7 +74,7 @@ export default function TransferTextModal({ mode = 'export', format = 'base64', 
               data-testid="transfer-text"
             />
             {isJson && (
-              <span className="absolute bottom-3 right-3 px-2 py-0.5 text-[11px] rounded-sm bg-os-card-secondary text-os-text-secondary border border-os-border" data-testid="transfer-line-count">
+              <span className="absolute bottom-3 right-3 px-2 py-0.5 text-2xs rounded-sm bg-os-card-secondary text-os-text-secondary border border-os-border" data-testid="transfer-line-count">
                 {lines} {lines === 1 ? 'line' : 'lines'}
               </span>
             )}
@@ -128,7 +128,6 @@ export default function TransferTextModal({ mode = 'export', format = 'base64', 
             </button>
           </div>
         )}
-      </div>
-    </div>
+    </BaseModal>
   );
 }

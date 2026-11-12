@@ -258,7 +258,7 @@ export default function FloatingQuiz() {
             className="p-1 hover:bg-os-card-secondary rounded-sm transition-colors text-os-text-secondary"
             title="Expand"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" data-icon>
               <polyline points="15 3 21 3 21 9" />
               <polyline points="9 21 3 21 3 15" />
               <line x1="21" y1="3" x2="14" y2="10" />

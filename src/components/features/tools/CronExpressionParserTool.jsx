@@ -456,8 +456,8 @@ export default function CronExpressionParserTool() {
 
         {/* Error */}
         {error && (
-          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-sm">
-            <p className="text-sm text-red-400">{error}</p>
+          <div className="p-3 bg-(--status-danger-bg) border border-(--chart-bad)/30 rounded-sm">
+            <p className="text-sm text-(--chart-bad)">{error}</p>
           </div>
         )}
 

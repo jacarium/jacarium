@@ -240,8 +240,8 @@ export default function TaskInstanceManager({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-os-card rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+    <div className="sc-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div role="dialog" aria-modal="true" aria-label="Taskwarrior instance" className="sc-modal-panel bg-os-card rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-os-border">
           <h2 className="text-lg font-semibold text-os-text-primary flex items-center gap-2">
@@ -300,7 +300,7 @@ export default function TaskInstanceManager({ isOpen, onClose }) {
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-os-card-secondary border border-os-border rounded-sm text-os-text-primary placeholder:text-os-text-muted focus:outline-hidden focus:border-blue-500"
+                  className="w-full px-3 py-2 bg-os-card-secondary border border-os-border rounded-sm text-os-text-primary placeholder:text-os-text-muted focus:outline-hidden focus:border-os-blue"
                   placeholder="e.g., Personal Tasks, Work Projects"
                   required
                 />
@@ -313,7 +313,7 @@ export default function TaskInstanceManager({ isOpen, onClose }) {
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3 py-2 bg-os-card-secondary border border-os-border rounded-sm text-os-text-primary placeholder:text-os-text-muted focus:outline-hidden focus:border-blue-500 resize-none"
+                  className="w-full px-3 py-2 bg-os-card-secondary border border-os-border rounded-sm text-os-text-primary placeholder:text-os-text-muted focus:outline-hidden focus:border-os-blue resize-none"
                   placeholder="Optional description"
                   rows={2}
                 />
@@ -328,7 +328,7 @@ export default function TaskInstanceManager({ isOpen, onClose }) {
                     type="text"
                     value={formData.dataPath}
                     onChange={(e) => setFormData({ ...formData, dataPath: e.target.value })}
-                    className="flex-1 px-3 py-2 bg-os-card-secondary border border-os-border rounded-sm text-os-text-primary placeholder:text-os-text-muted focus:outline-hidden focus:border-blue-500"
+                    className="flex-1 px-3 py-2 bg-os-card-secondary border border-os-border rounded-sm text-os-text-primary placeholder:text-os-text-muted focus:outline-hidden focus:border-os-blue"
                     placeholder="e.g., ~/.task-personal or ~/tasks/work"
                     required
                   />
@@ -354,7 +354,7 @@ export default function TaskInstanceManager({ isOpen, onClose }) {
                   type="text"
                   value={formData.rcPath}
                   onChange={(e) => setFormData({ ...formData, rcPath: e.target.value })}
-                  className="w-full px-3 py-2 bg-os-card-secondary border border-os-border rounded-sm text-os-text-primary placeholder:text-os-text-muted focus:outline-hidden focus:border-blue-500"
+                  className="w-full px-3 py-2 bg-os-card-secondary border border-os-border rounded-sm text-os-text-primary placeholder:text-os-text-muted focus:outline-hidden focus:border-os-blue"
                   placeholder="e.g., ~/.taskrc-personal (leave empty for default)"
                 />
                 <p className="text-xs text-os-text-muted mt-1">
@@ -367,14 +367,14 @@ export default function TaskInstanceManager({ isOpen, onClose }) {
               {validationStatus && (
                 <div className={`p-3 rounded-lg ${
  validationStatus.valid
- ?'bg-green-900/20 border border-green-700'
- :'bg-red-900/20 border border-red-700'
+ ?'bg-(--status-success-bg) border border-(--chart-good)'
+ :'bg-(--status-danger-bg) border border-(--chart-bad)'
  }`}>
                   <div className="flex items-start gap-2">
                     {validationStatus.valid ? (
-                      <CheckCircle className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+                      <CheckCircle className="w-5 h-5 text-(--chart-good) shrink-0 mt-0.5" />
                     ) : (
-                      <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                      <AlertCircle className="w-5 h-5 text-(--chart-bad) shrink-0 mt-0.5" />
                     )}
                     <div className="flex-1">
                       <p className="font-medium text-sm">
@@ -383,14 +383,14 @@ export default function TaskInstanceManager({ isOpen, onClose }) {
                       {validationStatus.errors.length > 0 && (
                         <ul className="text-sm mt-1 space-y-1">
                           {validationStatus.errors.map((error, idx) => (
-                            <li key={idx} className="text-red-300">• {error}</li>
+                            <li key={idx} className="text-(--chart-bad)">• {error}</li>
                           ))}
                         </ul>
                       )}
                       {validationStatus.warnings.length > 0 && (
                         <ul className="text-sm mt-1 space-y-1">
                           {validationStatus.warnings.map((warning, idx) => (
-                            <li key={idx} className="text-yellow-300">• {warning}</li>
+                            <li key={idx} className="text-(--chart-warn)">• {warning}</li>
                           ))}
                         </ul>
                       )}
@@ -499,7 +499,7 @@ function InstanceCard({ instance, isActive, onEdit, onDelete, onSetActive }) {
   return (
     <div className={`p-4 rounded-lg border ${
  isActive
- ?'bg-blue-900/20 border-blue-700'
+ ?'bg-(--status-info-bg) border-os-blue'
  :'bg-os-card-secondary border-os-border'
  }`}>
       <div className="flex items-start justify-between">
@@ -507,12 +507,12 @@ function InstanceCard({ instance, isActive, onEdit, onDelete, onSetActive }) {
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-os-text-primary">{instance.name}</h3>
             {isActive && (
-              <span className="px-2 py-0.5 bg-blue-600 text-os-text-primary text-xs rounded-sm">
+              <span className="px-2 py-0.5 bg-os-blue text-os-text-primary text-xs rounded-sm">
                 Active
               </span>
             )}
             {instance.inCloud === 1 && (
-              <span className="px-2 py-0.5 bg-purple-600 text-os-text-primary text-xs rounded-sm">
+              <span className="px-2 py-0.5 bg-(--brand-accent) text-os-text-primary text-xs rounded-sm">
                 Shared
               </span>
             )}
@@ -563,7 +563,7 @@ function InstanceCard({ instance, isActive, onEdit, onDelete, onSetActive }) {
             className="p-2 hover:bg-os-card-secondary rounded-sm transition-colors"
             title="Delete"
           >
-            <Trash2 className="w-4 h-4 text-red-400" />
+            <Trash2 className="w-4 h-4 text-(--chart-bad)" />
           </button>
         </div>
       </div>

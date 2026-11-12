@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import BaseModal from '../common/modals/BaseModal';
 import { X, Search, ChevronRight, ChevronDown, Database, Loader2 } from 'lucide-react';
 import { getDocuments } from '../../utils/documents';
 import { getDocumentCategories } from '../../utils/documentCategories';
@@ -158,12 +159,11 @@ export default function DatasetSelectionModal({ isOpen, onClose, selectedDocumen
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-os-card rounded-lg shadow-xl w-full max-w-2xl max-h-[70vh] flex flex-col border border-os-border">
+    <BaseModal isOpen onClose={onClose} closeOnBackdropClick={false} className="bg-os-card rounded-lg shadow-xl w-full max-w-2xl max-h-[70vh] flex flex-col border border-os-border" ariaLabel="Select Datasets">
         {/* Header */}
         <div className="px-4 py-3 border-b border-os-border flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Database size={20} className="text-blue-500" />
+            <Database size={20} className="text-os-blue" />
             <h2 className="text-base font-semibold text-os-text-primary">Select Datasets</h2>
           </div>
           <button
@@ -183,7 +183,7 @@ export default function DatasetSelectionModal({ isOpen, onClose, selectedDocumen
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search documents..."
-              className="w-full pl-10 pr-4 py-2 border border-os-input-border rounded-sm text-sm bg-os-input-bg text-os-text-primary focus:ring-2 focus:ring-blue-500 outline-hidden"
+              className="w-full pl-10 pr-4 py-2 border border-os-input-border rounded-sm text-sm bg-os-input-bg text-os-text-primary focus:ring-2 focus:ring-os-blue/40 outline-hidden"
             />
           </div>
         </div>
@@ -262,7 +262,7 @@ export default function DatasetSelectionModal({ isOpen, onClose, selectedDocumen
           <div className="text-xs text-os-text-muted">
             {isIndexing ? (
               <div className="flex items-center gap-2">
-                <Loader2 size={14} className="animate-spin text-blue-500" />
+                <Loader2 size={14} className="animate-spin text-os-blue" />
                 <span>{indexingProgress}</span>
               </div>
             ) : (
@@ -287,7 +287,6 @@ export default function DatasetSelectionModal({ isOpen, onClose, selectedDocumen
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </BaseModal>
   );
 }

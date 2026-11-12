@@ -63,10 +63,10 @@ export default function DiagnosticsSidebar({
             <Loader size={12} className="animate-spin text-os-text-muted shrink-0" />
           )}
           {backendStatus === 'online' && (
-            <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" title="Backend online" />
+            <div className="w-2 h-2 rounded-full bg-(--chart-good) shrink-0" title="Backend online" />
           )}
           {backendStatus === 'offline' && (
-            <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" title="Backend offline" />
+            <div className="w-2 h-2 rounded-full bg-(--chart-bad) shrink-0" title="Backend offline" />
           )}
         </div>
         {tabs.length > 0 && directory && (
@@ -103,7 +103,7 @@ export default function DiagnosticsSidebar({
                 <div key={tab.tab_name}>
                   <div
                     className={`px-4 py-3 transition-colors flex items-center justify-between ${
- isActive ?'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-os-blue':'border-l-4 border-transparent hover:bg-os-card-secondary'
+ isActive ?'bg-(--status-info-bg) border-l-4 border-os-blue':'border-l-4 border-transparent hover:bg-os-card-secondary'
  }`}
                   >
                     <div
@@ -141,7 +141,7 @@ export default function DiagnosticsSidebar({
                             key={subTab.tab_name}
                             onClick={() => onSubTabClick?.(tab.tab_name, subTab.tab_name)}
                             className={`pl-10 pr-4 py-2.5 cursor-pointer transition-colors flex items-center gap-2 ${
- isSubActive ?'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-os-blue text-os-blue':'border-l-4 border-transparent hover:bg-os-card-secondary text-os-text-primary'
+ isSubActive ?'bg-(--status-info-bg) border-l-4 border-os-blue text-os-blue':'border-l-4 border-transparent hover:bg-os-card-secondary text-os-text-primary'
  }`}
                           >
                             {(() => {

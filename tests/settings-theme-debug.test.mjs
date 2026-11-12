@@ -2,9 +2,12 @@
  * Settings > Theme and Settings > Debug (src/components/common/modals/
  * settings/ThemeSettings.jsx, DebugSettings.jsx): the Appearance & Behavior
  * section that lived under General became two categories of the rail -
- * Theme (Color Scheme, UI Scale) and Debug (the debug status bar) - with the
- * behaviour kept: everything applies as you make it, the UI scale and the
- * debug bar exist in the desktop app only.
+ * Theme (Color Scheme) and Debug (the debug status bar) - with the
+ * behaviour kept: everything applies as you make it, the debug bar exists
+ * in the desktop app only. The UI Scale control is gone from Theme: the
+ * window's zoom stays the desktop's View menu (Cmd/Ctrl +, - and 0, the
+ * factor persisted by electron/main.cjs); the app's text and interface size
+ * is Settings > Accessibility > Text size.
  *
  *   static: the rail order and ids (General, Editor, Theme, Performance, Integrations,
  *     AI Providers, Shortcuts, Debug, About), the dialog rendering the two
@@ -13,9 +16,9 @@
  *     make them" for every non-env tab, openAppSettings('theme' | 'debug')
  *     reaching the dialog's initialTab unchanged;
  *   jsdom, the REAL panels: on the desktop (a fake bridge) the Color Scheme
- *     select changes the theme at once, the UI Scale select applies the
- *     factor, the debug toggle switches the bar; in a browser the UI Scale
- *     is absent and Debug shows the desktop-only note instead of a switch;
+ *     select changes the theme at once, no UI Scale select anywhere, the
+ *     debug toggle switches the bar; in a browser Debug shows the
+ *     desktop-only note instead of a switch;
  *   jsdom, the REAL dialog (the shortcuts test's harness): opened with
  *     initialTab 'theme' it shows the Theme panel, with 'debug' the Debug
  *     panel, and General shows neither control.
@@ -43,10 +46,10 @@ const modal = read('src/components/common/modals/SettingsModal.jsx');
 const general = read('src/components/common/modals/settings/GeneralSettings.jsx');
 const themeSrc = read('src/components/common/modals/settings/ThemeSettings.jsx');
 const debugSrc = read('src/components/common/modals/settings/DebugSettings.jsx');
-check('the rail: General, Editor, Theme, Performance, Integrations, AI Providers, Shortcuts, Debug, About (ids theme, performance and debug)', /\{ id: 'general', label: 'General' \},\s*\{ id: 'editor', label: 'Editor' \},\s*\{ id: 'theme', label: 'Theme' \},\s*\{ id: 'performance', label: 'Performance' \},\s*\{ id: 'integrations'/.test(modal) && /\{ id: 'ai', label: SETTINGS_FIELDS\.ai\.tab \},\s*\.\.\.\(isMobile \? \[\] : \[\{ id: 'shortcuts', label: 'Shortcuts' \}\]\),\s*\.\.\.\(accounts && admin[^\n]*\n\s*\{ id: 'debug', label: 'Debug' \},\s*\{ id: 'about', label: 'About' \}/.test(modal));
-check('the dialog renders ThemeSettings and DebugSettings from the state it already kept (theme, zoom, debug bar), and General gets none of those props', /activeTab === 'theme' && \(\s*<ThemeSettings theme=\{theme\} setTheme=\{setTheme\} zoomFactor=\{zoomFactor\} setZoomFactor=\{handleZoomChange\} \/>/.test(modal) && /activeTab === 'debug' && \(\s*<DebugSettings debugBarEnabled=\{debugBarEnabled\} setDebugBarEnabled=\{handleDebugBarChange\} \/>/.test(modal) && !/<GeneralSettings[\s\S]*?setTheme=/.test(modal) && !/<GeneralSettings[\s\S]*?setZoomFactor=/.test(modal) && !/<GeneralSettings[\s\S]*?setDebugBarEnabled=/.test(modal));
+check('the rail: General, Editor, Theme, Performance, Accessibility, Integrations, AI Providers, Shortcuts, Debug, About (ids theme, performance and debug)', /\{ id: 'general', label: 'General' \},\s*\{ id: 'editor', label: 'Editor' \},\s*\{ id: 'theme', label: 'Theme' \},\s*\{ id: 'performance', label: 'Performance' \},\s*\{ id: 'accessibility', label: 'Accessibility' \},\s*\{ id: 'integrations'/.test(modal) && /\{ id: 'ai', label: SETTINGS_FIELDS\.ai\.tab \},\s*\.\.\.\(isMobile \? \[\] : \[\{ id: 'shortcuts', label: 'Shortcuts' \}\]\),\s*\.\.\.\(accounts && admin[^\n]*\n\s*\{ id: 'debug', label: 'Debug' \},\s*\{ id: 'about', label: 'About' \}/.test(modal));
+check('the dialog renders ThemeSettings (theme only: no zoom state, mirror or handler left) and DebugSettings from the state it kept, and General gets none of those props', /activeTab === 'theme' && \(\s*<ThemeSettings theme=\{theme\} setTheme=\{setTheme\} \/>/.test(modal) && !/zoomFactor|handleZoomChange|getZoomFactor|onZoomFactorChanged/.test(modal) && /activeTab === 'debug' && \(\s*<DebugSettings debugBarEnabled=\{debugBarEnabled\} setDebugBarEnabled=\{handleDebugBarChange\} \/>/.test(modal) && !/<GeneralSettings[\s\S]*?setTheme=/.test(modal) && !/<GeneralSettings[\s\S]*?setZoomFactor=/.test(modal) && !/<GeneralSettings[\s\S]*?setDebugBarEnabled=/.test(modal));
 check('General no longer has the section, the controls, the props or the zoom table', !/Appearance & Behavior/.test(general) && !/Color Scheme/.test(general) && !/UI Scale/.test(general) && !/debug status bar/.test(general) && !/ZOOM_LEVELS|closestZoomLevel|setTheme|setZoomFactor|setDebugBarEnabled/.test(general) && !/GRADIENT_THEMES|DARK_THEMES/.test(general));
-check('ThemeSettings has the scheme gallery (one picker: the tiles, no select) with the hints, the UI Scale select with the Cmd/Ctrl hint, desktop-only', /<SchemeGallery theme=\{theme\} customThemes=\{customThemes\} onSelect=\{select\}/.test(themeSrc) && !/theme-color-scheme/.test(themeSrc) && /Auto follows the system and uses Jacaranda as its dark theme/.test(themeSrc) && /The Cmd\/Ctrl \+, - and 0 keyboard shortcuts change the same setting/.test(themeSrc) && /const zoomSupported = typeof window !== 'undefined' && !!window\.electronAPI\?\.setZoomFactor;/.test(themeSrc) && /Must stay in sync with ZOOM_STEPS in/.test(themeSrc));
+check('ThemeSettings has the scheme gallery (one picker: the tiles, no select) with the hints, and no UI Scale control, zoom table or zoom props any more', /<SchemeGallery theme=\{theme\} customThemes=\{customThemes\} onSelect=\{select\}/.test(themeSrc) && !/theme-color-scheme/.test(themeSrc) && /Auto follows the system and uses Jacaranda as its dark theme/.test(themeSrc) && !/UI Scale|ZOOM_LEVELS|closestZoomLevel|zoomSupported|setZoomFactor|zoomFactor/.test(themeSrc));
 check('DebugSettings has the debug status bar toggle with its hint, desktop-only, and the note for a browser', /<Toggle label="Show debug status bar" checked=\{debugBarEnabled === true\} onChange=\{setDebugBarEnabled\} testId="debug-status-bar-toggle"/.test(debugSrc) && /Live FPS plus CPU and memory usage/.test(debugSrc) && /window\.electronAPI\?\.setDebugBarEnabled/.test(debugSrc) && /testId="debug-desktop-only"/.test(debugSrc));
 check('both panels use the shared primitives (Section, Field, Select, Toggle, Note) and no one-off styling', /from '\.\/ui'/.test(themeSrc) && /from '\.\/ui'/.test(debugSrc) && !/style=\{\{(?!\s*background: GRADIENT_THEMES)/.test(themeSrc) && !/style=\{\{/.test(debugSrc));
 check("the footer keeps 'Changes on this tab apply as you make them.' for every tab but Integrations / AI Providers (Theme and Debug included)", /const envTab = activeTab === 'integrations' \|\| activeTab === 'ai';/.test(modal) && /'Changes on this tab apply as you make them\.'/.test(modal));
@@ -115,12 +118,11 @@ const click = async (el) => { await act(async () => { el.dispatchEvent(new windo
 // ---- the panels on the desktop (a fake bridge) ----
 const calls = { zoom: [], debug: [], theme: [] };
 window.electronAPI = { isElectron: true, setZoomFactor: async (f) => { calls.zoom.push(f); }, setDebugBarEnabled: async (on) => { calls.debug.push(on); }, getDebugBarEnabled: async () => false };
-await render(React.createElement(ThemeSettings, { theme: 'auto', setTheme: (t) => calls.theme.push(t), zoomFactor: 0.9, setZoomFactor: (f) => calls.zoom.push(f) }));
-check('desktop Theme: the scheme gallery (Auto active, Light, the dark themes, the gradient themes, the palettes) and the UI Scale select at 90%', !!$('[data-testid="scheme-gallery"]') && $('[data-testid="scheme-card-auto"]')?.getAttribute('aria-checked') === 'true' && !!$('[data-testid="scheme-card-light"]') && !!$('[data-testid="scheme-card-dark-neutral"]') && !!$('[data-testid="scheme-card-gradient-red-purple"]') && !!$('[data-testid="scheme-card-starter-nord"]') && $('[data-testid="theme-ui-scale"]')?.value === '0.9', $('[data-testid="theme-ui-scale"]')?.value);
+await render(React.createElement(ThemeSettings, { theme: 'auto', setTheme: (t) => calls.theme.push(t) }));
+check('desktop Theme: the scheme gallery (Auto active, Light, the dark themes, the gradient themes, the palettes) and no UI Scale select', !!$('[data-testid="scheme-gallery"]') && $('[data-testid="scheme-card-auto"]')?.getAttribute('aria-checked') === 'true' && !!$('[data-testid="scheme-card-light"]') && !!$('[data-testid="scheme-card-dark-neutral"]') && !!$('[data-testid="scheme-card-gradient-red-purple"]') && !!$('[data-testid="scheme-card-starter-nord"]') && !$('[data-testid="theme-ui-scale"]') && !/UI Scale/.test(document.body.textContent));
 await click($('[data-testid="scheme-card-light"]'));
 check('...changing the scheme calls setTheme at once (no Save)', calls.theme.join() === 'light');
-await select($('[data-testid="theme-ui-scale"]'), '1.25');
-check('...changing the UI scale applies the factor at once', calls.zoom.join() === '1.25');
+check('...and nothing in the panel touches the zoom bridge', calls.zoom.length === 0);
 await render(React.createElement(DebugSettings, { debugBarEnabled: false, setDebugBarEnabled: (on) => calls.debug.push(on) }));
 const toggle = $('[data-testid="debug-status-bar-toggle"]');
 check('desktop Debug: the "Show debug status bar" toggle, off', !!toggle && !$('[data-testid="debug-desktop-only"]'));
@@ -130,8 +132,8 @@ await render(null);
 
 // ---- the panels in a browser ----
 window.electronAPI = undefined;
-await render(React.createElement(ThemeSettings, { theme: 'auto', setTheme: () => {}, zoomFactor: 0.9, setZoomFactor: () => {} }));
-check('browser Theme: the scheme gallery, no UI Scale', !!$('[data-testid="scheme-gallery"]') && !$('[data-testid="theme-ui-scale"]'));
+await render(React.createElement(ThemeSettings, { theme: 'auto', setTheme: () => {} }));
+check('browser Theme: the scheme gallery, no UI Scale', !!$('[data-testid="scheme-gallery"]') && !$('[data-testid="theme-ui-scale"]') && !/UI Scale/.test(document.body.textContent));
 await render(React.createElement(DebugSettings, { debugBarEnabled: false, setDebugBarEnabled: () => {} }));
 check('browser Debug: the desktop-only note instead of a switch', !!$('[data-testid="debug-desktop-only"]') && !$('[data-testid="debug-status-bar-toggle"]'));
 await render(null);
@@ -145,7 +147,7 @@ window.electronAPI = {
 const dialog = (tab) => React.createElement(NotificationProvider, null, React.createElement(ThemeProvider, null, React.createElement(SettingsModal, { key: tab, isOpen: true, onClose: () => {}, initialTab: tab })));
 await render(dialog('theme'));
 const railLabels = () => $$('[data-testid="settings-modal"] .sc-rail-tab').map((t) => t.textContent.trim());
-check("the dialog opened at 'theme': the rail with Theme after Editor and Debug before About, the Theme panel shown", railLabels().join() === 'General,Editor,Theme,Performance,Integrations,AI Providers,Shortcuts,Debug,About' && !!$('[data-testid="theme-section"]') && !!$('[data-testid="scheme-gallery"]'), railLabels().join());
+check("the dialog opened at 'theme': the rail with Theme after Editor and Debug before About, the Theme panel shown", railLabels().join() === 'General,Editor,Theme,Performance,Accessibility,Integrations,AI Providers,Shortcuts,Debug,About' && !!$('[data-testid="theme-section"]') && !!$('[data-testid="scheme-gallery"]'), railLabels().join());
 check('...the footer says the tab applies as you go', /Changes on this tab apply as you make them\./.test($('[data-testid="settings-modal"]')?.parentElement?.textContent || document.body.textContent));
 await render(dialog('debug'));
 check("the dialog opened at 'debug': the Debug panel with the toggle", !!$('[data-testid="debug-section"]') && !!$('[data-testid="debug-status-bar-toggle"]'));

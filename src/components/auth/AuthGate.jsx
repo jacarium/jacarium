@@ -44,7 +44,7 @@ function Card({ icon: Icon, title, subtitle, children }) {
       </div>
       <div className="brand-form-card w-full max-w-md p-6 space-y-5">
         <div className="flex items-center gap-3">
-          {Icon && <div className="p-2 rounded-md bg-blue-600 text-white"><Icon size={20} /></div>}
+          {Icon && <div className="p-2 rounded-md bg-os-blue text-white"><Icon size={20} /></div>}
           <div>
             <h1 className="text-base font-semibold text-os-text-primary">{title}</h1>
             {subtitle && <p className="text-xs text-os-text-secondary">{subtitle}</p>}
@@ -52,7 +52,7 @@ function Card({ icon: Icon, title, subtitle, children }) {
         </div>
         {children}
       </div>
-      <p className="brand-page-foot text-[11px] text-center" data-testid="brand-foot">
+      <p className="brand-page-foot text-2xs text-center" data-testid="brand-foot">
         Jacarium {latestVersion} &middot; <a href={brandHomepage()} target="_blank" rel="noopener noreferrer" className="brand-link hover:underline">{brandHomepageLabel()}</a> (opens in your browser)
       </p>
     </div>
@@ -62,7 +62,7 @@ function Card({ icon: Icon, title, subtitle, children }) {
 function ErrorBox({ error }) {
   if (!error) return null;
   return (
-    <div role="alert" className="text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm p-2">
+    <div role="alert" className="text-xs text-(--status-danger-fg) bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm p-2">
       {error}
     </div>
   );
@@ -141,7 +141,7 @@ export function LoginPage({ onDone = () => window.location.reload() }) {
         <button type="submit" disabled={busy} className="btn btn-primary w-full flex items-center justify-center gap-2 px-4 py-2 text-sm">
           Sign in
         </button>
-        <p className="text-[11px] text-os-text-muted" data-testid="download-desktop-hint">
+        <p className="text-2xs text-os-text-muted" data-testid="download-desktop-hint">
           Prefer the desktop app? <a href="/api/downloads/" target="_blank" rel="noopener noreferrer" className="link hover:underline">Download it from this server</a> and link it to your account.
         </p>
       </form>

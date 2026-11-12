@@ -133,7 +133,7 @@ function SSHNode({ data, isConnectable }) {
             checked={interactive}
             onChange={(e) => setInteractive(e.target.checked)}
             disabled={isReadOnly}
-            className="nodrag w-4 h-4 text-red-600 focus:ring-red-500 border-os-border rounded-sm"
+            className="nodrag w-4 h-4 text-(--chart-bad) focus:ring-(--chart-bad) border-os-border rounded-sm"
           />
           <label htmlFor={`interactive-${data.id || 'ssh'}`} className="text-xs text-os-text-primary cursor-pointer flex-1">
             <span className="font-medium">Interactive Mode</span>

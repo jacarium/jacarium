@@ -90,7 +90,7 @@ function BeginPlayNode({ data, isConnectable }) {
                     className="btn btn-danger-ghost nodrag p-0.5"
                     title="Remove input"
                   >
-                    <X size={12} className="text-red-600" />
+                    <X size={12} className="text-(--chart-bad)" />
                   </button>
                 )}
                 <DataPinHandle type="source" position={Position.Right} id={`output-${inputName}`} isConnectable={isConnectable} />
@@ -109,7 +109,7 @@ function BeginPlayNode({ data, isConnectable }) {
                 onChange={(e) => setNewInputName(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleAddInput()}
                 placeholder="Input name..."
-                className="nodrag flex-1 px-2 py-1 text-xs border border-os-input-border rounded-sm focus:outline-hidden focus:border-purple-500 bg-os-input-bg text-os-text-primary"
+                className="nodrag flex-1 px-2 py-1 text-xs border border-os-input-border rounded-sm focus:outline-hidden focus:border-(--brand-accent) bg-os-input-bg text-os-text-primary"
               />
               <button
                 onClick={handleAddInput}

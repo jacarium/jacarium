@@ -53,7 +53,7 @@ export default function CentralStatus() {
     if (connected) return { state: 'connected', text: `Connected to ${hostOf(provided.url)}`, tone: 'ok' };
     return { state: 'connecting', text: `Connecting to ${hostOf(provided.url)}...`, tone: 'muted' };
   })();
-  const toneClass = connection.tone === 'ok' ? 'text-green-700 dark:text-green-300' : connection.tone === 'warn' ? 'text-amber-700 dark:text-amber-300' : 'text-os-text-secondary';
+  const toneClass = connection.tone === 'ok' ? 'text-(--status-success-fg)' : connection.tone === 'warn' ? 'text-(--status-warning-fg)' : 'text-os-text-secondary';
 
   return (
     <div className="text-xs space-y-1" data-testid="central-status" data-state={connection.state}>

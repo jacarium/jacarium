@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import BaseModal from '../../common/modals/BaseModal';
 
 const INPUT_CLASS = 'w-full px-3 py-1.5 bg-os-input-bg text-os-text-primary border border-os-input-border rounded-sm focus:outline-hidden focus:ring-2 focus:ring-os-blue text-xs';
 
@@ -9,8 +10,7 @@ const INPUT_CLASS = 'w-full px-3 py-1.5 bg-os-input-bg text-os-text-primary bord
  */
 export default function SSHCommandEditModal({ command, onSave, onClose }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-os-card rounded-lg shadow-2xl w-full max-w-lg border border-os-border">
+    <BaseModal isOpen onClose={onClose} closeOnBackdropClick={false} className="bg-os-card rounded-lg shadow-2xl w-full max-w-lg border border-os-border" ariaLabel="Edit SSH command">
         <div className="px-4 py-3 border-b border-os-border flex items-center justify-between">
           <span className="text-sm font-medium text-os-text-primary">
             {command ? 'Edit Command' : 'Add Command'}
@@ -91,7 +91,6 @@ export default function SSHCommandEditModal({ command, onSave, onClose }) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </BaseModal>
   );
 }

@@ -125,7 +125,7 @@ export default function UuidGeneratorTool() {
                     className="p-1 text-os-text-secondary hover:text-os-text-primary transition-colors"
                   >
                     {copied === index ? (
-                      <Check size={12} className="text-green-500" />
+                      <Check size={12} className="text-(--chart-good)" />
                     ) : (
                       <Copy size={12} />
                     )}

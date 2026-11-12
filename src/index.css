@@ -123,6 +123,12 @@
   --default-ring-width: 3px;
   --default-ring-color: rgb(59 130 246 / 0.5);
 
+  /* the small text sizes below text-xs (0.75rem) as rem tokens: 11 / 10 / 9 px at the 16px root, so they follow the
+     root size (Accessibility > Text size with "Scale the interface too" scales the root rem). Size only - no
+     line-height token - so the inherited line-height stays as with the px classes they replace. */
+  --text-2xs: 0.6875rem;
+  --text-3xs: 0.625rem;
+  --text-4xs: 0.5625rem;
   /* v3 line-heights for the text-* utilities, in rem. v4 defines them as
      unitless ratios (e.g. calc(1.25 / 0.875)), which resolve the same on the
      element itself but are inherited as a RATIO: a descendant whose
@@ -219,6 +225,14 @@ body {
   --os-input-bg: #FFFFFF;
   --os-input-border: #D2D2D2;
   --os-status-success: #3E8635;
+  /* the colour roles of notes, badges, banners and status lines: foreground, background and border per role (the
+     stock blue-800 / blue-50 / blue-200 family and its green, amber, red and purple siblings); the colour-vision
+     palettes and high contrast set every family */
+  --status-info-fg: #1e40af; --status-info-bg: #eff6ff; --status-info-border: #bfdbfe;
+  --status-success-fg: #166534; --status-success-bg: #f0fdf4; --status-success-border: #bbf7d0;
+  --status-warning-fg: #92400e; --status-warning-bg: #fffbeb; --status-warning-border: #fde68a;
+  --status-danger-fg: #991b1b; --status-danger-bg: #fef2f2; --status-danger-border: #fecaca;
+  --status-brand-fg: #6b21a8; --status-brand-bg: #faf5ff; --status-brand-border: #e9d5ff;
   --os-code-bg: #f6f8fa;
 
   /* The navigation rail is dark in the light theme too (neutral greys) */
@@ -230,6 +244,7 @@ body {
   --os-rail-text-active: #ffffff;
   --rail-badge: #0066cc;   /* the unread dot by the bell: railBadge() of this scheme's accent and rail - the accent on the dark rail (3.1:1); a custom theme derives its own */
   --os-rail-tooltip: #111827;
+  --os-rail-tooltip-text: #ffffff;   /* the tooltip's text, paired with its background (high contrast sets both) */
   --os-rail-separator: #374151;
 
   /* Brand (Jacarium): the accent is for brand elements only; the blossom of
@@ -444,6 +459,11 @@ body {
   --os-input-bg: #1E1930;
   --os-input-border: #3A3350;
   --os-status-success: #3FA37A;
+  --status-info-fg: #bfdbfe; --status-info-bg: rgba(30, 58, 138, 0.2); --status-info-border: #1e40af;
+  --status-success-fg: #bbf7d0; --status-success-bg: rgba(20, 83, 45, 0.2); --status-success-border: #166534;
+  --status-warning-fg: #fde68a; --status-warning-bg: rgba(120, 53, 15, 0.2); --status-warning-border: #92400e;
+  --status-danger-fg: #fecaca; --status-danger-bg: rgba(127, 29, 29, 0.2); --status-danger-border: #991b1b;
+  --status-brand-fg: #e9d5ff; --status-brand-bg: rgba(88, 28, 135, 0.2); --status-brand-border: #6b21a8;
   --os-code-bg: #141120;
 
   --os-rail: #1B1530;
@@ -454,6 +474,7 @@ body {
   --os-rail-text-active: #FFFFFF;
   --rail-badge: #4a9eff;   /* the unread dot by the bell: railBadge() of this scheme's accent and rail - the accent on the Jacaranda rail (6.4:1); a custom theme derives its own */
   --os-rail-tooltip: #0F0D16;
+  --os-rail-tooltip-text: #ffffff;   /* the tooltip's text, paired with its background (high contrast sets both) */
   --os-rail-separator: #3A3350;
 
   /* Links on Jacaranda: the violet accent, lifted to a lilac that reads at 4.5:1 on the night-ink surfaces */
@@ -639,6 +660,11 @@ body {
   --os-input-bg: #2a2a2a;
   --os-input-border: #3a3a3a;
   --os-status-success: #3E8635;
+  --status-info-fg: #bfdbfe; --status-info-bg: rgba(30, 58, 138, 0.2); --status-info-border: #1e40af;
+  --status-success-fg: #bbf7d0; --status-success-bg: rgba(20, 83, 45, 0.2); --status-success-border: #166534;
+  --status-warning-fg: #fde68a; --status-warning-bg: rgba(120, 53, 15, 0.2); --status-warning-border: #92400e;
+  --status-danger-fg: #fecaca; --status-danger-bg: rgba(127, 29, 29, 0.2); --status-danger-border: #991b1b;
+  --status-brand-fg: #e9d5ff; --status-brand-bg: rgba(88, 28, 135, 0.2); --status-brand-border: #6b21a8;
   --os-code-bg: #161b22;
 
   --os-rail: #1a1a1a;
@@ -649,6 +675,7 @@ body {
   --os-rail-text-active: #ffffff;
   --rail-badge: #4a9eff;   /* the unread dot by the bell: railBadge() of this scheme's accent and rail - the accent on the grey rail (6.3:1); a custom theme derives its own */
   --os-rail-tooltip: #111827;
+  --os-rail-tooltip-text: #ffffff;   /* the tooltip's text, paired with its background (high contrast sets both) */
   --os-rail-separator: #374151;
 
   --os-terminal-bg: #0d0d0d;
@@ -1033,7 +1060,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 .markdown-preview {
   font-family: var(--font-reading);
   letter-spacing: 0;
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1.7;
   color: var(--md-text);
   word-wrap: break-word;
@@ -1080,7 +1107,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   align-items: center;
   margin: 16px 0;
   color: #8b949e;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-style: italic;
   line-height: 1;
   user-select: none;
@@ -1134,7 +1161,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   position: absolute;
   top: 8px;
   right: 12px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-style: italic;
   line-height: 1;
   color: #8b949e;
@@ -1179,7 +1206,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   position: absolute;
   top: 6px;
   right: 12px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-style: italic;
   line-height: 1;
   color: #8b949e;
@@ -1617,7 +1644,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
   border-radius: var(--radius-xs, 6px);
   background-color: #fef2f2;
   color: #dc2626;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.5;
 }
 
@@ -1629,7 +1656,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 
 .markdown-preview .mermaid-diagram-error-message {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 0.75rem;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -1797,8 +1824,8 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 .markdown-preview kbd {
   display: inline-block;
   padding: 3px 5px;
-  font-size: 11px;
-  line-height: 10px;
+  font-size: 0.6875rem;
+  line-height: 0.625rem;
   color: var(--md-text);
   vertical-align: middle;
   background-color: var(--md-surface-alt);
@@ -2423,7 +2450,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 .sc-editor-cm .cm-ySelectionInfo {
   opacity: 1;
   font-family: var(--font-sans);
-  font-size: 10px;
+  font-size: 0.625rem;
   padding: 2px 6px;
   border-radius: var(--radius-sm, 8px);
   top: -1.4em;
@@ -2532,7 +2559,7 @@ code, pre, kbd, samp, .font-mono, .font-reading, .os-terminal, .hljs { letter-sp
 .sc-chat-markdown pre {
   padding: 10px 12px;
   margin: 0 0 0.7em;
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.45;
   white-space: pre;            /* a long line scrolls sideways... */
   overflow-x: auto;            /* ...inside the bubble, never past it */
@@ -2726,3 +2753,504 @@ textarea.resize-none.h-full { border-radius: 0; }
   padding: 0.05em 0;
 }
 .sc-editor-cm .cm-inline-code-mark { color: var(--os-text-muted); }
+
+/* ==== Zen mode's edge pull-outs (src/components/common/ZenEdgeTab.jsx) ====
+   A slim handle at the middle of the left edge (the page's sidebar) and the right edge (the panels), low-key at
+   rest - the muted text colour, which reads at 3:1 or better on every theme's canvas - a little wider with its
+   label as a tooltip-style chip on hover or focus; the hit area is the tab alone. The overlays slide in from
+   their edge; reduced motion gets no slide. Theme tokens only. */
+.sc-zen-edge { position: fixed; top: 50%; transform: translateY(-50%); z-index: 45; display: flex; align-items: center; pointer-events: none; }
+.sc-zen-edge-left { left: 0; flex-direction: row; }
+.sc-zen-edge-right { right: 0; flex-direction: row-reverse; }
+.sc-zen-tab {
+  pointer-events: auto; position: relative; display: flex; align-items: center; justify-content: center;
+  width: 0.5rem; height: 3.5rem; padding: 0; border: 0; cursor: pointer;
+  background: var(--os-text-secondary); opacity: 0.55;
+  transition: width 120ms ease, opacity 120ms ease;
+}
+.sc-zen-edge-left .sc-zen-tab { border-radius: 0 var(--radius-sm, 8px) var(--radius-sm, 8px) 0; }
+.sc-zen-edge-right .sc-zen-tab { border-radius: var(--radius-sm, 8px) 0 0 var(--radius-sm, 8px); }
+.sc-zen-tab:hover, .sc-zen-tab:focus-visible, .sc-zen-tab.is-hover, .sc-zen-tab[aria-expanded="true"] { width: 0.75rem; opacity: 1; }
+.sc-zen-tab:focus-visible { outline: 2px solid var(--os-blue); outline-offset: 2px; }
+.sc-zen-grip { width: 2px; height: 1.25rem; border-radius: 9999px; background: var(--os-canvas); opacity: 0.9; }
+/* the label: a chip beside the tab, shown on hover / focus / open (the tooltip pair: 7:1 under high contrast) */
+/* the chip: one quiet word ("Sidebar", "Navigation") in the smallest type, a card-coloured pill with a hairline, no
+   shadow, shown 400 ms into a hover or focus and gone at once on leave; it takes no pointer events, so nothing under
+   it loses a click. The reading aids and high contrast apply (theme tokens: text on card reads at 4.5:1 or better) */
+.sc-zen-tab-label {
+  position: absolute; top: 50%; transform: translateY(-50%); white-space: nowrap; pointer-events: none;
+  padding: 0.125rem 0.375rem; border-radius: var(--radius-xs, 6px); font-size: var(--text-2xs, 0.6875rem); line-height: 1.3; font-weight: 500;
+  background: var(--os-card); color: var(--os-text-primary); border: 1px solid var(--os-border);
+  opacity: 0; transition: opacity 100ms ease 0ms;
+}
+.sc-zen-edge-left .sc-zen-tab-label { left: calc(100% + 0.5rem); }
+.sc-zen-edge-right .sc-zen-tab-label { right: calc(100% + 0.5rem); }
+.sc-zen-tab:hover .sc-zen-tab-label, .sc-zen-tab:focus-visible .sc-zen-tab-label, .sc-zen-tab.is-hover .sc-zen-tab-label { opacity: 1; transition-delay: 400ms; }
+html.ra-high-contrast .sc-zen-tab-label { background: var(--os-canvas); color: var(--os-text-primary); border-color: var(--os-text-primary); }
+html.ra-high-contrast .sc-zen-tab { opacity: 1; background: var(--os-text-primary); outline: 1px solid var(--os-canvas); }
+/* zen's "Navigation" overlay (ZenGoTo): the two group headings and the items - one list of pages and panels */
+.sc-zen-goto-heading { padding: 0.5rem 0.75rem 0.25rem; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--os-text-muted); }
+.sc-zen-goto-item { display: flex; align-items: center; gap: 0.625rem; width: 100%; padding: 0.5rem 0.75rem; border: 0; border-radius: 0; background: transparent; color: var(--os-text-primary); font: inherit; font-size: 0.875rem; text-align: left; cursor: pointer; }
+.sc-zen-goto-item:hover, .sc-zen-goto-item:focus-visible { background: var(--os-card-secondary); outline: none; }
+.sc-zen-goto-item:focus-visible { box-shadow: inset 0 0 0 2px var(--os-blue); }
+.sc-zen-goto-item[aria-current="page"] { font-weight: 600; }
+.sc-zen-goto-item[aria-current="page"] > svg { color: var(--os-blue); }
+/* the overlay's panel fills its dialog; the resize handle is the dialog's inner edge */
+.sc-zen-side-overlay > [data-side] { height: 100%; }
+/* the panels' motion, shared and in one place: a sidebar column opening normally and a zen overlay move the same way.
+   The maintainer wants them instant: the motion is none - 0 ms, no keyframes - so a panel shows fully on the frame it
+   mounts and goes on the frame it unmounts (resizing by drag was always immediate). To bring a slide back for both,
+   define keyframes and set the three tokens here; nothing else changes. Reduce motion zeroes the duration as well. */
+:root { --motion-panel-duration: 0ms; --motion-panel-ease: cubic-bezier(0.2, 0, 0, 1); --motion-panel-left: none; --motion-panel-right: none; }
+.sc-slide-in-left { animation: var(--motion-panel-left) var(--motion-panel-duration) var(--motion-panel-ease); }
+.sc-slide-in-right { animation: var(--motion-panel-right) var(--motion-panel-duration) var(--motion-panel-ease); }
+/* Reduce motion (Settings > Accessibility; the one switch on <html>, never the media query - Off wins over the OS) */
+html.ra-reduce-motion :is(.sc-slide-in-left, .sc-slide-in-right) { animation: none; }
+html.ra-reduce-motion :is(.sc-zen-tab, .sc-zen-tab-label) { transition: none; }   /* the chip's delay goes with the motion: instant */
+
+/* -- icons scale with the interface (Settings > Accessibility, "Scale the interface too"): icons are controls, so they
+      follow --ra-chrome-scale (1 with the toggle off: the same pixels as today), not the reading text scale. lucide writes
+      the size prop as the svg's width / height attributes, so one rule per size in use rescales every icon in the chrome
+      - the rail, the sidebars, toolbars, tabs, menus, toasts, dialogs, the zen tabs, the settings nav - and the brand
+      mark with them; strokes scale with the icon (lucide draws them in the viewBox). Canvas graphics, charts, the loading
+      game and the workflow canvas keep their own sizes under [data-icons-fixed]. tests/icon-scale.test.mjs keeps the
+      size list complete. -- */
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="1"]:not([data-icons-fixed] *) { width: calc(1px * var(--ra-chrome-scale, 1)); height: calc(1px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="8"]:not([data-icons-fixed] *) { width: calc(8px * var(--ra-chrome-scale, 1)); height: calc(8px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="9"]:not([data-icons-fixed] *) { width: calc(9px * var(--ra-chrome-scale, 1)); height: calc(9px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="10"]:not([data-icons-fixed] *) { width: calc(10px * var(--ra-chrome-scale, 1)); height: calc(10px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="11"]:not([data-icons-fixed] *) { width: calc(11px * var(--ra-chrome-scale, 1)); height: calc(11px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="12"]:not([data-icons-fixed] *) { width: calc(12px * var(--ra-chrome-scale, 1)); height: calc(12px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="13"]:not([data-icons-fixed] *) { width: calc(13px * var(--ra-chrome-scale, 1)); height: calc(13px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="14"]:not([data-icons-fixed] *) { width: calc(14px * var(--ra-chrome-scale, 1)); height: calc(14px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="15"]:not([data-icons-fixed] *) { width: calc(15px * var(--ra-chrome-scale, 1)); height: calc(15px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="16"]:not([data-icons-fixed] *) { width: calc(16px * var(--ra-chrome-scale, 1)); height: calc(16px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="18"]:not([data-icons-fixed] *) { width: calc(18px * var(--ra-chrome-scale, 1)); height: calc(18px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="19"]:not([data-icons-fixed] *) { width: calc(19px * var(--ra-chrome-scale, 1)); height: calc(19px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="20"]:not([data-icons-fixed] *) { width: calc(20px * var(--ra-chrome-scale, 1)); height: calc(20px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="22"]:not([data-icons-fixed] *) { width: calc(22px * var(--ra-chrome-scale, 1)); height: calc(22px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="24"]:not([data-icons-fixed] *) { width: calc(24px * var(--ra-chrome-scale, 1)); height: calc(24px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="28"]:not([data-icons-fixed] *) { width: calc(28px * var(--ra-chrome-scale, 1)); height: calc(28px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="30"]:not([data-icons-fixed] *) { width: calc(30px * var(--ra-chrome-scale, 1)); height: calc(30px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="32"]:not([data-icons-fixed] *) { width: calc(32px * var(--ra-chrome-scale, 1)); height: calc(32px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="36"]:not([data-icons-fixed] *) { width: calc(36px * var(--ra-chrome-scale, 1)); height: calc(36px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="40"]:not([data-icons-fixed] *) { width: calc(40px * var(--ra-chrome-scale, 1)); height: calc(40px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="48"]:not([data-icons-fixed] *) { width: calc(48px * var(--ra-chrome-scale, 1)); height: calc(48px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="56"]:not([data-icons-fixed] *) { width: calc(56px * var(--ra-chrome-scale, 1)); height: calc(56px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="64"]:not([data-icons-fixed] *) { width: calc(64px * var(--ra-chrome-scale, 1)); height: calc(64px * var(--ra-chrome-scale, 1)); }
+html.ra-app :is(svg.lucide, svg[data-icon], svg[data-brand="mark"])[width="72"]:not([data-icons-fixed] *) { width: calc(72px * var(--ra-chrome-scale, 1)); height: calc(72px * var(--ra-chrome-scale, 1)); }
+/* -- data colours (src/utils/dataColour.js paint()): a collaborator's, a calendar's, a Kanban column's, a note's or an
+      edge's colour is painted through --dc, the stored colour by default; under a colour-vision palette or high
+      contrast it becomes the categorical colour the stored one maps to (--dc-cat, a --chart-cat-N the palette
+      redefines) - display only, the stored value untouched, live without a re-render -- */
+html:is(.ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia, .ra-high-contrast) [style*="--dc-cat"] { --dc: var(--dc-cat) !important; --dc-ink: oklch(from var(--dc-cat) calc((0.66 - l) * 1000) 0 0) !important; }
+
+/* ==== Reading aids (Settings > Accessibility; src/utils/readingAids.js) ====
+   Two surfaces, one mechanism. <html> is the app surface: applyAppReadingAids() gives it the app-wide options as
+   classes (ra-app, ra-links, ra-hide-images, ra-high-contrast, ra-cv-*, ra-ruler) and inline --ra-* properties;
+   the Documents editor / preview pane is a .ra-surface (ReadingAidsSurface.jsx) carrying the documents-only
+   ones. Every rule reads its variable with today's value as the fallback, so a default setting changes nothing.
+   The Diagnostics report frame mirrors <html>'s classes and properties (DiagnosticsPage.jsx theme bridge), so
+   these rules - inlined there with the rest of the stylesheet - apply inside it too. */
+
+/* -- reading text everywhere: the font and the letter / word spacing (html.ra-app), never on code, terminals,
+      logs, fixed-width output, icons or chart labels (the reset below) -- */
+html.ra-app {
+  --font-sans: var(--ra-font-family, "Sora", system-ui, -apple-system, "Segoe UI", sans-serif);
+  --font-text: var(--ra-font-family, "Sora", system-ui, -apple-system, "Segoe UI", sans-serif);
+  --font-reading: var(--ra-font-family, "Red Hat Text", Roboto, sans-serif);
+  /* the code font (readingAids.js CODE_FONTS): one token feeds code blocks and inline code, the editor's code and its
+     gutter, logs, terminals, kbd and the Diagnostics report's monospace parts (its frame carries this stylesheet and
+     the variable); unset, today's Red Hat Mono */
+  --font-mono: var(--ra-code-font-family, "Red Hat Mono", Consolas, monospace);
+  letter-spacing: var(--ra-letter-spacing, var(--app-letter-spacing));
+  word-spacing: var(--ra-word-spacing, normal);
+  filter: var(--ra-filter, none);   /* saturation / greyscale: the whole window, dialogs, menus and toasts included */
+  --ra-ruler-bg: color-mix(in srgb, var(--os-blue) 16%, transparent);
+  --ra-mask-bg: color-mix(in srgb, var(--os-card) 55%, transparent);
+  --ra-link-tint: color-mix(in srgb, var(--link, var(--os-blue)) 14%, transparent);
+}
+html.ra-app :is(code, pre, kbd, samp, .font-mono, .os-terminal, .hljs, svg, .tabular-nums, .sc-editor-cm .cm-line.cm-code-block, .sc-editor-cm .cm-inline-code, .sc-editor-cm .cm-code-info, .sc-editor-cm .cm-gutters, #diagnostics-content :is(pre, .ui-mono, .ui-code, .ui-code-lines, .ui-cmd, .ui-xrow-body)) { letter-spacing: 0; word-spacing: normal; }
+html.ra-app .font-reading { letter-spacing: var(--ra-letter-spacing, 0); }
+/* the text elements themselves take the spacing in their own em (an inherited em is the root's 16 px): headings,
+   paragraphs, list items, cells, labels, buttons' and links' text - a tracked label (tracking-wide) takes it as a
+   minimum over its own tracking (the rule below); with the setting off the declaration is invalid and the element inherits as before */
+html.ra-app :is(p, li, dd, dt, td, th, h1, h2, h3, h4, h5, h6, label, legend, figcaption, blockquote, summary, button, a, .markdown-preview, .ra-reading) { letter-spacing: var(--ra-letter-spacing); word-spacing: var(--ra-word-spacing); }
+/* a tracked label - a section title, an uppercase header, whatever its tag (h2, span, div) - keeps its own tracking
+   (Tailwind's --tw-tracking) and takes the user's letter spacing as a minimum - max(own, the user's), the WCAG 1.4.12 model: an
+   all-caps title is never over-spaced by a sum - and the user's word spacing the same way.
+   One rule for every section title in the app, after the base rule so it wins for them */
+html.ra-app [class*="tracking-"] { letter-spacing: max(var(--tw-tracking, 0em), var(--ra-letter-spacing, 0em)); word-spacing: max(0em, var(--ra-word-spacing, 0em)); }
+/* line height and paragraph spacing in the reading areas - markdown previews (documents, chat, descriptions),
+   marked reading areas (.ra-reading: descriptions, messages, dialog and toast text) and the document editor; an
+   area without a base of its own inherits as before */
+.ra-app .markdown-preview { --ra-line-base: 1.7; --ra-para-base: 16px; letter-spacing: var(--ra-letter-spacing, normal); word-spacing: var(--ra-word-spacing, normal); }
+.ra-app .sc-chat-markdown { --ra-line-base: var(--sc-chat-line); --ra-para-base: 0.6em; }
+.ra-app :is(.markdown-preview, .ra-reading),
+.ra-app :is(.markdown-preview, .ra-reading) :is(p, li, td, th, blockquote, dd) { line-height: var(--ra-line-height, var(--ra-line-base)); }
+.ra-app :is(.markdown-preview, .ra-reading) p { margin-bottom: var(--ra-paragraph-spacing, var(--ra-para-base)); }
+.ra-app :is(.markdown-preview, .ra-reading) :is(pre, code, table) { line-height: var(--ra-line-base-code, normal); letter-spacing: 0; word-spacing: normal; }
+.ra-app .markdown-preview pre code { line-height: inherit; }
+/* ... and everywhere else: every text block - paragraphs, list items, definitions, quotes, captions, summaries, the
+   empty states, dialog, toast and settings text, the Diagnostics report's paragraphs (the frame carries the same
+   classes) - never controls (labels, buttons, fields, tabs, menus and the rail keep their heights), code or
+   tables. Gated on the html classes readingAidsClasses() sets (ra-line, ra-para), so with the setting off nothing
+   is touched */
+html.ra-app.ra-line body :is(p, li, dd, dt, blockquote, figcaption, summary):not(:is(.markdown-preview, .ra-reading, pre, code, table, nav, [role="menu"], [role="listbox"], [role="tablist"], button, label) *) { line-height: var(--ra-line-height); }
+html.ra-app.ra-para body p:not(:last-child):not(:is(.markdown-preview, .ra-reading, nav, [role="menu"], button, label) *) { margin-bottom: var(--ra-paragraph-spacing); }
+/* the readable column everywhere: long-form text - markdown previews (chat, descriptions), marked reading areas and
+   dialog, toast and empty-state paragraphs - is capped at the chosen width; the Documents editor and Preview centre
+   theirs instead (the padding rules below) */
+html.ra-app.ra-width body :is(.markdown-preview, .ra-reading, [role="dialog"] p, .sc-modal-backdrop p, [data-testid="settings-body"] p, .sc-empty p):not(.ra-surface *):not(.pdf-export-root):not(.pdf-export-root *) { max-width: var(--ra-max-width); }
+/* the alignment: long-form text only (markdown previews and marked reading areas), never code or tables, and never
+   the short lines of dialogs, toasts and controls */
+html.ra-app.ra-justify body :is(.markdown-preview, .ra-reading):not(.ra-surface *):not(.pdf-export-root):not(.pdf-export-root *) { text-align: var(--ra-text-align, start); hyphens: var(--ra-hyphens, manual); }
+html.ra-app.ra-justify body :is(.markdown-preview, .ra-reading) :is(pre, code, table, th, td) { text-align: start; hyphens: manual; }
+.ra-app .sc-editor-cm .cm-scroller {
+  font-family: var(--ra-font-family, var(--font-mono));
+  line-height: var(--ra-line-height, 1.6);
+  letter-spacing: var(--ra-letter-spacing, 0);
+  word-spacing: var(--ra-word-spacing, normal);
+}
+/* -- text size: --ra-text-scale scales the reading text through each area's base in rem / em (the Preview's 1rem,
+      chat's --sc-chat-font, a .ra-reading area's inherited size, the editor's 0.875rem and its gutter, the report's
+      13px root and 12px monospace parts), so code and logs grow with the text and keep their font; "Scale the
+      interface too" (html.ra-scale-chrome) scales the root rem instead - every rem-sized control follows and the
+      reading areas take their size from it, not twice. The desktop's zoom (Cmd +/-) multiplies on top. -- */
+html.ra-app { --ra-reading-scale: var(--ra-text-scale, 1); --ra-chrome-scale: 1; }
+html.ra-app.ra-scale-chrome { --ra-reading-scale: 1; --ra-chrome-scale: var(--ra-text-scale, 1); font-size: calc(100% * var(--ra-text-scale, 1)); }
+/* the window never scrolls as a whole: the app root is viewport-high and every column scrolls inside itself; the
+   rail moves the page items that do not fit into its "..." menu (CompactSidebar measures the real, scaled sizes) */
+html.ra-app, html.ra-app body { height: 100%; overflow: hidden; }
+.ra-app .markdown-preview { --ra-font-base: 1rem; }
+.ra-app .sc-chat-markdown { --ra-font-base: var(--sc-chat-font); }
+.ra-reading-sm { --ra-font-base: 0.875rem; }   /* a reading area set in text-sm / text-xs keeps that size at 100 % */
+.ra-reading-xs { --ra-font-base: 0.75rem; }
+.ra-reading-2xs { --ra-font-base: 0.6875rem; }
+.ra-app :is(.markdown-preview, .ra-reading) { font-size: calc(var(--ra-font-base, 1em) * var(--ra-reading-scale, 1)); }
+.ra-app .sc-editor-cm.cm-editor { font-size: calc(0.875rem * var(--ra-reading-scale, 1)); }
+.ra-app .sc-editor-cm .cm-gutters { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); font-family: var(--font-mono); }   /* the line numbers match the code, whatever the reading font */
+/* the Diagnostics report (backend/static/styles.css sizes its parts in px): every px font size becomes the same
+   size in rem times the reading scale, so under Text size, with or without the interface scaled, paragraphs,
+   tables, findings, badges, legends and the monospace parts all grow by one factor (generated from the stylesheet) */
+.ra-app #diagnostics-content { font-size: calc(0.8125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content input[type="text"], .ra-app #diagnostics-content input[type="search"], .ra-app #diagnostics-content input[type="number"], .ra-app #diagnostics-content input[type="email"], .ra-app #diagnostics-content input[type="password"], .ra-app #diagnostics-content input[type="tel"], .ra-app #diagnostics-content input[type="url"], .ra-app #diagnostics-content input[type="date"], .ra-app #diagnostics-content input[type="datetime-local"], .ra-app #diagnostics-content input:not([type]), .ra-app #diagnostics-content .ui-input { font-size: calc(0.8125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content textarea { font-size: calc(0.8125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content select, .ra-app #diagnostics-content .ui-select { font-size: calc(0.8125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-check-label { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content label { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-label { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content button:not(.btn):not(.lc-sort):not(.ui-sort):not(.ui-link):not(.ui-icon-btn):not(.ui-chip):not(.ui-xrow-btn):not(.ui-dr-day):not([class*="-link"]):not(th button) { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .btn.btn-sm { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .btn:not(.btn-sm):not(.btn-md):not(.btn-lg) { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-link { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-chip { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content table td .ui-chip { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-badge { font-size: calc(0.65625rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-count { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-card-title, .ra-app #diagnostics-content .ui-section-title { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-card-title .ui-count-text { font-size: calc(0.8125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-head h2, .ra-app #diagnostics-content .ui-head h3 { font-size: calc(0.9375rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-head .ui-sub { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-note { font-size: calc(0.78125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-muted { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-card-sub { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-stat-label { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-stat-value { font-size: calc(1.25rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-stat-sub { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-toolbar .ui-shown { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-status { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content table { font-size: calc(0.78125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content table th { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content table td { font-size: calc(0.78125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-table-note { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content table.ui-table td[data-label]::before { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content [id$="-count"], .ra-app #diagnostics-content [id*="Count"] { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-chart-note { font-size: calc(0.625rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-legend { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-findings-head { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-finding { font-size: calc(0.78125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-pager .ui-pager-gap { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-pager .ui-pager-compact { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-pagebar-right .ui-rows { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content table td.ui-cmd { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-code > pre { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-expand-body pre { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-expand-body .ui-expand-head { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content details.ui-menu > .ui-menu-body { font-size: calc(0.78125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-filterbar .ui-rows, .ra-app #diagnostics-content .ui-filterbar .ui-numfield, .ra-app #diagnostics-content .ui-filterbar .ui-check-label { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-meter-value { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-xrow-body { font-size: calc(0.78125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-kv dt { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-kv-title { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-mono, .ra-app #diagnostics-content .ui-kv dd.ui-mono, .ra-app #diagnostics-content .ui-xrow-body pre { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-copy { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-flag { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-detail-crumbs { font-size: calc(0.78125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-detail-nav { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-detail-title { font-size: calc(1.125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-chips-more { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-code-lines { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-code-fold { font-size: calc(0.625rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .lv-slider-labels { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .lv-status { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-logview-group { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-popover-foot-note { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .lv-files-name { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .lv-files-size { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .lv-range-note { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-modal-card h3 { font-size: calc(1.125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-modal-card p { font-size: calc(0.8125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-modal-icon { font-size: calc(2.5rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-dr-title { font-size: calc(0.8125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-dr-dow span { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-dr-day { font-size: calc(0.78125rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-xrow-body table.ui-nested { font-size: calc(0.75rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-xrow-body table.ui-nested th { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content .ui-xrow-body table.ui-nested th.ui-status { font-size: calc(0.6875rem * var(--ra-reading-scale, 1)); }
+.ra-app #diagnostics-content :is(td, th) { overflow-wrap: anywhere; }
+
+/* -- the Documents editor and Preview: the readable column is centred (a padding, so the background stays the pane's);
+      the width and the alignment are the reading-text options on <html> -- */
+.ra-surface .markdown-preview {
+  text-align: var(--ra-text-align, start);
+  hyphens: var(--ra-hyphens, manual);
+  padding-inline: max(1.5rem, calc((100% - var(--ra-max-width, 100%)) / 2));
+}
+.ra-surface .markdown-preview :is(pre, code, table) { text-align: start; hyphens: manual; }
+.ra-surface .sc-editor-cm .cm-content {
+  padding-inline: max(24px, calc((100% - var(--ra-max-width, 100%)) / 2));
+  text-align: var(--ra-text-align, start);
+  hyphens: var(--ra-hyphens, manual);
+}
+.ra-surface .sc-editor-cm .cm-line.cm-code-block { text-align: start; hyphens: manual; }
+
+/* -- the reading ruler (src/components/common/ReadingRuler.jsx): one overlay, clipped to the reading area's
+      visible box, above everything (pointer-events none); Highlight tints the band, Mask dims the rest of the
+      area towards its own background, so the text under it stays readable in light and dark -- */
+.ra-ruler-clip { position: fixed; z-index: 40; pointer-events: none; overflow: hidden; }   /* below dialogs and menus (z-50): a dialog over the text reads clear */
+.ra-ruler-clip[hidden] { display: none; }
+.ra-ruler-band { position: absolute; left: 0; right: 0; background-color: var(--ra-ruler-bg); }
+.ra-ruler-mask .ra-ruler-band { background-color: transparent; box-shadow: none; }   /* the shade dims the window; the band is its hole */
+/* Mask mode dims the whole window - every reading area, the sidebars, the panels, the chrome, the rail - and only the
+   band is bright: a pointer-transparent shade with a hole the band's size (ReadingRuler cuts it with clip-path) */
+.ra-ruler-shade { position: fixed; inset: 0; z-index: 40; pointer-events: none; background-color: var(--ra-mask-bg); }
+.ra-ruler-shade[hidden] { display: none; }
+
+/* -- highlighted links, everywhere a text link is: underlined always, on a tint (the editor shows links as
+      Markdown text; its document chips take the underline) -- */
+.ra-links a[href]:not([role="button"]):not([role="tab"]):not(.sc-rail-tab):not(.sc-btn) { text-decoration: underline; text-decoration-thickness: 0.12em; text-underline-offset: 0.15em; background-color: var(--ra-link-tint); border-radius: var(--radius-xs, 6px); padding: 0 0.15em; }
+.ra-links .markdown-preview a[href] { --ra-link-tint: color-mix(in srgb, var(--md-link) 14%, transparent); }
+.ra-links .sc-editor-cm .cm-doc-link-chip { text-decoration: underline; text-decoration-thickness: 0.12em; text-underline-offset: 0.15em; }
+
+/* -- hidden images: the placeholder (hiddenImages.js) in the surrounding text's colours -- */
+.ra-image-placeholder { display: inline-flex; align-items: center; gap: 0.75em; max-width: 100%; margin: 0.25em 0; padding: 0.5em 0.75em; border: 1px dashed var(--md-border, var(--os-border)); border-radius: var(--radius-xs, 6px); background-color: var(--md-surface-alt, var(--os-card-secondary)); color: var(--md-quote-text, var(--os-text-secondary)); font-size: 0.875em; line-height: 1.4; }
+.ra-image-alt { overflow-wrap: anywhere; }
+.ra-image-show { flex: none; padding: 0.2em 0.6em; border: 1px solid var(--md-border, var(--os-border)); border-radius: var(--radius-xs, 6px); background-color: var(--md-surface, var(--os-card)); color: var(--md-link, var(--link)); font: inherit; font-size: 0.875em; cursor: pointer; }
+.ra-image-show:hover { text-decoration: underline; }
+.ra-image-show:focus-visible { outline: 2px solid var(--os-blue); outline-offset: 1px; }
+
+/* -- zen mode (readingAids.js zenMode): the rail hides itself, the Documents page drops its tabs; the document's
+      column follows Line width (Settings > Accessibility: --ra-max-width) - Off is the pane's width with the normal
+      padding, a chosen width is centred - the same rule in and out of zen, so there is one width to set -- */
+
+/* -- the Tailwind aliases (bg-os-card, text-os-text-primary, ...) resolve on :root; declared again on <body>
+      they follow the tokens the blocks below set there, and so do the button rings derived from them -- */
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body {
+  --color-os-masthead: var(--os-masthead); --color-os-sidebar: var(--os-sidebar); --color-os-sidebar-hover: var(--os-sidebar-hover); --color-os-canvas: var(--os-canvas); --color-os-card: var(--os-card); --color-os-card-secondary: var(--os-card-secondary); --color-os-modal: var(--os-modal); --color-os-blue: var(--os-blue); --color-os-blue-hover: var(--os-blue-hover); --color-os-border: var(--os-border); --color-os-text-primary: var(--os-text-primary); --color-os-text-secondary: var(--os-text-secondary); --color-os-text-muted: var(--os-text-muted); --color-os-divider: var(--os-divider); --color-os-input-bg: var(--os-input-bg); --color-os-input-border: var(--os-input-border); --color-os-rail: var(--os-rail); --color-os-rail-border: var(--os-rail-border); --color-os-rail-hover: var(--os-rail-hover); --color-os-rail-active: var(--os-rail-active); --color-os-rail-text: var(--os-rail-text); --color-os-rail-text-active: var(--os-rail-text-active); --color-os-rail-tooltip: var(--os-rail-tooltip); --color-os-rail-separator: var(--os-rail-separator);
+  --color-status-success: var(--os-status-success);
+  --btn-primary-ring: color-mix(in srgb, var(--btn-primary-bg) 40%, transparent); --btn-primary-disabled-bg: color-mix(in srgb, var(--btn-primary-bg) 50%, transparent); --btn-secondary-ring: color-mix(in srgb, var(--btn-secondary-bg) 40%, transparent); --btn-secondary-disabled-bg: color-mix(in srgb, var(--btn-secondary-bg) 50%, transparent); --btn-danger-ring: color-mix(in srgb, var(--btn-danger-bg) 40%, transparent); --btn-danger-disabled-bg: color-mix(in srgb, var(--btn-danger-bg) 50%, transparent); --btn-success-ring: color-mix(in srgb, var(--btn-success-bg) 40%, transparent); --btn-success-disabled-bg: color-mix(in srgb, var(--btn-success-bg) 50%, transparent); --btn-warning-ring: color-mix(in srgb, var(--btn-warning-bg) 40%, transparent); --btn-warning-disabled-bg: color-mix(in srgb, var(--btn-warning-bg) 50%, transparent); --btn-selected-ring: color-mix(in srgb, var(--btn-selected-bg) 40%, transparent); --btn-selected-disabled-bg: color-mix(in srgb, var(--btn-selected-bg) 50%, transparent); --btn-brand-ring: color-mix(in srgb, var(--btn-brand-bg) 40%, transparent); --btn-brand-disabled-bg: color-mix(in srgb, var(--btn-brand-bg) 50%, transparent);
+  /* the accent-derived shades (ghost / quiet rings and tints, the selected tint, the default focus ring) follow the accent set here */
+  --btn-ghost-ring: color-mix(in srgb, var(--os-blue) 40%, transparent); --btn-quiet-ring: color-mix(in srgb, var(--os-blue) 40%, transparent);
+  --btn-quiet-bg-hover: color-mix(in srgb, var(--os-blue) 10%, transparent); --btn-quiet-bg-active: color-mix(in srgb, var(--os-blue) 18%, transparent);
+  --btn-selected-tint: color-mix(in srgb, var(--btn-selected-bg) 12%, transparent); --btn-selected-tint-strong: color-mix(in srgb, var(--btn-selected-bg) 22%, transparent);
+  --default-ring-color: color-mix(in srgb, var(--os-blue) 50%, transparent);
+}
+/* a rail painted inline (a gradient scheme's gradient, a custom theme's fill) takes the high-contrast rail */
+html.ra-high-contrast .sc-rail { background: var(--os-rail) !important; border-color: var(--os-rail-border) !important; }
+html.ra-high-contrast body { background-color: var(--os-canvas); color: var(--os-text-primary); }
+/* every colour role follows a palette and high contrast: the stock palette classes still painting UI (text-red-600,
+   bg-blue-50, border-amber-200, text-purple-700, ...) map by hue family onto the status-family tokens the blocks
+   above set - info (blue / sky / indigo), success (green / emerald / teal), warning (amber / yellow / orange), danger
+   (red / rose), brand (purple / violet / fuchsia / pink); the shared primitives (Note, Badge, StatusLine) use the
+   tokens directly. Buttons keep their --btn-* tokens. */
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="text-blue-"], [class*="text-sky-"], [class*="text-indigo-"], [class*="text-cyan-"]) { color: var(--status-info-fg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="bg-blue-"], [class*="bg-sky-"], [class*="bg-indigo-"], [class*="bg-cyan-"]):not(button):not([role="button"]):not(.sc-btn):not(.btn) { background-color: var(--status-info-bg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="bg-blue-"], [class*="bg-sky-"], [class*="bg-indigo-"], [class*="bg-cyan-"]):not(button):not([role="button"]):not(.sc-btn):not(.btn) .text-white { color: var(--status-info-fg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="border-blue-"], [class*="border-sky-"], [class*="border-indigo-"], [class*="border-cyan-"]) { border-color: var(--status-info-border); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="text-green-"], [class*="text-emerald-"], [class*="text-teal-"], [class*="text-lime-"]) { color: var(--status-success-fg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="bg-green-"], [class*="bg-emerald-"], [class*="bg-teal-"], [class*="bg-lime-"]):not(button):not([role="button"]):not(.sc-btn):not(.btn) { background-color: var(--status-success-bg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="bg-green-"], [class*="bg-emerald-"], [class*="bg-teal-"], [class*="bg-lime-"]):not(button):not([role="button"]):not(.sc-btn):not(.btn) .text-white { color: var(--status-success-fg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="border-green-"], [class*="border-emerald-"], [class*="border-teal-"], [class*="border-lime-"]) { border-color: var(--status-success-border); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="text-amber-"], [class*="text-yellow-"], [class*="text-orange-"]) { color: var(--status-warning-fg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="bg-amber-"], [class*="bg-yellow-"], [class*="bg-orange-"]):not(button):not([role="button"]):not(.sc-btn):not(.btn) { background-color: var(--status-warning-bg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="bg-amber-"], [class*="bg-yellow-"], [class*="bg-orange-"]):not(button):not([role="button"]):not(.sc-btn):not(.btn) .text-white { color: var(--status-warning-fg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="border-amber-"], [class*="border-yellow-"], [class*="border-orange-"]) { border-color: var(--status-warning-border); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="text-red-"], [class*="text-rose-"]) { color: var(--status-danger-fg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="bg-red-"], [class*="bg-rose-"]):not(button):not([role="button"]):not(.sc-btn):not(.btn) { background-color: var(--status-danger-bg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="bg-red-"], [class*="bg-rose-"]):not(button):not([role="button"]):not(.sc-btn):not(.btn) .text-white { color: var(--status-danger-fg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="border-red-"], [class*="border-rose-"]) { border-color: var(--status-danger-border); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="text-purple-"], [class*="text-violet-"], [class*="text-fuchsia-"], [class*="text-pink-"]) { color: var(--status-brand-fg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="bg-purple-"], [class*="bg-violet-"], [class*="bg-fuchsia-"], [class*="bg-pink-"]):not(button):not([role="button"]):not(.sc-btn):not(.btn) { background-color: var(--status-brand-bg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="bg-purple-"], [class*="bg-violet-"], [class*="bg-fuchsia-"], [class*="bg-pink-"]):not(button):not([role="button"]):not(.sc-btn):not(.btn) .text-white { color: var(--status-brand-fg); }
+html:is(.ra-high-contrast, .ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) body :is([class*="border-purple-"], [class*="border-violet-"], [class*="border-fuchsia-"], [class*="border-pink-"]) { border-color: var(--status-brand-border); }
+/* a rail painted inline (a gradient scheme's gradient, a custom theme's fill) takes the palette's rail too */
+html:is(.ra-cv-protanopia, .ra-cv-deuteranopia, .ra-cv-tritanopia) .sc-rail { background: var(--os-rail) !important; border-color: var(--os-rail-border) !important; }
+/* the rail's tooltip: one high-contrast pair (black, white text), ringed so it shows on a black rail too */
+html.ra-high-contrast .bg-os-rail-tooltip { box-shadow: 0 0 0 1px var(--os-rail-text); }
+
+/* -- high contrast: black on white in a light theme, white on black in a dark one, for the whole window - text,
+      borders, inputs, the rail, buttons, links, code, the terminal, chat bubbles, charts and the status colours;
+      every text role measures 7:1 or better on its background (tests/reading-aids.test.mjs re-measures) -- */
+html.ra-high-contrast body {
+  --os-masthead: #ffffff; --os-sidebar: #ffffff; --os-sidebar-hover: #e6e6e6; --os-canvas: #ffffff; --os-card: #ffffff; --os-card-secondary: #f0f0f0; --os-modal: #ffffff;
+  --os-blue: #0000ee; --os-blue-hover: #0000b3; --os-border: #000000; --os-divider: #000000; --os-input-bg: #ffffff; --os-input-border: #000000;
+  --os-text-primary: #000000; --os-text-secondary: #333333; --os-text-muted: #333333;
+  --os-rail: #ffffff; --os-rail-border: #000000; --os-rail-hover: #e6e6e6; --os-rail-active: #0000ee; --os-rail-text: #000000; --os-rail-text-active: #ffffff; --os-rail-tooltip: #000000; --os-rail-tooltip-text: #ffffff; --os-rail-separator: #000000; --rail-badge: #a30000;
+  --link: #0000ee; --link-hover: #0000b3; --brand-accent: #5a0a8c;
+  --os-status-success: #006400; --color-status-warning: #6b4a00; --color-status-danger: #a30000;
+  --chart-ok: #0000ee; --chart-info: #0000ee; --chart-good: #006400; --chart-warn: #6b4a00; --chart-bad: #a30000; --chart-muted: #333333;
+  --chart-cat-1: #0000ee; --chart-cat-2: #8a3b00; --chart-cat-3: #005a2e; --chart-cat-4: #a30000; --chart-cat-5: #5a0a8c; --chart-cat-6: #004c84; --chart-cat-7: #6b4a00; --chart-cat-8: #000000;
+  --status-info-fg: #0000ee; --status-info-bg: #ffffff; --status-info-border: #0000ee; --status-success-fg: #006400; --status-success-bg: #ffffff; --status-success-border: #006400; --status-warning-fg: #6b4a00; --status-warning-bg: #ffffff; --status-warning-border: #6b4a00; --status-danger-fg: #a30000; --status-danger-bg: #ffffff; --status-danger-border: #a30000; --status-brand-fg: #5a0a8c; --status-brand-bg: #ffffff; --status-brand-border: #5a0a8c;
+  --os-code-bg: #f0f0f0; --os-code-keyword: #a2001d; --os-code-string: #0a3069; --os-code-number: #004c84; --os-code-comment: #4a4a4a; --os-code-title: #5e34ab; --os-code-attr: #005a2e; --os-code-builtin: #7f3600; --os-code-variable: #7f3600; --os-code-meta: #5e34ab;
+  --os-terminal-bg: #000000; --os-terminal-text: #ffffff; --os-terminal-muted: #cccccc; --os-terminal-border: #ffffff; --os-terminal-success: #6fdc8c; --os-terminal-warning: #ffd54f; --os-terminal-error: #ff8a80; --os-terminal-selection: rgba(0, 0, 238, 0.22);
+  --md-text: #000000; --md-heading: #000000; --md-heading-border: #000000; --md-code-text: #000000; --md-code-bg: #f0f0f0; --md-inline-code-bg: #e6e6e6; --md-link: #0000ee; --md-quote-text: #000000; --md-border: #000000; --md-surface: #ffffff; --md-surface-alt: #f0f0f0;
+  --chat-user-bg: #0000ee; --chat-user-text: #ffffff; --chat-user-tint: color-mix(in srgb, #ffffff 18%, transparent); --chat-user-line: color-mix(in srgb, #ffffff 50%, transparent); --chat-link: #ffffff;
+  --btn-primary-bg: #0000ee; --btn-primary-bg-hover: #0000ee; --btn-primary-bg-active: #0000ee; --btn-primary-fg: #ffffff; --btn-primary-border: #000000; --btn-selected-bg: #0000ee; --btn-selected-bg-hover: #0000ee; --btn-selected-bg-active: #0000ee; --btn-selected-fg: #ffffff; --btn-selected-border: #000000; --btn-selected-text: #0000ee; --btn-selected-tint: #f0f0f0; --btn-selected-tint-strong: #e6e6e6; --btn-brand-bg: #5a0a8c; --btn-brand-bg-hover: #5a0a8c; --btn-brand-bg-active: #5a0a8c; --btn-brand-fg: #ffffff; --btn-brand-border: #000000; --btn-success-bg: #006400; --btn-success-bg-hover: #006400; --btn-success-bg-active: #006400; --btn-success-fg: #ffffff; --btn-success-border: #000000; --btn-success-text: #006400; --btn-warning-bg: #6b4a00; --btn-warning-bg-hover: #6b4a00; --btn-warning-bg-active: #6b4a00; --btn-warning-fg: #ffffff; --btn-warning-border: #000000; --btn-warning-text: #6b4a00; --btn-danger-solid-bg: #a30000; --btn-danger-solid-bg-hover: #a30000; --btn-danger-solid-bg-active: #a30000; --btn-danger-solid-fg: #ffffff; --btn-danger-solid-border: #000000;
+  --btn-secondary-bg: #ffffff; --btn-secondary-bg-hover: #e6e6e6; --btn-secondary-bg-active: #e6e6e6; --btn-secondary-fg: #000000; --btn-secondary-border: #000000; --btn-ghost-bg: #ffffff; --btn-ghost-bg-hover: #e6e6e6; --btn-ghost-bg-active: #e6e6e6; --btn-ghost-fg: #000000; --btn-ghost-border: #000000; --btn-ghost-fg-hover: #000000; --btn-quiet-bg: #ffffff; --btn-quiet-bg-hover: #e6e6e6; --btn-quiet-bg-active: #e6e6e6; --btn-quiet-fg: #0000ee; --btn-quiet-border: #0000ee; --btn-danger-bg: #ffffff; --btn-danger-bg-hover: #e6e6e6; --btn-danger-bg-active: #e6e6e6; --btn-danger-fg: #a30000; --btn-danger-border: #a30000;
+}
+html.dark.ra-high-contrast body {
+  --os-masthead: #000000; --os-sidebar: #000000; --os-sidebar-hover: #262626; --os-canvas: #000000; --os-card: #000000; --os-card-secondary: #141414; --os-modal: #000000;
+  --os-blue: #8ab4ff; --os-blue-hover: #b3ccff; --os-border: #ffffff; --os-divider: #ffffff; --os-input-bg: #000000; --os-input-border: #ffffff;
+  --os-text-primary: #ffffff; --os-text-secondary: #cccccc; --os-text-muted: #cccccc;
+  --os-rail: #000000; --os-rail-border: #ffffff; --os-rail-hover: #262626; --os-rail-active: #8ab4ff; --os-rail-text: #ffffff; --os-rail-text-active: #000000; --os-rail-tooltip: #000000; --os-rail-tooltip-text: #ffffff; --os-rail-separator: #ffffff; --rail-badge: #ff8a80;
+  --link: #8ab4ff; --link-hover: #b3ccff; --brand-accent: #e0b3ff;
+  --os-status-success: #6fdc8c; --color-status-warning: #ffd54f; --color-status-danger: #ff8a80;
+  --chart-ok: #8ab4ff; --chart-info: #8ab4ff; --chart-good: #6fdc8c; --chart-warn: #ffd54f; --chart-bad: #ff8a80; --chart-muted: #cccccc;
+  --chart-cat-1: #8ab4ff; --chart-cat-2: #ffb380; --chart-cat-3: #8ff0a4; --chart-cat-4: #ff8a80; --chart-cat-5: #e0b3ff; --chart-cat-6: #80d8ff; --chart-cat-7: #ffd54f; --chart-cat-8: #ffffff;
+  --status-info-fg: #8ab4ff; --status-info-bg: #000000; --status-info-border: #8ab4ff; --status-success-fg: #6fdc8c; --status-success-bg: #000000; --status-success-border: #6fdc8c; --status-warning-fg: #ffd54f; --status-warning-bg: #000000; --status-warning-border: #ffd54f; --status-danger-fg: #ff8a80; --status-danger-bg: #000000; --status-danger-border: #ff8a80; --status-brand-fg: #e0b3ff; --status-brand-bg: #000000; --status-brand-border: #e0b3ff;
+  --os-code-bg: #141414; --os-code-keyword: #ff8a80; --os-code-string: #a5d6ff; --os-code-number: #80d8ff; --os-code-comment: #c8c8c8; --os-code-title: #e0b3ff; --os-code-attr: #8ff0a4; --os-code-builtin: #ffb380; --os-code-variable: #ffb380; --os-code-meta: #e0b3ff;
+  --os-terminal-bg: #000000; --os-terminal-text: #ffffff; --os-terminal-muted: #cccccc; --os-terminal-border: #ffffff; --os-terminal-success: #6fdc8c; --os-terminal-warning: #ffd54f; --os-terminal-error: #ff8a80; --os-terminal-selection: rgba(138, 180, 255, 0.4);
+  --md-text: #ffffff; --md-heading: #ffffff; --md-heading-border: #ffffff; --md-code-text: #ffffff; --md-code-bg: #141414; --md-inline-code-bg: #262626; --md-link: #8ab4ff; --md-quote-text: #ffffff; --md-border: #ffffff; --md-surface: #000000; --md-surface-alt: #141414;
+  --chat-user-bg: #8ab4ff; --chat-user-text: #000000; --chat-user-tint: color-mix(in srgb, #000000 18%, transparent); --chat-user-line: color-mix(in srgb, #000000 50%, transparent); --chat-link: #000000;
+  --btn-primary-bg: #8ab4ff; --btn-primary-bg-hover: #8ab4ff; --btn-primary-bg-active: #8ab4ff; --btn-primary-fg: #000000; --btn-primary-border: #ffffff; --btn-selected-bg: #8ab4ff; --btn-selected-bg-hover: #8ab4ff; --btn-selected-bg-active: #8ab4ff; --btn-selected-fg: #000000; --btn-selected-border: #ffffff; --btn-selected-text: #8ab4ff; --btn-selected-tint: #141414; --btn-selected-tint-strong: #262626; --btn-brand-bg: #e0b3ff; --btn-brand-bg-hover: #e0b3ff; --btn-brand-bg-active: #e0b3ff; --btn-brand-fg: #000000; --btn-brand-border: #ffffff; --btn-success-bg: #6fdc8c; --btn-success-bg-hover: #6fdc8c; --btn-success-bg-active: #6fdc8c; --btn-success-fg: #000000; --btn-success-border: #ffffff; --btn-success-text: #6fdc8c; --btn-warning-bg: #ffd54f; --btn-warning-bg-hover: #ffd54f; --btn-warning-bg-active: #ffd54f; --btn-warning-fg: #000000; --btn-warning-border: #ffffff; --btn-warning-text: #ffd54f; --btn-danger-solid-bg: #ff8a80; --btn-danger-solid-bg-hover: #ff8a80; --btn-danger-solid-bg-active: #ff8a80; --btn-danger-solid-fg: #000000; --btn-danger-solid-border: #ffffff;
+  --btn-secondary-bg: #000000; --btn-secondary-bg-hover: #262626; --btn-secondary-bg-active: #262626; --btn-secondary-fg: #ffffff; --btn-secondary-border: #ffffff; --btn-ghost-bg: #000000; --btn-ghost-bg-hover: #262626; --btn-ghost-bg-active: #262626; --btn-ghost-fg: #ffffff; --btn-ghost-border: #ffffff; --btn-ghost-fg-hover: #ffffff; --btn-quiet-bg: #000000; --btn-quiet-bg-hover: #262626; --btn-quiet-bg-active: #262626; --btn-quiet-fg: #8ab4ff; --btn-quiet-border: #8ab4ff; --btn-danger-bg: #000000; --btn-danger-bg-hover: #262626; --btn-danger-bg-active: #262626; --btn-danger-fg: #ff8a80; --btn-danger-border: #ff8a80;
+}
+
+/* -- colour-vision palettes (Okabe-Ito hues: blue #0072B2, orange #E69F00, vermillion #D55E00, purple #CC79A7,
+      sky #56B4E9, green #009E73), each fitted to 4.5:1 on the surface, for the whole window: links, the accent,
+      the status and chart colours, the syntax colours and the callouts take colours told apart with that kind of
+      colour vision - red against green avoided for protanopia and deuteranopia, blue against green and yellow for
+      tritanopia; good / warning / bad differ in lightness as well as hue -- */
+html.ra-cv-protanopia body {
+  --md-link: #0072b2; --link: #0072b2; --os-blue: #0072b2; --chart-ok: #0072b2; --chart-info: #0072b2;
+  --os-rail-active: var(--btn-primary-bg); --os-rail-text-active: #ffffff; --brand-accent: #008562;
+  --status-info-fg: #925679; --status-info-bg: color-mix(in srgb, #9f5e83 12%, var(--os-card)); --status-info-border: #9f5e83; --status-success-fg: #346e8e; --status-success-bg: color-mix(in srgb, #39789a 12%, var(--os-card)); --status-success-border: #39789a; --status-warning-fg: #8c6000; --status-warning-bg: color-mix(in srgb, #986800 12%, var(--os-card)); --status-warning-border: #986800; --status-danger-fg: #8d3e00; --status-danger-bg: color-mix(in srgb, #8d3e00 12%, var(--os-card)); --status-danger-border: #8d3e00; --status-brand-fg: #007a5a; --status-brand-bg: color-mix(in srgb, #008562 12%, var(--os-card)); --status-brand-border: #008562;
+  --chart-cat-1: #0072B2; --chart-cat-2: #E69F00; --chart-cat-3: #56B4E9; --chart-cat-4: #D55E00; --chart-cat-5: #CC79A7; --chart-cat-6: #009E73; --chart-cat-7: #9e972c; --chart-cat-8: #000000;
+  --os-blue-hover: color-mix(in srgb, var(--os-blue) 78%, black); --link-hover: var(--os-blue-hover);
+  --btn-primary-bg: #0072b2; --btn-primary-bg-hover: color-mix(in srgb, #0072b2 85%, black); --btn-primary-bg-active: color-mix(in srgb, #0072b2 72%, black); --btn-primary-fg: #ffffff; --btn-primary-border: transparent;
+  --btn-selected-bg: var(--btn-primary-bg); --btn-selected-bg-hover: var(--btn-primary-bg-hover); --btn-selected-fg: #ffffff; --btn-selected-text: var(--btn-primary-bg);
+  --btn-quiet-fg: var(--btn-primary-bg);
+  --os-status-success: #39789a; --chart-good: #39789a; --os-terminal-success: #39789a; --btn-success-text: #39789a;
+  --ra-callout-important: #9f5e83;
+  --os-terminal-warning: #986800; --chart-warn: #986800; --color-status-warning: #986800;
+  --os-terminal-error: #8d3e00; --chart-bad: #8d3e00; --color-status-danger: #8d3e00; --rail-badge: #8d3e00; --btn-danger-fg: #8d3e00; --btn-danger-border: #8d3e00;
+  --btn-success-bg: #39789a; --btn-success-bg-hover: #39789a; --btn-warning-bg: #986800; --btn-warning-bg-hover: #986800; --btn-danger-solid-bg: #b44f00; --btn-danger-solid-bg-hover: #b44f00;
+  --os-code-keyword: #b44f00; --os-code-string: #0072b2; --os-code-number: #925679; --os-code-comment: #595959; --os-code-title: #986800; --os-code-attr: #39789a; --os-code-builtin: #986800; --os-code-variable: #986800; --os-code-meta: #925679;
+}
+html.dark.ra-cv-protanopia body {
+  --md-link: #2787be; --link: #2787be; --os-blue: #2787be; --chart-ok: #2787be; --chart-info: #2787be;
+  --os-rail-active: var(--btn-primary-bg); --os-rail-text-active: #ffffff; --brand-accent: #009e73;
+  --status-info-fg: #cc79a7; --status-info-bg: color-mix(in srgb, #cc79a7 12%, var(--os-card)); --status-info-border: #cc79a7; --status-success-fg: #56b4e9; --status-success-bg: color-mix(in srgb, #56b4e9 12%, var(--os-card)); --status-success-border: #56b4e9; --status-warning-fg: #e69f00; --status-warning-bg: color-mix(in srgb, #e69f00 12%, var(--os-card)); --status-warning-border: #e69f00; --status-danger-fg: #d86b14; --status-danger-bg: color-mix(in srgb, #d55e00 12%, var(--os-card)); --status-danger-border: #d55e00; --status-brand-fg: #009e73; --status-brand-bg: color-mix(in srgb, #009e73 12%, var(--os-card)); --status-brand-border: #009e73;
+  --chart-cat-1: #0072B2; --chart-cat-2: #E69F00; --chart-cat-3: #56B4E9; --chart-cat-4: #D55E00; --chart-cat-5: #CC79A7; --chart-cat-6: #009E73; --chart-cat-7: #F0E442; --chart-cat-8: #ffffff;
+  --os-blue-hover: color-mix(in srgb, var(--os-blue) 80%, white); --link-hover: var(--os-blue-hover);
+  --btn-primary-bg: #247caf; --btn-primary-bg-hover: color-mix(in srgb, #247caf 85%, black); --btn-primary-bg-active: color-mix(in srgb, #247caf 72%, black); --btn-primary-fg: #ffffff; --btn-primary-border: transparent;
+  --btn-selected-bg: var(--btn-primary-bg); --btn-selected-bg-hover: var(--btn-primary-bg-hover); --btn-selected-fg: #ffffff; --btn-selected-text: var(--os-blue-hover);
+  --btn-quiet-fg: var(--os-blue-hover);
+  --os-status-success: #56b4e9; --chart-good: #56b4e9; --os-terminal-success: #56b4e9; --btn-success-text: #56b4e9;
+  --ra-callout-important: #cc79a7;
+  --os-terminal-warning: #e69f00; --chart-warn: #e69f00; --color-status-warning: #e69f00;
+  --os-terminal-error: #d55e00; --chart-bad: #d55e00; --color-status-danger: #d55e00; --rail-badge: #d55e00; --btn-danger-fg: #d55e00; --btn-danger-border: #d55e00;
+  --btn-success-bg: #39789a; --btn-success-bg-hover: #39789a; --btn-warning-bg: #986800; --btn-warning-bg-hover: #986800; --btn-danger-solid-bg: #b44f00; --btn-danger-solid-bg-hover: #b44f00;
+  --os-code-keyword: #d55e00; --os-code-string: #2787be; --os-code-number: #cc79a7; --os-code-comment: #7d7d7d; --os-code-title: #e69f00; --os-code-attr: #56b4e9; --os-code-builtin: #e69f00; --os-code-variable: #e69f00; --os-code-meta: #cc79a7;
+}
+html.ra-cv-deuteranopia body {
+  --md-link: #0072b2; --link: #0072b2; --os-blue: #0072b2; --chart-ok: #0072b2; --chart-info: #0072b2;
+  --os-rail-active: var(--btn-primary-bg); --os-rail-text-active: #ffffff; --brand-accent: #008562;
+  --status-info-fg: #925679; --status-info-bg: color-mix(in srgb, #9f5e83 12%, var(--os-card)); --status-info-border: #9f5e83; --status-success-fg: #346e8e; --status-success-bg: color-mix(in srgb, #39789a 12%, var(--os-card)); --status-success-border: #39789a; --status-warning-fg: #8c6000; --status-warning-bg: color-mix(in srgb, #986800 12%, var(--os-card)); --status-warning-border: #986800; --status-danger-fg: #8d3e00; --status-danger-bg: color-mix(in srgb, #8d3e00 12%, var(--os-card)); --status-danger-border: #8d3e00; --status-brand-fg: #007a5a; --status-brand-bg: color-mix(in srgb, #008562 12%, var(--os-card)); --status-brand-border: #008562;
+  --chart-cat-1: #0072B2; --chart-cat-2: #E69F00; --chart-cat-3: #56B4E9; --chart-cat-4: #D55E00; --chart-cat-5: #CC79A7; --chart-cat-6: #009E73; --chart-cat-7: #9e972c; --chart-cat-8: #000000;
+  --os-blue-hover: color-mix(in srgb, var(--os-blue) 78%, black); --link-hover: var(--os-blue-hover);
+  --btn-primary-bg: #0072b2; --btn-primary-bg-hover: color-mix(in srgb, #0072b2 85%, black); --btn-primary-bg-active: color-mix(in srgb, #0072b2 72%, black); --btn-primary-fg: #ffffff; --btn-primary-border: transparent;
+  --btn-selected-bg: var(--btn-primary-bg); --btn-selected-bg-hover: var(--btn-primary-bg-hover); --btn-selected-fg: #ffffff; --btn-selected-text: var(--btn-primary-bg);
+  --btn-quiet-fg: var(--btn-primary-bg);
+  --os-status-success: #39789a; --chart-good: #39789a; --os-terminal-success: #39789a; --btn-success-text: #39789a;
+  --ra-callout-important: #9f5e83;
+  --os-terminal-warning: #986800; --chart-warn: #986800; --color-status-warning: #986800;
+  --os-terminal-error: #8d3e00; --chart-bad: #8d3e00; --color-status-danger: #8d3e00; --rail-badge: #8d3e00; --btn-danger-fg: #8d3e00; --btn-danger-border: #8d3e00;
+  --btn-success-bg: #39789a; --btn-success-bg-hover: #39789a; --btn-warning-bg: #986800; --btn-warning-bg-hover: #986800; --btn-danger-solid-bg: #b44f00; --btn-danger-solid-bg-hover: #b44f00;
+  --os-code-keyword: #b44f00; --os-code-string: #0072b2; --os-code-number: #925679; --os-code-comment: #595959; --os-code-title: #986800; --os-code-attr: #39789a; --os-code-builtin: #986800; --os-code-variable: #986800; --os-code-meta: #925679;
+}
+html.dark.ra-cv-deuteranopia body {
+  --md-link: #2787be; --link: #2787be; --os-blue: #2787be; --chart-ok: #2787be; --chart-info: #2787be;
+  --os-rail-active: var(--btn-primary-bg); --os-rail-text-active: #ffffff; --brand-accent: #009e73;
+  --status-info-fg: #cc79a7; --status-info-bg: color-mix(in srgb, #cc79a7 12%, var(--os-card)); --status-info-border: #cc79a7; --status-success-fg: #56b4e9; --status-success-bg: color-mix(in srgb, #56b4e9 12%, var(--os-card)); --status-success-border: #56b4e9; --status-warning-fg: #e69f00; --status-warning-bg: color-mix(in srgb, #e69f00 12%, var(--os-card)); --status-warning-border: #e69f00; --status-danger-fg: #d86b14; --status-danger-bg: color-mix(in srgb, #d55e00 12%, var(--os-card)); --status-danger-border: #d55e00; --status-brand-fg: #009e73; --status-brand-bg: color-mix(in srgb, #009e73 12%, var(--os-card)); --status-brand-border: #009e73;
+  --chart-cat-1: #0072B2; --chart-cat-2: #E69F00; --chart-cat-3: #56B4E9; --chart-cat-4: #D55E00; --chart-cat-5: #CC79A7; --chart-cat-6: #009E73; --chart-cat-7: #F0E442; --chart-cat-8: #ffffff;
+  --os-blue-hover: color-mix(in srgb, var(--os-blue) 80%, white); --link-hover: var(--os-blue-hover);
+  --btn-primary-bg: #247caf; --btn-primary-bg-hover: color-mix(in srgb, #247caf 85%, black); --btn-primary-bg-active: color-mix(in srgb, #247caf 72%, black); --btn-primary-fg: #ffffff; --btn-primary-border: transparent;
+  --btn-selected-bg: var(--btn-primary-bg); --btn-selected-bg-hover: var(--btn-primary-bg-hover); --btn-selected-fg: #ffffff; --btn-selected-text: var(--os-blue-hover);
+  --btn-quiet-fg: var(--os-blue-hover);
+  --os-status-success: #56b4e9; --chart-good: #56b4e9; --os-terminal-success: #56b4e9; --btn-success-text: #56b4e9;
+  --ra-callout-important: #cc79a7;
+  --os-terminal-warning: #e69f00; --chart-warn: #e69f00; --color-status-warning: #e69f00;
+  --os-terminal-error: #d55e00; --chart-bad: #d55e00; --color-status-danger: #d55e00; --rail-badge: #d55e00; --btn-danger-fg: #d55e00; --btn-danger-border: #d55e00;
+  --btn-success-bg: #39789a; --btn-success-bg-hover: #39789a; --btn-warning-bg: #986800; --btn-warning-bg-hover: #986800; --btn-danger-solid-bg: #b44f00; --btn-danger-solid-bg-hover: #b44f00;
+  --os-code-keyword: #d55e00; --os-code-string: #2787be; --os-code-number: #cc79a7; --os-code-comment: #7d7d7d; --os-code-title: #e69f00; --os-code-attr: #56b4e9; --os-code-builtin: #e69f00; --os-code-variable: #e69f00; --os-code-meta: #cc79a7;
+}
+html.ra-cv-tritanopia body {
+  --md-link: #008562; --link: #008562; --os-blue: #008562; --chart-ok: #008562; --chart-info: #008562;
+  --os-rail-active: var(--btn-primary-bg); --os-rail-text-active: #ffffff; --brand-accent: #0072b2;
+  --status-info-fg: #925679; --status-info-bg: color-mix(in srgb, #9f5e83 12%, var(--os-card)); --status-info-border: #9f5e83; --status-success-fg: #346e8e; --status-success-bg: color-mix(in srgb, #39789a 12%, var(--os-card)); --status-success-border: #39789a; --status-warning-fg: #8c6000; --status-warning-bg: color-mix(in srgb, #986800 12%, var(--os-card)); --status-warning-border: #986800; --status-danger-fg: #8d3e00; --status-danger-bg: color-mix(in srgb, #8d3e00 12%, var(--os-card)); --status-danger-border: #8d3e00; --status-brand-fg: #0069a4; --status-brand-bg: color-mix(in srgb, #0072b2 12%, var(--os-card)); --status-brand-border: #0072b2;
+  --chart-cat-1: #D55E00; --chart-cat-2: #0072B2; --chart-cat-3: #E69F00; --chart-cat-4: #CC79A7; --chart-cat-5: #009E73; --chart-cat-6: #9e972c; --chart-cat-7: #595959; --chart-cat-8: #000000;
+  --os-blue-hover: color-mix(in srgb, var(--os-blue) 78%, black); --link-hover: var(--os-blue-hover);
+  --btn-primary-bg: #008562; --btn-primary-bg-hover: color-mix(in srgb, #008562 85%, black); --btn-primary-bg-active: color-mix(in srgb, #008562 72%, black); --btn-primary-fg: #ffffff; --btn-primary-border: transparent;
+  --btn-selected-bg: var(--btn-primary-bg); --btn-selected-bg-hover: var(--btn-primary-bg-hover); --btn-selected-fg: #ffffff; --btn-selected-text: var(--btn-primary-bg);
+  --btn-quiet-fg: var(--btn-primary-bg);
+  --os-status-success: #39789a; --chart-good: #39789a; --os-terminal-success: #39789a; --btn-success-text: #39789a;
+  --ra-callout-important: #9f5e83;
+  --os-terminal-warning: #986800; --chart-warn: #986800; --color-status-warning: #986800;
+  --os-terminal-error: #8d3e00; --chart-bad: #8d3e00; --color-status-danger: #8d3e00; --rail-badge: #8d3e00; --btn-danger-fg: #8d3e00; --btn-danger-border: #8d3e00;
+  --btn-success-bg: #39789a; --btn-success-bg-hover: #39789a; --btn-warning-bg: #986800; --btn-warning-bg-hover: #986800; --btn-danger-solid-bg: #b44f00; --btn-danger-solid-bg-hover: #b44f00;
+  --os-code-keyword: #b44f00; --os-code-string: #007a5a; --os-code-number: #925679; --os-code-comment: #595959; --os-code-title: #39789a; --os-code-attr: #0072b2; --os-code-builtin: #986800; --os-code-variable: #986800; --os-code-meta: #925679;
+}
+html.dark.ra-cv-tritanopia body {
+  --md-link: #009e73; --link: #009e73; --os-blue: #009e73; --chart-ok: #009e73; --chart-info: #009e73;
+  --os-rail-active: var(--btn-primary-bg); --os-rail-text-active: #ffffff; --brand-accent: #2787be;
+  --status-info-fg: #cc79a7; --status-info-bg: color-mix(in srgb, #cc79a7 12%, var(--os-card)); --status-info-border: #cc79a7; --status-success-fg: #56b4e9; --status-success-bg: color-mix(in srgb, #56b4e9 12%, var(--os-card)); --status-success-border: #56b4e9; --status-warning-fg: #e69f00; --status-warning-bg: color-mix(in srgb, #e69f00 12%, var(--os-card)); --status-warning-border: #e69f00; --status-danger-fg: #d86b14; --status-danger-bg: color-mix(in srgb, #d55e00 12%, var(--os-card)); --status-danger-border: #d55e00; --status-brand-fg: #3891c3; --status-brand-bg: color-mix(in srgb, #2787be 12%, var(--os-card)); --status-brand-border: #2787be;
+  --chart-cat-1: #D55E00; --chart-cat-2: #0072B2; --chart-cat-3: #E69F00; --chart-cat-4: #CC79A7; --chart-cat-5: #009E73; --chart-cat-6: #F0E442; --chart-cat-7: #a6a6a6; --chart-cat-8: #ffffff;
+  --os-blue-hover: color-mix(in srgb, var(--os-blue) 80%, white); --link-hover: var(--os-blue-hover);
+  --btn-primary-bg: #008562; --btn-primary-bg-hover: color-mix(in srgb, #008562 85%, black); --btn-primary-bg-active: color-mix(in srgb, #008562 72%, black); --btn-primary-fg: #ffffff; --btn-primary-border: transparent;
+  --btn-selected-bg: var(--btn-primary-bg); --btn-selected-bg-hover: var(--btn-primary-bg-hover); --btn-selected-fg: #ffffff; --btn-selected-text: var(--os-blue-hover);
+  --btn-quiet-fg: var(--os-blue-hover);
+  --os-status-success: #56b4e9; --chart-good: #56b4e9; --os-terminal-success: #56b4e9; --btn-success-text: #56b4e9;
+  --ra-callout-important: #cc79a7;
+  --os-terminal-warning: #e69f00; --chart-warn: #e69f00; --color-status-warning: #e69f00;
+  --os-terminal-error: #d55e00; --chart-bad: #d55e00; --color-status-danger: #d55e00; --rail-badge: #d55e00; --btn-danger-fg: #d55e00; --btn-danger-border: #d55e00;
+  --btn-success-bg: #39789a; --btn-success-bg-hover: #39789a; --btn-warning-bg: #986800; --btn-warning-bg-hover: #986800; --btn-danger-solid-bg: #b44f00; --btn-danger-solid-bg-hover: #b44f00;
+  --os-code-keyword: #d55e00; --os-code-string: #009e73; --os-code-number: #cc79a7; --os-code-comment: #7d7d7d; --os-code-title: #56b4e9; --os-code-attr: #2787be; --os-code-builtin: #e69f00; --os-code-variable: #e69f00; --os-code-meta: #cc79a7;
+}
+.ra-app .markdown-preview .md-callout-important { --callout-color: var(--ra-callout-important, var(--os-code-keyword)); }
+
+/* -- reduce motion (Settings > Accessibility: Follow system / On / Off): one switch, ra-reduce-motion on <html>, set by
+      readingAids.js from the setting and the OS query - never a media query anywhere in the app's CSS, so
+      Off keeps the motion when the OS asks for less. Every animation ends at once (0.01ms keeps the
+      animationend events firing for scripts that wait on them) and no transition runs at all (0s: a property change is
+      instant, so a script reading the style straight after sees the new value - nothing in the app waits on
+      transitionend), smooth scrolling stops, and the shared
+      panel motion's token is zero; scripts ask scrollBehavior() for scrollIntoView, the Diagnostics frame turns
+      Chart.js's animation off -- */
+html.ra-reduce-motion { --motion-panel-duration: 0ms; }
+html.ra-reduce-motion *, html.ra-reduce-motion *::before, html.ra-reduce-motion *::after {
+  animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important;
+  transition-duration: 0s !important; transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}

@@ -1,6 +1,9 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
 const NotificationContext = createContext(null);
+
+/** A toast from anywhere: window.dispatchEvent(new CustomEvent(NOTIFY_EVENT, { detail: { type, title, message } })). */
+export const NOTIFY_EVENT = 'jacariumNotify';
 
 export function NotificationProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
@@ -60,6 +63,14 @@ export function NotificationProvider({ children }) {
   const clearHistory = useCallback(() => {
     setHistory([]);
   }, []);
+
+  // the same API as a window event, for code outside React (utilities, workers) and for the live tests:
+  // window.dispatchEvent(new CustomEvent(NOTIFY_EVENT, { detail: { type, title, message } }))
+  useEffect(() => {
+    const onNotify = (e) => { if (e.detail && typeof e.detail === 'object') addNotification(e.detail); };
+    window.addEventListener(NOTIFY_EVENT, onNotify);
+    return () => window.removeEventListener(NOTIFY_EVENT, onNotify);
+  }, [addNotification]);
 
   const value = {
     notifications,

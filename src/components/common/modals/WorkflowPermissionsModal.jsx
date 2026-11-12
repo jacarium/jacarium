@@ -89,7 +89,7 @@ export default function WorkflowPermissionsModal({
       {/* Header */}
       <div className="p-4 border-b border-os-border bg-os-modal flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Shield size={18} className="text-purple-600" />
+          <Shield size={18} className="text-(--brand-accent)" />
           <h2 className="text-sm font-text font-semibold text-os-text-primary uppercase tracking-wide">
             {isMultiple ? `Manage Permissions (${targetWorkflows.length} Workflows)` : 'Manage Permissions'}
           </h2>
@@ -113,7 +113,7 @@ export default function WorkflowPermissionsModal({
             <div className="text-xs text-os-text-muted mb-2">
               Setting permissions for {targetWorkflows.length} workflow{targetWorkflows.length !== 1 ? 's' : ''}
             </div>
-            <div className="text-xs text-yellow-600 dark:text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded-sm">
+            <div className="text-xs text-(--status-warning-fg) bg-(--status-warning-bg) p-2 rounded-sm">
               ⚠️ This will override existing permissions on all selected workflows
             </div>
           </div>
@@ -142,7 +142,7 @@ export default function WorkflowPermissionsModal({
               value={newMachineId}
               onChange={(e) => setNewMachineId(e.target.value)}
               placeholder="User identity (e.g. alice@account-1a2b3c)"
-              className="flex-1 px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-hidden text-sm bg-os-modal text-os-text-primary font-mono"
+              className="flex-1 px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-(--os-blue) focus:border-(--os-blue) outline-hidden text-sm bg-os-modal text-os-text-primary font-mono"
               onKeyPress={(e) => {
                 if (e.key === 'Enter') {
                   handleAddPermission();
@@ -152,7 +152,7 @@ export default function WorkflowPermissionsModal({
             <select
               value={newPermission}
               onChange={(e) => setNewPermission(e.target.value)}
-              className="px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-hidden text-sm bg-os-modal text-os-text-primary"
+              className="px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-(--os-blue) focus:border-(--os-blue) outline-hidden text-sm bg-os-modal text-os-text-primary"
             >
               <option value="read">Read Only</option>
               <option value="write">Read & Write</option>

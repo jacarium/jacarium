@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import BaseModal from '../../common/modals/BaseModal';
 
 /**
  * Collect a value for each {{VARIABLE}} of a saved command before it is
@@ -8,8 +9,7 @@ export default function SSHCommandVariablesModal({ command, values, onChange, on
   const names = Object.keys(values);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-os-card rounded-lg shadow-2xl w-full max-w-md border border-os-border">
+    <BaseModal isOpen onClose={onClose} closeOnBackdropClick={false} className="bg-os-card rounded-lg shadow-2xl w-full max-w-md border border-os-border" ariaLabel="SSH command variables">
         <div className="px-4 py-3 border-b border-os-border flex items-center justify-between">
           <span className="text-sm font-medium text-os-text-primary">
             Enter Variable Values
@@ -56,7 +56,6 @@ export default function SSHCommandVariablesModal({ command, values, onChange, on
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </BaseModal>
   );
 }

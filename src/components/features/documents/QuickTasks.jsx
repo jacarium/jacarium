@@ -201,10 +201,10 @@ export default function QuickTasks({
 
   if (!visible) return null;
 
-  const inputClass = 'w-full px-2 py-1.5 text-sm border rounded-sm bg-os-input-bg text-os-text-primary focus:outline-hidden focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:opacity-60 disabled:cursor-not-allowed';
-  const borderFor = (field) => (errors[field] ? 'border-red-500' : 'border-os-input-border');
+  const inputClass = 'w-full px-2 py-1.5 text-sm border rounded-sm bg-os-input-bg text-os-text-primary focus:outline-hidden focus:border-(--os-blue) focus:ring-1 focus:ring-(--os-blue) disabled:opacity-60 disabled:cursor-not-allowed';
+  const borderFor = (field) => (errors[field] ? 'border-(--chart-bad)' : 'border-os-input-border');
   const labelClass = 'block text-xs font-medium text-os-text-secondary mb-1';
-  const errorClass = 'text-xs text-red-700 dark:text-red-300 mt-1';
+  const errorClass = 'text-xs text-(--status-danger-fg) mt-1';
 
   return (
     <>
@@ -231,17 +231,17 @@ export default function QuickTasks({
         data-testid="quick-tasks-popup"
       >
         {/* Header */}
-        <div className="drag-handle flex items-center justify-between p-3 border-b border-os-border bg-linear-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 cursor-grab active:cursor-grabbing rounded-t-lg">
+        <div className="drag-handle flex items-center justify-between p-3 border-b border-os-border bg-linear-to-r from-(--status-brand-bg) to-(--status-brand-border) cursor-grab active:cursor-grabbing rounded-t-lg">
           <div className="flex items-center gap-2">
-            <ListTodo size={16} className="text-purple-600 dark:text-purple-300" />
-            <span className="text-sm font-semibold text-purple-900 dark:text-purple-200">Quick Tasks</span>
+            <ListTodo size={16} className="text-(--brand-accent)" />
+            <span className="text-sm font-semibold text-(--status-brand-fg)">Quick Tasks</span>
           </div>
           <button
             onClick={handleClose}
             className="btn btn-brand-ghost p-1"
             title="Close (Esc)"
           >
-            <X size={16} className="text-purple-700 dark:text-purple-300" />
+            <X size={16} className="text-(--status-brand-fg)" />
           </button>
         </div>
 
@@ -331,7 +331,7 @@ export default function QuickTasks({
           </p>
 
           {submitError && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm text-sm text-red-700 dark:text-red-300" role="alert">
+            <div className="p-3 bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm text-sm text-(--status-danger-fg)" role="alert">
               <div className="font-medium mb-1">Error:</div>
               <div className="text-xs">{submitError}</div>
             </div>

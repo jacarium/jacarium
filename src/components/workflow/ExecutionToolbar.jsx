@@ -103,7 +103,7 @@ export default function ExecutionToolbar({
 
       {isExecuting && (
         <div className="flex items-center gap-2 ml-3">
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+          <div className="w-2 h-2 bg-os-blue rounded-full animate-pulse"></div>
           <span className="text-xs text-os-text-secondary">Executing workflow...</span>
         </div>
       )}

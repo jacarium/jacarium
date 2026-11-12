@@ -32,8 +32,8 @@ function BranchNode({ data, isConnectable }) {
 
         {/* Execution Output Pins - TRUE/FALSE */}
         <div className="flex flex-col gap-2 mt-3">
-          <ExecOutputPinWithLabel id="true" label={<span className="text-green-600 font-medium">TRUE</span>} isConnectable={isConnectable} />
-          <ExecOutputPinWithLabel id="false" label={<span className="text-red-600 font-medium">FALSE</span>} isConnectable={isConnectable} />
+          <ExecOutputPinWithLabel id="true" label={<span className="text-(--chart-good) font-medium">TRUE</span>} isConnectable={isConnectable} />
+          <ExecOutputPinWithLabel id="false" label={<span className="text-(--chart-bad) font-medium">FALSE</span>} isConnectable={isConnectable} />
         </div>
       </div>
     </div>

@@ -18,6 +18,9 @@ import { useChat } from '../contexts/ChatContext';
 import { useTheme, GRADIENT_THEMES, isTokenScheme } from '../contexts/ThemeContext';
 import { useContextMenu } from '../hooks/useContextMenu';
 import { useExportFlow } from '../hooks/useExportFlow';
+import { useZenMode } from './common/ReadingAidsSurface';
+import { usePopupPosition } from '../hooks/usePopupPosition.js';
+import { RAIL_PAGES } from './railPages';
 
 export default function CompactSidebar({ currentPage, onPageChange }) {
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
@@ -60,6 +63,7 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
   const { theme, previewTheme } = useTheme();
   // File > Database > Export runs under the shared Export Progress modal
   const exportFlow = useExportFlow();
+  const zen = useZenMode();   // zen mode (Settings > Accessibility): the rail is hidden, not unmounted - the Settings dialog it hosts stays open
 
   // Check if current theme is a gradient theme
   const isGradientTheme = theme && theme.startsWith('gradient-');
@@ -119,8 +123,18 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
   // Save inner sidebar visibility and dispatch event
   useEffect(() => {
     localStorage.setItem('innerSidebarVisible', JSON.stringify(innerSidebarVisible));
-    window.dispatchEvent(new CustomEvent('innerSidebarVisibilityChange', { detail: { visible: innerSidebarVisible } }));
   }, [innerSidebarVisible]);
+  // the pages hear the visibility; in zen they hear "visible" whatever the real state, so every page sidebar mounts and
+  // offers its left-edge tab and overlay (the stored value above stays the real one; leaving zen sends it again)
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('innerSidebarVisibilityChange', { detail: { visible: innerSidebarVisible || zen } }));
+  }, [innerSidebarVisible, zen]);
+  // the "Show sidebar / sections" shortcut outside zen: the same toggle as the rail's button
+  useEffect(() => {
+    const onToggle = () => setInnerSidebarVisible((v) => !v);
+    window.addEventListener('toggleInnerSidebar', onToggle);
+    return () => window.removeEventListener('toggleInnerSidebar', onToggle);
+  }, []);
 
   // Close settings menu on outside click
   useEffect(() => {
@@ -154,21 +168,15 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
 
   // Keep the More menu on-screen: nudge it left/up if it would overflow the
   // viewport's right or bottom edge, measured against its actual rendered size.
-  useLayoutEffect(() => {
-    if (!showMoreMenu || !moreMenuRef.current) return;
-    const menuRect = moreMenuRef.current.getBoundingClientRect();
-    const margin = 8;
-    let { left, top } = moreMenuPos;
-    if (menuRect.right > window.innerWidth - margin) {
-      left = Math.max(margin, left - (menuRect.right - window.innerWidth + margin));
-    }
-    if (menuRect.bottom > window.innerHeight - margin) {
-      top = Math.max(margin, top - (menuRect.bottom - window.innerHeight + margin));
-    }
-    if (left !== moreMenuPos.left || top !== moreMenuPos.top) {
-      setMoreMenuPos({ left, top });
-    }
-  }, [showMoreMenu, moreMenuPos]);
+  // the ... menu beside its button: to the right of the rail, moved up as far as a short window needs, its height
+  // capped and scrolling when the window is shorter than the list - the shared popup placement, measured once
+  // rendered and again on resize (src/hooks/usePopupPosition.js)
+  usePopupPosition(moreMenuRef, {
+    open: showMoreMenu,
+    anchor: () => (moreButtonRef.current ? moreButtonRef.current.getBoundingClientRect() : null),
+    deps: [moreMenuPos.left, moreMenuPos.top],
+    side: 'right', gap: 8,
+  });
 
   // Close utility more menu on outside click
   useEffect(() => {
@@ -209,10 +217,15 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
       if (!navContainerRef.current) return;
 
       const containerHeight = window.innerHeight;
-      const buttonHeight = 48; // h-12 = 48px
-      const gap = 4; // gap-1 = 4px
-      const padding = 16; // py-4 = 16px top + 16px bottom
-      const brandHeight = 56; // the mark (44) + its margin and the separator above the items
+      // the rail's sizes are rem-based (h-12, gap-1, py-4), so they follow the root font size - "Scale the interface
+      // too" (Settings > Accessibility) makes every item taller; measure the real sizes, so the items that do not
+      // fit move into the "..." menu at their normal size instead of being squeezed
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const u = rem / 16;
+      const buttonHeight = 48 * u; // h-12 = 3rem (nominal: a squeezed item would measure as if it fit)
+      const gap = 4 * u; // gap-1 = 0.25rem
+      const padding = 16 * u; // py-4: the top 1rem; the items may run into the bottom padding, as they always have
+      const brandHeight = 56 * u; // the mark (44) + its margin and the separator above the items
 
       // Total items
       const totalNavItems = 9;
@@ -225,63 +238,74 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
       // Calculate minimum required height for all items
       const navHeight = navCount * buttonHeight + (navCount - 1) * gap;
       const utilityHeight = utilityCount * buttonHeight + (utilityCount - 1) * gap;
-      const requiredHeight = padding + brandHeight + navHeight + gap + utilityHeight;
 
-      if (requiredHeight > containerHeight) {
-        // Not enough space, need to collapse items
-        const availableHeight = containerHeight - padding - brandHeight - gap;
+      // the room the two groups have: the window less the top padding, the mark's block and the gap between the groups,
+      // in nominal sizes (the same arithmetic as before the scaled sizes, times the interface scale), so the item
+      // counts per window height are exactly what they were at 100 %. Nominal on purpose: the mark's block is a
+      // little taller than its constant and the items have always been allowed to run into the bottom padding; a
+      // measured room would show one item fewer at most heights, and a "..." one item too early is the worse trade
+      const roomForItems = containerHeight - padding - brandHeight - gap;
 
-        // Try to distribute space between nav and utility sections
-        // Priority: Try to keep at least some items in each section
+      // the two groups need navHeight + utilityHeight inside the room (the gap between them is already taken off it).
+      // Collapsing takes items from the larger group first and keeps at least one real item per group, as it always
+      // has (the same counts per window height as before the scaled sizes); only when even that does not fit - a
+      // scaled interface in a short window - may a group shrink to its "..." button alone
+      const collapse = (floor) => {
         let currentNavCount = totalNavItems;
         let currentUtilityCount = totalUtilityItems;
-
-        while (currentNavCount > 0 || currentUtilityCount > 0) {
-          const navNeedsMore = currentNavCount > 1;
-          const utilityNeedsMore = currentUtilityCount > 1;
-
-          // Calculate current height needed
-          const navSectionHeight = (currentNavCount > 0 ? currentNavCount : 0) * buttonHeight + Math.max(0, currentNavCount - 1) * gap;
-          const utilitySectionHeight = (currentUtilityCount > 0 ? currentUtilityCount : 0) * buttonHeight + Math.max(0, currentUtilityCount - 1) * gap;
-          const totalNeeded = navSectionHeight + utilitySectionHeight;
-
-          if (totalNeeded <= availableHeight) {
-            // Found a fit
-            navCount = currentNavCount;
-            utilityCount = currentUtilityCount;
-            break;
-          }
-
-          // Reduce from the section with more items
+        while (currentNavCount >= floor && currentUtilityCount >= floor) {
+          const navSectionHeight = currentNavCount * buttonHeight + Math.max(0, currentNavCount - 1) * gap;
+          const utilitySectionHeight = currentUtilityCount * buttonHeight + Math.max(0, currentUtilityCount - 1) * gap;
+          if (navSectionHeight + utilitySectionHeight <= roomForItems) return { navCount: currentNavCount, utilityCount: currentUtilityCount, floor };
+          const navNeedsMore = currentNavCount > floor;
+          const utilityNeedsMore = currentUtilityCount > floor;
           if (navNeedsMore && utilityNeedsMore) {
-            // Both need more, reduce from the larger one
-            if (currentNavCount >= currentUtilityCount) {
-              currentNavCount--;
-            } else {
-              currentUtilityCount--;
-            }
-          } else if (navNeedsMore) {
-            currentNavCount--;
-          } else if (utilityNeedsMore) {
-            currentUtilityCount--;
-          } else {
-            break;
-          }
+            if (currentNavCount >= currentUtilityCount) currentNavCount--;
+            else currentUtilityCount--;
+          } else if (navNeedsMore) currentNavCount--;
+          else if (utilityNeedsMore) currentUtilityCount--;
+          else return null;
         }
+        return null;
+      };
 
-        // If we need to collapse, reserve one spot for More button in each section
-        setVisibleNavCount(navCount > 0 && navCount < totalNavItems ? Math.max(1, navCount - 1) : navCount);
-        setVisibleUtilityCount(utilityCount > 0 && utilityCount < totalUtilityItems ? Math.max(1, utilityCount - 1) : utilityCount);
-      } else {
-        // Everything fits
-        setVisibleNavCount(totalNavItems);
-        setVisibleUtilityCount(totalUtilityItems);
+      let visibleNav = totalNavItems;
+      let visibleUtility = totalUtilityItems;
+      if (navHeight + utilityHeight > roomForItems) {
+        const fit = collapse(1) || collapse(0) || { navCount: 0, utilityCount: 0, floor: 0 };
+        navCount = fit.navCount;
+        utilityCount = fit.utilityCount;
+        // a collapsed group gives one spot to its "..." button (and keeps at least one item while the floor allows)
+        visibleNav = navCount > 0 && navCount < totalNavItems ? Math.max(fit.floor, navCount - 1) : navCount;
+        visibleUtility = utilityCount > 0 && utilityCount < totalUtilityItems ? Math.max(fit.floor, utilityCount - 1) : utilityCount;
       }
+
+      // the fit guard: the nominal arithmetic is a little loose (the mark's block is taller than its constant, and a
+      // group of one counted item shows that item and its "..."), and the page group, flex-1, absorbs the difference
+      // by shrinking its items - at 100 % by a few px, as it always has; at a scaled interface in a short window by
+      // far more. Measured against the room really there, the page items may give up to 12 % of their height; past
+      // that, one more page goes into the "..." menu
+      const railEl = navContainerRef.current.parentElement;
+      const navTop = navContainerRef.current.getBoundingClientRect().top;
+      const railBottom = railEl ? railEl.getBoundingClientRect().bottom : 0;
+      const measuredRoom = navTop > 0 && railBottom > navTop ? railBottom - navTop - padding - gap : null;
+      if (measuredRoom != null) {
+        const groupHeight = (shown, total) => { const buttons = shown + (shown < total ? 1 : 0); return buttons * buttonHeight + Math.max(0, buttons - 1) * gap; };
+        const navButtons = () => visibleNav + (visibleNav < totalNavItems ? 1 : 0);
+        while (visibleNav > 0 && groupHeight(visibleNav, totalNavItems) + groupHeight(visibleUtility, totalUtilityItems) - measuredRoom > 0.12 * buttonHeight * navButtons()) visibleNav--;
+      }
+      setVisibleNavCount(visibleNav);
+      setVisibleUtilityCount(visibleUtility);
     }
 
     calculateVisibleItems();
+    // after a layout change: the window, or the reading aids (the interface scale changes every size in rem)
+    const recalc = () => requestAnimationFrame(calculateVisibleItems);
     window.addEventListener('resize', calculateVisibleItems);
-    return () => window.removeEventListener('resize', calculateVisibleItems);
+    window.addEventListener('documentsReadingAidsChanged', recalc);
+    const observer = typeof ResizeObserver === 'function' && navContainerRef.current ? new ResizeObserver(recalc) : null;
+    if (observer) observer.observe(navContainerRef.current);
+    return () => { window.removeEventListener('resize', calculateVisibleItems); window.removeEventListener('documentsReadingAidsChanged', recalc); if (observer) observer.disconnect(); };
   }, []);
 
   function handleToggleDraft() {
@@ -591,10 +615,11 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
     <button
       onClick={onClick}
       onContextMenu={onContextMenu}
+      aria-label={label}
       className={railButtonClass(active)}
     >
       <Icon size={20} />
-      <div className="absolute left-full ml-2 px-2 py-1 bg-os-rail-tooltip text-white text-xs rounded-sm opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
+      <div className="absolute left-full ml-2 px-2 py-1 bg-os-rail-tooltip text-(--os-rail-tooltip-text) text-xs rounded-sm opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
         {label}
       </div>
     </button>
@@ -611,24 +636,14 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
       {badge && (
         <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-(--rail-badge)" data-testid="rail-badge"></span>
       )}
-      <div className="absolute left-full ml-2 px-2 py-1 bg-os-rail-tooltip text-white text-xs rounded-sm opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
+      <div className="absolute left-full ml-2 px-2 py-1 bg-os-rail-tooltip text-(--os-rail-tooltip-text) text-xs rounded-sm opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
         {label}
       </div>
     </button>
   );
 
-  // Define all navigation items
-  const navItems = [
-    { icon: FileText, label: 'Documents', page: 'documents' },
-    { icon: Calendar, label: 'Calendars', page: 'calendars' },
-    { icon: Bot, label: 'Robin', page: 'ai-chat' },
-    { icon: Trello, label: 'Kanban', page: 'kanban' },
-    { icon: CheckSquare, label: 'Tasks', page: 'tasks' },
-    { icon: Workflow, label: 'Workflow Builder', page: 'workflow' },
-    { icon: Activity, label: 'Diagnostics', page: 'diagnostics' },
-    { icon: Search, label: 'JQL Search', page: 'search' },
-    { icon: Wrench, label: 'Tools', page: 'tools' }
-  ];
+  // the pages, in the rail's order (src/components/railPages.js - zen's "Navigation" overlay lists the same)
+  const navItems = RAIL_PAGES;
 
   // Settings opens from the Electron application menu on the desktop; in a
   // browser the Documents page's hamburger menu dispatches this event
@@ -681,9 +696,10 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
           DocumentSidebar's z-10 search pill, while every overlay tier from z-50 up
           (page modals, toasts, floating widgets, dialogs) still covers them. */}
       <nav
-        className={`w-16 shrink-0 flex flex-col items-center py-4 gap-1 ${isGradientTheme ? 'border-r border-white/10' : 'border-r border-os-rail-border'} ${!isGradientTheme && !isCustomTheme ? 'bg-os-rail' : ''}`}
+        className={`sc-rail w-16 shrink-0 flex flex-col items-center py-4 gap-1 min-h-0 overflow-hidden ${isGradientTheme ? 'border-r border-white/10' : 'border-r border-os-rail-border'} ${!isGradientTheme && !isCustomTheme ? 'bg-os-rail' : ''}`}
         style={{
           zIndex: 40,
+          ...(zen ? { display: 'none' } : {}),
           ...(isGradientTheme && gradientConfig ? { background: gradientConfig.gradient } : {}),
           ...(isCustomTheme ? { background: 'var(--os-rail-fill, var(--os-rail))' } : {})
         }}
@@ -708,7 +724,7 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
         </button>
         <div className={`w-8 h-px mb-2 shrink-0 ${isGradientTheme ? 'bg-white/20' : 'bg-os-rail-separator'}`} aria-hidden="true" />
         {/* Main Navigation */}
-        <div ref={navContainerRef} className="flex flex-col gap-1 flex-1">
+        <div ref={navContainerRef} className="flex flex-col gap-1 flex-1 min-h-0">
           {visibleItems.map(item => (
             <NavButton
               key={item.page}
@@ -726,6 +742,10 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
           {collapsedItems.length > 0 && (
             <button
               ref={moreButtonRef}
+              data-testid="rail-more"
+              aria-label="More pages"
+              aria-haspopup="menu"
+              aria-expanded={showMoreMenu}
               onClick={() => {
                 const rect = moreButtonRef.current?.getBoundingClientRect();
                 if (rect) setMoreMenuPos({ left: rect.right + 8, top: rect.top });
@@ -742,7 +762,7 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
               }`}
             >
               <MoreHorizontal size={20} />
-              <div className="absolute left-full ml-2 px-2 py-1 bg-os-rail-tooltip text-white text-xs rounded-sm opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
+              <div className="absolute left-full ml-2 px-2 py-1 bg-os-rail-tooltip text-(--os-rail-tooltip-text) text-xs rounded-sm opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
                 More
               </div>
             </button>
@@ -766,6 +786,10 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
           {collapsedUtilityItems.length > 0 && (
             <button
               ref={utilityMoreButtonRef}
+              data-testid="rail-utility-more"
+              aria-label="More actions"
+              aria-haspopup="menu"
+              aria-expanded={showUtilityMoreMenu}
               onClick={() => {
                 const rect = utilityMoreButtonRef.current?.getBoundingClientRect();
                 if (rect) setUtilityMoreMenuPos({ left: rect.right + 8, top: rect.top });
@@ -782,7 +806,7 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
               }`}
             >
               <MoreHorizontal size={20} />
-              <div className="absolute left-full ml-2 px-2 py-1 bg-os-rail-tooltip text-white text-xs rounded-sm opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
+              <div className="absolute left-full ml-2 px-2 py-1 bg-os-rail-tooltip text-(--os-rail-tooltip-text) text-xs rounded-sm opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
                 More
               </div>
             </button>
@@ -793,6 +817,8 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
         {showMoreMenu && (
           <div
             ref={moreMenuRef}
+            role="menu"
+            data-testid="rail-more-menu"
             className="fixed bg-os-card border border-os-border rounded-lg shadow-xl z-50 py-1 min-w-[200px]"
             style={{
               left: `${moreMenuPos.left}px`,
@@ -1154,7 +1180,7 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
         confirmPhrase="DELETE EVERYTHING"
         message={
           <div>
-            <p className="mb-2 font-medium text-red-600">
+            <p className="mb-2 font-medium text-(--chart-bad)">
               This will permanently delete ALL data!
             </p>
             <p className="mb-1">This includes:</p>

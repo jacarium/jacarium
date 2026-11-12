@@ -35,11 +35,11 @@ function useNetworkOnline() {
 }
 
 const TONE = {
-  online: 'text-green-600 dark:text-green-400',
+  online: 'text-(--chart-good)',
   syncing: 'text-os-text-secondary',
   pending: 'text-os-text-secondary',
-  offline: 'text-amber-600 dark:text-amber-400',
-  'update-required': 'text-red-600 dark:text-red-400',
+  offline: 'text-(--chart-warn)',
+  'update-required': 'text-(--chart-bad)',
 };
 
 export default function ConnectionIndicator() {

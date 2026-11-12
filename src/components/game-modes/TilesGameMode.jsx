@@ -430,7 +430,7 @@ export default function TilesGameMode({ onBack, currentMachineId, isCentralServe
         </div>
         <div className={`mb-2 text-os-text font-bold ${small ? 'text-xs' : 'text-sm'}`}>
           Moves: {moves === Infinity ? '∞' : moves}
-          {solved && <span className="ml-2 text-green-500">✓ Solved!</span>}
+          {solved && <span className="ml-2 text-(--chart-good)">✓ Solved!</span>}
         </div>
         <div
           className="inline-grid gap-1"
@@ -448,7 +448,7 @@ export default function TilesGameMode({ onBack, currentMachineId, isCentralServe
                   ${cellSize} rounded ${small ? 'border' : 'border-2'} transition-all duration-200
                   ${!canClick ? 'opacity-50 cursor-not-allowed' : ''}
                   ${cell
-                    ? 'bg-purple-500 border-purple-600 shadow-lg shadow-purple-500/50'
+                    ? 'bg-(--brand-accent) border-(--brand-accent) shadow-lg shadow-(--brand-accent)/50'
                     : 'bg-os-card-secondary border-os-border'
                   }
                   ${isMyGrid ? 'hover:scale-105 active:scale-95 cursor-pointer' : 'cursor-default opacity-75'}
@@ -530,10 +530,10 @@ export default function TilesGameMode({ onBack, currentMachineId, isCentralServe
                   }`}
                 >
                   <div className="flex-1">
-                    <div className={`text-xs font-semibold ${isSelected ? 'text-purple-700 dark:text-purple-300' : 'text-os-text-primary'}`}>
+                    <div className={`text-xs font-semibold ${isSelected ? 'text-(--status-brand-fg)' : 'text-os-text-primary'}`}>
                       {option.label}
                     </div>
-                    <div className="text-[10px] text-os-text-secondary">{option.description}</div>
+                    <div className="text-3xs text-os-text-secondary">{option.description}</div>
                   </div>
                   {isSelected && <span className="ml-auto text-xs">✓</span>}
                 </button>
@@ -643,7 +643,7 @@ export default function TilesGameMode({ onBack, currentMachineId, isCentralServe
           </div>
           <button
             onClick={quitToModeSelect}
-            className="p-1 hover:bg-red-500/10 text-red-600 dark:text-red-400 rounded-sm transition-colors"
+            className="p-1 hover:bg-(--status-danger-bg) text-(--chart-bad) rounded-sm transition-colors"
             title="Quit Game"
           >
             <X size={16} />

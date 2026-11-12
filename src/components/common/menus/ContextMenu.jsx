@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { MenuItemIcon } from './MenuItemIcon';
+import { usePopupPosition } from '../../../hooks/usePopupPosition.js';
 
 /**
  * ContextMenu - Right-click context menu component
@@ -69,6 +70,11 @@ const ContextMenuSurface = forwardRef(function ContextMenuSurface({ x, y, zIndex
   // re-renders with (a re-run would hand the focus back and forth).
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  // Inside the window, whatever the menu's real height (the spelling suggestions arrive after it opened, the font and
+  // the text size vary): below and to the right of the pointer when it fits, flipped above / to the left when it does
+  // not, else clamped with a capped height and scrolling inside; re-placed on resize, scroll and size changes
+  // (src/hooks/usePopupPosition.js). On a phone MobileMenuChrome places it instead.
+  usePopupPosition(inner, { open: true, anchor: () => ({ left: x, top: y }), deps: [x, y] });
   useEffect(() => {
     const opener = typeof document !== 'undefined' ? document.activeElement : null;
     const node = inner.current;
@@ -163,7 +169,7 @@ export function ContextMenuItem({
 
   const baseClasses = 'w-full px-4 py-2 text-left text-sm hover:bg-os-card-secondary flex items-center gap-2 transition-colors focus:outline-hidden focus-visible:bg-os-card-secondary';
   const colorClasses = danger
-    ? 'text-red-600'
+    ? 'text-(--chart-bad)'
     : 'text-os-text-primary';
   const disabledClasses = disabled
     ? 'opacity-50 cursor-not-allowed'

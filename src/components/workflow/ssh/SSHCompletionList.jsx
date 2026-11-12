@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { scrollBehavior } from '../../../utils/readingAids';
 
 /** The TAB completion candidates, popped up above the terminal input. */
 export default function SSHCompletionList({ completions, selectedIndex, onSelect }) {
@@ -9,7 +10,7 @@ export default function SSHCompletionList({ completions, selectedIndex, onSelect
     if (completions.length > 0 && listRef.current) {
       const selectedElement = listRef.current.children[selectedIndex + 1]; // +1 for header
       if (selectedElement) {
-        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
       }
     }
   }, [selectedIndex, completions.length]);

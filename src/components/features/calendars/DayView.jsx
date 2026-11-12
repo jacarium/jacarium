@@ -1,24 +1,5 @@
 import { useMemo, useState, useRef } from 'react';
-
-/**
- * Calculate if a hex color is light or dark
- * Returns true if the color is light (needs dark text)
- */
-function isLightColor(hexColor) {
-  // Remove # if present
-  const hex = hexColor.replace('#', '');
-
-  // Convert to RGB
-  const r = parseInt(hex.substr(0, 2), 16);
-  const g = parseInt(hex.substr(2, 2), 16);
-  const b = parseInt(hex.substr(4, 2), 16);
-
-  // Calculate relative luminance (ITU-R BT.709)
-  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-
-  // Return true if light (luminance > 0.5)
-  return luminance > 0.5;
-}
+import { paint, INK } from '../../../utils/dataColour';
 
 /**
  * DayView - Single day timeline calendar view
@@ -273,7 +254,6 @@ export default function DayView({
   // Render timed event
   const renderTimedEvent = (event, eventLayout) => {
     const color = calendarColors[event.calendarId] || '#4285f4';
-    const textColor = isLightColor(color) ? '#000000' : '#ffffff';
     const style = getEventStyle(event, eventLayout);
     const startDate = new Date(event.startDateTime);
     const endDate = new Date(event.endDateTime);
@@ -292,8 +272,8 @@ export default function DayView({
         style={{
           position: 'absolute',
           ...style,
-          backgroundColor: color,
-          color: textColor,
+          ...paint(color, 'backgroundColor'),
+          color: INK,
           zIndex: 10,
           boxSizing: 'border-box'
         }}
@@ -323,15 +303,14 @@ export default function DayView({
   // Render all-day event
   const renderAllDayEvent = (event) => {
     const color = calendarColors[event.calendarId] || '#4285f4';
-    const textColor = isLightColor(color) ? '#000000' : '#ffffff';
 
     return (
       <div
         key={event.id}
         className="px-3 py-2 mb-2 text-sm rounded-lg cursor-pointer hover:opacity-80 transition-opacity shadow-xs"
         style={{
-          backgroundColor: color,
-          color: textColor
+          ...paint(color, 'backgroundColor'),
+          color: INK
         }}
         onMouseDown={(e) => {
           e.stopPropagation();
@@ -484,7 +463,7 @@ export default function DayView({
         <div className="text-sm text-os-text-secondary">
           {currentDate.toLocaleDateString([], { weekday: 'long' })}
         </div>
-        <div className={`text-3xl font-bold ${isTodayView ?'text-blue-600 dark:text-blue-400':'text-os-text-primary'}`}>
+        <div className={`text-3xl font-bold ${isTodayView ?'text-(--chart-info)':'text-os-text-primary'}`}>
           {currentDate.getDate()}
         </div>
         <div className="text-sm text-os-text-secondary">
@@ -551,7 +530,7 @@ export default function DayView({
             {/* Drag preview */}
             {dragPreviewStyle && (
               <div style={dragPreviewStyle}>
-                <div className="px-2 py-1 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                <div className="px-2 py-1 text-xs text-(--chart-info) font-medium">
                   New Event
                 </div>
               </div>
@@ -564,8 +543,8 @@ export default function DayView({
               className="absolute left-0 right-0 flex items-center pointer-events-none z-20"
               style={{ top: `${currentTimeTop}px` }}
             >
-              <div className="w-3 h-3 rounded-full bg-red-500"></div>
-              <div className="flex-1 h-0.5 bg-red-500"></div>
+              <div className="w-3 h-3 rounded-full bg-(--chart-bad)"></div>
+              <div className="flex-1 h-0.5 bg-(--chart-bad)"></div>
             </div>
           )}
         </div>

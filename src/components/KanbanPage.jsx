@@ -1565,7 +1565,7 @@ export default function KanbanPage() {
 
         {/* Read-only banner for boards shared by someone else */}
         {isReadOnly && currentBoard?.inCloud && !isOnline && (
-          <div className="px-4 py-2 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-200 text-sm flex items-center gap-2">
+          <div className="px-4 py-2 bg-(--status-warning-bg) text-(--status-warning-fg) text-sm flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414" />
             </svg>
@@ -1575,7 +1575,7 @@ export default function KanbanPage() {
         )}
 
         {isReadOnly && currentBoard?.inCloud && isOnline && (
-          <div className="px-4 py-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-200 text-sm flex items-center gap-2">
+          <div className="px-4 py-2 bg-(--status-brand-bg) text-(--status-brand-fg) text-sm flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
@@ -1764,7 +1764,7 @@ export default function KanbanPage() {
                           onBlur={handleSaveNewColumn}
                           autoFocus
                           placeholder="Enter column name..."
-                          className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-input-border rounded-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 outline-hidden text-os-text-primary"
+                          className="w-full px-3 py-2 text-sm bg-os-input-bg border border-os-input-border rounded-sm focus:ring-1 focus:ring-(--brand-accent) focus:border-(--brand-accent) outline-hidden text-os-text-primary"
                         />
                         <div className="flex gap-2 mt-2">
                           <button
@@ -1798,7 +1798,7 @@ export default function KanbanPage() {
                   onDrop={(e) => handleDrop(e, '__trash__')}
                   className={`flex-1 bg-os-card-secondary rounded-lg border-2 border-dashed transition-all ${
  draggedOverColumn ==='__trash__'
- ?'border-red-400 bg-os-card-secondary'
+ ?'border-(--status-danger-border) bg-os-card-secondary'
  :'border-os-border'
  }`}
                 >

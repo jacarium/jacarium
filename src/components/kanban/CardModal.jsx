@@ -81,7 +81,7 @@ export default function CardModal({ isOpen, onClose, onSave, card }) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Card title"
-            className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-input-bg text-os-text-primary"
+            className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden text-sm bg-os-input-bg text-os-text-primary"
             autoFocus
             required
           />
@@ -97,7 +97,7 @@ export default function CardModal({ isOpen, onClose, onSave, card }) {
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Card description"
             rows={4}
-            className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-input-bg text-os-text-primary resize-none"
+            className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden text-sm bg-os-input-bg text-os-text-primary resize-none"
           />
         </div>
 
@@ -111,7 +111,7 @@ export default function CardModal({ isOpen, onClose, onSave, card }) {
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value)}
-              className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-input-bg text-os-text-primary"
+              className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden text-sm bg-os-input-bg text-os-text-primary"
             >
               <option value="low">Low</option>
               <option value="medium">Medium</option>
@@ -130,7 +130,7 @@ export default function CardModal({ isOpen, onClose, onSave, card }) {
               value={assignee}
               onChange={(e) => setAssignee(e.target.value)}
               placeholder="Name or email"
-              className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-input-bg text-os-text-primary"
+              className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden text-sm bg-os-input-bg text-os-text-primary"
             />
           </div>
         </div>
@@ -144,7 +144,7 @@ export default function CardModal({ isOpen, onClose, onSave, card }) {
             value={dueDate}
             onChange={setDueDate}
             placeholder="Select due date"
-            className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-input-bg text-os-text-primary"
+            className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden text-sm bg-os-input-bg text-os-text-primary"
           />
         </div>
 
@@ -158,7 +158,7 @@ export default function CardModal({ isOpen, onClose, onSave, card }) {
             value={tags}
             onChange={(e) => setTags(e.target.value)}
             placeholder="Comma-separated tags (e.g., bug, feature, urgent)"
-            className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden text-sm bg-os-input-bg text-os-text-primary"
+            className="w-full px-3 py-2 border border-os-input-border rounded-sm focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue outline-hidden text-sm bg-os-input-bg text-os-text-primary"
           />
           <p className="mt-1 text-xs text-os-text-muted">
             Enter tags separated by commas

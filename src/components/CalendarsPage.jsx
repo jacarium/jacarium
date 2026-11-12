@@ -1063,7 +1063,7 @@ export default function CalendarsPage() {
               setShowDeleteConfirmation(true);
               closeContextMenu();
             }}
-            className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-os-card-secondary flex items-center gap-2"
+            className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
           >
             <MenuItemIcon action="removeFromList" danger />
             Remove from List
@@ -1088,7 +1088,7 @@ export default function CalendarsPage() {
               setShowEventDeleteConfirmation(true);
               closeContextMenu();
             }}
-            className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-os-card-secondary flex items-center gap-2"
+            className="w-full px-4 py-2 text-left text-sm text-(--chart-bad) hover:bg-os-card-secondary flex items-center gap-2"
           >
             <MenuItemIcon action="delete" danger />
             Delete Event

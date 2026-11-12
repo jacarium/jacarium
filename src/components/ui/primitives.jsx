@@ -16,6 +16,7 @@
  * are text. Each primitive carries a stable `sc-*` class the visual audits
  * recognise (tests/settings-visual-audit.test.mjs, tests/ui-primitives.test.mjs).
  */
+import { useEffect, useRef } from 'react';
 import { AlertTriangle, Info, Send } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
@@ -39,7 +40,7 @@ export const FIELD_SM_CLASS = FIELD_CLASS.replace('px-3 py-2 text-sm', 'px-2.5 p
  */
 export const CHAT_COMPOSER_ROWS = 3;
 const COMPOSER_BASE = 'flex-1 px-3 py-2 border border-os-border rounded-sm resize-none outline-hidden text-sm bg-os-input-bg text-os-text-primary disabled:bg-os-card-secondary disabled:text-os-text-muted';
-const COMPOSER_FOCUS = { blue: 'focus:ring-2 focus:ring-blue-500 focus:border-blue-500', purple: 'focus:ring-2 focus:ring-purple-500 focus:border-purple-500' };
+const COMPOSER_FOCUS = { blue: 'focus:ring-2 focus:ring-os-blue/40 focus:border-os-blue', purple: 'focus:ring-2 focus:ring-(--os-blue) focus:border-(--os-blue)' };
 export function chatComposerInputClass(accent = 'blue') {
   return `${COMPOSER_BASE} ${COMPOSER_FOCUS[accent] || COMPOSER_FOCUS.blue}`;
 }
@@ -60,7 +61,7 @@ export function Field({ label, hint, error, htmlFor, children, className = '', t
     <div className={`sc-field-row ${className}`} data-testid={testId}>
       {label && <label htmlFor={htmlFor} className="sc-label block text-xs text-os-text-primary mb-1.5">{label}</label>}
       {children}
-      {error ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</p> : hint ? <p className="mt-1 text-xs text-os-text-muted">{hint}</p> : null}
+      {error ? <p className="mt-1 text-xs text-(--chart-bad)">{error}</p> : hint ? <p className="mt-1 text-xs text-os-text-muted">{hint}</p> : null}
     </div>
   );
 }
@@ -277,10 +278,10 @@ export function TableContainer({ children, className = '', testId }) {
 export function Note({ tone = 'neutral', icon, children, className = '', testId }) {
   const tones = {
     neutral: 'border-os-border bg-os-card-secondary text-os-text-secondary',
-    info: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200',
-    warning: 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200',
-    danger: 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200',
-    success: 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200',
+    info: 'border-(--status-info-border) bg-(--status-info-bg) text-(--status-info-fg)',
+    warning: 'border-(--status-warning-border) bg-(--status-warning-bg) text-(--status-warning-fg)',
+    danger: 'border-(--status-danger-border) bg-(--status-danger-bg) text-(--status-danger-fg)',
+    success: 'border-(--status-success-border) bg-(--status-success-bg) text-(--status-success-fg)',
   };
   const Icon = icon === undefined ? (tone === 'warning' || tone === 'danger' ? AlertTriangle : tone === 'info' ? Info : null) : icon;
   return (
@@ -296,7 +297,7 @@ export const Notice = Note;
 export function StatusLine({ status, testId }) {
   if (!status) return null;
   return (
-    <p className={`sc-status text-xs ${status.ok ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`} role={status.ok ? 'status' : 'alert'} data-testid={testId}>
+    <p className={`sc-status text-xs ${status.ok ? 'text-(--status-success-fg)' : 'text-(--status-danger-fg)'}`} role={status.ok ? 'status' : 'alert'} data-testid={testId}>
       {status.text}
     </p>
   );
@@ -306,13 +307,13 @@ export function StatusLine({ status, testId }) {
 export function Badge({ tone = 'neutral', pill = false, children, className = '', title }) {
   const tones = {
     neutral: 'bg-os-card-secondary text-os-text-secondary border-os-border',
-    blue: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
-    green: 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800',
-    amber: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
-    red: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800',
-    purple: 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+    blue: 'bg-(--status-info-bg) text-(--status-info-fg) border-(--status-info-border)',
+    green: 'bg-(--status-success-bg) text-(--status-success-fg) border-(--status-success-border)',
+    amber: 'bg-(--status-warning-bg) text-(--status-warning-fg) border-(--status-warning-border)',
+    red: 'bg-(--status-danger-bg) text-(--status-danger-fg) border-(--status-danger-border)',
+    purple: 'bg-(--status-brand-bg) text-(--status-brand-fg) border-(--status-brand-border)',
   };
-  return <span className={`sc-badge inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] leading-4 border ${pill ? 'rounded-full' : 'rounded-xs'} ${tones[tone] || tones.neutral} ${className}`} title={title}>{children}</span>;
+  return <span className={`sc-badge inline-flex items-center gap-1 px-1.5 py-0.5 text-2xs leading-4 border ${pill ? 'rounded-full' : 'rounded-xs'} ${tones[tone] || tones.neutral} ${className}`} title={title}>{children}</span>;
 }
 export const Chip = Badge;
 
@@ -322,7 +323,7 @@ export function EmptyState({ icon: Icon, title, description, action = null, comp
     <div className={`sc-empty flex flex-col items-center justify-center text-center ${compact ? 'py-6 px-3' : 'py-12 px-6'} ${className}`} data-testid={testId}>
       {Icon && <Icon size={compact ? 28 : 48} className="text-os-text-muted mb-3" strokeWidth={1.5} />}
       {title && <p className={`${compact ? 'text-xs' : 'text-base'} font-semibold text-os-text-primary`}>{title}</p>}
-      {description && <p className={`${compact ? 'text-[11px]' : 'text-xs'} text-os-text-secondary mt-1 max-w-sm`}>{description}</p>}
+      {description && <p className={`ra-reading ${compact ? 'text-2xs ra-reading-2xs' : 'text-xs ra-reading-xs'} text-os-text-secondary mt-1 max-w-sm`}>{description}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
   );
@@ -348,7 +349,7 @@ export function SubTabs({ tabs, active, onChange, className = '-mt-1 mb-4' }) {
       <div className="flex flex-wrap gap-1" role="tablist">
         {tabs.map((tab) => (
           <button key={tab.id} type="button" role="tab" aria-selected={active === tab.id} onClick={() => onChange(tab.id)} data-testid={tab.testId}
-            className={`px-3 py-1.5 text-xs transition-colors whitespace-nowrap border-b-2 -mb-px rounded-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 ${active === tab.id ? (tab.activeClassName || 'border-blue-500 text-blue-600 dark:text-blue-400') : 'border-transparent text-os-text-secondary hover:text-os-text-primary'}`}>
+            className={`px-3 py-1.5 text-xs transition-colors whitespace-nowrap border-b-2 -mb-px rounded-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 ${active === tab.id ? (tab.activeClassName || 'border-os-blue text-(--chart-info)') : 'border-transparent text-os-text-secondary hover:text-os-text-primary'}`}>
             {tab.label}
           </button>
         ))}
@@ -392,7 +393,7 @@ export function ModalFooter({ note = null, children, className = '' }) {
 export function CloseButton({ onClick, label = 'Close', className = '' }) {
   return (
     <button type="button" onClick={onClick} aria-label={label} title={label} className={`sc-icon-btn p-1 rounded-sm text-os-text-secondary hover:text-os-text-primary hover:bg-os-card-secondary transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 ${className}`}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" data-icon><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
     </button>
   );
 }
@@ -409,4 +410,58 @@ export function ExternalLink({ href, children, className = '' }) {
 
 export function Code({ children, className = '' }) {
   return <code className={`bg-os-card-secondary px-1 py-0.5 rounded-xs font-mono ${className}`}>{children}</code>;
+}
+
+/* ------------------------------------------------------------------ */
+/* Range                                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A slider with its value spelled out next to it (`format(value)`), announced
+ * to assistive technology through aria-valuetext. `onChange` gets the number.
+ */
+export function RangeInput({ value, min = 0, max = 100, step = 1, onChange, onCommit = null, pageStep = null, marks = null, format = (v) => String(v), disabled = false, id, testId, className = '', ...props }) {
+  const text = format(Number(value));
+  const ref = useRef(null);
+  const listId = marks && marks.length ? `${id || testId || 'range'}-marks` : undefined;
+  // the native change event (the pointer released, a key let go) is the commit; React's onChange is the live input
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !onCommit) return undefined;
+    const commit = (e) => onCommit(Number(e.target.value));
+    el.addEventListener('change', commit);
+    return () => el.removeEventListener('change', commit);
+  }, [onCommit]);
+  const onKeyDown = (e) => {
+    if (!pageStep || (e.key !== 'PageUp' && e.key !== 'PageDown')) { props.onKeyDown?.(e); return; }
+    e.preventDefault();
+    const next = Math.min(max, Math.max(min, Number(value) + (e.key === 'PageUp' ? pageStep : -pageStep)));
+    onChange?.(next);
+    onCommit?.(next);
+  };
+  return (
+    <div className={`sc-range flex items-center gap-3 ${className}`}>
+      <div className="flex-1 min-w-0">
+        <input
+          ref={ref}
+          type="range" id={id} min={min} max={max} step={step} value={value} disabled={disabled} list={listId}
+          onChange={(e) => onChange?.(Number(e.target.value))}
+          aria-valuemin={min} aria-valuemax={max} aria-valuenow={Number(value)} aria-valuetext={text}
+          className="w-full accent-os-blue focus:outline-hidden focus-visible:ring-2 focus-visible:ring-os-blue/40 rounded-sm disabled:opacity-50"
+          data-testid={testId}
+          {...props}
+          onKeyDown={onKeyDown}
+        />
+        {listId && (
+          <>
+            <datalist id={listId}>{marks.map((m) => <option key={m.value} value={m.value} label={m.label || String(m.value)} />)}</datalist>
+            <div className="relative h-4 text-3xs text-os-text-muted" aria-hidden="true">
+              {marks.map((m) => <span key={m.value} className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: `${((m.value - min) / (max - min)) * 100}%` }}>{m.label || m.value}</span>)}
+            </div>
+          </>
+        )}
+      </div>
+      <span className="text-xs text-os-text-secondary tabular-nums w-20 text-right shrink-0" aria-hidden="true">{text}</span>
+    </div>
+  );
 }

@@ -13,24 +13,24 @@ export default function NotificationSidebar({ isOpen }) {
   const getIcon = (type) => {
     switch (type) {
       case 'error':
-        return <AlertCircle size={16} className="text-red-600 dark:text-red-200" />;
+        return <AlertCircle size={16} className="text-(--chart-bad)" />;
       case 'success':
-        return <CheckCircle size={16} className="text-green-600 dark:text-green-200" />;
+        return <CheckCircle size={16} className="text-(--chart-good)" />;
       case 'confirm':
-        return <Info size={16} className="text-purple-600 dark:text-purple-200" />;
+        return <Info size={16} className="text-(--brand-accent)" />;
       default:
-        return <Cloud size={16} className="text-purple-600 dark:text-purple-200" />;
+        return <Cloud size={16} className="text-(--brand-accent)" />;
     }
   };
 
   const getIconBgColor = (type) => {
     switch (type) {
       case 'error':
-        return 'bg-red-100';
+        return 'bg-(--status-danger-bg)';
       case 'success':
-        return 'bg-green-100';
+        return 'bg-(--status-success-bg)';
       default:
-        return 'bg-purple-100';
+        return 'bg-(--status-brand-bg)';
     }
   };
 
@@ -57,6 +57,8 @@ export default function NotificationSidebar({ isOpen }) {
       minWidth={250}
       maxWidth={500}
       storageKey="notification-sidebar-width"
+      zenPanelId="notification"
+      zenPanelLabel="Notifications"
     >
       <div className="flex flex-col h-full bg-os-card border-r border-os-border">
         {/* Header */}
@@ -69,7 +71,7 @@ export default function NotificationSidebar({ isOpen }) {
                 onClick={clearHistory}
                 className="p-1.5 rounded-sm transition-colors hover:bg-os-card-secondary"
               >
-                <Trash2 size={16} className="text-red-600" />
+                <Trash2 size={16} className="text-(--chart-bad)" />
               </button>
             )
           }
@@ -101,7 +103,7 @@ export default function NotificationSidebar({ isOpen }) {
                           {formatTime(notification.timestamp)}
                         </span>
                       </div>
-                      <p className="text-xs text-os-text-secondary whitespace-pre-wrap">
+                      <p className="ra-reading ra-reading-xs text-xs text-os-text-secondary whitespace-pre-wrap">
                         {notification.message}
                       </p>
                     </div>

@@ -154,13 +154,13 @@ function LegacyPageMessageBody({ msg, handleCitationClick }) {
               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked(processedContent)) }}
             />
             <div className="mt-4 pt-3 border-t border-os-border">
-              <div className="text-[10px] font-semibold text-os-text-muted mb-2">Sources:</div>
+              <div className="text-3xs font-semibold text-os-text-muted mb-2">Sources:</div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                 {renumberedCitations.map((citation) => (
                   <button
                     key={citation.number}
                     onClick={() => handleCitationClick(citation.doc_id)}
-                    className="flex items-start gap-2 text-[10px] text-os-text-secondary hover:text-blue-500 transition-colors text-left p-2 rounded-sm hover:bg-os-card-secondary"
+                    className="flex items-start gap-2 text-3xs text-os-text-secondary hover:text-os-blue transition-colors text-left p-2 rounded-sm hover:bg-os-card-secondary"
                   >
                     <span className="font-mono font-semibold text-os-text-muted shrink-0">[{citation.displayNumber}]</span>
                     <div className="flex-1 min-w-0">

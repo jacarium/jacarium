@@ -70,7 +70,7 @@ export default function SavedQueriesSidebar({ isOpen, onClose, onLoad }) {
         {/* Header */}
         <div className="p-4 border-b border-os-border flex items-center justify-between bg-os-card">
           <div className="flex items-center gap-2">
-            <Bookmark className="text-red-600" size={20} />
+            <Bookmark className="text-(--chart-bad)" size={20} />
             <h2 className="text-lg font-semibold text-os-text-primary">Saved Queries</h2>
           </div>
           <button
@@ -104,7 +104,7 @@ export default function SavedQueriesSidebar({ isOpen, onClose, onLoad }) {
                 >
                   {selectedId === query.id && (
                     <div className="absolute top-2 right-2">
-                      <Check size={16} className="text-green-600" />
+                      <Check size={16} className="text-(--chart-good)" />
                     </div>
                   )}
 
@@ -131,12 +131,12 @@ export default function SavedQueriesSidebar({ isOpen, onClose, onLoad }) {
                       className="btn btn-danger-ghost opacity-0 group-hover:opacity-100 p-1"
                       title="Delete"
                     >
-                      <Trash2 size={14} className="text-red-600" />
+                      <Trash2 size={14} className="text-(--chart-bad)" />
                     </button>
                   </div>
 
                   <div className="mt-2 flex flex-wrap gap-1">
-                    <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 font-medium">
+                    <span className="text-xs px-2 py-0.5 bg-(--status-danger-bg) text-(--status-danger-fg) font-medium">
                       {query.state.rules.length} rule{query.state.rules.length !== 1 ? 's' : ''}
                     </span>
                     <span className="text-xs px-2 py-0.5 bg-os-card-secondary text-os-text-primary font-medium">

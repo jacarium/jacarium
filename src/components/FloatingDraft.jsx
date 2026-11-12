@@ -64,7 +64,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
     return saved ? JSON.parse(saved) : {
       defaultTheme: 'light',
       defaultCategory: 'General',
-      fontSize: '14',
+      fontSize: '0.875rem',
       lineHeight: '1.5',
       autoSaveDelay: '1000'
     };
@@ -1300,7 +1300,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
           (draftDoc && !draftDoc.inCloud && (content !== lastSavedRef.current.content || title !== lastSavedRef.current.title)) ||
           (!draftDoc && (content.trim() || title.trim()))
         ) && (
-          <span className="text-xs text-orange-400 shrink-0">•</span>
+          <span className="text-xs text-(--chart-warn) shrink-0">•</span>
         )}
         <div className="flex items-center gap-1 ml-auto">
           <button
@@ -1308,7 +1308,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
             className="p-1 hover:bg-white/20 rounded-sm transition-colors"
             title="Maximize"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white" data-icon>
               <polyline points="15 3 21 3 21 9" />
               <polyline points="9 21 3 21 3 15" />
               <line x1="21" y1="3" x2="14" y2="10" />
@@ -1651,7 +1651,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
         className="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize group hover:bg-os-card-secondary rounded-tl transition-colors"
         title="Drag to resize"
       >
-        <svg
+        <svg data-icon
           className="absolute bottom-1 right-1 text-os-text-muted group-hover:text-os-text-primary transition-colors pointer-events-none"
           width="12"
           height="12"
@@ -1726,12 +1726,12 @@ export default function FloatingDraft({ instanceId = 'default' }) {
             }}
           >
             <div
-              className="px-3 py-2 border-b border-os-border flex items-center justify-between bg-linear-to-r from-purple-50 to-purple-100 cursor-grab active:cursor-grabbing"
+              className="px-3 py-2 border-b border-os-border flex items-center justify-between bg-linear-to-r from-(--status-brand-bg) to-(--status-brand-border) cursor-grab active:cursor-grabbing"
               onMouseDown={handleQuickAIDragStart}
             >
               <div className="flex items-center gap-2">
-                <Bot size={16} className="text-purple-600" />
-                <span className="text-sm font-semibold text-purple-900">Quick AI</span>
+                <Bot size={16} className="text-(--brand-accent)" />
+                <span className="text-sm font-semibold text-(--status-brand-fg)">Quick AI</span>
               </div>
               <div className="flex items-center gap-1">
                 {quickAIResponse && !quickAILoading && (
@@ -1745,7 +1745,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
                     className="btn btn-brand-ghost p-1"
                     title="Clear response"
                   >
-                    <Trash2 size={14} className="text-purple-700" />
+                    <Trash2 size={14} className="text-(--status-brand-fg)" />
                   </button>
                 )}
                 <button
@@ -1753,17 +1753,17 @@ export default function FloatingDraft({ instanceId = 'default' }) {
                   className="btn btn-brand-ghost p-1"
                   title="Close (Esc)"
                 >
-                  <X size={14} className="text-purple-700" />
+                  <X size={14} className="text-(--status-brand-fg)" />
                 </button>
               </div>
             </div>
 
             {backendStatus === 'offline' && (
-              <div className="bg-red-50 dark:bg-red-900/20 px-3 py-2">
+              <div className="bg-(--status-danger-bg) px-3 py-2">
                 <div className="flex items-start gap-2">
-                  <AlertCircle size={14} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                  <AlertCircle size={14} className="text-(--chart-bad) shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-xs font-medium text-red-800 dark:text-red-200">Backend offline</p>
+                    <p className="text-xs font-medium text-(--status-danger-fg)">Backend offline</p>
                   </div>
                   <button
                     onClick={() => {
@@ -1775,7 +1775,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
                     title="Retry connection"
                     aria-label="Retry connection"
                   >
-                    <RefreshCw size={12} className={checkingBackend ? 'animate-spin text-red-600' : 'text-red-600'} />
+                    <RefreshCw size={12} className={checkingBackend ? 'animate-spin text-(--chart-bad)' : 'text-(--chart-bad)'} />
                   </button>
                 </div>
               </div>
@@ -1798,7 +1798,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
                   }}
                   placeholder="for loop in bash, sort function..."
                   disabled={quickAILoading || backendStatus === 'offline'}
-                  className="w-full px-2 py-1.5 text-sm border border-purple-300 rounded-sm bg-os-input-bg text-os-text-primary focus:outline-hidden focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full px-2 py-1.5 text-sm border border-(--status-brand-border) rounded-sm bg-os-input-bg text-os-text-primary focus:outline-hidden focus:border-(--os-blue) focus:ring-1 focus:ring-(--os-blue) disabled:opacity-60 disabled:cursor-not-allowed"
                 />
                 <p className="text-xs text-os-text-secondary mt-1">Enter to submit • Esc to cancel</p>
               </div>
@@ -1816,12 +1816,12 @@ export default function FloatingDraft({ instanceId = 'default' }) {
                     />
                     {quickAILoading && (
                       <div className="absolute inset-0 flex items-center justify-center bg-white/75 rounded-sm">
-                        <RefreshCw size={20} className="text-purple-600 animate-spin" />
+                        <RefreshCw size={20} className="text-(--brand-accent) animate-spin" />
                       </div>
                     )}
                   </div>
                   {quickAISelectedText && !quickAILoading && (
-                    <p className="text-xs text-purple-600 mt-1">
+                    <p className="text-xs text-(--brand-accent) mt-1">
                       {quickAISelectedText.length} characters selected
                     </p>
                   )}
@@ -1885,12 +1885,12 @@ export default function FloatingDraft({ instanceId = 'default' }) {
             }}
           >
             <div
-              className="px-3 py-2 border-b border-os-border flex items-center justify-between bg-linear-to-r from-purple-50 to-purple-100 cursor-grab active:cursor-grabbing shrink-0"
+              className="px-3 py-2 border-b border-os-border flex items-center justify-between bg-linear-to-r from-(--status-brand-bg) to-(--status-brand-border) cursor-grab active:cursor-grabbing shrink-0"
               onMouseDown={handleAskAIDragStart}
             >
               <div className="flex items-center gap-2">
-                <Bot size={16} className="text-purple-600" />
-                <span className="text-sm font-semibold text-purple-900">Ask AI About This</span>
+                <Bot size={16} className="text-(--brand-accent)" />
+                <span className="text-sm font-semibold text-(--status-brand-fg)">Ask AI About This</span>
               </div>
               <div className="flex items-center gap-1">
                 {askAIResponse && !askAILoading && (
@@ -1904,7 +1904,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
                     className="btn btn-brand-ghost p-1"
                     title="Clear response"
                   >
-                    <Trash2 size={14} className="text-purple-700" />
+                    <Trash2 size={14} className="text-(--status-brand-fg)" />
                   </button>
                 )}
                 <button
@@ -1912,17 +1912,17 @@ export default function FloatingDraft({ instanceId = 'default' }) {
                   className="btn btn-brand-ghost p-1"
                   title="Close (Esc)"
                 >
-                  <X size={14} className="text-purple-700" />
+                  <X size={14} className="text-(--status-brand-fg)" />
                 </button>
               </div>
             </div>
 
             {backendStatus === 'offline' && (
-              <div className="bg-red-50 dark:bg-red-900/20 px-3 py-2 shrink-0">
+              <div className="bg-(--status-danger-bg) px-3 py-2 shrink-0">
                 <div className="flex items-start gap-2">
-                  <AlertCircle size={14} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                  <AlertCircle size={14} className="text-(--chart-bad) shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-xs font-medium text-red-800 dark:text-red-200">Backend offline</p>
+                    <p className="text-xs font-medium text-(--status-danger-fg)">Backend offline</p>
                   </div>
                   <button
                     onClick={() => {
@@ -1934,7 +1934,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
                     title="Retry connection"
                     aria-label="Retry connection"
                   >
-                    <RefreshCw size={12} className={checkingBackend ? 'animate-spin text-red-600' : 'text-red-600'} />
+                    <RefreshCw size={12} className={checkingBackend ? 'animate-spin text-(--chart-bad)' : 'text-(--chart-bad)'} />
                   </button>
                 </div>
               </div>
@@ -1958,7 +1958,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
                   }}
                   placeholder="e.g., Explain this, Fix this code, Summarize..."
                   disabled={askAILoading || backendStatus === 'offline'}
-                  className="w-full px-2 py-1.5 text-sm border border-purple-300 rounded-sm bg-os-card focus:outline-hidden focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:bg-os-card-secondary disabled:text-os-text-secondary"
+                  className="w-full px-2 py-1.5 text-sm border border-(--status-brand-border) rounded-sm bg-os-card focus:outline-hidden focus:border-(--os-blue) focus:ring-1 focus:ring-(--os-blue) disabled:bg-os-card-secondary disabled:text-os-text-secondary"
                 />
               </div>
 
@@ -1968,7 +1968,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
                   value={askAISanitizedText}
                   onChange={(e) => setAskAISanitizedText(e.target.value)}
                   disabled={askAILoading}
-                  className="w-full h-full px-2 py-2 border border-os-border rounded-sm bg-os-card-secondary font-mono text-xs resize-none focus:outline-hidden focus:border-purple-500 disabled:opacity-75"
+                  className="w-full h-full px-2 py-2 border border-os-border rounded-sm bg-os-card-secondary font-mono text-xs resize-none focus:outline-hidden focus:border-(--os-blue) disabled:opacity-75"
                 />
               </div>
 
@@ -1988,12 +1988,12 @@ export default function FloatingDraft({ instanceId = 'default' }) {
                     />
                     {askAILoading && (
                       <div className="absolute inset-0 flex items-center justify-center bg-white/75 rounded-sm">
-                        <RefreshCw size={20} className="text-purple-600 animate-spin" />
+                        <RefreshCw size={20} className="text-(--brand-accent) animate-spin" />
                       </div>
                     )}
                   </div>
                   {askAISelectedResponse && !askAILoading && (
-                    <p className="text-xs text-purple-600 mt-1 shrink-0">
+                    <p className="text-xs text-(--brand-accent) mt-1 shrink-0">
                       {askAISelectedResponse.length} characters selected
                     </p>
                   )}

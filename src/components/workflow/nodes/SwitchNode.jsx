@@ -52,7 +52,7 @@ function SwitchNode({ data, isConnectable }) {
               onChange={(e) => handleCaseChange(index, e.target.value)}
               disabled={isReadOnly}
               placeholder={`case${index + 1}`}
-              className="nodrag flex-1 px-2 py-1 text-xs border rounded-sm focus:outline-hidden focus:ring-2 focus:ring-purple-500 font-mono disabled:bg-os-card-secondary bg-os-input-bg text-os-text-primary"
+              className="nodrag flex-1 px-2 py-1 text-xs border rounded-sm focus:outline-hidden focus:ring-2 focus:ring-(--brand-accent) font-mono disabled:bg-os-card-secondary bg-os-input-bg text-os-text-primary"
             />
             {cases.length > 1 && !isReadOnly && (
               <button

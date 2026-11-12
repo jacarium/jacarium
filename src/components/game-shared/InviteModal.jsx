@@ -67,10 +67,10 @@ export default function InviteModal({ isOpen, onClose, gameId, currentPlayers })
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/50 z-50"
+        className="sc-modal-backdrop fixed inset-0 bg-black/50 z-50"
         onClick={onClose}
       />
-      <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-os-card border border-os-border rounded-sm shadow-2xl p-4 z-50 min-w-[350px]">
+      <div role="dialog" aria-modal="true" aria-label="Invite" className="sc-modal-panel fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-os-card border border-os-border rounded-sm shadow-2xl p-4 z-50 min-w-[350px]">
         <h3 className="text-sm font-semibold text-os-text-primary mb-3">Invite Players</h3>
         <div className="space-y-1.5 max-h-[300px] overflow-y-auto mb-3">
           {availableUsers.length === 0 ? (
@@ -91,7 +91,7 @@ export default function InviteModal({ isOpen, onClose, gameId, currentPlayers })
  }`}
                 >
                   <span className="text-sm font-medium text-os-text-primary">{displayName}</span>
-                  {isInvited && <span className="ml-auto text-xs text-green-600 dark:text-green-400">✓ Invited</span>}
+                  {isInvited && <span className="ml-auto text-xs text-(--chart-good)">✓ Invited</span>}
                 </button>
               );
             })

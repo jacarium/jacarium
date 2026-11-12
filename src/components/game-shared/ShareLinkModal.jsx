@@ -30,10 +30,10 @@ export default function ShareLinkModal({ isOpen, onClose, gameUrl, gameMode }) {
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/50 z-50"
+        className="sc-modal-backdrop fixed inset-0 bg-black/50 z-50"
         onClick={onClose}
       />
-      <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-os-card border border-os-border rounded-sm shadow-2xl p-4 z-50 min-w-[400px] max-w-[500px]">
+      <div role="dialog" aria-modal="true" aria-label="Share link" className="sc-modal-panel fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-os-card border border-os-border rounded-sm shadow-2xl p-4 z-50 min-w-[400px] max-w-[500px]">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-os-text-primary flex items-center gap-2">
             Share {gameModeTitle} Link

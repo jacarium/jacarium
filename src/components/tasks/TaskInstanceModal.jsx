@@ -272,8 +272,8 @@ export default function TaskInstanceModal({
         {validationStatus && (
           <div className={`p-3 rounded text-sm ${
  validationStatus.valid
- ?'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-200'
- :'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-200'
+ ?'bg-(--status-success-bg) text-(--status-success-fg)'
+ :'bg-(--status-danger-bg) text-(--status-danger-fg)'
  }`}>
             <p className="font-medium">
               {validationStatus.valid ? '✓ Valid' : '✗ Invalid'}

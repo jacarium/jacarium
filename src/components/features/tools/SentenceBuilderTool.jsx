@@ -49,27 +49,27 @@ const CATEGORIES = [
   {
     id: 'number',
     label: 'Number words',
-    chip: 'border-amber-400 dark:border-amber-600 text-amber-700 dark:text-amber-300'
+    chip: 'border-(--status-warning-border) text-(--status-warning-fg)'
   },
   {
     id: 'article',
     label: 'Articles',
-    chip: 'border-blue-400 dark:border-blue-600 text-blue-700 dark:text-blue-300'
+    chip: 'border-os-blue dark:border-os-blue text-(--status-info-fg)'
   },
   {
     id: 'preposition',
     label: 'Prepositions',
-    chip: 'border-purple-400 dark:border-purple-600 text-purple-700 dark:text-purple-300'
+    chip: 'border-(--status-brand-border) text-(--status-brand-fg)'
   },
   {
     id: 'conjunction',
     label: 'Conjunctions',
-    chip: 'border-emerald-400 dark:border-emerald-600 text-emerald-700 dark:text-emerald-300'
+    chip: 'border-(--status-success-border) text-(--status-success-fg)'
   },
   {
     id: 'pronoun',
     label: 'Pronouns',
-    chip: 'border-rose-400 dark:border-rose-600 text-rose-700 dark:text-rose-300'
+    chip: 'border-(--status-danger-border) text-(--status-danger-fg)'
   },
   {
     id: 'content',
@@ -157,24 +157,24 @@ const clamp = (value, min, max) => Math.min(Math.max(value, min), Math.max(min, 
 // lifetime and avoids reuse while five or fewer groups coexist.
 const GROUP_STYLES = [
   {
-    box: 'border-indigo-500/70 bg-indigo-500/10',
-    button: 'border-indigo-500/70 text-indigo-600 dark:text-indigo-300'
+    box: 'border-(--chart-cat-2)/70 bg-(--chart-cat-2)/10',
+    button: 'border-(--chart-cat-2)/70 text-(--chart-cat-2)'
   },
   {
-    box: 'border-teal-500/70 bg-teal-500/10',
-    button: 'border-teal-500/70 text-teal-600 dark:text-teal-300'
+    box: 'border-(--chart-cat-3)/70 bg-(--chart-cat-3)/10',
+    button: 'border-(--chart-cat-3)/70 text-(--chart-cat-3)'
   },
   {
-    box: 'border-fuchsia-500/70 bg-fuchsia-500/10',
-    button: 'border-fuchsia-500/70 text-fuchsia-600 dark:text-fuchsia-300'
+    box: 'border-(--chart-cat-5)/70 bg-(--chart-cat-5)/10',
+    button: 'border-(--chart-cat-5)/70 text-(--chart-cat-5)'
   },
   {
-    box: 'border-orange-500/70 bg-orange-500/10',
-    button: 'border-orange-500/70 text-orange-600 dark:text-orange-300'
+    box: 'border-(--chart-cat-7)/70 bg-(--chart-cat-7)/10',
+    button: 'border-(--chart-cat-7)/70 text-(--chart-cat-7)'
   },
   {
-    box: 'border-cyan-500/70 bg-cyan-500/10',
-    button: 'border-cyan-500/70 text-cyan-600 dark:text-cyan-300'
+    box: 'border-(--chart-cat-1)/70 bg-(--chart-cat-1)/10',
+    button: 'border-(--chart-cat-1)/70 text-(--chart-cat-1)'
   }
 ];
 
@@ -681,7 +681,7 @@ export default function SentenceBuilderTool() {
       {token.capitalized && (
         <span
           title="Starts with a capital - possible proper noun or sentence start"
-          className="ml-1 px-1 rounded-sm text-[10px] leading-4 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+          className="ml-1 px-1 rounded-sm text-3xs leading-4 bg-(--status-info-bg) text-(--status-info-fg)"
         >
           A
         </span>
@@ -689,7 +689,7 @@ export default function SentenceBuilderTool() {
       {token.punctuation && (
         <span
           title="Trailing punctuation - possible clause or sentence boundary"
-          className="ml-1 px-1 rounded-sm text-[10px] leading-4 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300"
+          className="ml-1 px-1 rounded-sm text-3xs leading-4 bg-(--status-warning-bg) text-(--status-warning-fg)"
         >
           {token.punctuation}
         </span>
@@ -808,7 +808,7 @@ export default function SentenceBuilderTool() {
                             {(placedCounts[token.id] ?? 0) >= 2 && (
                               <span
                                 title={`${placedCounts[token.id]} copies currently on the board`}
-                                className="ml-1 text-[10px] align-super text-os-text-secondary"
+                                className="ml-1 text-3xs align-super text-os-text-secondary"
                               >
                                 &times;{placedCounts[token.id]}
                               </span>

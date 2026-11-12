@@ -87,8 +87,8 @@ export default function CustomFieldsModal({ isOpen, onClose, onFieldsChanged }) 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 font-text">
-      <div className="bg-os-modal shadow-lg max-w-2xl w-full border border-os-border rounded-sm max-h-[90vh] overflow-y-auto">
+    <div className="sc-modal-backdrop fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 font-text">
+      <div role="dialog" aria-modal="true" aria-label="Manage Custom Fields" className="sc-modal-panel bg-os-modal shadow-lg max-w-2xl w-full border border-os-border rounded-sm max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="p-4 border-b border-os-border bg-os-modal flex items-center justify-between sticky top-0 z-10">
           <h2 className="text-sm font-text font-semibold text-os-text-primary uppercase tracking-wide">Manage Custom Fields</h2>
@@ -157,7 +157,7 @@ export default function CustomFieldsModal({ isOpen, onClose, onFieldsChanged }) 
             </div>
 
             {error && (
-              <div className="mt-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm p-2">
+              <div className="mt-3 text-sm text-(--status-danger-fg) bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm p-2">
                 {error}
               </div>
             )}
@@ -193,7 +193,7 @@ export default function CustomFieldsModal({ isOpen, onClose, onFieldsChanged }) 
                         <span className="text-xs px-2 py-0.5 bg-os-divider text-os-text-secondary rounded-sm font-mono">
                           {field.useNameInJQL ? `"${field.name}"` : field.id}
                         </span>
-                        <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 dark:text-blue-300 rounded-sm">
+                        <span className="text-xs px-2 py-0.5 bg-(--status-info-bg) text-(--status-info-fg) rounded-sm">
                           {field.type}
                         </span>
                       </div>

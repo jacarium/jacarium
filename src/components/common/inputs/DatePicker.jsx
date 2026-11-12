@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useDropdownMenu } from '../../../hooks/useContextMenu';
+import { usePopupPosition } from '../../../hooks/usePopupPosition.js';
 
 /**
  * DatePicker - Custom theme-aware date picker
@@ -17,6 +18,9 @@ export default function DatePicker({ value, onChange, onCancel, placeholder = 'S
   const [viewDate, setViewDate] = useState(new Date());
   const buttonRef = useRef(null);
   const { isOpen, position, menuRef, openMenu, closeMenu, toggleMenu } = useDropdownMenu();
+  // under the field when it fits, above it when not, inside the window either way (the shared popup placement)
+  const panelRef = useRef(null);
+  usePopupPosition(panelRef, { open: isOpen && !!position.anchor, anchor: () => position.anchor, deps: [position.anchor], side: 'below', align: 'start', gap: position.offset != null ? position.offset : 4 });
 
   // Parse the value prop to a Date object
   const selectedDate = value ? new Date(value + 'T00:00:00') : null;
@@ -177,6 +181,7 @@ export default function DatePicker({ value, onChange, onCancel, placeholder = 'S
       {/* Calendar Dropdown */}
       {isOpen && (
         <div
+          ref={panelRef}
           className="fixed z-9999 bg-os-card border border-os-border rounded-lg shadow-lg p-3 min-w-[280px]"
           style={{
             top: `${position.top}px`,

@@ -31,37 +31,31 @@ export default function CloudModal({
   const getIcon = () => {
     switch (type) {
       case 'error':
-        return <AlertCircle size={24} className="text-red-600" />;
+        return <AlertCircle size={24} className="text-(--chart-bad)" />;
       case 'success':
-        return <CheckCircle size={24} className="text-green-600" />;
+        return <CheckCircle size={24} className="text-(--chart-good)" />;
       case 'confirm':
-        return <Info size={24} className="text-purple-600" />;
+        return <Info size={24} className="text-(--brand-accent)" />;
       default:
-        return <Cloud size={24} className="text-purple-600" />;
+        return <Cloud size={24} className="text-(--brand-accent)" />;
     }
   };
 
   const getIconBgColor = () => {
     switch (type) {
       case 'error':
-        return 'bg-red-100';
+        return 'bg-(--status-danger-bg)';
       case 'success':
-        return 'bg-green-100';
+        return 'bg-(--status-success-bg)';
       default:
-        return 'bg-purple-100';
+        return 'bg-(--status-brand-bg)';
     }
   };
 
   return (
-    <div className="fixed inset-0 z-9999 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
-      <div className="relative bg-os-modal rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden">
+    <div className="sc-modal-backdrop fixed inset-0 bg-black/50 z-9999 flex items-center justify-center" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      {/* Modal: a dialog like every modal (the backdrop above closes on a click beside the panel) */}
+      <div role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : 'Cloud'} className="sc-modal-panel relative bg-os-modal rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-os-border">
           <h3 className="text-lg font-semibold text-os-text-primary">

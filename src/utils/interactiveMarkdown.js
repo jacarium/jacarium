@@ -490,7 +490,7 @@ export async function resolveAttachmentImages(container) {
         if (img.nextSibling?.textContent !== message) {
           const errorText = window.document.createElement('span');
           errorText.textContent = message;
-          errorText.className = 'text-red-600 text-sm italic';
+          errorText.className = 'text-(--chart-bad) text-sm italic';
           img.parentNode?.insertBefore(errorText, img.nextSibling);
         }
       }

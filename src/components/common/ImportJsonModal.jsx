@@ -239,8 +239,8 @@ export default function ImportJsonModal({
       <div className="p-6 max-h-[75vh] overflow-y-auto" data-testid={testId}>
         {/* Header */}
         <div className="flex items-start gap-4 mb-4">
-          <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900/30 shrink-0">
-            <FileJson size={24} className="text-blue-600 dark:text-blue-300" />
+          <div className="p-3 rounded-full bg-(--status-info-bg) shrink-0">
+            <FileJson size={24} className="text-(--chart-info)" />
           </div>
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-os-text-primary mb-1">
@@ -340,8 +340,8 @@ export default function ImportJsonModal({
               data-testid="import-drop-zone"
               className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
  isDragging
- ?'border-os-blue bg-blue-50 dark:bg-blue-900/20'
- :'border-os-border hover:border-os-blue bg-os-card-secondary hover:bg-blue-50 dark:hover:bg-blue-900/20'
+ ?'border-os-blue bg-(--status-info-bg)'
+ :'border-os-border hover:border-os-blue bg-os-card-secondary hover:bg-(--status-info-border)'
  }`}
             >
               <FileUp size={48} className="mx-auto mb-3 text-os-text-muted" />
@@ -373,11 +373,11 @@ export default function ImportJsonModal({
 
         {/* Validation Feedback */}
         {validationError && (
-          <div className="mb-4 last:mb-0 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm flex items-start gap-2">
-            <AlertCircle size={16} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+          <div className="mb-4 last:mb-0 p-3 bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm flex items-start gap-2">
+            <AlertCircle size={16} className="text-(--chart-bad) shrink-0 mt-0.5" />
             <div className="flex-1">
-              <div className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">Validation Error</div>
-              <div className="text-sm text-red-700 dark:text-red-300">{validationError}</div>
+              <div className="text-sm font-medium text-(--status-danger-fg) mb-1">Validation Error</div>
+              <div className="text-sm text-(--status-danger-fg)">{validationError}</div>
             </div>
           </div>
         )}

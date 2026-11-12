@@ -1,6 +1,7 @@
-import { forwardRef } from 'react';
+import { forwardRef, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { MenuItemIcon } from './MenuItemIcon';
+import { usePopupPosition } from '../../../hooks/usePopupPosition.js';
 
 /**
  * HamburgerMenu - Dropdown menu component
@@ -33,6 +34,23 @@ const HamburgerMenu = forwardRef(function HamburgerMenu(
   },
   ref
 ) {
+  const inner = useRef(null);
+  const setRefs = (node) => {
+    inner.current = node;
+    if (typeof ref === 'function') ref(node);
+    else if (ref) ref.current = node;
+  };
+  // Under its button when it fits, above it when it does not, inside the window either way with its height capped
+  // and scrolling when neither fits - measured once rendered and again on resize / scroll / size changes
+  // (src/hooks/usePopupPosition.js); the position's top / left / right are the first guess until then.
+  const anchor = position && position.anchor;
+  const align = position && position.align === 'left' ? 'start' : 'end';
+  usePopupPosition(inner, {
+    open: !!isOpen && !!anchor,
+    anchor: () => anchor,
+    deps: [anchor && anchor.left, anchor && anchor.top, anchor && anchor.right, anchor && anchor.bottom],
+    side: 'below', align, gap: position && position.offset != null ? position.offset : 4,
+  });
   if (!isOpen) return null;
 
   const positionStyles = {
@@ -54,8 +72,9 @@ const HamburgerMenu = forwardRef(function HamburgerMenu(
 
       {/* Menu */}
       <div
-        ref={ref}
-        className={`bg-os-card border border-os-border shadow-lg rounded-lg py-1 min-w-[200px] ${className}`}
+        ref={setRefs}
+        role="menu"
+        className={`sc-menu bg-os-card border border-os-border shadow-lg rounded-lg py-1 min-w-[200px] ${className}`}
         style={positionStyles}
       >
         {children}
@@ -95,7 +114,7 @@ export function HamburgerMenuItem({
   // whether the entry sits in a dropdown or a right-click menu
   const baseClasses = 'w-full px-4 py-2 text-left text-sm hover:bg-os-card-secondary flex items-center gap-2 transition-colors';
   const colorClasses = danger
-    ? 'text-red-600'
+    ? 'text-(--chart-bad)'
     : 'text-os-text-primary';
   const disabledClasses = disabled
     ? 'opacity-50 cursor-not-allowed'

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Copy, Download, Save, X, Search, Plus, Edit, FileCode, Bug, CheckSquare, ShieldAlert, Lock, FileText, AlertCircle, Zap, Star, Bookmark, Flag, Target, AlertTriangle, Check } from 'lucide-react';
 import { useNotifications } from '../../../contexts/NotificationContext';
+import { usePopupPosition } from '../../../hooks/usePopupPosition.js';
 import InlineEdit from '../../common/inputs/InlineEdit';
 import ConfirmationModal from '../../common/ConfirmationModal';
 import {
@@ -67,6 +68,8 @@ export default function OpenShiftTemplateTool() {
   // Context menu
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, template: null });
   const contextMenuRef = useRef(null);
+  // the template menu stays inside the window (the shared popup placement: flip, clamp, scroll inside)
+  usePopupPosition(contextMenuRef, { open: contextMenu.visible, anchor: () => ({ left: contextMenu.x, top: contextMenu.y }), deps: [contextMenu.x, contextMenu.y] });
 
   // Form fields for save/edit modal
   const [templateName, setTemplateName] = useState('');
@@ -506,7 +509,7 @@ export default function OpenShiftTemplateTool() {
                       className="p-0.5 hover:bg-os-card-secondary rounded-sm transition-colors"
                       title={expandedCategories.includes(category) ? 'Collapse' : 'Expand'}
                     >
-                      <svg
+                      <svg data-icon
                         width="14"
                         height="14"
                         viewBox="0 0 24 24"
@@ -557,7 +560,7 @@ export default function OpenShiftTemplateTool() {
                           onDoubleClick={() => setEditingTemplateId(template.id)}
                           className={`group relative px-4 py-3 cursor-pointer transition-colors border-l-4 ${
  isSelected
- ?'bg-blue-50 border-os-blue'
+ ?'bg-(--status-info-bg) border-os-blue'
  :'hover:bg-os-card-secondary border-transparent'
  }`}
                         >
@@ -640,8 +643,8 @@ export default function OpenShiftTemplateTool() {
                 >
                   {showCopied ? (
                     <>
-                      <Check size={16} className="text-green-600" />
-                      <span className="text-green-600">Copied</span>
+                      <Check size={16} className="text-(--chart-good)" />
+                      <span className="text-(--chart-good)">Copied</span>
                     </>
                   ) : (
                     <>
@@ -710,8 +713,8 @@ export default function OpenShiftTemplateTool() {
 
       {/* Edit Template Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-os-modal shadow-lg max-w-lg w-full border border-os-border rounded-sm max-h-[90vh] overflow-y-auto">
+        <div className="sc-modal-backdrop fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div role="dialog" aria-modal="true" aria-label="Template" className="sc-modal-panel bg-os-modal shadow-lg max-w-lg w-full border border-os-border rounded-sm max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="p-4 border-b border-os-border bg-os-modal flex items-center justify-between sticky top-0 z-10">
               <h2 className="text-sm font-semibold text-os-text-primary uppercase tracking-wide">

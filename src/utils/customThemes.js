@@ -357,6 +357,10 @@ export function deriveTokens(theme) {
   const rail = fillBaseColor(t.fills.rail) || c.sidebar;
   const railCss = fillToCss(t.fills.rail) || rail;
   const railDark = isDarkColor(rail);
+  const tooltipBg = railDark ? darken(rail, 0.2) : darken(rail, 0.6);   // the rail's tooltip, and its text in whichever of black / white reads on it
+  // the status families (notes, badges, banners, status lines): the theme's own status colour as text, a tint of it
+  // over the card as background, the colour at 40 % as border - the accent stands in for the info and brand roles
+  const family = (name, col) => ({ [`--status-${name}-fg`]: col, [`--status-${name}-bg`]: rgba(col, dark ? 0.2 : 0.12), [`--status-${name}-border`]: rgba(col, 0.4) });
   const out = {
     '--os-canvas': c.canvas, '--os-card': c.card, '--os-card-secondary': c.cardSecondary, '--os-modal': c.card,
     '--os-masthead': dark ? darken(c.sidebar, 0.25) : darken(c.sidebar, 0.1),
@@ -368,10 +372,13 @@ export function deriveTokens(theme) {
     '--os-status-success': c.success, '--os-code-bg': c.codeBg,
     '--os-rail': rail, '--os-rail-fill': railCss,
     '--os-rail-border': mix(rail, c.railText, 0.15), '--os-rail-hover': mix(rail, c.railText, 0.12), '--os-rail-active': c.accent,
-    '--os-rail-text': c.railText, '--os-rail-text-active': accentFg, '--rail-badge': railBadge(c.accent, t.fills.rail), '--os-rail-tooltip': railDark ? darken(rail, 0.2) : darken(rail, 0.6), '--os-rail-separator': mix(rail, c.railText, 0.25),
+    '--os-rail-text': c.railText, '--os-rail-text-active': accentFg, '--rail-badge': railBadge(c.accent, t.fills.rail), '--os-rail-tooltip': tooltipBg, '--os-rail-tooltip-text': onColor(tooltipBg), '--os-rail-separator': mix(rail, c.railText, 0.25),
     '--os-terminal-bg': c.codeBg, '--os-terminal-text': c.textPrimary, '--os-terminal-muted': c.textMuted, '--os-terminal-border': c.border,
     '--os-terminal-success': c.success, '--os-terminal-warning': c.warning, '--os-terminal-error': c.danger, '--os-terminal-selection': rgba(c.accent, dark ? 0.35 : 0.22),
     '--chart-ok': c.accent, '--chart-info': c.accent, '--chart-good': c.success, '--chart-warn': c.warning, '--chart-bad': c.danger, '--chart-muted': c.textMuted,
+    ...family('info', c.accent), ...family('success', c.success), ...family('warning', c.warning), ...family('danger', c.danger), ...family('brand', c.accent),
+    // the categorical set of the charts, legends and collaborator colours: the stock set of the theme's base (src/index.css :root / .dark)
+    ...Object.fromEntries((dark ? ['#60a5fa', '#a78bfa', '#2dd4bf', '#fbbf24', '#f472b6', '#4ade80', '#fb923c', '#94a3b8'] : ['#2563eb', '#7c3aed', '#0d9488', '#d97706', '#db2777', '#16a34a', '#ea580c', '#64748b']).map((col, i) => [`--chart-cat-${i + 1}`, col])),
     '--link': dark ? accentHover : c.accent, '--link-hover': dark ? lighten(c.accent, 0.3) : accentHover,
     '--btn-primary-bg': c.accent, '--btn-primary-bg-hover': accentHover, '--btn-primary-bg-active': accentActive, '--btn-primary-fg': accentFg,
     '--btn-selected-bg': c.accent, '--btn-selected-fg': accentFg, '--btn-selected-bg-hover': accentHover, '--btn-selected-text': dark ? accentHover : darken(c.accent, 0.25),

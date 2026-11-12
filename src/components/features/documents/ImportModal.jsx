@@ -112,16 +112,16 @@ export default function ImportModal({
         {/* Header */}
         <div className="flex items-start gap-4 mb-4">
           <div className={`p-3 rounded-full shrink-0 ${
- status ==='success'?'bg-green-100 dark:bg-green-900/30':
- status ==='error'?'bg-red-100 dark:bg-red-900/30':
-'bg-blue-100 dark:bg-blue-900/30'
+ status ==='success'?'bg-(--status-success-bg)':
+ status ==='error'?'bg-(--status-danger-bg)':
+'bg-(--status-info-bg)'
  }`}>
             {status === 'success' ? (
-              <CheckCircle size={24} className="text-green-600 dark:text-green-400" />
+              <CheckCircle size={24} className="text-(--chart-good)" />
             ) : status === 'error' ? (
-              <XCircle size={24} className="text-red-600 dark:text-red-400" />
+              <XCircle size={24} className="text-(--chart-bad)" />
             ) : (
-              <Upload size={24} className="text-blue-600 dark:text-blue-300" />
+              <Upload size={24} className="text-(--chart-info)" />
             )}
           </div>
           <div className="flex-1">
@@ -150,7 +150,7 @@ export default function ImportModal({
             <div className="w-full bg-os-card-secondary rounded-full h-2 overflow-hidden">
               <div
                 className={`h-full transition-all duration-300 ${
- status ==='success'?'bg-green-700 dark:bg-green-400':'bg-os-blue'
+ status ==='success'?'bg-(--chart-good)':'bg-os-blue'
  }`}
                 data-testid="import-progress-fill"
                 style={{ width: `${getProgressPercent()}%` }}

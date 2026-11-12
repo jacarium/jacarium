@@ -4,6 +4,42 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.4.0
+
+_2026-11-12_
+
+### [SETTINGS]
+
+Settings > Accessibility: reading aids for the whole app, saved on this device only, never changing documents, exports, sync or what others see - with ready-made profiles at the top: Comfortable reading, Dyslexia friendly, Low vision, Focus, Red-weak, Green-weak, Blue-weak and Calm; change anything afterwards and it shows Custom (based on the profile)
+
+Text: a Text size slider from 90 to 200 % for reading text, with Scale the interface too for buttons, menus, tabs, the rail and icons; reading fonts Atkinson Hyperlegible, Lexend and OpenDyslexic, and Atkinson Hyperlegible Mono for code; line height, letter, word and paragraph spacing, line width up to 120 characters and text alignment, applied everywhere including the Diagnostics reports, dialogs and toasts, while code and logs stay monospaced
+
+Colour and contrast: high contrast (7:1 text), colour-blind safe palettes for red-weak, green-weak and blue-weak vision that recolour the accent, status, charts, syntax, notes and even collaborator, calendar and Kanban colours (shown to you only), reduced saturation and greyscale
+
+Reading ruler: a one, three or five line band that follows your pointer or cursor everywhere - documents, sidebars, the rail, menus, dialogs, text fields, charts and inside the Diagnostics reports - in Highlight or Mask mode, where everything but the band is dimmed
+
+Reduce motion (Follow system, On or Off), hide images in documents and chat, and highlighted links; every option can be bound to a key in Settings > Shortcuts > Reading
+
+### [UI]
+
+Zen mode on every page (shift-command-E): the rail, the page sidebar and the panels step aside; a Sidebar tab on the left edge and a Navigation tab on the right (every page and the AI Chat, Quick Notes, Team Chat and Notifications panels) open with a click or with option-command-[ and option-command-], Esc closes, and leaving zen puts the layout back exactly as it was; the column width follows Line width
+
+Menus and dropdowns always stay inside the window: they open upwards or to the left near an edge and scroll when there is no room - the spelling menu near the bottom of a document shows Add to dictionary again
+
+Sidebars open and close instantly; the rail moves pages that do not fit into its More menu at full size; a slider replaces the text size buttons
+
+UI Scale left Settings > Theme (the window zoom stays on command-plus and command-minus); every dialog is announced to screen readers as a dialog, and Cancel in confirmations is readable under high contrast
+
+### [DESKTOP]
+
+Electron 45.2.3, with the upstream Chromium, V8 and media library security backports
+
+### [MISC]
+
+README: a new Accessibility section with screenshots, regenerated from demo data with npm run screenshots:accessibility
+
+Under the hood: the colours of the whole app now come from the theme roles (no hard-coded colour left), font sizes scale from the root size, and the tests check both
+
 ## What's New in v4.3.1
 
 _2026-11-09_
@@ -15,6 +51,7 @@ Container image: the Red Hat UBI 9 minimal base moves to 9.8-1793578971 (2026-11
 ### [DEPLOY]
 
 Container build: the extra xz-libs and curl upgrades are gone now that the base carries them, so the image builds from fewer changes to the base
+
 
 ## What's New in v4.3.0
 

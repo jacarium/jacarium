@@ -16,24 +16,24 @@ export default function ToastNotifications() {
   const getIcon = (type) => {
     switch (type) {
       case 'error':
-        return <AlertCircle size={16} className="text-red-600" />;
+        return <AlertCircle size={16} className="text-(--chart-bad)" />;
       case 'success':
-        return <CheckCircle size={16} className="text-green-600" />;
+        return <CheckCircle size={16} className="text-(--chart-good)" />;
       case 'confirm':
-        return <Info size={16} className="text-purple-600" />;
+        return <Info size={16} className="text-(--brand-accent)" />;
       default:
-        return <Cloud size={16} className="text-purple-600" />;
+        return <Cloud size={16} className="text-(--brand-accent)" />;
     }
   };
 
   const getIconBgColor = (type) => {
     switch (type) {
       case 'error':
-        return 'bg-red-100';
+        return 'bg-(--status-danger-bg)';
       case 'success':
-        return 'bg-green-100';
+        return 'bg-(--status-success-bg)';
       default:
-        return 'bg-purple-100';
+        return 'bg-(--status-brand-bg)';
     }
   };
 
@@ -78,7 +78,7 @@ export default function ToastNotifications() {
                 {getIcon(notification.type)}
               </div>
               <div className="flex-1 pt-0.5">
-                <p className="text-xs text-os-text-secondary whitespace-pre-line">
+                <p className="ra-reading ra-reading-xs text-xs text-os-text-secondary whitespace-pre-line">
                   {notification.message}
                 </p>
               </div>

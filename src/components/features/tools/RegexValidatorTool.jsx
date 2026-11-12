@@ -270,7 +270,7 @@ export default function RegexValidatorTool() {
 
         {/* Error */}
         {error && (
-          <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm text-sm text-red-600 dark:text-red-400">
+          <div className="flex items-center gap-2 p-3 bg-(--status-danger-bg) border border-(--status-danger-border) rounded-sm text-sm text-(--status-danger-fg)">
             <X size={16} />
             {error}
           </div>
@@ -284,7 +284,7 @@ export default function RegexValidatorTool() {
               <div className="flex items-center gap-2 mb-3">
                 {matches.length > 0 ? (
                   <>
-                    <Check size={16} className="text-green-500" />
+                    <Check size={16} className="text-(--chart-good)" />
                     <span className="text-sm font-medium text-os-text-primary">
                       {matches.length} match{matches.length !== 1 ? 'es' : ''} found
                     </span>

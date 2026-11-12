@@ -58,7 +58,7 @@ export default function CategorySelector({
     <div>
       {label && (
         <label className={labelClasses}>
-          {label} {required && <span className="text-red-600">*</span>}
+          {label} {required && <span className="text-(--chart-bad)">*</span>}
         </label>
       )}
 

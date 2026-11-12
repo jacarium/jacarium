@@ -112,7 +112,7 @@ function CategoryTag({ category }) {
   return (
     <h3
       data-whats-new-category={category}
-      className="inline-flex items-center font-mono text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-sm border border-os-border bg-os-card-secondary text-os-text-secondary"
+      className="inline-flex items-center font-mono text-3xs font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-sm border border-os-border bg-os-card-secondary text-os-text-secondary"
     >
       [{category}]
     </h3>
@@ -139,8 +139,8 @@ function VersionSection({ entry, current, unseen, first }) {
           Version {entry.version}
         </h2>
         {entry.date && <time dateTime={entry.date} data-whats-new-date="true" className="text-xs text-os-text-secondary">{entry.date}</time>}
-        {current && <span className="text-[10px] uppercase tracking-wide text-os-text-secondary">current</span>}
-        {unseen && !current && <span data-whats-new-new-badge="true" className="text-[10px] uppercase tracking-wide px-1 rounded-sm bg-os-blue text-(--btn-primary-fg)">new</span>}
+        {current && <span className="text-3xs uppercase tracking-wide text-os-text-secondary">current</span>}
+        {unseen && !current && <span data-whats-new-new-badge="true" className="text-3xs uppercase tracking-wide px-1 rounded-sm bg-os-blue text-(--btn-primary-fg)">new</span>}
       </div>
       <div className="space-y-4">
         {groups.map((group) => (

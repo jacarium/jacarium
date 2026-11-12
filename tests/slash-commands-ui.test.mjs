@@ -87,7 +87,7 @@ async function open(device) {
   if (await page.locator('.markdown-preview').count()) { await page.locator('[data-testid="editor-mode-toggle"]').click(); await page.waitForTimeout(500); }
   return { context, page, errors };
 }
-const popup = (page) => page.evaluate(() => { const header = Array.from(document.querySelectorAll('.fixed span')).find((s) => /Commands and templates/.test(s.textContent)); if (!header) return null; const box = header.closest('.fixed'); return { entries: Array.from(box.querySelectorAll('[data-slash-entry]')).map((e) => ({ id: e.getAttribute('data-slash-entry'), selected: /bg-purple-100|dark:bg-purple-900\/30/.test(e.className) })), groups: Array.from(box.querySelectorAll('[data-slash-group]')).map((g) => g.getAttribute('data-slash-group')) }; });
+const popup = (page) => page.evaluate(() => { const header = Array.from(document.querySelectorAll('.fixed span')).find((s) => /Commands and templates/.test(s.textContent)); if (!header) return null; const box = header.closest('.fixed'); return { entries: Array.from(box.querySelectorAll('[data-slash-entry]')).map((e) => ({ id: e.getAttribute('data-slash-entry'), selected: e.getAttribute('aria-selected') === 'true' })), groups: Array.from(box.querySelectorAll('[data-slash-group]')).map((g) => g.getAttribute('data-slash-group')) }; });
 const setText = pwSetEditorText;
 const value = pwEditorValue;
 

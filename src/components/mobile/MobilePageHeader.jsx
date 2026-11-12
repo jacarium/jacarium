@@ -33,8 +33,8 @@ export default function MobilePageHeader({ title, subtitle, right = null, sideba
         <div className="w-3 shrink-0" />
       )}
       <div className="sc-mobile-header-item flex-1 min-w-0 flex flex-col justify-center px-[14px] bg-os-sidebar border-b-2 border-os-blue">
-        <div className="sc-mobile-header-title text-[14px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis text-os-text-primary">{title || 'Untitled'}</div>
-        {subtitle && subtitle !== title ? <div className="sc-mobile-header-muted text-[12px] text-os-text-secondary whitespace-nowrap overflow-hidden text-ellipsis">{subtitle}</div> : null}
+        <div className="sc-mobile-header-title text-[0.875rem] font-semibold whitespace-nowrap overflow-hidden text-ellipsis text-os-text-primary">{title || 'Untitled'}</div>
+        {subtitle && subtitle !== title ? <div className="sc-mobile-header-muted text-[0.75rem] text-os-text-secondary whitespace-nowrap overflow-hidden text-ellipsis">{subtitle}</div> : null}
       </div>
       <div className={`${right ? 'w-[88px]' : 'w-3'} shrink-0 flex items-center justify-center`}>
         {right}
