@@ -577,3 +577,62 @@ decisions:
     notes: libblkid EBR data validation (Important); fixed in RHSA-2026:98519 (util-linux 2.37.4-28.el9_9.1), the build Jacarium 4.4.2 pins.
     decided_by: maintainer
     decided_on: 2026-11-13
+
+  # ---- soupsieve 2.9.2 (beautifulsoup4 4.12.3's CSS-selector engine) in backend/requirements.lock up to 4.4.2.
+  # GHSA-mmhr-3c5m-f64f / CVE-2026-126190 (High 7.5): the descendant combinator (`a b`) matched untrusted HTML in
+  # polynomial time, fixed in soupsieve 4.0; GHSA-4j63-6c4x-wfg4 / CVE-2026-126192 (Moderate): a general-sibling
+  # combinator inside `:has()` (`div:has(a ~ b)`) in quadratic time, fixed in 2.10. Both published 2026-11-13.
+  # Reachability (checked 2026-11-13 over the backend and every locked package): the backend's one CSS-selector
+  # call is backend/url_fetch.py (/api/fetch-url, a page to Markdown for the AI context), `soup.select_one()` over
+  # the fixed list `main`, `article`, `.documentation`, `.content`, `#content`, `body` - six simple selectors (one
+  # type, class or id each), never built from input, with no descendant combinator and no `:has()`; markdownify
+  # 1.2.3 walks the tree with find_all and never imports soupsieve; no other module in backend/ or in the lock
+  # imports soupsieve (bs4 alone does, and only when select / select_one / css are called). The upgrade to 4.0.1
+  # follows in 4.4.3 (the fixed statements below), so these two cover the releases that shipped 2.9.2.
+  - id: CVE-2026-126190
+    aliases: [GHSA-mmhr-3c5m-f64f]
+    status: not_affected
+    justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.3']
+    components: [pkg:pypi/soupsieve@2.9.2]
+    impact: >-
+      The slow path needs a selector with a descendant combinator (`a b`) matched against the untrusted document.
+      The backend's only CSS-selector use is backend/url_fetch.py: select_one over six constant simple selectors
+      (`main`, `article`, `.documentation`, `.content`, `#content`, `body`), none with a combinator, and the
+      selector strings never come from input. markdownify uses find_all only; nothing else in the backend or its
+      locked packages imports soupsieve. Fixed upstream in soupsieve 4.0; Jacarium 4.4.3 locks 4.0.1.
+    decided_by: maintainer
+    decided_on: 2026-11-13
+  - id: CVE-2026-126192
+    aliases: [GHSA-4j63-6c4x-wfg4]
+    status: not_affected
+    justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.3']
+    components: [pkg:pypi/soupsieve@2.9.2]
+    impact: >-
+      The slow path needs a general-sibling combinator inside `:has()` (`div:has(a ~ b)`) matched against the
+      untrusted document. backend/url_fetch.py, the backend's only CSS-selector use, runs six constant simple
+      selectors with no `:has()` and no combinator, never built from input; markdownify uses find_all only;
+      nothing else in the backend or its locked packages imports soupsieve. Fixed upstream in soupsieve 2.10;
+      Jacarium 4.4.3 locks 4.0.1.
+    decided_by: maintainer
+    decided_on: 2026-11-13
+  # ---- from 4.4.3: soupsieve 4.0.1 (uploaded 2026-11-04, past the seven-day rule; scripts/verify-pypi-release.py:
+  # Trusted Publisher facelessuser/soupsieve deploy.yml on both versions, digests match the index, the import
+  # package identical to the git tag 4.0.1, no dependency change).
+  - id: CVE-2026-126190
+    aliases: [GHSA-mmhr-3c5m-f64f]
+    status: fixed
+    versions: ['>=4.4.3']
+    components: [pkg:pypi/soupsieve@4.0.1]
+    notes: Descendant-combinator matching in polynomial time; fixed in soupsieve 4.0 (ancestor-match caching). Jacarium 4.4.3 locks soupsieve 4.0.1 in backend/requirements.lock.
+    decided_by: maintainer
+    decided_on: 2026-11-13
+  - id: CVE-2026-126192
+    aliases: [GHSA-4j63-6c4x-wfg4]
+    status: fixed
+    versions: ['>=4.4.3']
+    components: [pkg:pypi/soupsieve@4.0.1]
+    notes: General-sibling combinator inside :has() in quadratic time; fixed in soupsieve 2.10. Jacarium 4.4.3 locks soupsieve 4.0.1 in backend/requirements.lock.
+    decided_by: maintainer
+    decided_on: 2026-11-13

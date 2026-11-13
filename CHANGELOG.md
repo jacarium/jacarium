@@ -4,6 +4,18 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.4.3
+
+_2026-11-13_
+
+### [SECURITY]
+
+soupsieve 4.0.1, the CSS selector engine Beautiful Soup uses (GHSA-mmhr-3c5m-f64f, CVE-2026-126190; GHSA-4j63-6c4x-wfg4, CVE-2026-126192): selectors of certain shapes could take very long on crafted HTML; Jacarium only ever runs simple fixed selectors on fetched pages, so it was not affected, and the update removes the finding
+
+### [MISC]
+
+4.4.3 replaces 4.4.2, which was never published: it carries everything listed for 4.4.2 - the RHEL 9.9 base image, Caddy built with Go 1.27.4, mount and umount without setuid, one window per profile, the busy-database message and the error boundaries
+
 ## What's New in v4.4.2
 
 _2026-11-13_
@@ -27,6 +39,7 @@ Profiles: picking a free port near the top of the range no longer crashes the st
 ### [UI]
 
 If a page, menu or dialog ever fails while drawing, it shows a short message with the error and Reload this view instead of leaving the whole window blank; the rest of the app keeps working and the error is kept in the notifications
+
 
 ## What's New in v4.4.1
 
