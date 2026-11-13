@@ -272,6 +272,7 @@ function pickFreePort(preferred, { attempts = 20 } = {}) {
   return (async () => {
     for (let i = 0; i < attempts; i++) {
       const port = preferred + i;
+      if (port > 65535) break;   // past the last valid port: let the OS pick one below
       if (await tryPort(port)) return port;
     }
     return new Promise((resolve, reject) => {

@@ -1,6 +1,7 @@
 import { ChevronDown, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import ErrorBoundary from '../../common/ErrorBoundary';
 import { useMobile } from '../../../contexts/MobileContext';
 import MobilePageHeader from '../../mobile/MobilePageHeader';
 import { useCloseDrawerOn } from '../../../hooks/useCloseDrawerOn';
@@ -301,8 +302,7 @@ export default function TabBar({
         >
           {menuRows}
         </div>
-      ) : createPortal(
-        <div
+      ) : createPortal(<ErrorBoundary scope="popup" label="The tabs menu">{<div
           ref={panelRef}
           role="menu"
           data-testid="tabs-overflow-menu"
@@ -310,7 +310,7 @@ export default function TabBar({
           style={{ top: menuPos.top, right: menuPos.right }}
         >
           {menuRows}
-        </div>,
+        </div>}</ErrorBoundary>,
         document.body
       ))}
     </div>

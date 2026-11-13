@@ -536,11 +536,13 @@ decisions:
   # 2.37.4-28.el9_9, released 2026-11-10 - inside the two-day security lane at the 4.4.0 release) is a TOCTOU in
   # the setuid mount program: a *restricted non-root* mount request, authorised by a `user` / `users` entry in
   # /etc/fstab whose target has an attacker-writable ancestor, can be redirected with renameat2(RENAME_EXCHANGE).
-  # The upgrade follows through the security lane or the next base image.
+  # The upgrade followed through the security lane in 4.4.2 (util-linux 2.37.4-28.el9_9.1 pinned, UTIL_LINUX_EVR in
+  # deploy/Containerfile; the fixed statements below), so this statement covers the two releases that shipped the
+  # base's build.
   - id: CVE-2026-53613
     status: not_affected
     justification: vulnerable_code_cannot_be_controlled_by_adversary
-    versions: ['>=4.4.0']
+    versions: ['4.4.0', '4.4.1']
     components: [pkg:rpm/redhat/util-linux@2.37.4-25.el9, pkg:rpm/redhat/util-linux-core@2.37.4-25.el9, pkg:rpm/redhat/libblkid@2.37.4-25.el9, pkg:rpm/redhat/libmount@2.37.4-25.el9, pkg:rpm/redhat/libuuid@2.37.4-25.el9, pkg:rpm/redhat/libsmartcols@2.37.4-25.el9, pkg:rpm/redhat/libfdisk@2.37.4-25.el9]
     impact: >-
       The flaw is only reachable through a restricted non-root mount that /etc/fstab authorises with a user or
@@ -551,3 +553,27 @@ decisions:
       are not affected: the defect is in the mount program's fstab-target check.
     decided_by: maintainer
     decided_on: 2026-11-12
+  # ---- from 4.4.2: util-linux 2.37.4-28.el9_9.1 through the security lane (RHSA-2026:97522 for CVE-2026-53613 and
+  # CVE-2026-13595, carried by RHSA-2026:98519's build, which adds CVE-2026-53615; docs/security/urgent-updates.md,
+  # 2026-11-13). The image also drops the setuid bit from mount and umount.
+  - id: CVE-2026-53613
+    status: fixed
+    versions: ['>=4.4.2']
+    components: [pkg:rpm/redhat/util-linux@2.37.4-28.el9_9.1, pkg:rpm/redhat/util-linux-core@2.37.4-28.el9_9.1, pkg:rpm/redhat/libblkid@2.37.4-28.el9_9.1, pkg:rpm/redhat/libmount@2.37.4-28.el9_9.1, pkg:rpm/redhat/libuuid@2.37.4-28.el9_9.1, pkg:rpm/redhat/libsmartcols@2.37.4-28.el9_9.1, pkg:rpm/redhat/libfdisk@2.37.4-28.el9_9.1]
+    notes: Fixed in RHSA-2026:97522 (util-linux 2.37.4-28.el9_9); Jacarium 4.4.2 pins 2.37.4-28.el9_9.1 (RHSA-2026:98519, the same source with CVE-2026-53615's fix on top), and strips setuid from mount and umount besides.
+    decided_by: maintainer
+    decided_on: 2026-11-13
+  - id: CVE-2026-13595
+    status: fixed
+    versions: ['>=4.4.2']
+    components: [pkg:rpm/redhat/util-linux@2.37.4-28.el9_9.1, pkg:rpm/redhat/util-linux-core@2.37.4-28.el9_9.1, pkg:rpm/redhat/libblkid@2.37.4-28.el9_9.1, pkg:rpm/redhat/libmount@2.37.4-28.el9_9.1, pkg:rpm/redhat/libuuid@2.37.4-28.el9_9.1, pkg:rpm/redhat/libsmartcols@2.37.4-28.el9_9.1, pkg:rpm/redhat/libfdisk@2.37.4-28.el9_9.1]
+    notes: libblkid use-after-free in nested partition probing (Moderate); fixed in RHSA-2026:97522 (2.37.4-28.el9_9), carried by the 2.37.4-28.el9_9.1 build Jacarium 4.4.2 pins.
+    decided_by: maintainer
+    decided_on: 2026-11-13
+  - id: CVE-2026-53615
+    status: fixed
+    versions: ['>=4.4.2']
+    components: [pkg:rpm/redhat/util-linux@2.37.4-28.el9_9.1, pkg:rpm/redhat/util-linux-core@2.37.4-28.el9_9.1, pkg:rpm/redhat/libblkid@2.37.4-28.el9_9.1, pkg:rpm/redhat/libmount@2.37.4-28.el9_9.1, pkg:rpm/redhat/libuuid@2.37.4-28.el9_9.1, pkg:rpm/redhat/libsmartcols@2.37.4-28.el9_9.1, pkg:rpm/redhat/libfdisk@2.37.4-28.el9_9.1]
+    notes: libblkid EBR data validation (Important); fixed in RHSA-2026:98519 (util-linux 2.37.4-28.el9_9.1), the build Jacarium 4.4.2 pins.
+    decided_by: maintainer
+    decided_on: 2026-11-13

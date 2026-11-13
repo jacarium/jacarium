@@ -43,6 +43,18 @@ import { reapOnExit } from './reap.mjs';
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** How long one CDP call may take before the page counts as not responding (CDP_STEP_TIMEOUT_MS, default 60 s). */
+export const CDP_TIMEOUT_MS = Number(process.env.CDP_STEP_TIMEOUT_MS || 60000);
+/**
+ * The reply to one CDP call, or a rejection after `timeoutMs` naming the method: a page whose main thread never
+ * yields (a render loop, a stuck layout effect, a wedged renderer) never hangs a test - and a whole suite - again.
+ */
+export function cdpStepTimeout(reply, method, timeoutMs = CDP_TIMEOUT_MS) {
+  let timer;
+  const late = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`CDP ${method} did not answer within ${Math.round(timeoutMs / 1000)} s: the page is not responding (a render loop, a stuck effect or a wedged renderer)`)), timeoutMs); });
+  return Promise.race([reply, late]).finally(() => clearTimeout(timer));
+}
+
 const CHROME_CANDIDATES = [
   process.env.CHROME_BIN,
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -165,11 +177,26 @@ export async function launchDocumentsApp({ port, profilePrefix = 'documents-live
         errors.push('EXCEPTION: ' + (msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text));
       }
     };
-    const send = (method, params = {}) => new Promise((resolve) => {
-      const mid = ++id; pending.set(mid, resolve); ws.send(JSON.stringify({ id: mid, method, params }));
-    });
+    // every CDP call is bounded (cdpStepTimeout below): a page whose main thread never yields (a render loop, a stuck
+    // layout effect, a wedged renderer) would otherwise hang the test - and the whole suite - for ever; after
+    // CDP_STEP_TIMEOUT_MS (default 60 s) the call rejects with a message naming the method, the harness fails that
+    // check, and every later call fails at once (the page is given up, so a run of a hundred steps ends in seconds)
+    let dead = null;
+    // the connection going away (Chrome killed, a crashed renderer closing the socket) fails every waiting call at
+    // once instead of leaving it pending for ever
+    const lost = (why) => { dead = dead || why; for (const resolve of pending.values()) resolve({ error: { message: why } }); pending.clear(); };
+    ws.addEventListener('close', () => lost('the Chrome connection closed while a CDP call was waiting (Chrome exited or the renderer crashed)'));
+    ws.addEventListener('error', () => lost('the Chrome connection failed while a CDP call was waiting'));
+    const send = (method, params = {}, timeoutMs = CDP_TIMEOUT_MS) => {
+      if (dead) return Promise.reject(new Error(dead));
+      const mid = ++id;
+      const reply = new Promise((resolve) => { pending.set(mid, resolve); });
+      ws.send(JSON.stringify({ id: mid, method, params }));
+      return cdpStepTimeout(reply, method, timeoutMs).catch((e) => { pending.delete(mid); dead = dead || e.message; throw e; });
+    };
     const evaluate = async (expression) => {
       const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+      if (r.error) throw new Error(r.error.message || 'CDP error');   // the connection lost, or Chrome refusing the call
       if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || 'eval failed');
       return r.result?.result?.value;
     };

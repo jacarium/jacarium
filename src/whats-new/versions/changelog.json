@@ -1,5 +1,33 @@
 [
   {
+    "version": "4.4.2",
+    "date": "2026-11-13",
+    "features": [
+      {
+        "category": "SECURITY",
+        "description": [
+          "Container image on the Red Hat UBI 9.9 minimal base (9.9-1794467051), which carries glibc 2.34-290, util-linux 2.37.4-28.el9_9.1 (CVE-2026-53613, CVE-2026-13595, CVE-2026-53615) and the libgcc and libstdc++ fixes; no remaining finding in the image has a fix available",
+          "Caddy, the image web server, is built with Go 1.27.4: an HTTP/1 request with a size limit could crash the server (GO-2026-6859, CVE-2026-97054)",
+          "mount and umount are no longer setuid in the container image; nothing in Jacarium mounts anything"
+        ]
+      },
+      {
+        "category": "DESKTOP",
+        "description": [
+          "Opening Jacarium again with a profile that is already open brings its window to the front instead of starting a second copy that froze on the shared data; different profiles still run side by side",
+          "A database that is busy answers within a few seconds with a clear message instead of making the app wait forever",
+          "Profiles: picking a free port near the top of the range no longer crashes the start"
+        ]
+      },
+      {
+        "category": "UI",
+        "description": [
+          "If a page, menu or dialog ever fails while drawing, it shows a short message with the error and Reload this view instead of leaving the whole window blank; the rest of the app keeps working and the error is kept in the notifications"
+        ]
+      }
+    ]
+  },
+  {
     "version": "4.4.1",
     "date": "2026-11-12",
     "features": [

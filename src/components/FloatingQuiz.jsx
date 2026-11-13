@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import ErrorBoundary from './common/ErrorBoundary';
 import { createPortal } from 'react-dom';
 import { X, Minus, Users } from 'lucide-react';
 import { getMachineId } from '../utils/cloudCentralSync';
@@ -239,7 +240,7 @@ export default function FloatingQuiz() {
   // Minimized state - show collapsed bar
   if (isMinimized) {
     return createPortal(
-      <div
+      <ErrorBoundary scope="popup" label="This window">{<div
         className="fixed bg-os-card border border-os-border rounded-sm shadow-lg flex items-center gap-2 px-3 py-2 cursor-grab active:cursor-grabbing drag-handle select-none"
         style={{
           top: `${position.top}px`,
@@ -273,7 +274,7 @@ export default function FloatingQuiz() {
             <X size={12} />
           </button>
         </div>
-      </div>,
+      </div>}</ErrorBoundary>,
       document.body
     );
   }
@@ -285,7 +286,7 @@ export default function FloatingQuiz() {
 
   // Full window state
   return createPortal(
-    <div
+    <ErrorBoundary scope="popup" label="This window">{<div
       ref={windowRef}
       className="fixed bg-os-card border border-os-border rounded-sm shadow-2xl flex flex-col select-none"
       style={{
@@ -344,7 +345,7 @@ export default function FloatingQuiz() {
           </div>
         )}
       </div>
-    </div>,
+    </div>}</ErrorBoundary>,
     document.body
   );
 }

@@ -54,7 +54,18 @@ export function usePopupPosition(ref, { open, anchor, deps = [], side, align, fl
     if (!mobile && isMobileLayout()) return undefined;
     let frame = 0;
     let last = '';
+    // placement never takes the app down: a measurement that throws (a detached node, an anchor gone mid-scroll)
+    // leaves the popup where it is and is reported once
+    let warned = false;
     const place = () => {
+      const node = ref.current;
+      const before = node ? { left: node.style.left, right: node.style.right, top: node.style.top, bottom: node.style.bottom } : null;
+      try { placeNow(); } catch (e) {
+        if (node && before) Object.assign(node.style, before);   // never left at the measuring position
+        if (!warned) { warned = true; console.warn('[usePopupPosition] placement skipped:', e); }
+      }
+    };
+    const placeNow = () => {
       frame = 0;
       const node = ref.current;
       if (!node) return;

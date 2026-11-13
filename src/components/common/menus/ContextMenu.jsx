@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import ErrorBoundary from '../ErrorBoundary';
 import { MenuItemIcon } from './MenuItemIcon';
 import { usePopupPosition } from '../../../hooks/usePopupPosition.js';
 
@@ -130,7 +131,7 @@ const ContextMenuSurface = forwardRef(function ContextMenuSurface({ x, y, zIndex
     </div>
   );
 
-  return createPortal(menuContent, document.body);
+  return createPortal(<ErrorBoundary scope="popup" label="This menu">{menuContent}</ErrorBoundary>, document.body);
 });
 
 /**

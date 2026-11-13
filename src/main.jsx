@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import StartupError from './components/StartupError.jsx';
+import ErrorBoundary from './components/common/ErrorBoundary.jsx';
 import { clearChunkReloadFlag, recoverFromChunkLoadError } from './utils/chunkReload.js';
 import { createRoot } from 'react-dom/client'
 // The app font (Sora) and the reading and code fonts (Red Hat Text, Red Hat
@@ -92,7 +93,7 @@ async function start() {
     }
   }
   const { default: App } = await import('./App.jsx');
-  render(<App />);
+  render(<ErrorBoundary scope="app"><App /></ErrorBoundary>);
   // The account's data synchronises with this server (src/sync/syncEngine.js)
   if (auth?.mode === 'accounts' && auth.user && info?.capabilities?.sync) {
     const { startSync } = await import('./sync/syncEngine.js');

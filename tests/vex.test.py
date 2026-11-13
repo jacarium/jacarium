@@ -109,11 +109,15 @@ try:
     check('without --strict the undecided findings are listed but the run passes', r.returncode == 0 and 'without a decision' in r.stdout, (r.returncode, r.stdout))
 
     # 4. the ignore lists
-    osv = vex.osv_config(decisions)
-    na_ids = [vid for d in decisions if d['status'] == 'not_affected' for vid in [d['id']] + list(d.get('aliases') or [])]
-    other_ids = [d['id'] for d in decisions if d['status'] != 'not_affected']
+    # the ignore lists speak for one release: a not_affected statement about the releases before an upgrade must
+    # not hide the id for a release that carries the fixed build (util-linux: not_affected on 4.4.0 / 4.4.1, fixed from 4.4.2)
+    osv = vex.osv_config(decisions, '4.4.2')
+    na_ids = [vid for d in decisions if d['status'] == 'not_affected' and vex.applies(d, '4.4.2') for vid in [d['id']] + list(d.get('aliases') or [])]
+    other_ids = [d['id'] for d in decisions if d['status'] != 'not_affected' and vex.applies(d, '4.4.2')]
+    old = vex.osv_config(decisions, '4.4.1')
+    check('the ignore list is per release: CVE-2026-53613 is ignored for 4.4.1 (not_affected on the base\'s util-linux) and not for 4.4.2 (fixed there); without a version every not_affected id is listed', 'id = "CVE-2026-53613"' in old and 'id = "CVE-2026-53613"' not in osv and 'id = "CVE-2026-53613"' in vex.osv_config(decisions), None)
     check('the OSV-Scanner ignore list holds exactly the not_affected ids (with aliases) and their justification', all(f'id = "{i}"' in osv for i in na_ids) and not any(f'id = "{i}"' in osv for i in other_ids) and 'vulnerable_code_not_in_execute_path' in osv, osv[:300])
-    gi = yaml.safe_load(vex.grype_ignore(decisions))
+    gi = yaml.safe_load(vex.grype_ignore(decisions, '4.4.2'))
     check('the Grype ignore list holds the same ids', sorted(r['vulnerability'] for r in gi['ignore']) == sorted(na_ids))
 
     # 5. versions
@@ -184,9 +188,10 @@ try:
     check('deploy/Containerfile builds Caddy with go-jose v4.1.6 and checks it in caddy build-info', 'ARG GOJOSE_VERSION=v4.1.6' in containerfile and 'go get "github.com/go-jose/go-jose/v4@${GOJOSE_VERSION}"' in containerfile and 'dep\\s+github.com/go-jose/go-jose/v4\\s+${GOJOSE_VERSION}' in containerfile)
     # xz-libs 5.2.5-8.el9_8.1: raised by the microdnf layer up to 4.3.0; from 4.3.1 the pinned base carries it
     # itself (its comment names it) and the Grype gate would flag CVE-2026-34743 if a base ever brought it back
-    xz_fixed = ('upgrade xz-libs' in containerfile and 'rpm -q xz-libs-5.2.5-8.el9_8.1' in containerfile) or re.search(r'^# Runtime - ubi9-minimal [^\n]*\n(?:#[^\n]*\n)*?#[^\n]*xz-libs 5\.2\.5-8\.el9_8\.1', containerfile, re.M) is not None
-    check('deploy/Containerfile runs on ubi9-minimal pinned by digest, has xz-libs 5.2.5-8.el9_8.1 (raised, or carried by the base) and checks that python3 3.9, python3-urllib3, brotli and dnf are absent',
-          re.search(r'^FROM registry\.access\.redhat\.com/ubi9-minimal:9\.8-\d+@sha256:[0-9a-f]{64}\n', containerfile, re.M) is not None and 'ubi9/python-314:' not in containerfile
+    # xz-libs at the CVE-2026-34743 fix or past it: 5.2.5-8.el9_8.1 (the 9.8 line) or 5.2.5-8.el9_9.1 (the 9.9 base carries it)
+    xz_fixed = ('upgrade xz-libs' in containerfile and 'rpm -q xz-libs-5.2.5-8.el9_8.1' in containerfile) or re.search(r'^# Runtime - ubi9-minimal [^\n]*\n(?:#[^\n]*\n)*?#[^\n]*xz-libs 5\.2\.5-8\.el9_(?:8\.1|9\.\d+)', containerfile, re.M) is not None
+    check('deploy/Containerfile runs on ubi9-minimal pinned by digest, has xz-libs at or past 5.2.5-8.el9_8.1 (raised, or carried by the base) and checks that python3 3.9, python3-urllib3, brotli and dnf are absent',
+          re.search(r'^FROM registry\.access\.redhat\.com/ubi9-minimal:9\.(?:8|9)-\d+@sha256:[0-9a-f]{64}\n', containerfile, re.M) is not None and 'ubi9/python-314:' not in containerfile
           and xz_fixed and 'rpm -q python3 python3-libs python3-urllib3 python3-pip libbrotli brotli brotli-devel dnf nodejs npm' in containerfile)
 finally:
     shutil.rmtree(WORK, ignore_errors=True)

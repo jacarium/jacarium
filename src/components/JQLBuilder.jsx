@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import ErrorBoundary from './common/ErrorBoundary';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { loadOverrides } from '../shortcuts/store';
 import PageShortcuts from '../shortcuts/PageShortcuts';
@@ -1396,7 +1397,9 @@ export default function JQLBuilder({ standalone }) {
         )}
         </ForcedDrawerScope>
 
-        {/* Main Canvas */}
+        {/* Main Canvas: inside the shared error boundary, so a page that throws shows its fallback while the rail and
+            the panels keep working; the boundary resets when the page changes */}
+        <ErrorBoundary scope="page" label={`the ${currentPage === 'ai-chat' ? 'Robin' : currentPage} page`} resetKeys={[currentPage]}>
         <Suspense fallback={<PageLoadingFallback />}>
         {currentPage === 'documents' ? (
           <div className="flex-1 bg-os-masthead min-w-0 overflow-hidden" data-ra-area>
@@ -1783,6 +1786,7 @@ export default function JQLBuilder({ standalone }) {
           </div>
         )}
         </Suspense>
+        </ErrorBoundary>
         {/* zen: the way to the pages and the panels (the right-edge tab, "Navigation"), the same place on every page; the way
             out is the Zen label in the status corner (StatusCorner > ZenBadge), which also announces the chords */}
         {zen && !isMobile && <ZenGoTo currentPage={currentPage} onPageChange={handlePageChange} />}

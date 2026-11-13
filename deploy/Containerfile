@@ -61,7 +61,7 @@ LABEL com.jacarium.image=deploy com.jacarium.stage=ui
 # same ubi9-minimal the runtime stage uses, with the toolchain from the UBI
 # repos (tar for the tarball: minimal does not carry it).
 # ---------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9-minimal:9.8-1793578971@sha256:dfa0eb04abc59221544e74862432496add1f491f915c9b531880f91affc0e12c AS taskwarrior
+FROM registry.access.redhat.com/ubi9-minimal:9.9-1794467051@sha256:baafce2d34783a28b4a472779f304e97e00f9d35c99553bc53b068b14344d9a9 AS taskwarrior
 RUN microdnf -y --setopt=install_weak_deps=0 --nodocs install tar gzip gcc-c++ cmake make libuuid-devel \
  && microdnf clean all
 WORKDIR /build
@@ -94,8 +94,13 @@ LABEL com.jacarium.image=deploy com.jacarium.stage=taskwarrior
 # ---------------------------------------------------------------------------
 # Go 1.27.3 (2026-10-20): GO-2026-6809 / CVE-2026-111943, crypto/x509 distrusts the compromised eMudhra
 # intermediates (not reached by this Caddy, which verifies no peer certificate - vex/decisions.yaml); the
-# image is golang:1.27.3-alpine of 2026-10-21, moved to on 2026-11-05 under the seven-day rule.
-FROM docker.io/library/golang:1.27.3-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS caddy
+# image is golang:1.27.4-alpine (manifest list of 2026-11-10 18:33 UTC, amd64 and arm64 - the Go 1.27.4 release:
+# GO-2026-6859 / CVE-2026-97054, a header race in net/http's HTTP/1 MaxBytesReader that crashes a server, and
+# Caddy is the internet-facing server here), taken 2026-11-13 under the maintainer's explicit exception to the
+# seven-day rule (docs/security/urgent-updates.md). The build asserts the Go version Caddy was built with
+# (GO_VERSION, declared inside the stage: an ARG between stages belongs to the stage before it).
+FROM docker.io/library/golang:1.27.4-alpine@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf AS caddy
+ARG GO_VERSION=1.27.4
 # Caddy 2.11.9 (2026-11-05, the security lane at 2.1 days: FastCGI hardening and the fix of 2.11.8's PHP-index
 # regression - neither used by deploy/Caddyfile; docs/security/urgent-updates.md, 2026-11-07)
 ARG CADDY_VERSION=v2.11.9
@@ -122,15 +127,23 @@ RUN printf '%s\n' 'package main' '' 'import (' '	caddycmd "github.com/caddyserve
  && /usr/bin/caddy version \
  && /usr/bin/caddy version | grep -q "^${CADDY_VERSION} " \
  && /usr/bin/caddy build-info | grep -E "^(go|dep\s+golang.org/x/net|dep\s+github.com/go-chi/chi/v5|dep\s+github.com/go-jose/go-jose/v4|dep\s+github.com/klauspost/compress)\s" \
+ && /usr/bin/caddy build-info | grep -qE "^go\s+go${GO_VERSION}\s*$" \
  && /usr/bin/caddy build-info | grep -qE "^dep\s+golang.org/x/net\s+${XNET_VERSION}\s" \
  && /usr/bin/caddy build-info | grep -qE "^dep\s+github.com/go-chi/chi/v5\s+${CHI_VERSION}\s" \
  && /usr/bin/caddy build-info | grep -qE "^dep\s+github.com/go-jose/go-jose/v4\s+${GOJOSE_VERSION}\s" \
  && /usr/bin/caddy build-info | grep -qE "^dep\s+github.com/klauspost/compress\s+${KCOMPRESS_VERSION}\s"
 
 # ---------------------------------------------------------------------------
-# Runtime - ubi9-minimal 9.8-1793578971 (2026-11-02, RHEL 9.8; it carries the
-# ca-certificates 2026.2.92 fix for CVE-2026-114406, xz-libs 5.2.5-8.el9_8.1,
-# curl 7.76.1-40.el9_8.9 and krb5-libs 1.21.1-10.el9_8.1): 112 MB and 109 RPMs,
+# Runtime - ubi9-minimal 9.9-1794467051 (2026-11-12 09:29 UTC, RHEL 9.9, the
+# newest 9.9 build; pinned by its manifest-list digest, amd64 and arm64; taken
+# 2026-11-13 under the maintainer's explicit exception to the seven-day rule -
+# docs/security/urgent-updates.md). It carries glibc 2.34-290.el9_9, the
+# util-linux libraries 2.37.4-28.el9_9.1, libgcc / libstdc++ 11.5.0-17.el9_9
+# (RHSA-2026:98640 / 99632), curl 7.76.1-43.el9, systemd-libs 252-79.el9_9,
+# xz-libs 5.2.5-8.el9_9.1, libxml2 2.9.13-18.el9_9.1, openssl-libs 3.5.9-1.el9_9
+# and ca-certificates 2026.2.92 (CVE-2026-114406); sqlite-libs stays
+# 3.34.1-11.el9_8 (the CVE-2026-119586 not_affected statement still names it)
+# and krb5-libs 1.21.1-10.el9_8.1. 109 RPMs,
 # without the system Python 3.9, dnf, python3-urllib3, brotli and the s2i
 # tooling that ubi9/python-314 carried and nothing in the image ran - the
 # packages the scanners kept reporting. Red Hat's Python 3.14 (python3.14:
@@ -139,15 +152,13 @@ RUN printf '%s\n' 'package main' '' 'import (' '	caddycmd "github.com/caddyserve
 # UBI repositories through microdnf, which checks Red Hat's RPM signatures;
 # sshpass is in ubi-9-appstream-rpms, so no EPEL. OS fixes land with a
 # base-image bump (no blanket update in the build: the image stays
-# reproducible from the pinned digest); the one package raised past the base
-# is glibc (2.34-284.el9_8.4, RHSA-2026:95618: CVE-2026-8674, CVE-2026-86805,
-# CVE-2026-89092, CVE-2026-95818), through the security lane
-# (docs/security/urgent-updates.md) - this base still carries 2.34-283.el9_8.
-# The xz-libs and curl-minimal / libcurl-minimal lines of the earlier bases
-# are gone: this build carries those fixes itself. The base build is seven
-# days old from 2026-11-09, the earliest day a release carries it.
+# reproducible from the pinned digest); a package raised past the base by the
+# security lane is pinned by name and exact build in SECURITY_LANE_EVRS below
+# - empty with this base, which carries the glibc and util-linux builds the
+# lane had verified (2.34-290.el9_9, 2.37.4-28.el9_9.1), so both pins and
+# their asserts went with it (docs/security/urgent-updates.md, 2026-11-13).
 # ---------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9-minimal:9.8-1793578971@sha256:dfa0eb04abc59221544e74862432496add1f491f915c9b531880f91affc0e12c
+FROM registry.access.redhat.com/ubi9-minimal:9.9-1794467051@sha256:baafce2d34783a28b4a472779f304e97e00f9d35c99553bc53b068b14344d9a9
 LABEL org.opencontainers.image.title="Jacarium" \
       org.opencontainers.image.description="Jacarium UI + backend behind Caddy (HTTPS)" \
       org.opencontainers.image.url="https://jacarium.com"
@@ -167,19 +178,32 @@ LABEL org.opencontainers.image.title="Jacarium" \
 # libatomic: the nodejs.org Node 26 binary copied below links it
 # (libatomic.so.1; the 24 binary did not), and minimal does not carry it.
 #
-# The one package raised past the base is pinned to its exact version-release (GLIBC_EVR, the build the
-# security lane verified): microdnf upgrades to that build by name and rpm -q asserts the same, so the image
-# carries the vetted build whatever the repositories' newest is. When the repositories stop serving it (UBI
-# moved from RHEL 9.8 to 9.9 on 2026-11-11 and dropped 2.34-284.el9_8.4: the 4.4.0 image build failed on
-# "no package matches"), the build fails here, in one place, with the name of the missing build - never
-# silently with a newer, unvetted one. The packages installed by name below float with the base's repositories
-# on purpose: they are what the base ships (no lane decision behind them), and a repository move must not
-# break the build; two builds of the same commit against the same repositories still agree
+# The security lane's mechanism: a package raised past the base is named with its exact version-release in
+# SECURITY_LANE_EVRS (space-separated name-version-release, e.g. "glibc-2.34-290.el9_9 glibc-common-2.34-290.el9_9"),
+# microdnf upgrades to exactly those builds and rpm -q asserts each, so the image carries the vetted build
+# whatever the repositories' newest is, and when the repositories stop serving it the build fails here, in one
+# place, with the name of the missing build - never silently with a newer, unvetted one (UBI's move from RHEL
+# 9.8 to 9.9 on 2026-11-11 dropped glibc 2.34-284.el9_8.4 and failed the 4.4.0 build that way). Empty with the
+# 9.9-1794467051 base: it carries the glibc 2.34-290.el9_9 and util-linux 2.37.4-28.el9_9.1 builds the lane
+# verified, so nothing is raised past it. The packages installed by name float with the base's repositories on
+# purpose: they are what the base ships (no lane decision behind them), and a repository move must not break
+# the build; two builds of the same commit against the same repositories still agree
 # (tests/container_reproducible.test.py).
-ARG GLIBC_EVR=2.34-290.el9_9
+ARG SECURITY_LANE_EVRS=""
+# util-linux, util-linux-core and libfdisk are not in the base: openssh-clients pulls them in from the
+# repositories (its dependency chain), where they can only be as new as the base's util-linux libraries or newer
+# (util-linux requires its libraries at the same build). UTIL_LINUX_MIN is the floor the lane verified
+# (RHSA-2026:97522 + RHSA-2026:98519): the build asserts the installed util-linux is at least that build, by
+# rpm's own version comparison, so a repository handing back anything older fails the build by name.
+# The mount and umount programs come setuid root with util-linux; nothing in Jacarium mounts (the backend, the
+# central server and Caddy never do, the container runs as uid 1001 without CAP_SYS_ADMIN), so the bit comes off
+# both and the build asserts it - a mount flaw then has no privileged entry point here at all.
+ARG UTIL_LINUX_MIN=2.37.4-28.el9_9.1
 RUN microdnf -y --setopt=install_weak_deps=0 --nodocs install python3.14 python3.14-pip-wheel openssh-clients sshpass openssl libatomic \
- && microdnf -y --setopt=install_weak_deps=0 --nodocs upgrade "glibc-${GLIBC_EVR}" "glibc-common-${GLIBC_EVR}" "glibc-minimal-langpack-${GLIBC_EVR}" \
- && rpm -q "glibc-${GLIBC_EVR}" "glibc-common-${GLIBC_EVR}" "glibc-minimal-langpack-${GLIBC_EVR}" \
+ && { [ -z "${SECURITY_LANE_EVRS}" ] || microdnf -y --setopt=install_weak_deps=0 --nodocs upgrade ${SECURITY_LANE_EVRS}; } \
+ && { [ -z "${SECURITY_LANE_EVRS}" ] || rpm -q ${SECURITY_LANE_EVRS}; } \
+ && ul="$(rpm -q --qf '%{VERSION}-%{RELEASE}' util-linux)" && test "$(rpm --eval "%{lua:print(rpm.vercmp('${ul}', '${UTIL_LINUX_MIN}'))}")" -ge 0 \
+ && chmod u-s /usr/bin/mount /usr/bin/umount && test ! -u /usr/bin/mount && test ! -u /usr/bin/umount \
  && test "$(rpm -q python3 python3-libs python3-urllib3 python3-pip libbrotli brotli brotli-devel dnf nodejs npm 2>&1 | grep -vc 'is not installed')" = 0 \
  && ! command -v sqlite3 >/dev/null 2>&1 && ! rpm -q sqlite >/dev/null 2>&1 \
  && microdnf clean all \

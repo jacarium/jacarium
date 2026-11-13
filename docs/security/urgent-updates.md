@@ -683,3 +683,121 @@ not-fixed,wont-fix --fail-on high`) on both saved images: "No vulnerabilities fo
 
 **Noted, not taken:** a UBI 9.9 base exists (ubi9-minimal:9.9-1793829856, created 2026-11-11 05:17 UTC) -
 one day old, inside the seven-day rule; the util-linux lane (opens 2026-11-13 05:59 AEST) stays out of 4.4.1.
+
+## 2026-11-13 - util-linux 2.37.4-28.el9_9.1 (RHSA-2026:97522 + RHSA-2026:98519), the security lane, pinned like glibc; mount and umount lose setuid
+
+**The lane item.** RHSA-2026:97522, "util-linux security, bug fix, and enhancement update", Important, released
+2026-11-10 19:59:42 UTC - CVE-2026-53613 (the setuid mount TOCTOU, the not_affected statement of 2026-11-12) and
+CVE-2026-13595 (libblkid use-after-free in nested partition probing, Moderate) - fixes util-linux 2.37.4-28.el9_9;
+two days old on 2026-11-12 19:59 UTC (05:59 AEST on the 13th). The repositories do not serve that build: they
+serve **2.37.4-28.el9_9.1**, RHSA-2026:98519, "util-linux security update", Important, released 2026-11-11
+12:29:49 UTC, CVE-2026-53615 (libblkid: validate EBR data) - the same source with one fix on top (its changelog
+carries the 2.37.4-28 entry with both earlier CVEs). The verifier on 97522's own build stops at "installed
+2.37.4-28.el9_9.1 != requested" (red flag: the repositories carry a newer build). The verifier on 98519 for the
+four libraries the base carries (`scripts/verify-rpm-update.sh --advisory RHSA-2026:98519 libblkid-2.37.4-28.el9_9.1
+libmount-2.37.4-28.el9_9.1 libuuid-2.37.4-28.el9_9.1 libsmartcols-2.37.4-28.el9_9.1`): all four among the erratum's
+fixed packages for x86_64 and aarch64 (util-linux, util-linux-core and libfdisk too), signed with Red Hat's
+release key 2 (199e2f91fd431d51, signatures of 2026-11-04), vendor Red Hat, built 2026-10-26 from
+util-linux-2.37.4-28.el9_9.1.src.rpm; **one red flag: the erratum was 1.3 days old** (it turns two days old on
+2026-11-13 12:29 UTC, 22:29 AEST) - under the lane's floor only on the maintainer's explicit decision, which the
+branch records here and leaves to the release. (util-linux, util-linux-core and libfdisk are not in the base, so
+the verifier's own `microdnf upgrade` cannot install them; in the image they arrive through openssh-clients'
+dependency chain and are then pinned.)
+
+**Decision (maintainer, 2026-11-13):** take 2.37.4-28.el9_9.1 now, under the lane's floor, as an explicit
+exception, for 4.4.2: 97522's own build is no longer served, the `.1` build is signed by Red Hat and carries its
+fixes plus CVE-2026-53615, and it also takes the setuid bit off mount and umount.
+
+**The pin (deploy/Containerfile).** `ARG UTIL_LINUX_EVR=2.37.4-28.el9_9.1`; the lane's one `microdnf upgrade`
+names the three glibc packages at GLIBC_EVR and the seven util-linux packages (util-linux, util-linux-core,
+libblkid, libmount, libuuid, libsmartcols, libfdisk) at UTIL_LINUX_EVR, and `rpm -q` asserts each, so the image
+carries exactly these builds and a repository move fails the build by name. What pulls util-linux in: the base
+has only the four libraries; `openssh-clients` (the workflow SSH node's ssh binary) requires util-linux, which
+brings util-linux-core and libfdisk; python3.14 needs libuuid alone. tests/container_reproducible.test.py checks
+the pinned form.
+
+**Hardening.** util-linux ships /usr/bin/mount and /usr/bin/umount setuid root. Nothing in Jacarium mounts (the
+backend, the central server and Caddy never do; the container runs as uid 1001 without CAP_SYS_ADMIN), so the
+runtime stage runs `chmod u-s` on both and asserts `test ! -u` at build time: a mount flaw has no privileged entry
+point in the image at all. The other setuid / setgid files come from the base and stay as they are: su, chage,
+gpasswd, newgrp, pam_timestamp_check, unix_chkpwd (shadow-utils / pam), write (tty), ssh-keysign (ssh_keys),
+utempter (utmp) - none is used by the app either; they are the base's, and taking their bits is a separate
+decision.
+
+**VEX (vex/decisions.yaml, from 4.4.2).** CVE-2026-53613: the not_affected statement now names 4.4.0 and 4.4.1
+(the releases that shipped the base's 2.37.4-25.el9 util-linux), and a `fixed` statement covers 4.4.2 onwards
+with the seven packages at 2.37.4-28.el9_9.1 (the OSV check forbids both on one version). CVE-2026-13595 and
+CVE-2026-53615: `fixed` from 4.4.2 the same way; whether the releases before 4.4.2 get a statement for
+CVE-2026-13595 (Moderate: libblkid's nested partition probing, which nothing in Jacarium runs) is the
+maintainer's call - the gate never blocked on it. vex/jacarium-4.4.2.openvex.json regenerated. scripts/vex.py's
+OSV-Scanner and Grype ignore lists now take the release version (the CLI passes --version): a not_affected
+statement about the releases before an upgrade no longer hides the id for a release that carries the fixed
+build (the lists speak per release; tests/vex.test.py checks 4.4.1 against 4.4.2).
+
+**Verified:** `podman build --no-cache` for linux/arm64 and linux/amd64 as localhost/jacarium:4.4.2-<arch>:
+both build, the asserts pass, `rpm -q` shows the seven util-linux packages at 2.37.4-28.el9_9.1 and glibc at
+2.34-290.el9_9, `stat` shows mount and umount as -rwxr-xr-x. grype (database 2026-11-12T06:20Z; the 4.4.2 VEX;
+`--ignore-states not-fixed,wont-fix --fail-on high`): exit 0 on both - nothing High or Critical. **New in the
+report, not taken (their own lanes):** the 9.9 repositories now carry fixes for libgcc / libstdc++ 11.5.0-14.el9
+(CVE-2026-95619, CVE-2026-102010, CVE-2026-114691, CVE-2026-114690 - Medium; CVE-2026-115456 - Low; fixed in
+11.5.0-16.el9_9 and 11.5.0-17.el9_9) and Go's stdlib GO-2026-6859 (go1.27.3 -> 1.27.4, severity not rated);
+both appear for 4.4.1 as well, neither blocks the gate, each needs its own verifier run and lane decision.
+
+## 2026-11-13 - base image ubi9-minimal 9.9-1794467051 and Go 1.27.4 for Caddy, both under the maintainer's explicit exception to the seven-day rule
+
+**The exceptions.** The maintainer granted an explicit exception to the cooldowns for both items below
+(recorded here as such); neither waited out the seven days.
+
+**1. ubi9-minimal 9.8-1793578971 -> 9.9-1794467051** (the newest 9.9 build: Red Hat's catalog lists
+9.9-1794467051 created 2026-11-12 09:29 UTC and 9.9-1793829856 of 2026-11-11 05:17 UTC; the newer one taken, 0.6
+days old at the change). Pinned by the manifest-list digest
+`sha256:baafce2d34783a28b4a472779f304e97e00f9d35c99553bc53b068b14344d9a9` - the Docker-Content-Digest the
+registry answers for the tag with the manifest-list media type, the same digest the catalog shows for all four
+architectures; the list carries amd64 (`sha256:27932e0a…`), arm64 (`sha256:8ba26675…`), s390x and ppc64le -
+in both the taskwarrior and the runtime stage. Inside the new base (checked in throwaway containers, amd64 and
+arm64 alike): glibc / glibc-common / glibc-minimal-langpack **2.34-290.el9_9**, libblkid / libmount / libuuid /
+libsmartcols **2.37.4-28.el9_9.1**, libgcc / libstdc++ **11.5.0-17.el9_9** (RHSA-2026:98640 / 99632: CVE-2026-95619,
+CVE-2026-102010, CVE-2026-114691, CVE-2026-114690, CVE-2026-115456 - the ten findings grype reported with a
+fix), curl-minimal / libcurl-minimal 7.76.1-43.el9, systemd-libs 252-79.el9_9, xz-libs 5.2.5-8.el9_9.1, libxml2
+2.9.13-18.el9_9.1, openssl-libs 3.5.9-1.el9_9, ca-certificates 2026.2.92; sqlite-libs stays 3.34.1-11.el9_8 (the
+CVE-2026-119586 not_affected statement names that build and still holds) and krb5-libs 1.21.1-10.el9_8.1 (its
+findings are not-fixed). `microdnf install openssh-clients` in the new base brings util-linux, util-linux-core
+and libfdisk at 2.37.4-28.el9_9.1 on both architectures.
+
+**Dropped and kept (deploy/Containerfile).** Both lane pins the base makes redundant are gone - GLIBC_EVR with
+its upgrade and assert, UTIL_LINUX_EVR with its upgrade and the seven asserts. The mechanism stays in its
+cleanest form: `ARG SECURITY_LANE_EVRS=""`, a space-separated list of name-version-release, one conditional
+`microdnf upgrade ${SECURITY_LANE_EVRS}` and `rpm -q ${SECURITY_LANE_EVRS}` that run only when the list is not
+empty - the next lane case is one line. util-linux, util-linux-core and libfdisk still arrive through
+openssh-clients; they can only be as new as the base's util-linux libraries or newer (util-linux requires its
+libraries at the same build), and `ARG UTIL_LINUX_MIN=2.37.4-28.el9_9.1` holds them to the lane's floor by rpm's
+own version comparison (`rpm --eval "%{lua:print(rpm.vercmp(...))}"`), so a repository handing back anything
+older fails the build by name. The setuid strip on mount and umount stays, with its assert; the runtime
+comments describe the 9.9 base. tests/container_reproducible.test.py checks the new form (the list, the one
+conditional upgrade using it alone, the floor, no GLIBC_EVR / UTIL_LINUX_EVR left, the setuid strip, the Go
+version assert). VEX: no statement needed a new range - the util-linux statements were split on 2026-11-13
+already (4.4.0 / 4.4.1 not_affected, fixed from 4.4.2), sqlite-libs keeps its build, and nothing in
+vex/decisions.yaml names glibc, libgcc or libstdc++.
+
+**2. golang:1.27.3-alpine -> 1.27.4-alpine** for the Caddy build stage (GO-2026-6859 / CVE-2026-97054: a header
+race in net/http's HTTP/1 MaxBytesReader that crashes a server; Caddy is the internet-facing server). Pinned by
+the manifest-list digest `sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf` (Docker
+Hub's digest for the tag, pushed 2026-11-10 18:33 UTC - 2.2 days old at the change; `podman manifest inspect`
+lists amd64 `sha256:ea30e256…` and arm64 `sha256:e8e55b7b…`). The stage's assert now also checks the Go
+version Caddy was built with (`caddy build-info` -> `go go1.27.4`, ARG GO_VERSION). x/crypto stays at v0.58.0:
+GO-2026-5932 is in x/crypto/openpgp, and the Caddy binary links no openpgp package (checked in the built
+binary: no `golang.org/x/crypto/openpgp` symbol), so nothing changes there.
+
+**Verified (2026-11-13).** `podman build --no-cache` for linux/arm64 and linux/amd64 as `localhost/jacarium:4.4.2-<arch>`:
+the asserts pass; in both images `rpm -q` answers glibc 2.34-290.el9_9, util-linux / util-linux-core / libfdisk /
+libblkid / libmount / libuuid / libsmartcols 2.37.4-28.el9_9.1, libgcc / libstdc++ 11.5.0-17.el9_9, curl-minimal
+7.76.1-43.el9, xz-libs 5.2.5-8.el9_9.1, systemd-libs 252-79.el9_9, openssl-libs 3.5.9-1.el9_9; `/usr/bin/mount` and
+`/usr/bin/umount` are `-rwxr-xr-x`; `caddy build-info` reports `go go1.27.4` (Caddy v2.11.9). grype (database
+2026-11-12T06:20Z, `--vex vex/jacarium-4.4.2.openvex.json`), full counts without `--ignore-states`: before, on
+main's images (the 9.8 base, Go 1.27.3), 300 findings per architecture - High 24, Medium 171, Low 104, Unknown 1 -
+of which 11 with a fix available (libgcc / libstdc++ x10 fixed in 11.5.0-16/17.el9_9, Go stdlib GO-2026-6859 fixed
+in 1.27.4); after, 289 per architecture - High 24, Medium 163, Low 102 - with none fixable. Everything that
+remains is not-fixed or wont-fix upstream. The gate (`--ignore-states not-fixed,wont-fix --fail-on high`): "No
+vulnerabilities found", exit 0 on both. tests/container_reproducible.test.py 17/17, tests/vex.test.py 41/41,
+self-hosting-examples 38/38, bundled_python_version 10/10, container-deploy (port 18444) green; lint 0 warnings;
+privacy scan clean.

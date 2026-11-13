@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import ErrorBoundary from './common/ErrorBoundary';
 import { getBackendUrl, apiFetch } from '../utils/backendUrl';
 import { NO_AI_PROVIDER_MESSAGE, resolveAiRequestSettings, savedAiChatSettings } from '../utils/aiRequestSettings';
 import { createPortal } from 'react-dom';
@@ -1276,7 +1277,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
 
   if (isMinimized) {
     return createPortal(
-      <div
+      <ErrorBoundary scope="popup" label="This window">{<div
         className={`fixed rounded-md shadow-lg flex items-center gap-3 px-4 py-2.5 cursor-grab active:cursor-grabbing drag-handle ${
  instanceId ==='converter'?'bg-os-blue':'bg-[#151515]'
  }`}
@@ -1323,7 +1324,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
             <X size={14} className="text-white" />
           </button>
         </div>
-      </div>,
+      </div>}</ErrorBoundary>,
       document.body
     );
   }
@@ -1370,7 +1371,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
   return (
     <>
       {createPortal(
-        <div
+        <ErrorBoundary scope="popup" label="This window">{<div
           className="fixed bg-os-card rounded-md shadow-2xl flex flex-col relative border border-os-border"
           style={{
         width: `${width}px`,
@@ -1666,13 +1667,13 @@ export default function FloatingDraft({ instanceId = 'default' }) {
           />
         </svg>
       </div>
-    </div>,
+    </div>}</ErrorBoundary>,
     document.body
   )}
 
   {/* Text Selection Context Menu */}
   {selectionMenu.visible && createPortal(
-    <div
+    <ErrorBoundary scope="popup" label="This window">{<div
       ref={selectionMenuRef}
       className="fixed bg-os-card border border-os-border rounded-sm shadow-lg py-1"
       style={{
@@ -1697,13 +1698,13 @@ export default function FloatingDraft({ instanceId = 'default' }) {
           Select text to use AI features
         </div>
       )}
-    </div>,
+    </div>}</ErrorBoundary>,
     document.body
   )}
 
   {/* Quick AI Command Popup */}
   {showQuickAI && createPortal(
-    <>
+    <ErrorBoundary scope="popup" label="This window">{<>
           <div
             className="fixed inset-0"
             onClick={handleCancelQuickAI}
@@ -1854,13 +1855,13 @@ export default function FloatingDraft({ instanceId = 'default' }) {
               )}
             </div>
           </div>
-        </>,
+        </>}</ErrorBoundary>,
         document.body
       )}
 
       {/* Ask AI About This Popup */}
       {showAskAI && createPortal(
-        <>
+        <ErrorBoundary scope="popup" label="This window">{<>
           <div
             className="fixed inset-0"
             onClick={handleCancelAskAI}
@@ -2037,13 +2038,13 @@ export default function FloatingDraft({ instanceId = 'default' }) {
               title="Drag to resize"
             />
           </div>
-        </>,
+        </>}</ErrorBoundary>,
         document.body
       )}
 
       {/* Editor Settings Menu */}
       {showEditorSettings && createPortal(
-        <>
+        <ErrorBoundary scope="popup" label="This window">{<>
           <div
             className="fixed inset-0"
             onClick={() => setShowEditorSettings(false)}
@@ -2110,7 +2111,7 @@ export default function FloatingDraft({ instanceId = 'default' }) {
               </div>
             </div>
           </div>
-        </>,
+        </>}</ErrorBoundary>,
         document.body
       )}
     </>

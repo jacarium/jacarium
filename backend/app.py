@@ -13,6 +13,19 @@ from extensions import app, socketio, _log_timing
 _log_timing("import extensions", _t)
 
 from flask import jsonify
+import sqlite3 as _sqlite3
+
+
+# A busy database is an answer, never a hang: the SQLite stores (accounts.py, sync_store.py) wait a few seconds for
+# another writer (busy_timeout) and then raise "database is locked" - another instance on the same data, an external
+# tool holding the file - which becomes a 503 the UI can show as it is, with Retry; any other sqlite OperationalError
+# keeps its message the same way.
+@app.errorhandler(_sqlite3.OperationalError)
+def _sqlite_busy(error):
+    locked = 'locked' in str(error).lower() or 'busy' in str(error).lower()
+    message = ('The database is in use by another process (another Jacarium instance on this data, or a tool holding the file). '
+               'Close it and try again.') if locked else f'Database error: {error}'
+    return jsonify({'error': message, 'code': 'database_locked' if locked else 'database_error', 'retryable': True}), 503
 
 _t = _time.time()
 from mustgather import mustgather

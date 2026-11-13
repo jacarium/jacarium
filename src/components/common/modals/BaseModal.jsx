@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import ErrorBoundary from '../ErrorBoundary';
 
 /**
  * App-wide z-index tiers (all values compete in the root stacking context,
@@ -188,5 +189,5 @@ export default function BaseModal({
     </div>
   );
 
-  return createPortal(modalContent, document.body);
+  return createPortal(<ErrorBoundary scope="popup" label="This dialog">{modalContent}</ErrorBoundary>, document.body);
 }

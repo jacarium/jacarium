@@ -38,6 +38,10 @@ import os
 import re
 import secrets
 import sqlite3
+
+# How long a statement waits for another writer before "database is locked" (busy_timeout): a few seconds, never
+# an endless wait - a second instance on the same data or an external tool holding the file gets a clear error.
+BUSY_TIMEOUT_SECONDS = 5.0
 import threading
 import sys
 import time
@@ -124,8 +128,12 @@ def connection():
         directory = os.path.dirname(path) or '.'
         os.makedirs(directory, exist_ok=True)
         existed = os.path.exists(path)
-        conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
+        # a writer elsewhere (another instance on the same data, an external tool) is waited for a few seconds
+        # (busy_timeout), then the statement fails with "database is locked" - a clear error the app shows, never
+        # an endless wait (sqlite3's own default is 5 s too; named here so nothing depends on it)
+        conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None, timeout=BUSY_TIMEOUT_SECONDS)
         conn.row_factory = sqlite3.Row
+        conn.execute(f'PRAGMA busy_timeout={int(BUSY_TIMEOUT_SECONDS * 1000)}')
         conn.execute('PRAGMA journal_mode=WAL')
         conn.execute('PRAGMA foreign_keys=ON')
         conn.executescript(_SCHEMA)

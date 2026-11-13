@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import ErrorBoundary from '../../common/ErrorBoundary';
 import { Bot, X, RefreshCw, Check, Trash2 } from 'lucide-react';
 import { getBackendUrl } from '../../../utils/backendUrl';
 import { NO_AI_PROVIDER_MESSAGE, resolveAiRequestSettings, savedAiChatSettings } from '../../../utils/aiRequestSettings';
@@ -262,6 +263,7 @@ export default function AskAIPopup({
   if (!visible) return null;
 
   return createPortal(
+    <ErrorBoundary scope="popup" label="Ask AI">
     <>
       <div
         className="fixed inset-0"
@@ -428,7 +430,8 @@ export default function AskAIPopup({
           }}
         />
       </div>
-    </>,
+    </>
+    </ErrorBoundary>,
     document.body
   );
 }

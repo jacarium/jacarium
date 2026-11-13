@@ -29,6 +29,10 @@ what synchronisation needs):
 import json
 import os
 import sqlite3
+
+# How long a statement waits for another writer before "database is locked" (busy_timeout): a few seconds, never
+# an endless wait (accounts.py keeps the same figure).
+BUSY_TIMEOUT_SECONDS = 5.0
 import threading
 import time
 
@@ -99,8 +103,11 @@ class SyncStore:
         directory = os.path.dirname(self.path)
         os.makedirs(directory, exist_ok=True)
         existed = os.path.exists(self.path)
-        self.conn = sqlite3.connect(self.path, isolation_level=None)
+        # a writer elsewhere is waited for a few seconds (busy_timeout), then the statement fails with "database is
+        # locked" - a clear error the app shows, never an endless wait
+        self.conn = sqlite3.connect(self.path, isolation_level=None, timeout=BUSY_TIMEOUT_SECONDS)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute(f'PRAGMA busy_timeout={int(BUSY_TIMEOUT_SECONDS * 1000)}')
         self.conn.execute('PRAGMA journal_mode=WAL')
         self.conn.executescript(_SCHEMA)
         if not existed:

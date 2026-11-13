@@ -119,6 +119,9 @@ const taken = blocker.address().port;
 const picked = await profiles.pickFreePort(taken);
 check('pickFreePort skips a taken port', picked !== taken && Number.isInteger(picked) && picked > 0, `${taken} -> ${picked}`);
 blocker.close();
+// near the top of the port range the search must stop at 65535 and fall back to an OS-assigned port, never ask for 65536
+const nearTop = await profiles.pickFreePort(65530, { attempts: 20 });
+check('pickFreePort never goes past 65535 (falls back to a free OS port)', Number.isInteger(nearTop) && nearTop > 0 && nearTop <= 65535, String(nearTop));
 const free = await profiles.pickFreePort(taken);
 check('...and returns the preferred port once it is free', free === taken, `${free}`);
 

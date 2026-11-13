@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import ErrorBoundary from '../../common/ErrorBoundary';
 
 /**
  * The editor toolbar's dropdown menus (Heading, List, Insert, the phone's
@@ -112,6 +113,7 @@ export default function ToolbarMenu({ open, onClose, anchorRef, items, label, te
   };
 
   return createPortal(
+    <ErrorBoundary scope="popup" label="This menu">
     <div
       ref={menuRef}
       role="menu"
@@ -144,7 +146,8 @@ export default function ToolbarMenu({ open, onClose, anchorRef, items, label, te
           </button>
         );
       })}
-    </div>,
+    </div>
+    </ErrorBoundary>,
     window.document.body
   );
 }

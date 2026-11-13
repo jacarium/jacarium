@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useContext } from 'react';
+import ErrorBoundary from './common/ErrorBoundary';
 import { useMobile, DrawerScopeContext } from '../contexts/MobileContext';
 import MobileDrawer from './mobile/MobileDrawer';
 import { useZenMode, useZenPanel } from './common/ReadingAidsSurface';
@@ -230,7 +231,7 @@ export default function ResizableSidebar({
   if (!overlay && zen && !isMobile && zenPanelId != null) {
     // a panel in zen: inside the "Navigation" overlay when chosen there, otherwise nothing - the column waits for zen to end
     if (!panelInGoTo || !slot.el) return null;
-    return createPortal(typeof children === 'function' ? children(slot.width) : children, slot.el);
+    return createPortal(<ErrorBoundary scope="popup" label="This panel">{typeof children === 'function' ? children(slot.width) : children}</ErrorBoundary>, slot.el);
   }
   if (!overlay && zen && !isMobile) {
     if (canvasMinWidth != null || zenLabel == null) return null;

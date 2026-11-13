@@ -278,6 +278,40 @@ app.on('certificate-error', (event, webContents, url, error, certificate, callba
 
 let mainWindow;
 let serverProcess;
+
+// ---------------------------------------------------------------------------
+// One instance per profile. Two instances on one data directory would each
+// start a backend and a renderer on the same IndexedDB (Chromium's LevelDB
+// holds a LOCK per profile: the second renderer cannot open the database
+// and sits there, and its quota store gets "reset"), so a second launch of
+// the same profile hands over to the running one and quits before any
+// backend, database or window exists. The lock is Electron's single-instance
+// lock, which lives in userData - and userData is this profile's directory
+// (set above), so a different profile takes a different lock and runs side
+// by side as the profiles feature allows. The picker window (a throwaway
+// userData) asks for no lock. A stale lock from a crashed instance is taken
+// over by Electron itself (the lock is tied to the live process).
+// ---------------------------------------------------------------------------
+const SECOND_INSTANCE_ARGS = profiles.stripProfileArgs(process.argv.slice(1));
+if (!profileSelection.ask) {
+  const gotLock = app.requestSingleInstanceLock({ profile: activeProfile, args: SECOND_INSTANCE_ARGS });
+  if (!gotLock) {
+    console.log(`[Startup] Jacarium is already open with the ${activeProfile} profile - handing over to it`);
+    app.exit(0);
+  } else {
+    app.on('second-instance', (_event, argv, _cwd, data) => {
+      const profile = (data && data.profile) || 'default';
+      console.log(`[Startup] a second launch of the ${profile} profile (${Array.isArray(argv) ? argv.length : 0} args) - focusing this window`);
+      const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : BrowserWindow.getAllWindows()[0];
+      if (win) {
+        if (win.isMinimized()) win.restore();
+        if (!win.isVisible()) win.show();
+        win.focus();
+      }
+      if (process.platform === 'darwin') app.focus({ steal: true });
+    });
+  }
+}
 // The backend's port: PORT when set, else 8080 or the next free port (two
 // profiles may run at the same time) - chosen in app.whenReady.
 let backendPort = process.env.PORT || null;

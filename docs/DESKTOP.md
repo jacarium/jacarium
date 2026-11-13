@@ -39,7 +39,12 @@ the old `INSTANCE_NAME=work` environment variable means the same, and
 the app opens it directly - there is no picker on a single-user desktop. With several, a small picker window opens first
 (or the profile you ticked "always open"); File > Switch Profile... brings
 it back. Settings > General shows the open profile. Two profiles can run
-at the same time: each backend takes the next free port.
+at the same time: each backend takes the next free port. One profile runs
+once: starting the app again with a profile that is already open brings
+the running window to the front and the new launch quits at once (nothing
+else starts - two instances on one data directory would fight over the
+same database). A lock left by a crashed instance does not block the next
+start.
 
 ### Linking a desktop profile to your server
 

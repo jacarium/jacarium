@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import ErrorBoundary from './ErrorBoundary';
 import { X } from 'lucide-react';
 
 /**
@@ -194,8 +195,7 @@ export default function FloatingWindow({
     document.body.style.userSelect = 'none';
   }
 
-  return createPortal(
-    <div
+  return createPortal(<ErrorBoundary scope="popup" label="This window">{<div
       role="dialog"
       aria-label={typeof title === 'string' ? title : undefined}
       data-floating-window={storageKey || true}
@@ -242,7 +242,7 @@ export default function FloatingWindow({
       <div className="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-[color-mix(in_srgb,var(--os-blue)_50%,transparent)]" style={{ zIndex: 10 }} onMouseDown={(e) => handleResizeStart('e', e)} />
       <div className="absolute bottom-0 left-0 w-full h-1 cursor-ns-resize hover:bg-[color-mix(in_srgb,var(--os-blue)_50%,transparent)]" style={{ zIndex: 10 }} onMouseDown={(e) => handleResizeStart('s', e)} />
       <div className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-os-blue rounded-br-lg" style={{ zIndex: 11 }} onMouseDown={(e) => handleResizeStart('se', e)} />
-    </div>,
+    </div>}</ErrorBoundary>,
     document.body
   );
 }

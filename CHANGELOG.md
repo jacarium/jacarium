@@ -4,6 +4,30 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.4.2
+
+_2026-11-13_
+
+### [SECURITY]
+
+Container image on the Red Hat UBI 9.9 minimal base (9.9-1794467051), which carries glibc 2.34-290, util-linux 2.37.4-28.el9_9.1 (CVE-2026-53613, CVE-2026-13595, CVE-2026-53615) and the libgcc and libstdc++ fixes; no remaining finding in the image has a fix available
+
+Caddy, the image web server, is built with Go 1.27.4: an HTTP/1 request with a size limit could crash the server (GO-2026-6859, CVE-2026-97054)
+
+mount and umount are no longer setuid in the container image; nothing in Jacarium mounts anything
+
+### [DESKTOP]
+
+Opening Jacarium again with a profile that is already open brings its window to the front instead of starting a second copy that froze on the shared data; different profiles still run side by side
+
+A database that is busy answers within a few seconds with a clear message instead of making the app wait forever
+
+Profiles: picking a free port near the top of the range no longer crashes the start
+
+### [UI]
+
+If a page, menu or dialog ever fails while drawing, it shows a short message with the error and Reload this view instead of leaving the whole window blank; the rest of the app keeps working and the error is kept in the notifications
+
 ## What's New in v4.4.1
 
 _2026-11-12_
@@ -15,6 +39,7 @@ Container image: glibc 2.34-290.el9_9 (RHSA-2026:98512), which carries the fixes
 ### [DEPLOY]
 
 Container build: the one package raised past the base image is now pinned to its exact build, so a repository change can no longer break the image build (it failed for 4.4.0) or pull in an unvetted newer package; 4.4.1 replaces the 4.4.0 image, which was never published
+
 
 ## What's New in v4.4.0
 

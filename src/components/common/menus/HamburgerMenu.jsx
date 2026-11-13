@@ -1,5 +1,6 @@
 import { forwardRef, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import ErrorBoundary from '../ErrorBoundary';
 import { MenuItemIcon } from './MenuItemIcon';
 import { usePopupPosition } from '../../../hooks/usePopupPosition.js';
 
@@ -82,7 +83,7 @@ const HamburgerMenu = forwardRef(function HamburgerMenu(
     </>
   );
 
-  return createPortal(menuContent, document.body);
+  return createPortal(<ErrorBoundary scope="popup" label="This menu">{menuContent}</ErrorBoundary>, document.body);
 });
 
 /**
