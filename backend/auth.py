@@ -4,9 +4,13 @@ Sign-in for the browser deployment (``JACARIUM_AUTH_MODE=accounts``).
     POST /api/auth/setup      first run only: {setupCode, username, password,
                               displayName} -> the admin account + a session
     POST /api/auth/login      {username, password} -> session cookie
+    GET  /api/auth/oidc/start     redirect to the configured OIDC IdP
+    GET  /api/auth/oidc/callback  finish OIDC, set the session cookie
     POST /api/auth/logout
     GET  /api/auth/me         the signed-in user (401 otherwise)
     POST /api/auth/password   {currentPassword, newPassword}
+                              (currentPassword optional when the account
+                              has none yet - OIDC-only users setting one)
     POST /api/auth/profile    {displayName}
 
     devices (the desktop app linked to this server, src/electron/home-server.cjs):
@@ -38,11 +42,14 @@ On the first admin's creation, the data the container collected before
 accounts existed is adopted (``legacy_migration.migrate_container_data``).
 """
 import time
+import urllib.parse
 
-from flask import Blueprint, g, jsonify, make_response, request
+from flask import Blueprint, g, jsonify, make_response, redirect, request
 
 import accounts
+import oidc
 from accounts import AccountsError, RateLimiter
+from oidc import OidcError
 from user_context import accounts_mode, current_user, is_admin, user_home_for
 
 auth_api = Blueprint('auth_api', __name__)
@@ -54,6 +61,7 @@ CSRF_VALUE = 'Jacarium'
 login_ip_limiter = RateLimiter(20, 15 * 60)
 login_user_limiter = RateLimiter(8, 15 * 60)
 setup_limiter = RateLimiter(10, 15 * 60)
+oidc_limiter = RateLimiter(30, 15 * 60)
 
 
 def client_ip():
@@ -247,6 +255,8 @@ def setup():
 def login():
     if not accounts_mode():
         return jsonify({'error': 'Accounts are not enabled on this server'}), 404
+    if oidc.enabled() and not oidc.password_login_allowed():
+        return jsonify({'error': 'Password sign-in is disabled on this server; use SSO', 'code': 'PASSWORD_LOGIN_DISABLED'}), 403
     body = _json_body()
     username = body.get('username') if isinstance(body.get('username'), str) else ''
     password = body.get('password') if isinstance(body.get('password'), str) else ''
@@ -273,6 +283,70 @@ def login():
     return _session_response(user, raw)
 
 
+def _oidc_error_redirect(message):
+    """Send the browser back to the app with a short error for the login page."""
+    base = oidc._env('JACARIUM_PUBLIC_URL').rstrip('/') or ''
+    target = f'{base}/?oidc_error={urllib.parse.quote(message[:200])}' if base else f'/?oidc_error={urllib.parse.quote(message[:200])}'
+    return redirect(target, code=302)
+
+
+@auth_api.route('/api/auth/oidc/start', methods=['GET'])
+def oidc_start():
+    if not accounts_mode():
+        return jsonify({'error': 'Accounts are not enabled on this server'}), 404
+    if not oidc.enabled():
+        return jsonify({'error': 'OIDC is not configured on this server'}), 404
+    if accounts.setup_required():
+        return jsonify({'error': 'No account exists yet: create the first one with the setup code', 'setupRequired': True}), 409
+    allowed, retry = oidc_limiter.hit(client_ip())
+    if not allowed:
+        return _too_many(retry)
+    try:
+        url = oidc.begin_login()
+    except OidcError as exc:
+        print(f'[Accounts] OIDC start failed from {client_ip()}: {exc}')
+        accounts.audit('oidc-login-failed', reason='start', ip=client_ip())
+        return jsonify({'error': str(exc)}), 502
+    return redirect(url, code=302)
+
+
+@auth_api.route('/api/auth/oidc/callback', methods=['GET'])
+def oidc_callback():
+    if not accounts_mode():
+        return jsonify({'error': 'Accounts are not enabled on this server'}), 404
+    if not oidc.enabled():
+        return jsonify({'error': 'OIDC is not configured on this server'}), 404
+    ip = client_ip()
+    if request.args.get('error'):
+        detail = request.args.get('error_description') or request.args.get('error')
+        print(f'[Accounts] OIDC IdP error from {ip}: {detail}')
+        accounts.audit('oidc-login-failed', reason='idp', ip=ip)
+        return _oidc_error_redirect(str(detail)[:200] or 'Sign-in with SSO was refused')
+    code = request.args.get('code')
+    state = request.args.get('state')
+    try:
+        claims = oidc.exchange_code(code, state)
+        username = oidc.username_from_claims(claims)
+        display = oidc.display_name_from_claims(claims, username)
+        user, event = accounts.find_or_create_oidc_user(claims, username=username, display_name=display)
+    except (OidcError, AccountsError) as exc:
+        print(f'[Accounts] OIDC callback refused from {ip}: {exc}')
+        accounts.audit('oidc-login-failed', reason=str(exc).replace(' ', '_')[:80], ip=ip)
+        return _oidc_error_redirect(str(exc))
+    except Exception as exc:  # network / unexpected
+        print(f'[Accounts] OIDC callback failed from {ip}: {exc}')
+        accounts.audit('oidc-login-failed', reason='exchange', ip=ip)
+        return _oidc_error_redirect('Sign-in with SSO failed')
+    raw = accounts.create_session(user['id'], request.headers.get('User-Agent', ''))
+    g.user = user
+    action = {'created': 'oidc-user-created', 'linked': 'oidc-user-linked', 'login': 'oidc-login'}[event]
+    print(f'[Accounts] {user["username"]} signed in with OIDC from {ip} ({event})')
+    accounts.audit(action, user=user['username'], ip=ip)
+    response = redirect((oidc._env('JACARIUM_PUBLIC_URL').rstrip('/') or '') + '/', code=302)
+    set_session_cookie(response, raw)
+    return response
+
+
 @auth_api.route('/api/auth/logout', methods=['POST'])
 def logout():
     accounts.delete_session(session_cookie_value())
@@ -296,13 +370,23 @@ def change_password():
         return jsonify({'error': 'Sign in first'}), 401
     body = _json_body()
     current = body.get('currentPassword') if isinstance(body.get('currentPassword'), str) else ''
-    if not accounts.check_login(user['username'], current):
-        return jsonify({'error': 'The current password is wrong'}), 403
+    # OIDC-only accounts have no local password yet: allow setting the first one
+    # without a current password. Afterwards (and for recovered passwords) the
+    # current one is required.
+    if user.get('hasPassword'):
+        if not accounts.check_login(user['username'], current):
+            return jsonify({'error': 'The current password is wrong'}), 403
     try:
         accounts.set_user_password(user['id'], body.get('newPassword'), keep_sessions=session_cookie_value())
     except AccountsError as exc:
         return jsonify({'error': str(exc)}), 400
-    accounts.audit('password-changed-after-recovery' if user.get('mustChangePassword') else 'password-changed', user=user['username'], ip=client_ip())
+    if user.get('mustChangePassword'):
+        action = 'password-changed-after-recovery'
+    elif not user.get('hasPassword'):
+        action = 'password-set'
+    else:
+        action = 'password-changed'
+    accounts.audit(action, user=user['username'], ip=client_ip())
     g.user = accounts.get_user(user['id'])
     return jsonify({'ok': True, 'user': g.user})
 

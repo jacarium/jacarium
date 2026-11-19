@@ -36,6 +36,19 @@ export function isAdmin() {
   return accountsEnabled() && getAuthState().admin === true;
 }
 
+/** OIDC block from /api/capabilities (`{ enabled, buttonLabel, passwordLogin }`), or null. */
+export function oidcAuth() {
+  if (!accountsEnabled()) return null;
+  const oidc = getAuthState().oidc;
+  return oidc && typeof oidc === 'object' ? oidc : null;
+}
+
+/** Absolute URL that starts the OIDC redirect (same origin as the backend). */
+export async function oidcStartUrl() {
+  const backendUrl = await getBackendUrl();
+  return `${backendUrl}/api/auth/oidc/start`;
+}
+
 /** The IndexedDB name for this session: one database per account. */
 export function databaseNameFor(user) {
   return user?.id ? `Jacarium-${user.id}` : 'Jacarium';

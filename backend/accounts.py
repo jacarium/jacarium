@@ -6,8 +6,9 @@ One SQLite file, ``accounts.sqlite`` next to the rest of the server state
 ``/data/accounts.sqlite`` in the container):
 
     users          id, username (unique, case-insensitive), display_name,
-                   password_hash (scrypt), role admin|user, disabled,
-                   oidc_subject (unused yet - for a later sign-in provider),
+                   password_hash (scrypt, nullable for OIDC-only accounts),
+                   role admin|user, disabled,
+                   oidc_subject (unique when set - OpenID Connect ``sub``),
                    created_at, password_changed_at
     sessions       id (sha256 of the cookie value - the raw id is never
                    stored), user_id, created_at, last_seen, user_agent
@@ -89,7 +90,7 @@ CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     username TEXT NOT NULL UNIQUE,
     display_name TEXT NOT NULL,
-    password_hash TEXT NOT NULL,
+    password_hash TEXT,
     role TEXT NOT NULL DEFAULT 'user',
     disabled INTEGER NOT NULL DEFAULT 0,
     oidc_subject TEXT,
@@ -104,6 +105,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     user_agent TEXT
 );
 CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS users_oidc_subject ON users(oidc_subject) WHERE oidc_subject IS NOT NULL;
 CREATE TABLE IF NOT EXISTS device_tokens (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -149,9 +151,41 @@ def connection():
 
 def _migrate(conn):
     """Columns added after the first release (CREATE IF NOT EXISTS leaves an old table alone)."""
-    columns = {row['name'] for row in conn.execute('PRAGMA table_info(users)').fetchall()}
+    columns = {row['name']: row for row in conn.execute('PRAGMA table_info(users)').fetchall()}
     if 'must_change_password' not in columns:
         conn.execute('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0')
+    # password_hash was NOT NULL before OIDC-only accounts; rebuild so it can be NULL.
+    pw = columns.get('password_hash')
+    if pw is not None and pw['notnull']:
+        conn.execute('PRAGMA foreign_keys=OFF')
+        conn.executescript("""
+            CREATE TABLE users_oidc_mig (
+                id TEXT PRIMARY KEY,
+                username TEXT NOT NULL UNIQUE,
+                display_name TEXT NOT NULL,
+                password_hash TEXT,
+                role TEXT NOT NULL DEFAULT 'user',
+                disabled INTEGER NOT NULL DEFAULT 0,
+                oidc_subject TEXT,
+                created_at REAL NOT NULL,
+                password_changed_at REAL NOT NULL,
+                must_change_password INTEGER NOT NULL DEFAULT 0
+            );
+            INSERT INTO users_oidc_mig (
+                id, username, display_name, password_hash, role, disabled,
+                oidc_subject, created_at, password_changed_at, must_change_password
+            )
+            SELECT id, username, display_name, password_hash, role, disabled,
+                   oidc_subject, created_at, password_changed_at,
+                   COALESCE(must_change_password, 0)
+            FROM users;
+            DROP TABLE users;
+            ALTER TABLE users_oidc_mig RENAME TO users;
+        """)
+        conn.execute('PRAGMA foreign_keys=ON')
+    conn.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS users_oidc_subject ON users(oidc_subject) WHERE oidc_subject IS NOT NULL'
+    )
 
 
 def reset_for_tests():
@@ -230,6 +264,8 @@ def clean_display_name(display_name, fallback):
 def _row_to_user(row):
     if row is None:
         return None
+    keys = row.keys()
+    password_hash = row['password_hash'] if 'password_hash' in keys else None
     return {
         'id': row['id'],
         'username': row['username'],
@@ -239,7 +275,11 @@ def _row_to_user(row):
         'createdAt': row['created_at'],
         # set by a host-side password recovery: only /api/auth/password is
         # allowed until the user chose a password of their own
-        'mustChangePassword': bool(row['must_change_password']) if 'must_change_password' in row.keys() else False,
+        'mustChangePassword': bool(row['must_change_password']) if 'must_change_password' in keys else False,
+        # False for OIDC-only accounts until they set a local password
+        # (device step-up and "delete all my data" still need one)
+        'hasPassword': bool(password_hash),
+        'oidcLinked': bool(row['oidc_subject']) if 'oidc_subject' in keys else False,
     }
 
 
@@ -466,7 +506,7 @@ def check_login(username, password):
         row = connection().execute('SELECT * FROM users WHERE username = ?', (name,)).fetchone()
     except AccountsError:
         pass
-    if row is None:
+    if row is None or not row['password_hash']:
         verify_password(password if isinstance(password, str) else '', _dummy_hash())
         return None
     if not verify_password(password, row['password_hash']):
@@ -474,6 +514,111 @@ def check_login(username, password):
     if row['disabled']:
         return None
     return _row_to_user(row)
+
+
+def get_user_by_oidc_subject(subject):
+    if not isinstance(subject, str) or not subject.strip():
+        return None
+    row = connection().execute(
+        'SELECT * FROM users WHERE oidc_subject = ?', (subject.strip(),)).fetchone()
+    return _row_to_user(row)
+
+
+def link_oidc_subject(user_id, subject):
+    """Attach an OIDC subject to an existing account (once)."""
+    if not isinstance(subject, str) or not subject.strip():
+        raise AccountsError('missing OIDC subject')
+    subject = subject.strip()
+    conn = connection()
+    with _lock:
+        existing = conn.execute('SELECT id FROM users WHERE oidc_subject = ?', (subject,)).fetchone()
+        if existing and existing['id'] != user_id:
+            raise AccountsError('that identity is already linked to another account')
+        cur = conn.execute(
+            'UPDATE users SET oidc_subject = ? WHERE id = ? AND (oidc_subject IS NULL OR oidc_subject = ?)',
+            (subject, user_id, subject))
+        if cur.rowcount == 0:
+            row = conn.execute('SELECT oidc_subject FROM users WHERE id = ?', (user_id,)).fetchone()
+            if row is None:
+                raise AccountsError('no such user')
+            if row['oidc_subject'] and row['oidc_subject'] != subject:
+                raise AccountsError('this account is already linked to another identity')
+    return get_user(user_id)
+
+
+def create_oidc_user(username, subject, display_name=None, role='user'):
+    """
+    Insert an OIDC-only account (no local password). The caller supplies a
+    normalised username and the IdP ``sub``.
+    """
+    name = normalize_username(username)
+    if role not in ('admin', 'user'):
+        raise AccountsError('role must be admin or user')
+    if not isinstance(subject, str) or not subject.strip():
+        raise AccountsError('missing OIDC subject')
+    subject = subject.strip()
+    display = clean_display_name(display_name, name)
+    now = time.time()
+    user_id = str(uuid.uuid4())
+    conn = connection()
+    with _lock:
+        try:
+            conn.execute('BEGIN IMMEDIATE')
+            try:
+                conn.execute(
+                    'INSERT INTO users (id, username, display_name, password_hash, role, disabled, '
+                    'oidc_subject, created_at, password_changed_at, must_change_password) '
+                    'VALUES (?, ?, ?, NULL, ?, 0, ?, ?, ?, 0)',
+                    (user_id, name, display, role, subject, now, now))
+            except sqlite3.IntegrityError as exc:
+                conn.execute('ROLLBACK')
+                message = str(exc).lower()
+                if 'oidc_subject' in message or 'users_oidc_subject' in message:
+                    raise AccountsError('that identity is already linked to another account')
+                raise AccountsError('that username is already taken')
+            conn.execute('COMMIT')
+        except AccountsError:
+            raise
+        except Exception:
+            try:
+                conn.execute('ROLLBACK')
+            except sqlite3.OperationalError:
+                pass
+            raise
+    return get_user(user_id)
+
+
+def find_or_create_oidc_user(claims, *, username, display_name):
+    """
+    Resolve an OIDC login to a Jacarium account:
+      1. match by ``oidc_subject`` (``sub``);
+      2. else link an existing enabled user with the same username and no subject;
+      3. else create a new ``role=user`` account (JIT).
+    Returns ``(user, event)`` where event is ``login``, ``linked`` or ``created``.
+    """
+    subject = str(claims.get('sub') or '').strip()
+    if not subject:
+        raise AccountsError('identity token has no subject')
+    existing = get_user_by_oidc_subject(subject)
+    if existing:
+        if existing['disabled']:
+            raise AccountsError('this account is disabled')
+        return existing, 'login'
+    by_name = get_user_by_username(username)
+    if by_name:
+        if by_name['disabled']:
+            raise AccountsError('this account is disabled')
+        if by_name.get('oidcLinked'):
+            raise AccountsError('that username already belongs to another identity')
+        linked = link_oidc_subject(by_name['id'], subject)
+        if display_name and display_name != linked['displayName']:
+            try:
+                linked = set_display_name(linked['id'], display_name)
+            except AccountsError:
+                pass
+        return linked, 'linked'
+    created = create_oidc_user(username, subject, display_name=display_name, role='user')
+    return created, 'created'
 
 
 def admin_count():

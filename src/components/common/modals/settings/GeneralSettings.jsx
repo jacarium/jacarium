@@ -73,6 +73,7 @@ function AccountSection({ account, remoteServer = null }) {
   const [legacyExists, setLegacyExists] = useState(null);
   const [devices, setDevices] = useState([]);
   const [sessionList, setSessionList] = useState([]);
+  const [hasPassword, setHasPassword] = useState(account.hasPassword !== false);
 
   async function loadDevices() {
     try {
@@ -127,10 +128,21 @@ function AccountSection({ account, remoteServer = null }) {
   async function submit(e) {
     e.preventDefault();
     setBusy(true); setMessage(null);
+    const settingFirst = !hasPassword;
     try {
-      await changePassword(current, next);
+      const answer = await changePassword(current, next);
       setCurrent(''); setNext('');
-      setMessage({ ok: true, text: 'Password changed. Your other sessions were signed out.' });
+      if (answer?.user) {
+        setHasPassword(answer.user.hasPassword !== false);
+        const info = getBackendInfo();
+        if (info?.auth?.user) Object.assign(info.auth.user, answer.user);
+      }
+      setMessage({
+        ok: true,
+        text: settingFirst
+          ? 'Password set. You can link a desktop app and confirm administrative actions with it.'
+          : 'Password changed. Your other sessions were signed out.',
+      });
       await loadDevices();
     } catch (err) {
       setMessage({ ok: false, text: err.message });
@@ -203,17 +215,26 @@ function AccountSection({ account, remoteServer = null }) {
         <StatusLine status={nameMessage} testId="account-display-name-message" />
       </form>
       {!remoteServer && <CentralStatus />}
-      <form onSubmit={submit} className="space-y-3">
+      <form onSubmit={submit} className="space-y-3" data-testid="account-password-form">
+        {!hasPassword && (
+          <p className="text-xs text-os-text-secondary" data-testid="oidc-set-password-hint">
+            This account signs in with SSO and has no local password yet. Set one to link a desktop app, confirm administrative actions from a linked device, or delete your data on the server.
+          </p>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Current password">
-            <PasswordInput value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
-          </Field>
-          <Field label="New password (8+ characters)">
+          {hasPassword && (
+            <Field label="Current password">
+              <PasswordInput value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
+            </Field>
+          )}
+          <Field label={hasPassword ? 'New password (8+ characters)' : 'Password (8+ characters)'}>
             <PasswordInput value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
           </Field>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" variant="primary" disabled={busy || next.length < 8 || !current}>Change password</Button>
+          <Button type="submit" variant="primary" disabled={busy || next.length < 8 || (hasPassword && !current)}>
+            {hasPassword ? 'Change password' : 'Set password'}
+          </Button>
           <StatusLine status={message} />
         </div>
       </form>

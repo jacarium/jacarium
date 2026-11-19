@@ -413,6 +413,55 @@ sign-in page asks for it once and creates the administrator; the file is
 removed. Administrators add accounts in Settings > Users; everyone can
 change their password and display name in Settings > General.
 
+#### Sign in with OIDC (SSO)
+
+Optional OpenID Connect sign-in for self-hosted servers. Configure an IdP
+(Keycloak, Authelia, Google, VoidAuth, Pocket ID, or any OIDC provider with
+discovery and RS256 id tokens), then set these environment variables on the
+container (or as podman/docker secrets via `JACARIUM_OIDC_CLIENT_SECRET_FILE`):
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `JACARIUM_OIDC_ISSUER` | yes | Issuer URL (discovery at `{issuer}/.well-known/openid-configuration`) |
+| `JACARIUM_OIDC_CLIENT_ID` | yes | OIDC client id |
+| `JACARIUM_OIDC_CLIENT_SECRET` | yes | Client secret (or `_FILE`) |
+| `JACARIUM_PUBLIC_URL` | yes | Public origin of this Jacarium, e.g. `https://jacarium.example.com:8443` |
+| `JACARIUM_OIDC_SCOPES` | no | Default `openid profile email` |
+| `JACARIUM_OIDC_USERNAME_CLAIM` | no | Default `preferred_username` (then email local-part) |
+| `JACARIUM_OIDC_DISPLAY_NAME_CLAIM` | no | Default `name` |
+| `JACARIUM_OIDC_BUTTON_LABEL` | no | Default `Sign in with SSO` |
+| `JACARIUM_OIDC_DISABLE_PASSWORD_LOGIN` | no | Set to `1` / `true` to hide password sign-in on the login page |
+
+Register this redirect URI at the IdP:
+
+```text
+{JACARIUM_PUBLIC_URL}/api/auth/oidc/callback
+```
+
+OIDC is off until issuer, client id, client secret and public URL are all
+set. The first administrator is still created with the setup code; SSO does
+not bootstrap an empty server. Later sign-ins create a normal user on first
+login (JIT), or link an existing account when the username matches and is
+not already linked. Password sign-in stays available by default (recovery
+and desktop step-up); SSO-only accounts can set a local password in
+Settings > General when they need to link a desktop app or delete server
+data. Host-side `reset-password` still works.
+
+**IdP notes**
+
+- **Keycloak:** issuer `https://keycloak.example.com/realms/<realm>`; create a
+  confidential client with Standard flow, assign the redirect URI above.
+- **Authelia:** issuer is your Authelia root (the discovery document lives
+  under it); enable the OIDC provider and register Jacarium as a client.
+- **Google:** issuer `https://accounts.google.com`; create an OAuth Web
+  client in Google Cloud Console with the redirect URI; put the client id
+  and secret in the env vars.
+- **VoidAuth:** issuer is `{APP_URL}/oidc` (VoidAuth serves discovery under
+  `/oidc/.well-known/openid-configuration`).
+- **Pocket ID:** issuer is your Pocket ID `APP_URL` (e.g.
+  `https://id.example.com`); create a confidential OIDC client with the
+  callback URL above and scopes `openid profile email`.
+
 Every account has its own data: the browser keeps one database per account
 (`Jacarium-<id>`), and on the server everything personal lives under
 `/data/users/<id>/` - the settings file with the API keys, the Taskwarrior

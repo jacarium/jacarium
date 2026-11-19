@@ -198,7 +198,15 @@ _AUTH_EXEMPT_PATHS = {"/health", "/api/version", "/api/tls/root.crt"}   # a cert
 _AUTH_EXEMPT_PREFIXES = ("/static/", "/api/downloads")
 # With accounts: reachable without a session (they establish one, or tell
 # the app that it needs one). /api/auth/me answers 401 by itself.
-_ACCOUNTS_EXEMPT_PATHS = {"/api/capabilities", "/api/auth/login", "/api/auth/setup", "/api/auth/me", "/api/auth/logout"}
+_ACCOUNTS_EXEMPT_PATHS = {
+    "/api/capabilities",
+    "/api/auth/login",
+    "/api/auth/setup",
+    "/api/auth/me",
+    "/api/auth/logout",
+    "/api/auth/oidc/start",
+    "/api/auth/oidc/callback",
+}
 # all a session may do while its password must still be changed
 _PASSWORD_CHANGE_PATHS = {"/api/auth/password", "/api/auth/me", "/api/auth/logout", "/api/capabilities"}
 
@@ -306,6 +314,7 @@ def _capabilities():
     }
     if ACCOUNTS:
         import accounts as _accounts
+        import oidc as _oidc
         from user_context import current_user, is_admin
         user = current_user()
         answer["auth"] = {
@@ -313,6 +322,7 @@ def _capabilities():
             "setupRequired": _accounts.setup_required(),
             "user": user,
             "admin": is_admin(),
+            "oidc": _oidc.capabilities(),
         }
         # Per-account paths exist only once someone is signed in.
         answer["reportsRoot"] = reports_root() if user else None

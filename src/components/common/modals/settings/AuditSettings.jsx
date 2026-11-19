@@ -13,8 +13,13 @@ import { Button, Section, StatusLine } from './ui';
 const LABELS = {
   'sign-in': 'Signed in',
   'sign-in-failed': 'Sign-in failed',
+  'oidc-login': 'Signed in with SSO',
+  'oidc-login-failed': 'SSO sign-in failed',
+  'oidc-user-created': 'Account created via SSO',
+  'oidc-user-linked': 'Account linked to SSO',
   'password-changed': 'Password changed',
   'password-changed-after-recovery': 'Password changed (after recovery)',
+  'password-set': 'Password set (SSO account)',
   'password-reset': 'Password reset by an administrator',
   'password-recovered': 'Password recovered from the server',
   'user-created': 'Account created',

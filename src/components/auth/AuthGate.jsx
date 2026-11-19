@@ -14,7 +14,7 @@ import { latestVersion } from '../../whats-new/versions';
 import { useEffect, useState } from 'react';
 import { KeyRound, Database, ShieldCheck } from 'lucide-react';
 import { ThemeProvider } from '../../contexts/ThemeContext';
-import { changePassword, login, logout, setup } from '../../utils/auth';
+import { changePassword, login, logout, oidcAuth, oidcStartUrl, setup } from '../../utils/auth';
 
 function Field({ label, type = 'text', value, onChange, autoFocus = false, autoComplete, placeholder, hint }) {
   return (
@@ -108,11 +108,27 @@ export function SetupPage({ onDone = () => window.location.reload() }) {
   );
 }
 
+function takeOidcErrorFromUrl() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const oidcError = params.get('oidc_error');
+    if (!oidcError) return '';
+    params.delete('oidc_error');
+    const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash || ''}`;
+    window.history.replaceState({}, '', next);
+    return oidcError;
+  } catch {
+    return '';
+  }
+}
+
 export function LoginPage({ onDone = () => window.location.reload() }) {
+  const oidc = oidcAuth();
+  const passwordLogin = !oidc?.enabled || oidc.passwordLogin !== false;
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => takeOidcErrorFromUrl());
 
   async function submit(e) {
     e.preventDefault();
@@ -132,19 +148,47 @@ export function LoginPage({ onDone = () => window.location.reload() }) {
     }
   }
 
+  async function startOidc() {
+    setBusy(true); setError('');
+    try {
+      window.location.href = await oidcStartUrl();
+    } catch (err) {
+      setError(err.message || 'Could not start SSO');
+      setBusy(false);
+    }
+  }
+
   return (
     <Card title="Sign in to Jacarium" subtitle="Your documents, tasks and settings are kept per account.">
-      <form onSubmit={submit} className="space-y-3" data-testid="login-form">
-        <Field label="Username" value={username} onChange={setUsername} autoFocus autoComplete="username" />
-        <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="current-password" />
+      <div className="space-y-3" data-testid="login-form">
+        {oidc?.enabled && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={startOidc}
+            className="btn btn-primary w-full flex items-center justify-center gap-2 px-4 py-2 text-sm"
+            data-testid="oidc-sign-in"
+          >
+            {oidc.buttonLabel || 'Sign in with SSO'}
+          </button>
+        )}
+        {oidc?.enabled && passwordLogin && (
+          <p className="text-2xs text-center text-os-text-muted" data-testid="oidc-or-password">or with a username and password</p>
+        )}
+        {passwordLogin && (
+          <form onSubmit={submit} className="space-y-3" data-testid="password-login-form">
+            <Field label="Username" value={username} onChange={setUsername} autoFocus={!oidc?.enabled} autoComplete="username" />
+            <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="current-password" />
+            <button type="submit" disabled={busy} className={`btn w-full flex items-center justify-center gap-2 px-4 py-2 text-sm ${oidc?.enabled ? 'btn-secondary' : 'btn-primary'}`}>
+              Sign in
+            </button>
+          </form>
+        )}
         <ErrorBox error={error} />
-        <button type="submit" disabled={busy} className="btn btn-primary w-full flex items-center justify-center gap-2 px-4 py-2 text-sm">
-          Sign in
-        </button>
         <p className="text-2xs text-os-text-muted" data-testid="download-desktop-hint">
           Prefer the desktop app? <a href="/api/downloads/" target="_blank" rel="noopener noreferrer" className="link hover:underline">Download it from this server</a> and link it to your account.
         </p>
-      </form>
+      </div>
     </Card>
   );
 }

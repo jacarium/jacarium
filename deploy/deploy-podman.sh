@@ -161,6 +161,8 @@ start_container() {
     if [ "$AUTH_MODE" = accounts ]; then
         echo "  Sign-in: on. First run: create the administrator with the one-time setup code"
         echo "           (printed in the logs, also in $DATA_DIR/setup-code)."
+        echo "  OIDC/SSO: set JACARIUM_OIDC_ISSUER, JACARIUM_OIDC_CLIENT_ID,"
+        echo "            JACARIUM_OIDC_CLIENT_SECRET and JACARIUM_PUBLIC_URL (see docs/SELF_HOSTING.md)."
     else
         echo "  Sign-in: OFF (AUTH_MODE=none) - anyone who can reach the port can use everything."
     fi
