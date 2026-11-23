@@ -29,6 +29,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { reapOnExit } from './reap.mjs';
+import { launchElectron } from './bounded-electron.mjs';
 import { productionBuild } from './live-documents-app.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -125,7 +126,8 @@ export async function launchElectronApp({ profilePrefix = 'electron-test-', args
     // app runs as root under xvfb, where Chromium refuses to start with its
     // sandbox on; nowhere else.
     const containerArgs = process.env.LINUX_CONTAINER ? ['--no-sandbox'] : [];
-    app = await electron.launch({
+    // launchElectron (tests/helpers/bounded-electron.mjs): the mock keychain, every step bounded, no orphan left
+    app = await launchElectron(electron, {
       args: [REPO, ...containerArgs, ...args],
       cwd: REPO,
       env: { ...process.env, JACARIUM_USER_DATA_DIR: userDataDir, NODE_ENV: 'development', ...env },

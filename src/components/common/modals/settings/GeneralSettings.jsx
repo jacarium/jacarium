@@ -3,7 +3,7 @@ import { Download, Cloud, Laptop, Archive } from 'lucide-react';
 import { useSyncStatus } from '../../../../hooks/useSyncStatus';
 import { useConfirmation } from '../../../../hooks/useConfirmation';
 import ConfirmationModal from '../ConfirmationModal';
-import { changePassword, devices as deviceApi, sessions as sessionApi, accountData, signOutAndReload, updateProfile } from '../../../../utils/auth';
+import { changePassword, devices as deviceApi, sessions as sessionApi, accountData, signOutAndReload, updateProfile, sso, ssoState, recallSsoResult } from '../../../../utils/auth';
 import { getBackendInfo, isDesktopApp } from '../../../../utils/platform';
 import { getLastVersionCheck, subscribeVersionCheck } from '../../../../utils/homeServer';
 import { DISPLAY_NAME_EVENT, DISPLAY_NAME_MAX_LENGTH, getStoredDisplayName, isAccountIdentity, isBrowserIdentity, resetIdentityCache, setDisplayName, validateDisplayName } from '../../../../utils/cloudCentralSync';
@@ -64,12 +64,93 @@ const when = (seconds) => (seconds ? new Date(seconds * 1000).toLocaleString() :
  * devices, the pre-sign-in database offered once per browser, and the
  * "Delete all my data on the server" action (backend/account_data.py).
  */
+/**
+ * Single sign-on for the signed-in account (a browser on a server where it is configured): the linked identity, and
+ * linking / unlinking it. Linking asks for the account's password, then goes to the identity provider and comes
+ * back; an identity is only ever attached this way or by an administrator's approval - never by a matching name.
+ */
+function SingleSignOn({ account, hasPassword, outcome }) {
+  const single = ssoState();
+  const [linked, setLinked] = useState(account.sso || null);
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState(() => {
+    if (!outcome) return null;
+    if (!outcome.ok) return { ok: false, text: outcome.message };
+    return outcome.what === 'linked' ? { ok: true, text: 'Single sign-on is linked to this account.' } : null;
+  });
+  if (!single) return null;
+  const provider = (() => { try { return new URL(single.issuer).host; } catch { return 'the identity provider'; } })();
+
+  async function link(e) {
+    e.preventDefault();
+    setBusy(true); setStatus(null);
+    try {
+      await sso.begin('link', password);   // the browser leaves for the identity provider
+    } catch (err) {
+      setStatus({ ok: false, text: err.message });
+      setBusy(false);
+    }
+  }
+  async function unlink(e) {
+    e.preventDefault();
+    setBusy(true); setStatus(null);
+    try {
+      await sso.unlink(password);
+      setLinked(null); setPassword('');
+      const info = getBackendInfo();
+      if (info?.auth?.user) info.auth.user.sso = null;
+      setStatus({ ok: true, text: 'Unlinked. This account now signs in with its password only.' });
+    } catch (err) {
+      setStatus({ ok: false, text: err.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2" data-testid="account-sso">
+      <p className="text-xs font-medium text-os-text-primary">Single sign-on</p>
+      {linked ? (
+        <>
+          <InfoRows>
+            <InfoRow testId="account-sso-identity">
+              Linked to <span className="font-medium">{provider}</span> <span className="text-os-text-muted font-mono">({String(linked.subject).slice(0, 18)}{String(linked.subject).length > 18 ? '...' : ''})</span>
+            </InfoRow>
+          </InfoRows>
+          {hasPassword ? (
+            <form onSubmit={unlink} className="flex flex-wrap items-end gap-2" data-testid="account-sso-unlink-form">
+              <Field label="Your password, to unlink" className="flex-1 min-w-[12rem] max-w-sm">
+                <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" data-testid="account-sso-password" />
+              </Field>
+              <Button type="submit" disabled={busy || !password} className="mb-5" data-testid="account-sso-unlink">Unlink</Button>
+            </form>
+          ) : (
+            <p className="text-xs text-os-text-muted">This account signs in with single sign-on only. Set a password above before it can be unlinked.</p>
+          )}
+        </>
+      ) : (
+        <form onSubmit={link} className="flex flex-wrap items-end gap-2" data-testid="account-sso-link-form">
+          <Field label="Your password, to link" hint={`You then sign in at ${provider} once; afterwards that identity signs in to this account.`} className="flex-1 min-w-[12rem] max-w-sm">
+            <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" data-testid="account-sso-password" />
+          </Field>
+          <Button type="submit" disabled={busy || !password} className="mb-5" data-testid="account-sso-link">Link single sign-on</Button>
+        </form>
+      )}
+      <StatusLine status={status} testId="account-sso-status" />
+    </div>
+  );
+}
+
 function AccountSection({ account, remoteServer = null }) {
   const { confirm, confirmationProps } = useConfirmation();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState(null);
+  // what a single sign-on round-trip that started here came back with (read once: main.jsx kept it for this dialog)
+  const [ssoOutcome] = useState(() => (remoteServer ? null : recallSsoResult()));
+  const [hasPassword, setHasPassword] = useState(account.hasPassword !== false);
+  const [message, setMessage] = useState(() => (ssoOutcome?.ok && ssoOutcome.what === 'confirmed' ? { ok: true, text: 'Confirmed with single sign-on. Set the password within the next 10 minutes.' } : null));
   const [legacyExists, setLegacyExists] = useState(null);
   const [devices, setDevices] = useState([]);
   const [sessionList, setSessionList] = useState([]);
@@ -128,12 +209,17 @@ function AccountSection({ account, remoteServer = null }) {
     e.preventDefault();
     setBusy(true); setMessage(null);
     try {
+      const first = !hasPassword;
       await changePassword(current, next);
       setCurrent(''); setNext('');
-      setMessage({ ok: true, text: 'Password changed. Your other sessions were signed out.' });
+      setHasPassword(true);
+      const info = getBackendInfo();
+      if (info?.auth?.user) info.auth.user.hasPassword = true;
+      setMessage({ ok: true, text: first ? 'Password set. You can now link the desktop app and confirm actions with it.' : 'Password changed. Your other sessions were signed out.' });
       await loadDevices();
     } catch (err) {
-      setMessage({ ok: false, text: err.message });
+      // an account without a password sets its first one right after a fresh single sign-on round-trip
+      setMessage(err.data?.code === 'SSO_CONFIRM_REQUIRED' ? { ok: false, text: 'Confirm with single sign-on first (the button below), then set the password.' } : { ok: false, text: err.message });
     } finally {
       setBusy(false);
     }
@@ -203,20 +289,38 @@ function AccountSection({ account, remoteServer = null }) {
         <StatusLine status={nameMessage} testId="account-display-name-message" />
       </form>
       {!remoteServer && <CentralStatus />}
-      <form onSubmit={submit} className="space-y-3">
+      <form onSubmit={submit} className="space-y-3" data-testid="account-password-form">
+        {!hasPassword && (
+          <Note tone="info" icon={null}>
+            <div className="flex flex-wrap items-center justify-between gap-3" data-testid="account-no-password">
+              {ssoState() ? (
+                <>
+                  <span>This account signs in with single sign-on and has no password. A password is needed to link the desktop app, to confirm actions from it, and to delete your data on the server. To set one, confirm with single sign-on first.</span>
+                  <Button onClick={() => sso.begin('confirm').catch((err) => setMessage({ ok: false, text: err.message }))} data-testid="account-sso-confirm">Confirm with single sign-on</Button>
+                </>
+              ) : (
+                // single sign-on was turned off on this server after the account used it
+                <span>This account has no password, and single sign-on is off on this server. Ask an administrator to set a password for it (Settings &gt; Users &gt; Password) before this session ends.</span>
+              )}
+            </div>
+          </Note>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Current password">
-            <PasswordInput value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
-          </Field>
-          <Field label="New password (8+ characters)">
-            <PasswordInput value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
+          {hasPassword && (
+            <Field label="Current password">
+              <PasswordInput value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
+            </Field>
+          )}
+          <Field label={hasPassword ? 'New password (8+ characters)' : 'Password (8+ characters)'}>
+            <PasswordInput value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" data-testid="account-new-password" />
           </Field>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" variant="primary" disabled={busy || next.length < 8 || !current}>Change password</Button>
-          <StatusLine status={message} />
+          <Button type="submit" variant="primary" disabled={busy || next.length < 8 || (hasPassword && !current)} data-testid="account-password-submit">{hasPassword ? 'Change password' : 'Set password'}</Button>
+          <StatusLine status={message} testId="account-password-status" />
         </div>
       </form>
+      {!remoteServer && <SingleSignOn account={account} hasPassword={hasPassword} outcome={ssoOutcome} />}
 
       <div className="text-xs space-y-1" data-testid="sessions">
         <div className="flex items-center justify-between gap-3">

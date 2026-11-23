@@ -116,6 +116,37 @@ for f in "$UI_ASSETS/assets"/*; do
 done
 log "ui assets: build $BUILD_ID ($(wc -l < "$UI_ASSETS/.builds/$BUILD_ID.list" | tr -d ' ') files), $(ls "$UI_ASSETS/.builds" | wc -l | tr -d ' ') build(s) kept on the volume"
 
+# --- single sign-on (OpenID Connect; backend/oidc.py) -----------------------
+# Its settings come from the container's environment, or from $DATA_DIR/sso.env
+# on the data volume: NAME=value lines (# comments), which lets every kind of
+# deployment turn it on without changing how the container is defined. Only
+# JACARIUM_OIDC_* and JACARIUM_PUBLIC_URL are taken from the file, the value as
+# it stands (nothing is evaluated), and a variable that is already set wins.
+# The file holds the client secret: 0600, like the rest of the volume.
+SSO_ENV="$DATA_DIR/sso.env"
+if [ -f "$SSO_ENV" ]; then
+  chmod 600 "$SSO_ENV" 2>/dev/null || true
+  sso_taken=0
+  while IFS= read -r sso_line || [ -n "$sso_line" ]; do
+    case "$sso_line" in ''|'#'*) continue ;; esac
+    sso_name="${sso_line%%=*}"; sso_value="${sso_line#*=}"
+    case "$sso_name" in
+      JACARIUM_PUBLIC_URL|JACARIUM_OIDC_*) ;;
+      *) log "sso.env: ignoring $sso_name (only JACARIUM_OIDC_* and JACARIUM_PUBLIC_URL are read)"; continue ;;
+    esac
+    if ! printf '%s' "$sso_name" | grep -Eq '^[A-Z][A-Z0-9_]*$' || [ "$sso_name" = "$sso_line" ]; then
+      log "sso.env: ignoring a line that is not NAME=value"; continue
+    fi
+    if [ -z "$(printenv "$sso_name" || true)" ]; then
+      export "$sso_name=$sso_value"; sso_taken=$((sso_taken + 1))
+    fi
+  done < "$SSO_ENV"
+  log "single sign-on: $sso_taken setting(s) read from $SSO_ENV"
+fi
+if [ -n "${JACARIUM_OIDC_ISSUER:-}" ]; then
+  log "single sign-on: issuer ${JACARIUM_OIDC_ISSUER}, public URL ${JACARIUM_PUBLIC_URL:-<not set>}"
+fi
+
 cd /app/backend
 log "starting the backend on 127.0.0.1:${BACKEND_PORT} (auth mode: ${JACARIUM_AUTH_MODE:-app-token})"
 if [ "${JACARIUM_AUTH_MODE:-}" = accounts ] && [ ! -s "$DATA_DIR/accounts.sqlite" ]; then

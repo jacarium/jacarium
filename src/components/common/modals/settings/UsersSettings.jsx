@@ -10,7 +10,7 @@
  */
 import { Fragment, useEffect, useState } from 'react';
 import { Loader2, Users, ChevronDown, ChevronRight, Laptop, Download } from 'lucide-react';
-import { admin, currentUser } from '../../../../utils/auth';
+import { admin, currentUser, ssoState } from '../../../../utils/auth';
 import { useConfirmation } from '../../../../hooks/useConfirmation';
 import ConfirmationModal from '../ConfirmationModal';
 import { Button, Checkbox, Field, Note, PasswordInput, Section, Select, StatusLine, TextInput } from './ui';
@@ -18,7 +18,7 @@ import { Button, Checkbox, Field, Note, PasswordInput, Section, Select, StatusLi
 const when = (seconds) => (seconds ? new Date(seconds * 1000).toLocaleString() : 'never');
 
 /** One user's sessions, devices, backups and the data deletion (expanded row). */
-function UserDetails({ user, me, onError }) {
+function UserDetails({ user, me, onError, sso = null }) {
   const { confirm, confirmationProps } = useConfirmation();
   const [details, setDetails] = useState(null);
   const [backups, setBackups] = useState([]);
@@ -77,6 +77,24 @@ function UserDetails({ user, me, onError }) {
   const devices = (details.devices || []).filter((d) => !d.revoked);
   return (
     <div className="space-y-3 py-2 text-xs" data-testid={`user-details-${user.username}`}>
+      {sso && (
+        <div data-testid={`user-sso-${user.username}`}>
+          <p className="font-medium text-os-text-primary mb-1">Single sign-on</p>
+          <div className="flex flex-wrap items-center justify-between gap-3 text-os-text-secondary">
+            {user.sso ? (
+              <>
+                <span className="min-w-0 break-all">Linked to {user.sso.issuer} <span className="font-mono text-os-text-muted">({user.sso.subject})</span>{!user.hasPassword ? ' - the account has no password' : ''}</span>
+                <Button className="px-2 py-0.5" disabled={sso.busy || !user.hasPassword} onClick={sso.onUnlink} title={user.hasPassword ? 'Remove the linked identity' : 'Set a password first: the account could not sign in any more'} data-testid={`user-sso-unlink-${user.username}`}>Unlink</Button>
+              </>
+            ) : (
+              <>
+                <span>{user.ssoInviteEmail ? <>Waits for <span className="font-mono">{user.ssoInviteEmail}</span>: the next single sign-on with that verified email links to this account.</> : 'Not linked. The account links it in its own Settings > General, or you approve an email for it.'}</span>
+                <Button className="px-2 py-0.5" disabled={sso.busy} onClick={sso.onApprove} data-testid={`user-sso-invite-${user.username}`}>{user.ssoInviteEmail ? 'Change the email' : 'Approve an email'}</Button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       <div>
         <p className="font-medium text-os-text-primary mb-1">Sessions</p>
         {details.sessions.length === 0 ? <p className="text-os-text-muted">Not signed in anywhere.</p> : (
@@ -154,7 +172,10 @@ export default function UsersSettings({ server = null }) {
   const [users, setUsers] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState({ username: '', displayName: '', password: '', role: 'user' });
+  const [form, setForm] = useState({ username: '', displayName: '', password: '', role: 'user', ssoEmail: '' });
+  const single = server ? null : ssoState();
+  const [inviteFor, setInviteFor] = useState(null);
+  const [inviteEmail, setInviteEmail] = useState('');
   const [resetFor, setResetFor] = useState(null);
   const [resetPassword, setResetPassword] = useState('');
   const [expanded, setExpanded] = useState(null);
@@ -191,7 +212,7 @@ export default function UsersSettings({ server = null }) {
     e.preventDefault();
     await run(async () => {
       await admin.createUser(form);
-      setForm({ username: '', displayName: '', password: '', role: 'user' });
+      setForm({ username: '', displayName: '', password: '', role: 'user', ssoEmail: '' });
     });
   }
 
@@ -203,6 +224,21 @@ export default function UsersSettings({ server = null }) {
       setResetFor(null);
       setResetPassword('');
     });
+  }
+
+  async function submitInvite(e) {
+    e.preventDefault();
+    const id = inviteFor;
+    await run(async () => {
+      await admin.ssoInvite(id, inviteEmail.trim());
+      setInviteFor(null);
+      setInviteEmail('');
+    });
+  }
+
+  async function unlinkSso(u) {
+    if (!(await confirm({ title: `Unlink ${u.username}'s single sign-on identity?`, message: 'That identity no longer signs in to this account; the account keeps its password. It can be linked again from the account\'s own settings, or with an approval here.', type: 'warning', confirmLabel: 'Unlink' }))) return;
+    await run(() => admin.ssoUnlink(u.id));
   }
 
   async function toggleRole(u) {
@@ -250,7 +286,14 @@ export default function UsersSettings({ server = null }) {
                       <td className="py-1.5 pr-2 font-mono">{u.username}{me?.id === u.id ? ' (you)' : ''}</td>
                       <td className="py-1.5 pr-2">{u.displayName}</td>
                       <td className="py-1.5 pr-2">{u.role === 'admin' ? 'administrator' : 'user'}{lastAdmin(u) ? <span className="text-os-text-muted"> (last)</span> : ''}</td>
-                      <td className="py-1.5 pr-2">{u.disabled ? <span className="text-(--chart-bad)">disabled</span> : u.mustChangePassword ? <span className="text-(--chart-warn)">must change password</span> : 'active'}</td>
+                      <td className="py-1.5 pr-2">{u.disabled ? <span className="text-(--chart-bad)">disabled</span> : u.mustChangePassword ? <span className="text-(--chart-warn)">must change password</span> : 'active'}
+                        {/* single sign-on, when it says something about the account: under the status, so the table is as wide as ever */}
+                        {single && (u.sso || u.ssoInviteEmail || !u.hasPassword) && (
+                          <span className="block text-os-text-muted" data-testid={`user-sso-state-${u.username}`}>
+                            {u.sso ? 'SSO linked' : u.ssoInviteEmail ? `SSO waits for ${u.ssoInviteEmail}` : 'SSO not linked'}{!u.hasPassword ? ', no password' : ''}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-1.5 text-right whitespace-nowrap space-x-1">
                         <Button className="px-2 py-1" disabled={busy} onClick={() => { setResetFor(u.id); setResetPassword(''); }} title="Set a new password">Password</Button>
                         <Button className="px-2 py-1" disabled={busy || lastAdmin(u) || me?.id === u.id} onClick={() => toggleRole(u)}
@@ -268,7 +311,10 @@ export default function UsersSettings({ server = null }) {
                     {expanded === u.id && (
                       <tr className="border-t border-os-divider">
                         <td></td>
-                        <td colSpan={5}><UserDetails user={u} me={me} onError={setError} /></td>
+                        <td colSpan={5}>
+                          <UserDetails user={u} me={me} onError={setError}
+                            sso={single ? { busy, onUnlink: () => unlinkSso(u), onApprove: () => { setInviteFor(u.id); setInviteEmail(u.ssoInviteEmail || ''); } } : null} />
+                        </td>
                       </tr>
                     )}
                   </Fragment>
@@ -293,16 +339,27 @@ export default function UsersSettings({ server = null }) {
         </form>
       )}
 
+      {inviteFor && (
+        <form onSubmit={submitInvite} className="flex flex-wrap items-end gap-2 p-3 rounded-sm border border-os-border bg-os-card-secondary" data-testid="sso-invite-form">
+          <Field label={`Email whose next single sign-on links to ${users?.find((u) => u.id === inviteFor)?.username}`} hint="The identity provider must report the email as verified. One use; leave empty to withdraw the approval." className="flex-1 min-w-[14rem]">
+            <TextInput type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} autoComplete="off" placeholder="name@example.com" data-testid="sso-invite-email" />
+          </Field>
+          <Button type="submit" variant="primary" disabled={busy} className="mb-5">Save</Button>
+          <Button onClick={() => setInviteFor(null)} className="mb-5">Cancel</Button>
+        </form>
+      )}
+
       <Section title="New account">
         <form onSubmit={create} className="space-y-3" data-testid="create-user-form">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <TextInput value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="username" autoComplete="off" required />
             <TextInput value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} placeholder="display name (optional)" autoComplete="off" />
-            <PasswordInput value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="password (8+ characters)" autoComplete="new-password" required />
+            <PasswordInput value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={single ? 'password (8+), or none with an SSO email' : 'password (8+ characters)'} autoComplete="new-password" required={!single || !form.ssoEmail} />
             <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
               <option value="user">user</option>
               <option value="admin">administrator</option>
             </Select>
+            {single && <TextInput type="email" value={form.ssoEmail} onChange={(e) => setForm({ ...form, ssoEmail: e.target.value })} placeholder="SSO email, instead of a password" title="No password: the account is linked at the first single sign-on with this verified email" autoComplete="off" data-testid="create-user-sso-email" />}
           </div>
           <Button type="submit" variant="primary" disabled={busy}>Create account</Button>
         </form>

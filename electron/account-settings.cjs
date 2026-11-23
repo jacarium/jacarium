@@ -47,10 +47,20 @@ function writeJson(file, data) {
 }
 
 /** Encrypt/decrypt with safeStorage; without a usable keychain nothing is cached (the secrets stay in memory only). */
+// The keychain is asked LAZILY: safeStorage.isEncryptionAvailable() opens the OS keychain item ("<app> Safe Storage"
+// on macOS), synchronously, on the main thread - and macOS may answer with a prompt ("... wants to use your
+// confidential information ...") that blocks the whole main process until someone answers it (a build whose
+// signature the item does not know yet: a new Electron, an unsigned build). So it is only asked when there is
+// something to encrypt or decrypt; a profile that keeps nothing in the keychain never touches it.
 function createCodec(safeStorage) {
-  const usable = !!(safeStorage && typeof safeStorage.isEncryptionAvailable === 'function' && safeStorage.isEncryptionAvailable());
+  let usable;   // undefined until the first time it matters
   return {
-    usable,
+    get usable() {
+      if (usable === undefined) usable = !!(safeStorage && typeof safeStorage.isEncryptionAvailable === 'function' && safeStorage.isEncryptionAvailable());
+      return usable;
+    },
+    /** Whether the keychain was asked at all (the state the renderer shows must not be the reason to ask). */
+    get asked() { return usable !== undefined; },
     encode(text) { return safeStorage.encryptString(text).toString('base64'); },
     decode(encoded) { return safeStorage.decryptString(Buffer.from(encoded, 'base64')); },
   };
@@ -198,7 +208,8 @@ function createAccountSettings({ dir, safeStorage, homeServer, localBackend, log
       lastSynced: data?.fetchedAt || null,
       offline,
       error: lastError,
-      keychain: codec.usable,
+      // only what is already known: showing the state never opens the keychain (null: not asked yet)
+      keychain: codec.asked ? codec.usable : null,
     };
   }
 

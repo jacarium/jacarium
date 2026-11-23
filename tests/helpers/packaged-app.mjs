@@ -24,6 +24,8 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
+import { launchElectron } from './bounded-electron.mjs';
+
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const req = createRequire(path.join(REPO, 'package.json'));
 const MARKER = 'PACKAGED_USER_DATA_OVERRIDE';
@@ -104,7 +106,9 @@ export async function launchPackagedApp({ executablePath, asar, args = [], env =
   fs.mkdirSync(userData, { recursive: true });
   fs.mkdirSync(profilesRoot, { recursive: true });
   const { _electron } = req('playwright-core');
-  const app = await _electron.launch({
+  // launchElectron (tests/helpers/bounded-electron.mjs): the mock keychain (never the user's own - a real one
+  // may answer with a prompt that blocks the app), every step bounded, and close() ends the app's backend too
+  const app = await launchElectron(_electron, {
     executablePath,
     args: ['--profile', 'default', ...args],
     env: { ...process.env, ...env, JACARIUM_USER_DATA_DIR: userData, JACARIUM_PROFILES_ROOT: profilesRoot },

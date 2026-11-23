@@ -1,0 +1,49 @@
+{
+  "realm": "jacarium-demo",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": false,
+  "bruteForceProtected": false,
+  "groups": [
+    { "name": "staff" },
+    { "name": "guests" },
+    { "name": "jacarium-admins" }
+  ],
+  "users": [
+    { "username": "alice", "enabled": true, "email": "alice@example.test", "emailVerified": true, "firstName": "Alice", "lastName": "Example",
+      "credentials": [{ "type": "password", "value": "synthetic-alice-pass-1", "temporary": false }], "groups": ["/staff"] },
+    { "username": "bob", "enabled": true, "email": "bob@example.test", "emailVerified": true, "firstName": "Bob", "lastName": "Example",
+      "credentials": [{ "type": "password", "value": "synthetic-bob-pass-1", "temporary": false }], "groups": ["/guests"] },
+    { "username": "rita", "enabled": true, "email": "rita@example.test", "emailVerified": true, "firstName": "Rita", "lastName": "Example",
+      "credentials": [{ "type": "password", "value": "synthetic-rita-pass-1", "temporary": false }], "groups": ["/staff", "/jacarium-admins"] },
+    { "username": "carol", "enabled": true, "email": "carol@example.test", "emailVerified": true, "firstName": "Carol", "lastName": "Example",
+      "credentials": [{ "type": "password", "value": "synthetic-carol-pass-1", "temporary": false }], "groups": ["/staff"] },
+    { "username": "adminsso", "enabled": true, "email": "adminsso@example.test", "emailVerified": true, "firstName": "Site", "lastName": "Admin",
+      "credentials": [{ "type": "password", "value": "synthetic-adminsso-pass-1", "temporary": false }], "groups": ["/staff"] },
+    { "username": "admin", "enabled": true, "email": "impostor@example.test", "emailVerified": true, "firstName": "Not", "lastName": "TheAdmin",
+      "credentials": [{ "type": "password", "value": "synthetic-impostor-pass-1", "temporary": false }], "groups": ["/staff"] }
+  ],
+  "clients": [
+    {
+      "clientId": "jacarium",
+      "name": "Jacarium (test)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "synthetic-client-secret-for-tests",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["https://localhost:18446/api/auth/sso/callback"],
+      "webOrigins": [],
+      "attributes": { "post.logout.redirect.uris": "https://localhost:18446/*", "pkce.code.challenge.method": "S256" },
+      "protocolMappers": [
+        { "name": "groups", "protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper", "consentRequired": false,
+          "config": { "claim.name": "groups", "full.path": "false", "id.token.claim": "true", "access.token.claim": "true", "userinfo.token.claim": "true" } }
+      ]
+    }
+  ]
+}

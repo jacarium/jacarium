@@ -4,9 +4,18 @@ Sign-in for the browser deployment (``JACARIUM_AUTH_MODE=accounts``).
     POST /api/auth/setup      first run only: {setupCode, username, password,
                               displayName} -> the admin account + a session
     POST /api/auth/login      {username, password} -> session cookie
+    POST /api/auth/sso/begin  {purpose: login|link|confirm, password?} ->
+                              {url}: where the browser goes (the identity
+                              provider), with the sealed state cookie set
+    GET  /api/auth/sso/callback  the provider's answer: signs in, links or
+                              confirms, then a same-site page leads back
+    POST /api/auth/sso/unlink {password}
     POST /api/auth/logout
     GET  /api/auth/me         the signed-in user (401 otherwise)
-    POST /api/auth/password   {currentPassword, newPassword}
+    POST /api/auth/password   {currentPassword, newPassword}; an account
+                              without a password (single sign-on only)
+                              sets its first one after a fresh SSO
+                              round-trip (purpose confirm) instead
     POST /api/auth/profile    {displayName}
 
     devices (the desktop app linked to this server, src/electron/home-server.cjs):
@@ -37,12 +46,15 @@ per IP per 15 minutes. 429 with Retry-After.
 On the first admin's creation, the data the container collected before
 accounts existed is adopted (``legacy_migration.migrate_container_data``).
 """
+import html
 import time
 
 from flask import Blueprint, g, jsonify, make_response, request
 
 import accounts
+import oidc
 from accounts import AccountsError, RateLimiter
+from oidc import OidcError
 from user_context import accounts_mode, current_user, is_admin, user_home_for
 
 auth_api = Blueprint('auth_api', __name__)
@@ -54,6 +66,10 @@ CSRF_VALUE = 'Jacarium'
 login_ip_limiter = RateLimiter(20, 15 * 60)
 login_user_limiter = RateLimiter(8, 15 * 60)
 setup_limiter = RateLimiter(10, 15 * 60)
+# single sign-on round-trips per address: a household or an office behind one address signs in together in the
+# morning, so the window is wider than the password one (nothing is guessed here; it bounds work, not attempts)
+sso_limiter = RateLimiter(60, 15 * 60)
+sso_callback_limiter = RateLimiter(60, 15 * 60)
 
 
 def client_ip():
@@ -265,6 +281,11 @@ def login():
         print(f'[Accounts] sign-in refused for {key!r} from {ip}')
         accounts.audit('sign-in-failed', user=key, ip=ip)
         return jsonify({'error': 'Wrong username or password'}), 401
+    if not oidc.password_login_allowed() and user['role'] != 'admin':
+        # JACARIUM_OIDC_DISABLE_PASSWORD_LOGIN: the right password of a non-administrator is still refused (after
+        # the check, so the answer tells nothing about which usernames exist); administrators keep the way in
+        accounts.audit('sign-in-refused-sso-only', user=user['username'], ip=ip)
+        return jsonify({'error': 'This server signs in with single sign-on. Passwords are for administrators only.', 'code': 'PASSWORD_LOGIN_DISABLED'}), 403
     login_user_limiter.clear(key)
     raw = accounts.create_session(user['id'], request.headers.get('User-Agent', ''))
     g.user = user
@@ -275,10 +296,211 @@ def login():
 
 @auth_api.route('/api/auth/logout', methods=['POST'])
 def logout():
-    accounts.delete_session(session_cookie_value())
-    response = make_response(jsonify({'ok': True}))
+    raw = session_cookie_value()
+    # a session that came from the provider may end there too (JACARIUM_OIDC_END_SESSION): the page goes on to it
+    onward = oidc.end_session_url() if accounts.session_sso_age(raw) is not None else None
+    accounts.delete_session(raw)
+    response = make_response(jsonify({'ok': True, **({'ssoLogoutUrl': onward} if onward else {})}))
     clear_session_cookie(response)
     return response
+
+
+# ---------------------------------------------------------------------------
+# single sign-on (OpenID Connect; backend/oidc.py)
+# ---------------------------------------------------------------------------
+# Every round-trip starts with a POST from this app (the X-Requested-With guard applies: no other site can start
+# one in the user's browser) and comes back as a top-level navigation from the provider, which carries the sealed
+# state cookie (SameSite=Lax) but not the session cookie (SameSite=Strict). So the callback never trusts a session:
+# what a link / confirm applies to is named inside the sealed cookie, by the hash of the session that asked.
+def set_sso_cookie(response, sealed):
+    response.set_cookie(oidc.STATE_COOKIE, sealed, max_age=oidc.FLOW_SECONDS, secure=True, httponly=True, samesite='Lax', path='/')
+
+
+def clear_sso_cookie(response):
+    response.set_cookie(oidc.STATE_COOKIE, '', max_age=0, expires=0, secure=True, httponly=True, samesite='Lax', path='/')
+
+
+def _sso_landing(query, raw_session=None):
+    """
+    The callback's answer: a page of this origin that leads back into the app. Not a redirect - the browser got
+    here through the provider (a cross-site navigation), and a SameSite=Strict session cookie set on a redirect in
+    that chain is not sent to where it points; a navigation this page starts itself is same-site, and it is.
+    """
+    try:
+        base = oidc.config()['public_url']
+    except OidcError:
+        base = ''
+    target = html.escape(f'{base}/?{query}', quote=True)
+    page = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex">'
+            f'<meta http-equiv="refresh" content="0;url={target}"><title>Jacarium</title></head>'
+            f'<body><p><a href="{target}">Continue to Jacarium</a></p></body></html>')
+    response = make_response(page, 200)
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['Content-Security-Policy'] = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    response.headers['Referrer-Policy'] = 'no-referrer'
+    clear_sso_cookie(response)
+    if raw_session:
+        set_session_cookie(response, raw_session)
+    return response
+
+
+def _sso_refused(code, detail, **fields):
+    """Log and audit the reason; the page only ever gets the short code (its own text, never the provider's)."""
+    print(f'[Accounts] single sign-on refused from {client_ip()}: {code} ({detail})')
+    accounts.audit('sso-refused', reason=code, ip=client_ip(), **fields)
+    return _sso_landing(f'sso_error={code}')
+
+
+@auth_api.route('/api/auth/sso/begin', methods=['POST'])
+def sso_begin():
+    if not accounts_mode() or not oidc.enabled():
+        return jsonify({'error': 'Single sign-on is not configured on this server'}), 404
+    allowed, retry = sso_limiter.hit(client_ip())
+    if not allowed:
+        return _too_many(retry)
+    body = _json_body()
+    purpose = body.get('purpose') or 'login'
+    user_id = session = None
+    if purpose == 'login':
+        if accounts.setup_required():
+            return jsonify({'error': 'No account exists yet: create the first one with the setup code', 'setupRequired': True}), 409
+    elif purpose in ('link', 'confirm'):
+        user = current_user()
+        session = session_cookie_value()
+        if not user or bearer_token() or not accounts.validate_session(session):
+            return jsonify({'error': 'Sign in in the browser first'}), 401
+        if purpose == 'link':
+            if user.get('sso'):
+                return jsonify({'error': 'This account is already linked to an identity: unlink it first'}), 409
+            if user.get('hasPassword'):
+                # whoever holds the session must also know the password before another way in is attached
+                allowed, retry = login_user_limiter.hit(user['username'])
+                if not allowed:
+                    return _too_many(retry)
+                if not accounts.check_login(user['username'], body.get('password')):
+                    accounts.audit('sso-link-refused', user=user['username'], reason='password', ip=client_ip())
+                    return jsonify({'error': 'Wrong password'}), 403
+                login_user_limiter.clear(user['username'])
+        elif not user.get('sso'):
+            return jsonify({'error': 'This account is not linked to an identity'}), 409
+        user_id = user['id']
+    else:
+        return jsonify({'error': 'purpose must be login, link or confirm'}), 400
+    try:
+        url, sealed = oidc.begin(purpose, user_id=user_id, session=session)
+    except OidcError as exc:
+        print(f'[Accounts] single sign-on could not start ({purpose}) from {client_ip()}: {exc.detail}')
+        accounts.audit('sso-refused', reason=exc.code, ip=client_ip())
+        return jsonify({'error': 'Single sign-on is not available right now. An administrator finds the reason in the server log.', 'code': exc.code}), 502
+    response = make_response(jsonify({'ok': True, 'url': url}))
+    response.headers['Cache-Control'] = 'no-store'
+    set_sso_cookie(response, sealed)
+    return response
+
+
+def _sso_sign_in(claims, cfg):
+    """An SSO sign-in resolved to an account: (user, what happened) or an OidcError naming why not."""
+    issuer, subject = cfg['issuer'], claims['sub']
+    verdict = oidc.access(claims, cfg)
+    if not verdict['allowed']:
+        raise OidcError(verdict['reason'], f'identity {subject!r} is not on the allow-list')
+    user, event = accounts.get_user_by_identity(issuer, subject), 'sso-sign-in'
+    if user is None:
+        email = oidc.verified_email(claims)
+        invited = accounts.get_user_by_sso_invite(email) if email else None
+        if invited is not None:
+            # an administrator approved exactly this verified email for exactly this account, once
+            user, event = accounts.link_identity(invited['id'], issuer, subject), 'sso-linked-by-invite'
+        elif cfg['auto_create']:
+            username = oidc.new_username(claims, cfg)
+            if accounts.get_user_by_username(username):
+                # never attach to an account because a name matches: its owner links it from Settings
+                raise OidcError('link_required', f'the username {username!r} exists; the identity is not linked to it')
+            user = accounts.create_sso_user(username, oidc.display_name(claims, username), role='admin' if verdict['admin'] else 'user', issuer=issuer, subject=subject)
+            user_home_for(user['id'])
+            event = 'sso-user-created'
+        else:
+            raise OidcError('no_account', f'no account is linked to identity {subject!r} and accounts are not created at sign-in')
+    if user['disabled']:
+        raise OidcError('disabled', f'{user["username"]} is disabled')
+    if verdict['admin'] and user['role'] != 'admin':
+        user = accounts.set_user_role(user['id'], 'admin')
+        accounts.audit('sso-role-granted', user=user['username'], role='admin', ip=client_ip())
+    return user, event
+
+
+@auth_api.route('/api/auth/sso/callback', methods=['GET'])
+def sso_callback():
+    if not accounts_mode() or not oidc.enabled():
+        return jsonify({'error': 'Single sign-on is not configured on this server'}), 404
+    allowed, retry = sso_callback_limiter.hit(client_ip())
+    if not allowed:
+        return _too_many(retry)
+    if request.args.get('error'):
+        # the provider's own words stay in the log; the page gets one of two codes
+        refused = request.args.get('error') in ('access_denied', 'login_required', 'interaction_required', 'consent_required')
+        return _sso_refused('denied' if refused else 'provider', f"the provider answered {str(request.args.get('error'))[:60]!r}")
+    try:
+        cfg = oidc.config()
+        claims, flow = oidc.finish(request.args.get('code'), request.args.get('state'), request.cookies.get(oidc.STATE_COOKIE))
+        purpose = flow['p']
+        if purpose == 'login':
+            user, event = _sso_sign_in(claims, cfg)
+            raw = accounts.create_session(user['id'], request.headers.get('User-Agent', ''), sso=True)
+            g.user = user
+            print(f'[Accounts] {user["username"]} signed in with single sign-on from {client_ip()} ({event})')
+            accounts.audit(event, user=user['username'], ip=client_ip(), **({'role': user['role']} if event == 'sso-user-created' else {}))
+            return _sso_landing('sso=signed-in', raw)
+        # link / confirm: for the account and the very session that asked (named in the sealed cookie)
+        user = accounts.get_user(flow.get('u')) if flow.get('u') else None
+        live = {row['id'] for row in accounts.list_sessions(user['id'])} if user else set()
+        if user is None or user['disabled'] or not flow.get('h') or flow['h'] not in live:
+            raise OidcError('wrong_session', 'the session that asked is gone')
+        verdict = oidc.access(claims, cfg)
+        if not verdict['allowed']:
+            raise OidcError(verdict['reason'], 'the identity is not on the allow-list')
+        if purpose == 'link':
+            try:
+                accounts.link_identity(user['id'], cfg['issuer'], claims['sub'])
+            except AccountsError as exc:
+                raise OidcError('identity_in_use', str(exc)) from exc
+            accounts.mark_session_hash_sso(flow['h'])
+            accounts.audit('sso-linked', user=user['username'], ip=client_ip())
+            print(f'[Accounts] {user["username"]} linked a single sign-on identity from {client_ip()}')
+            return _sso_landing('sso=linked')
+        if not user.get('sso') or (user['sso']['issuer'], user['sso']['subject']) != (cfg['issuer'], claims['sub']):
+            raise OidcError('mismatch', 'another identity than the linked one confirmed')
+        accounts.mark_session_hash_sso(flow['h'])
+        accounts.audit('sso-confirmed', user=user['username'], ip=client_ip())
+        return _sso_landing('sso=confirmed')
+    except OidcError as exc:
+        return _sso_refused(exc.code, exc.detail)
+    except AccountsError as exc:
+        return _sso_refused('refused', str(exc))
+    except Exception as exc:   # never a stack trace on the way back from the provider
+        return _sso_refused('provider', f'unexpected {type(exc).__name__}: {exc}')
+
+
+@auth_api.route('/api/auth/sso/unlink', methods=['POST'])
+def sso_unlink():
+    user = current_user()
+    if not user or bearer_token():
+        return jsonify({'error': 'Sign in in the browser first'}), 401
+    allowed, retry = login_user_limiter.hit(user['username'])
+    if not allowed:
+        return _too_many(retry)
+    if not user.get('hasPassword'):
+        return jsonify({'error': 'This account has no password: set one first, or it could not sign in any more'}), 409
+    if not accounts.check_login(user['username'], _json_body().get('password')):
+        return jsonify({'error': 'Wrong password'}), 403
+    login_user_limiter.clear(user['username'])
+    try:
+        g.user = accounts.unlink_identity(user['id'])
+    except AccountsError as exc:
+        return jsonify({'error': str(exc)}), 409
+    accounts.audit('sso-unlinked', user=user['username'], ip=client_ip())
+    return jsonify({'ok': True, 'user': g.user})
 
 
 @auth_api.route('/api/auth/me', methods=['GET'])
@@ -296,13 +518,21 @@ def change_password():
         return jsonify({'error': 'Sign in first'}), 401
     body = _json_body()
     current = body.get('currentPassword') if isinstance(body.get('currentPassword'), str) else ''
-    if not accounts.check_login(user['username'], current):
+    first = not user.get('hasPassword')
+    if first:
+        # an account that signs in with SSO only has no current password to ask for: the session must have come
+        # back from the provider within the last minutes (POST /api/auth/sso/begin {purpose: confirm}), so a
+        # session someone else got hold of cannot quietly give the account a password of theirs
+        age = None if bearer_token() else accounts.session_sso_age(session_cookie_value())
+        if age is None or age > oidc.FRESH_SECONDS:
+            return jsonify({'error': 'Confirm with single sign-on first, then set the password', 'code': 'SSO_CONFIRM_REQUIRED'}), 403
+    elif not accounts.check_login(user['username'], current):
         return jsonify({'error': 'The current password is wrong'}), 403
     try:
         accounts.set_user_password(user['id'], body.get('newPassword'), keep_sessions=session_cookie_value())
     except AccountsError as exc:
         return jsonify({'error': str(exc)}), 400
-    accounts.audit('password-changed-after-recovery' if user.get('mustChangePassword') else 'password-changed', user=user['username'], ip=client_ip())
+    accounts.audit('password-set' if first else 'password-changed-after-recovery' if user.get('mustChangePassword') else 'password-changed', user=user['username'], ip=client_ip())
     g.user = accounts.get_user(user['id'])
     return jsonify({'ok': True, 'user': g.user})
 
@@ -412,7 +642,13 @@ def admin_create_user():
     body = _json_body()
     role = body.get('role') or 'user'
     try:
-        user = accounts.create_user(body.get('username'), body.get('password'), body.get('displayName'), role=role)
+        if body.get('ssoEmail') and not body.get('password'):
+            # no password: the person signs in with single sign-on, and this verified email links them once
+            if not oidc.enabled():
+                return jsonify({'error': 'Single sign-on is not configured on this server'}), 400
+            user = accounts.create_sso_user(body.get('username'), body.get('displayName'), role=role, invite_email=body.get('ssoEmail'))
+        else:
+            user = accounts.create_user(body.get('username'), body.get('password'), body.get('displayName'), role=role)
     except AccountsError as exc:
         status = 409 if 'taken' in str(exc) else 400
         return jsonify({'error': str(exc)}), status
@@ -427,6 +663,31 @@ def _admin_target(user_id):
     if not target:
         return None, (jsonify({'error': 'No such user'}), 404)
     return target, None
+
+
+@auth_api.route('/api/admin/users/<user_id>/sso', methods=['POST'])
+def admin_user_sso(user_id):
+    """{action: 'unlink'} or {action: 'invite', email} ('' withdraws the invite)."""
+    refusal = require_admin_action()
+    if refusal:
+        return refusal
+    target, missing = _admin_target(user_id)
+    if missing:
+        return missing
+    body = _json_body()
+    by = current_user()['username']
+    try:
+        if body.get('action') == 'unlink':
+            user = accounts.unlink_identity(user_id)
+            accounts.audit('sso-unlinked', user=target['username'], by=by)
+        elif body.get('action') == 'invite':
+            user = accounts.set_sso_invite(user_id, body.get('email') or None)
+            accounts.audit('sso-invited' if user.get('ssoInviteEmail') else 'sso-invite-withdrawn', user=target['username'], by=by)
+        else:
+            return jsonify({'error': 'action must be unlink or invite'}), 400
+    except AccountsError as exc:
+        return jsonify({'error': str(exc)}), 409
+    return jsonify({'ok': True, 'user': user})
 
 
 @auth_api.route('/api/admin/users/<user_id>/disable', methods=['POST'])

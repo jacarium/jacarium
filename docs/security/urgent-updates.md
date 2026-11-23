@@ -934,3 +934,121 @@ from GitHub's advisories, while Clair also reads the Go database through OSV. Th
 alias) is outside the image gate; the lock-file job's OSV-Scanner reads the same data but has no go.mod to scan,
 since Caddy's module set only exists inside the build. A follow-up worth doing: export the built go.mod / go.sum
 (or `caddy build-info`) from the Caddy stage and run OSV-Scanner or govulncheck on it in the Scan workflow.
+
+## 2026-11-22 - electron@45.3.3
+
+Reason: CVE-2026-123864, CVE-2026-123872, CVE-2026-126051, CVE-2026-123877, CVE-2026-123871 (Node.js 24.22.3 security release inside Electron 45.3.3)
+
+- electron@45.3.3: installed 45.2.3 -> 45.3.3, 6.2 days old, publisher electron-nightly, signatures 2, provenance none, files 3 changed / 0 added / 275 removed
+
+Checks after the install: .npmrc still min-release-age=7; lockfile: 2 entries changed, all the named packages' own, integrity = registry; npm audit: 0 vulnerabilities; npm audit signatures: ok; test-only packages reinstalled (playwright-core@1.65.1), lockfile untouched
+
+
+## 2026-11-22 - krb5-libs, rpm and curl through the security lane; Node.js 26.13.1; Electron 45.3.3; go-jose v3 stays (VEX); the Dependabot round
+
+**The base image stays; the lane pins three errata.** ubi9-minimal 9.9-1795198179 (created 2026-11-20 19:10
+UTC) carries krb5-libs 1.21.1-10.el9_9.2 and rpm 4.16.1.3-43.el9_9, but it is 1.8 days old: SECURITY.md wants
+base images "at least a week old", and the security lane is per package (an RPM with an RHSA), not per image -
+the 9.9 base of 2026-11-13 needed the maintainer's explicit exception for exactly that reason. No exception was
+asked for or taken. The same fixes are available inside policy as packages, so they go into
+`SECURITY_LANE_EVRS` on the 9.9-1794467051 base, each verified with scripts/verify-rpm-update.sh now that the
+UBI repositories serve them:
+
+- krb5-libs 1.21.1-10.el9_9.2 (RHSA-2026:99715, 9.5 days old, 19 CVEs);
+- rpm / rpm-libs 4.16.1.3-43.el9_9 (RHSA-2026:99593, 9.8 days old, 2 CVEs);
+- curl-minimal / libcurl-minimal 7.76.1-44.el9_9.1 (RHSA-2026:100686, released 2026-11-20 08:57 UTC, 2.1 days
+  old - past the lane's floor; Important, 14 CVEs of which Grype rates four High: CVE-2026-8286, 8458, 8927,
+  9547). Today's database reports it, and without it the image gate fails.
+
+The base bump is the cleaner state (it empties the list again): due once 9.9-1795198179 is a week old,
+2026-11-27, after checking which of these builds it carries.
+
+    == RHSA-2026:99715: Red Hat Security Advisory: krb5 security, bug fix, and enhancement update
+       released 2026-11-12T22:53:27+00:00 severity Important cves CVE-2026-107364,CVE-2026-107708,CVE-2026-107778,CVE-2026-107884,CVE-2026-111423,CVE-2026-112314,CVE-2026-112315,CVE-2026-112316,CVE-2026-112317,CVE-2026-112318,CVE-2026
+       age 9.5 days
+       fixed: krb5-libs-1.21.1-10.el9_9.2: aarch64, i686, ppc64le, s390x, x86_64
+    == registry.access.redhat.com/ubi9-minimal:9.9-1794467051@sha256:baafce2d34783a28b4a472779f304e97e00f9d35c99553bc53b068b14344d9a9: microdnf upgrade krb5-libs
+       krb5-libs-1.21.1-10.el9_9.2.aarch64: signature RSA/SHA256, Wed Nov 11 08:47:52 2026, Key ID 199e2f91fd431d51
+       vendor Red Hat, Inc., built Mon Nov  9 18:37:26 2026, source krb5-1.21.1-10.el9_9.2.src.rpm
+    no red flag
+
+    == RHSA-2026:99593: Red Hat Security Advisory: rpm security update
+       released 2026-11-12T14:37:45+00:00 severity Moderate cves CVE-2026-78367,CVE-2026-84837
+       age 9.8 days
+       fixed: rpm-4.16.1.3-43.el9_9: aarch64, ppc64le, s390x, src, x86_64
+       fixed: rpm-libs-4.16.1.3-43.el9_9: aarch64, i686, ppc64le, s390x, x86_64
+    == registry.access.redhat.com/ubi9-minimal:9.9-1794467051@sha256:baafce2d34783a28b4a472779f304e97e00f9d35c99553bc53b068b14344d9a9: microdnf upgrade rpm rpm-libs
+       rpm-4.16.1.3-43.el9_9.aarch64: signature RSA/SHA256, Tue Nov 10 08:57:43 2026, Key ID 199e2f91fd431d51
+       vendor Red Hat, Inc., built Mon Nov  9 15:30:15 2026, source rpm-4.16.1.3-43.el9_9.src.rpm
+       rpm-libs-4.16.1.3-43.el9_9.aarch64: signature RSA/SHA256, Tue Nov 10 08:48:37 2026, Key ID 199e2f91fd431d51
+       vendor Red Hat, Inc., built Mon Nov  9 15:30:15 2026, source rpm-4.16.1.3-43.el9_9.src.rpm
+    no red flag
+
+    == RHSA-2026:100686: Red Hat Security Advisory: curl security update
+       released 2026-11-20T08:57:03+00:00 severity Important cves CVE-2026-11856,CVE-2026-1965,CVE-2026-3783,CVE-2026-3784,CVE-2026-5545,CVE-2026-6253,CVE-2026-6429,CVE-2026-7168,CVE-2026-8286,CVE-2026-8458,CVE-2026-8924,CVE-2026-8927
+       age 2.1 days
+       fixed: curl-minimal-7.76.1-44.el9_9.1: aarch64, ppc64le, s390x, x86_64
+       fixed: libcurl-minimal-7.76.1-44.el9_9.1: aarch64, i686, ppc64le, s390x, x86_64
+    == registry.access.redhat.com/ubi9-minimal:9.9-1794467051@sha256:baafce2d34783a28b4a472779f304e97e00f9d35c99553bc53b068b14344d9a9: microdnf upgrade curl-minimal libcurl-minimal
+       curl-minimal-7.76.1-44.el9_9.1.x86_64: signature RSA/SHA256, Thu Nov  5 15:02:36 2026, Key ID 199e2f91fd431d51
+       vendor Red Hat, Inc., built Tue Nov  3 22:28:13 2026, source curl-7.76.1-44.el9_9.1.src.rpm
+       libcurl-minimal-7.76.1-44.el9_9.1.x86_64: signature RSA/SHA256, Thu Nov  5 15:06:00 2026, Key ID 199e2f91fd431d51
+       vendor Red Hat, Inc., built Tue Nov  3 22:28:13 2026, source curl-7.76.1-44.el9_9.1.src.rpm
+    no red flag
+
+VEX: the 21 krb5 / rpm statements are not_affected before 4.4.5 and fixed from 4.4.5.
+
+**Node.js 26.13.0 -> 26.13.1** (the security release of 2026-11-10; 12 days old, the official image
+`node:26.13.1-bookworm-slim` pushed 2026-11-11 and pinned by its manifest-list digest
+`sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c0161664a011f7ff6b0f1`, amd64 `sha256:18a166e2…`, arm64
+`sha256:8261241c…`; no exception needed; this replaces Dependabot's digest-only bump of 26.13.0). It fixes 17
+CVEs: http2 (CVE-2026-123863, 123865, 123866, 123874 High; 123828, 123868, 123875 Medium), tls / http
+(CVE-2026-123864, 123872, 126051 High; 123867 Medium), http and the https Agent (CVE-2026-123871, 123877
+Medium), the permission model (123829) and zlib (123862), with undici 8.12.4, llhttp 9.4.4 and SQLite 3.54.1.
+Where Node runs here: **the runtime image does ship Node** - the UI stage's `/usr/local/bin/node` is copied
+into it for the central server (jacarium-central), which listens on loopback behind Caddy; it is an HTTP/1 and
+WebSocket server without TLS or HTTP/2 of its own, so the server-side http2 / tls fixes are not on its path, and
+it is a client of nothing but the backend. The UI build, the scripts and the tests run Node as a build tool
+(.nvmrc: CI's setup-node and local). The bookworm-slim stage's Debian packages never reach the image: only the
+node binary and the built files are copied out of it. Electron's own Node is the Electron item below.
+
+**Electron 45.2.3 -> 45.3.3** through `npm run deps:urgent` (its entry is the one above): 45.3.3 takes Node.js 24.22.3,
+the same security release for the 24 line (the CVEs above), which the desktop's main process runs - its https
+client talks to the home server and the update check. 6.2 days old, publisher and signatures unchanged, no red
+flag. 45.3.2 (Chromium 156.0.8078.100 and upstream backports, no named CVE) is included; 45.3.4 (a leak fix)
+and 45.4.1 (unnamed upstream backports, 3.3 days old) name no advisory and wait for the seven days. The
+spell-check dictionaries follow (`--repin --min-age-days 2`; the asset is 7.6 days old, every file unchanged).
+
+**go-jose v3 v3.0.5 in Caddy's build stays; VEX instead.** GHSA-4w3g-jfj2-cw2q, GHSA-mgcc-cww5-fp2q (High) and
+GHSA-vvm8-gf78-28g4 have no fixed v3 release. `go mod why -m` and `go list -deps` in the Caddy stage: v3 is
+linked only through go.step.sm/crypto/jose, for github.com/smallstep/certificates (Caddy's caddypki: the
+internal CA and the acme_server handler). go.step.sm/crypto v0.92.0 (2026-11-05) moved to go-jose v4, but
+smallstep/certificates v0.30.2 - its newest release - does not compile against it (tried: three errors in
+authority/provisioner), so v3 cannot be dropped yet. deploy/Caddyfile uses files for its certificate with
+auto_https off, has no `tls internal`, `pki` or `acme_server`, and the admin API is off: the authority is never
+provisioned, nothing parses JOSE through v3. Three not_affected statements (vulnerable_code_not_in_execute_path)
+from 4.4.4, the first release whose module set was inspected; scripts/vex.py now accepts two statements for one
+vulnerability and product when they name different subcomponents (go-jose v4 fixed, v3 not reached). OSV over
+the build's 160 modules reports nothing else.
+
+**The Dependabot round (public pull requests, ported here).** Taken, all past the seven days:
+- the npm group (#45): marked 18.2.0, mermaid 12.3.0, turndown 7.2.5, tailwindcss and @tailwindcss/vite 4.3.5,
+  chart.js 4.6.1, electron-builder 26.18.0, eslint 10.15.0, pdfjs-dist 6.5.438, playwright-core 1.65.1, vite
+  8.3.8 - installed under min-release-age=7, where the ranges resolved four of them one patch past the pull
+  request's (marked, eslint, playwright-core, vite); `npm audit` and `npm audit signatures` clean;
+- github/codeql-action 4.39.0 -> 4.39.3 (#42-44; released 2026-11-04, the tag's commit
+  `33d7b85da1a04171e211befe2c739303b9a4c066` checked with `git ls-remote`) and actions/setup-python 7.0.0 ->
+  7.1.0 (#31; 2026-10-22, `6d4fd22b20465ccc0f7354476588e8df7c9ca0e0`), pinned by SHA;
+- boto3 1.43.118 with botocore 1.43.127 (#27), flask-socketio 5.7.0 (#25), lancedb 0.40.0 (#26), re-locked
+  with backend/lock-requirements.sh. scripts/verify-pypi-release.py: flask-socketio no red flag; boto3 and
+  botocore flag only their own version ranges (boto3's botocore floor, botocore's optional awscrt extra);
+  lancedb publishes wheels only, which the verifier cannot diff (no sdist) - it is 46 days old, same author
+  metadata. lancedb 0.34 -> 0.40: an index written by 0.34.0 opens, searches, takes rows and deletes under
+  0.40.0 (tried with a throwaway 0.34 environment), and the RAG tests pass on it.
+Not taken: #41, the digest-only bump of node:26.13.0 (superseded by 26.13.1).
+
+**Python 3.14.11** is not released (python.org answers 404 for it on 2026-11-22), so PYTHON_VERSION stays
+3.14.10. CVE-2026-119170 (3.14.10 only: hashlib's FIPS enforcement, "only users that are using OpenSSL in FIPS
+mode") gets a not_affected statement for the desktop product with the component Syft reports for the Linux
+installers, `pkg:generic/python@3.14.10`; .github/scripts/apply-vex.py matches a statement by id and package
+whatever the product, so the weekly SBOM rescan drops the finding.

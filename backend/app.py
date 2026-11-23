@@ -117,6 +117,9 @@ if extensions.ACCOUNTS:
     # (and to <HOME>/setup-code); gone once the admin exists.
     import accounts as _accounts
     _accounts.ensure_setup_code(log=print)
+    # Single sign-on: say at the start what it will do, and when its settings do not add up
+    import oidc as _oidc
+    print(_oidc.startup_summary())
 
 _log_timing("TOTAL startup", _startup_begin)
 

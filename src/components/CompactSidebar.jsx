@@ -19,6 +19,7 @@ import { useTheme, GRADIENT_THEMES, isTokenScheme } from '../contexts/ThemeConte
 import { useContextMenu } from '../hooks/useContextMenu';
 import { useExportFlow } from '../hooks/useExportFlow';
 import { useZenMode } from './common/ReadingAidsSurface';
+import { takeSsoSettingsCue } from '../utils/auth';
 import { usePopupPosition } from '../hooks/usePopupPosition.js';
 import { RAIL_PAGES } from './railPages';
 
@@ -640,7 +641,9 @@ export default function CompactSidebar({ currentPage, onPageChange }) {
   useEffect(() => {
     const open = (event) => { setAppSettingsTab(event?.detail?.tab || 'general'); setAppSettingsSection(event?.detail?.section || null); setShowAppSettingsModal(true); };
     window.addEventListener('openAppSettings', open);
-    return () => window.removeEventListener('openAppSettings', open);
+    // back from a single sign-on round-trip that Settings > General started (link, confirm): open it again there
+    const back = takeSsoSettingsCue() ? setTimeout(() => open({ detail: { tab: 'general' } }), 0) : null;
+    return () => { if (back) clearTimeout(back); window.removeEventListener('openAppSettings', open); };
   }, []);
 
   // Define all utility items

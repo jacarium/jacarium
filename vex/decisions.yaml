@@ -643,12 +643,13 @@ decisions:
   # service makes (CAMMAC indicators, forwarded credentials, the PAC checksum). Checked against Red Hat's text for each CVE and the 4.4.3 image (both
   # architectures): the image has krb5-libs only - linked by libcurl-minimal, cyrus-sasl-lib and openssh-clients -
   # no kadmind, krb5kdc, kadmin or kinit, no libkadm5 or libkdb5; libgssrpc.so.4 is on disk with nothing linking it.
-  # The upgrade waits for the UBI repositories: on 2026-11-16 they still serve 1.21.1-10.el9_8.1 (the erratum's
-  # build answers 404 on cdn-ubi.redhat.com; docs/security/urgent-updates.md), so there is no version bound here -
-  # the statements hold for every release that ships this build, and the fixed ones follow with the pin.
+  # The UBI repositories served the fixed build from about 2026-11-20; Jacarium 4.5.0 pins it through the security
+  # lane (SECURITY_LANE_EVRS in deploy/Containerfile; docs/security/urgent-updates.md, 2026-11-22), so these cover
+  # the releases before it and the fixed statements follow below.
   - id: CVE-2026-112314
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       The flaw is in the GSS-RPC library (libgssrpc.so.4), which krb5-libs ships but no installed package links (rpm -q --whatrequires 'libgssrpc.so.4()(64bit)': krb5-libs itself only) and nothing in Jacarium loads; its client side (clnttcp_call) is used by the kadmin tools, which are not installed. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5).
@@ -657,6 +658,7 @@ decisions:
   - id: CVE-2026-112315
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       The flaw is in the GSS-RPC library (libgssrpc.so.4), which krb5-libs ships but no installed package links (rpm -q --whatrequires 'libgssrpc.so.4()(64bit)': krb5-libs itself only) and nothing in Jacarium loads; the RPCSEC_GSS decode path runs in an RPC server (kadmind), which is not installed. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5).
@@ -665,6 +667,7 @@ decisions:
   - id: CVE-2026-112316
     status: not_affected
     justification: vulnerable_code_not_present
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       xdr_krb5_tl_data() is in lib/kadm5 (libkadm5), reached through kadmind; neither the library nor the daemon is in the image. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5).
@@ -673,6 +676,7 @@ decisions:
   - id: CVE-2026-112317
     status: not_affected
     justification: vulnerable_code_not_present
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       krb5_ktkdb_get_entry() is in lib/kdb (libkdb5), used by the KDC and kadmind; neither the library nor the daemons are in the image. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5).
@@ -681,6 +685,7 @@ decisions:
   - id: CVE-2026-112318
     status: not_affected
     justification: vulnerable_code_not_present
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       The policy RPC stubs are in the kadmind binary (kadmin/server), which is not in the image. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5).
@@ -689,6 +694,7 @@ decisions:
   - id: CVE-2026-112319
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       The flaw is in the GSS-RPC library (libgssrpc.so.4), which krb5-libs ships but no installed package links (rpm -q --whatrequires 'libgssrpc.so.4()(64bit)': krb5-libs itself only) and nothing in Jacarium loads; the unbounded XDR decoding is reached by requests to an RPC server (kadmind), which is not installed. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5).
@@ -697,6 +703,7 @@ decisions:
   - id: CVE-2026-112320
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       The flaw is in the GSS-RPC library (libgssrpc.so.4), which krb5-libs ships but no installed package links (rpm -q --whatrequires 'libgssrpc.so.4()(64bit)': krb5-libs itself only) and nothing in Jacarium loads; the auth-flavor switch leaks in an RPC server's transport (kadmind), which is not installed. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5).
@@ -705,6 +712,7 @@ decisions:
   - id: CVE-2026-112321
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       The flaw is in the GSS-RPC library (libgssrpc.so.4), which krb5-libs ships but no installed package links (rpm -q --whatrequires 'libgssrpc.so.4()(64bit)': krb5-libs itself only) and nothing in Jacarium loads; the AUTH_GSSAPI_INIT handler (svc_auth_gssapi.c) runs in an RPC server (kadmind), which is not installed. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5).
@@ -713,6 +721,7 @@ decisions:
   - id: CVE-2026-112322
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       The flaw is in the GSS-RPC library (libgssrpc.so.4), which krb5-libs ships but no installed package links (rpm -q --whatrequires 'libgssrpc.so.4()(64bit)': krb5-libs itself only) and nothing in Jacarium loads; clean_client() (svc_auth_gssapi.c) runs in an RPC server (kadmind), which is not installed. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5).
@@ -721,6 +730,7 @@ decisions:
   - id: CVE-2026-112323
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       The flaw is in the GSS-RPC library (libgssrpc.so.4), which krb5-libs ships but no installed package links (rpm -q --whatrequires 'libgssrpc.so.4()(64bit)': krb5-libs itself only) and nothing in Jacarium loads; the AUTH_GSSAPI client state accumulates in an RPC server (kadmind), which is not installed. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5).
@@ -729,6 +739,7 @@ decisions:
   - id: CVE-2026-119079
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       decode_sequence_of() is libkrb5's ASN.1 decoder; the denial of service is a KDC decoding a hostile AS-REQ / TGS-REQ, and no KDC is in the image. On the client side nothing here decodes Kerberos messages either: Jacarium does no Kerberos or GSSAPI authentication (the backend's HTTP is Python's, never libcurl; no --negotiate, no SASL GSSAPI), there is no credential cache, keytab or kinit, and the ssh client - whose Red Hat default offers GSSAPIAuthentication - stops at acquiring credentials, before any exchange with a KDC. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5).
@@ -737,6 +748,7 @@ decisions:
   - id: CVE-2026-107708
     status: not_affected
     justification: vulnerable_code_not_present
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       get_pac_princ_with_realm() is in the KDC (krb5kdc) and is reached by an S4U2Proxy request from a cross-realm KDC; no KDC is in the image. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5).
@@ -745,6 +757,7 @@ decisions:
   - id: CVE-2026-107364
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       The read overrun is in the ASN.1 decoder as a KDC runs it on an unauthenticated request; no KDC is in the image, and nothing here decodes Kerberos messages on the client side either. Jacarium does no Kerberos or GSSAPI authentication and accepts none: there is no credential cache, keytab or kinit, no sshd or other GSS-API acceptor, and the ssh client's GSSAPIAuthentication default stops at acquiring credentials. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation, krb5-pkinit or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5, no keytab).
@@ -753,6 +766,7 @@ decisions:
   - id: CVE-2026-118380
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       The flaw is in RPCSEC_GSS message protection in the GSS-RPC library (libgssrpc.so.4), used between kadmin and kadmind; krb5-libs ships the library but no installed package links it, and neither tool is installed. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation, krb5-pkinit or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5, no keytab).
@@ -761,6 +775,7 @@ decisions:
   - id: CVE-2026-71199
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       The CAMMAC authentication-indicator check runs where a KDC or a kerberised service evaluates a ticket's authorization data; nothing in the image issues or accepts Kerberos tickets. Jacarium does no Kerberos or GSSAPI authentication and accepts none: there is no credential cache, keytab or kinit, no sshd or other GSS-API acceptor, and the ssh client's GSSAPIAuthentication default stops at acquiring credentials. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation, krb5-pkinit or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5, no keytab).
@@ -769,6 +784,7 @@ decisions:
   - id: CVE-2026-71200
     status: not_affected
     justification: vulnerable_code_not_present
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       The NULL dereference is in the KDC's PKINIT pre-authentication (the pkinit plugin of krb5-pkinit, loaded by krb5kdc); neither the plugin nor a KDC is in the image. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation, krb5-pkinit or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5, no keytab).
@@ -777,6 +793,7 @@ decisions:
   - id: CVE-2026-107778
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       make_cred_list() (rd_cred.c) is reached through gss_accept_sec_context() when a service accepts forwarded credentials; nothing in the image is a GSS-API acceptor. Jacarium does no Kerberos or GSSAPI authentication and accepts none: there is no credential cache, keytab or kinit, no sshd or other GSS-API acceptor, and the ssh client's GSSAPIAuthentication default stops at acquiring credentials. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation, krb5-pkinit or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5, no keytab).
@@ -785,6 +802,7 @@ decisions:
   - id: CVE-2026-107884
     status: not_affected
     justification: vulnerable_code_not_present
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       The lockdown_keys bypass is in kadmind's password-change (kpasswd) service; kadmind is not in the image. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation, krb5-pkinit or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5, no keytab).
@@ -793,6 +811,7 @@ decisions:
   - id: CVE-2026-111423
     status: not_affected
     justification: vulnerable_code_not_in_execute_path
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_8.1]
     impact: >-
       The PAC server-checksum check runs in a server application that accepts a Kerberos ticket and reads its PAC; nothing in the image accepts tickets. Jacarium does no Kerberos or GSSAPI authentication and accepts none: there is no credential cache, keytab or kinit, no sshd or other GSS-API acceptor, and the ssh client's GSSAPIAuthentication default stops at acquiring credentials. Checked in the 4.4.3 image: only krb5-libs is installed (no krb5-server, krb5-workstation, krb5-pkinit or libkadm5: no kadmind, krb5kdc, kadmin or kinit binary, no libkadm5 / libkdb5, no keytab).
@@ -801,10 +820,11 @@ decisions:
 
   # ---- rpm / rpm-libs 4.16.1.3-40.el9 in the base image (RHSA-2026:99593 of 2026-11-12, fixed in 4.16.1.3-43.el9_9):
   # a command injection (CVE-2026-84837) and a macro injection (CVE-2026-78367) in `rpmbuild -t*`. rpm-build is not in the image; like krb5, the
-  # fixed build is not in the UBI repositories yet (2026-11-16), so no version bound.
+  # fixed build reached the UBI repositories about 2026-11-20 and is pinned from 4.4.5 (fixed statements below).
   - id: CVE-2026-84837
     status: not_affected
     justification: vulnerable_code_not_present
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/rpm@4.16.1.3-40.el9, pkg:rpm/redhat/rpm-libs@4.16.1.3-40.el9]
     impact: >-
       The injection is in rpmbuild's tarball mode (getTarSpec, `rpmbuild -ta / -tb / -ts`). The image has rpm and
@@ -815,6 +835,7 @@ decisions:
   - id: CVE-2026-78367
     status: not_affected
     justification: vulnerable_code_not_present
+    versions: ['<4.4.5']
     components: [pkg:rpm/redhat/rpm@4.16.1.3-40.el9, pkg:rpm/redhat/rpm-libs@4.16.1.3-40.el9]
     impact: >-
       The macro injection is in rpmbuild's tarball mode (getTarSpec in tools/rpmbuild, a crafted .spec member
@@ -875,3 +896,230 @@ decisions:
     notes: Jacarium 4.4.4 builds Caddy with golang.org/x/crypto v0.59.0 (XCRYPTO_VERSION in deploy/Containerfile, the maintainer's exception of 2026-11-16), past the advisory's fixed version; the build also asserts that no openpgp package is linked.
     decided_by: maintainer
     decided_on: 2026-11-16
+
+  # ---- from 4.4.5: krb5-libs 1.21.1-10.el9_9.2 (RHSA-2026:99715) and rpm / rpm-libs 4.16.1.3-43.el9_9
+  # (RHSA-2026:99593) through the security lane - verified with scripts/verify-rpm-update.sh on 2026-11-22 (Red
+  # Hat's signature, the erratum 9.5 / 9.8 days old), pinned by exact build in SECURITY_LANE_EVRS.
+  - id: CVE-2026-112314
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-112315
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-112316
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-112317
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-112318
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-112319
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-112320
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-112321
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-112322
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-112323
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-119079
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-107708
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-107364
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-118380
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-71199
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-71200
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-107778
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-107884
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-111423
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/krb5-libs@1.21.1-10.el9_9.2]
+    notes: Fixed in RHSA-2026:99715 (krb5 1.21.1-10.el9_9.2), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-84837
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/rpm@4.16.1.3-43.el9_9, pkg:rpm/redhat/rpm-libs@4.16.1.3-43.el9_9]
+    notes: Fixed in RHSA-2026:99593 (rpm 4.16.1.3-43.el9_9), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: CVE-2026-78367
+    status: fixed
+    versions: ['>=4.4.5']
+    components: [pkg:rpm/redhat/rpm@4.16.1.3-43.el9_9, pkg:rpm/redhat/rpm-libs@4.16.1.3-43.el9_9]
+    notes: Fixed in RHSA-2026:99593 (rpm 4.16.1.3-43.el9_9), the build Jacarium 4.4.5 pins (SECURITY_LANE_EVRS in deploy/Containerfile).
+    decided_by: maintainer
+    decided_on: 2026-11-22
+
+  # ---- github.com/go-jose/go-jose/v3 v3.0.5 in the Caddy binary: three advisories with no fixed v3 release
+  # (last_affected 3.0.5; the fixes are in v4, which the build already raises to v4.1.6). What links v3
+  # (`go mod why -m`, `go list -deps` in the Caddy stage, 2026-11-22): go.step.sm/crypto/jose alone, imported by
+  # github.com/smallstep/certificates (authority, provisioners, ACME server), which Caddy's caddypki module embeds
+  # for its internal CA and the acme_server handler. It cannot be dropped: go.step.sm/crypto v0.92.0 moved to v4,
+  # but smallstep/certificates v0.30.2 - its newest release, the one Caddy 2.11.9 requires - does not compile
+  # against it (tried in the build stage). So it stays, and the statements rest on the configuration:
+  # deploy/Caddyfile serves its own certificate from files with auto_https off - no `tls internal`, no `pki`
+  # option, no `acme_server` - and the admin API that could load another configuration is off, so the embedded CA
+  # is never provisioned and no request reaches a JOSE parser. Caddy's own ACME client (acmez) is not go-jose and
+  # is not used either. Stated from 4.4.4, the first release whose Caddy module set was inspected for this (the
+  # same 160 modules as today's build); an upgrade follows when smallstep/certificates moves to v4. For
+  # GHSA-mgcc-cww5-fp2q this stands next to the v4 statement above: one per package inside the image.
+  - id: GHSA-4w3g-jfj2-cw2q
+    aliases: [CVE-2026-116585]
+    status: not_affected
+    justification: vulnerable_code_not_in_execute_path
+    versions: ['>=4.4.4']
+    products: [image]
+    components: [pkg:golang/github.com/go-jose/go-jose/v3@v3.0.5]
+    impact: >-
+      The flaw is a panic while decrypting a CBC-HMAC JWE in go-jose, reached by parsing attacker-supplied JOSE input. In the Caddy binary v3 is
+      linked only through go.step.sm/crypto/jose for smallstep's certificate authority (Caddy's internal CA and
+      its acme_server handler). deploy/Caddyfile configures neither - certificates come from files, auto_https
+      and the admin API are off - so the authority is never provisioned and nothing parses a JWK, JWS or JWE
+      through this module.
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: GHSA-mgcc-cww5-fp2q
+    aliases: [CVE-2026-116587]
+    status: not_affected
+    justification: vulnerable_code_not_in_execute_path
+    versions: ['>=4.4.4']
+    products: [image]
+    components: [pkg:golang/github.com/go-jose/go-jose/v3@v3.0.5]
+    impact: >-
+      The flaw is cubic-time validation of an oversized RSA JWK in go-jose, reached by parsing attacker-supplied JOSE input. In the Caddy binary v3 is
+      linked only through go.step.sm/crypto/jose for smallstep's certificate authority (Caddy's internal CA and
+      its acme_server handler). deploy/Caddyfile configures neither - certificates come from files, auto_https
+      and the admin API are off - so the authority is never provisioned and nothing parses a JWK, JWS or JWE
+      through this module.
+    decided_by: maintainer
+    decided_on: 2026-11-22
+  - id: GHSA-vvm8-gf78-28g4
+    aliases: [CVE-2026-116586]
+    status: not_affected
+    justification: vulnerable_code_not_in_execute_path
+    versions: ['>=4.4.4']
+    products: [image]
+    components: [pkg:golang/github.com/go-jose/go-jose/v3@v3.0.5]
+    impact: >-
+      The flaw is a stack overflow while parsing deeply nested JSON in go-jose, reached by parsing attacker-supplied JOSE input. In the Caddy binary v3 is
+      linked only through go.step.sm/crypto/jose for smallstep's certificate authority (Caddy's internal CA and
+      its acme_server handler). deploy/Caddyfile configures neither - certificates come from files, auto_https
+      and the admin API are off - so the authority is never provisioned and nothing parses a JWK, JWS or JWE
+      through this module.
+    decided_by: maintainer
+    decided_on: 2026-11-22
+
+  # ---- CPython 3.14.10 in the Linux installers' frozen backend (Syft lists pkg:generic/python@3.14.10 from
+  # libpython3.14.so; the macOS bundle's Python is not catalogued): CVE-2026-119170, a regression in 3.14.10 only
+  # in how hashlib enforces FIPS-approved algorithms, for "users that are using OpenSSL in FIPS mode". Fixed in
+  # 3.14.11, not released on 2026-11-22 (PYTHON_VERSION in build.yml stays 3.14.10 until it is). The container
+  # image runs Red Hat's python3.14 RPM, not this build.
+  - id: CVE-2026-119170
+    status: not_affected
+    justification: vulnerable_code_not_in_execute_path
+    products: [desktop]
+    components: [pkg:generic/python@3.14.10]
+    impact: >-
+      Only a Python whose OpenSSL runs in FIPS mode is affected. The frozen backend loads the OpenSSL libraries
+      PyInstaller bundled with it, without a FIPS provider module or a configuration that activates one, and
+      nothing in Jacarium switches OpenSSL to FIPS mode, so hashlib never takes the FIPS enforcement path.
+    decided_by: maintainer
+    decided_on: 2026-11-22

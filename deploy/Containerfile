@@ -27,10 +27,11 @@
 # .npmrc applies to npm packages).
 
 # ---------------------------------------------------------------------------
-# UI build (Vite) - node 26.13.0, the LTS "Lithium" release (2026-10-28; the image built 2026-10-28 20:55 UTC,
-# pinned 2026-11-04 under the maintainer's explicit cooldown exception, docs/security/urgent-updates.md)
+# UI build (Vite) - node 26.13.1, the security release of the LTS "Lithium" line (2026-11-10; the official image
+# pushed 2026-11-11, pinned by its manifest-list digest 2026-11-22, past the seven-day rule -
+# docs/security/urgent-updates.md). Its node binary is also what the runtime stage copies for the central server.
 # ---------------------------------------------------------------------------
-FROM docker.io/library/node:26.13.0-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9 AS ui
+FROM docker.io/library/node:26.13.1-bookworm-slim@sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c0161664a011f7ff6b0f1 AS ui
 WORKDIR /src
 # bash: scripts/build-ui.sh; git: optional for the What's New page
 RUN apt-get update \
@@ -174,7 +175,8 @@ RUN printf '%s\n' 'package main' '' 'import (' '	caddycmd "github.com/caddyserve
 # xz-libs 5.2.5-8.el9_9.1, libxml2 2.9.13-18.el9_9.1, openssl-libs 3.5.9-1.el9_9
 # and ca-certificates 2026.2.92 (CVE-2026-114406); sqlite-libs stays
 # 3.34.1-11.el9_8 (the CVE-2026-119586 not_affected statement still names it)
-# and krb5-libs 1.21.1-10.el9_8.1. 109 RPMs,
+# and krb5-libs 1.21.1-10.el9_8.1 and rpm 4.16.1.3-40.el9; those two and curl
+# are raised by the security lane below (RHSA-2026:99715 / 99593 / 100686). 109 RPMs,
 # without the system Python 3.9, dnf, python3-urllib3, brotli and the s2i
 # tooling that ubi9/python-314 carried and nothing in the image ran - the
 # packages the scanners kept reporting. Red Hat's Python 3.14 (python3.14:
@@ -185,9 +187,9 @@ RUN printf '%s\n' 'package main' '' 'import (' '	caddycmd "github.com/caddyserve
 # base-image bump (no blanket update in the build: the image stays
 # reproducible from the pinned digest); a package raised past the base by the
 # security lane is pinned by name and exact build in SECURITY_LANE_EVRS below
-# - empty with this base, which carries the glibc and util-linux builds the
-# lane had verified (2.34-290.el9_9, 2.37.4-28.el9_9.1), so both pins and
-# their asserts went with it (docs/security/urgent-updates.md, 2026-11-13).
+# (this base carries the glibc and util-linux builds the lane had verified,
+# 2.34-290.el9_9 and 2.37.4-28.el9_9.1; krb5-libs and rpm are raised past it
+# since 2026-11-22 - docs/security/urgent-updates.md).
 # ---------------------------------------------------------------------------
 FROM registry.access.redhat.com/ubi9-minimal:9.9-1794467051@sha256:baafce2d34783a28b4a472779f304e97e00f9d35c99553bc53b068b14344d9a9
 LABEL org.opencontainers.image.title="Jacarium" \
@@ -214,13 +216,17 @@ LABEL org.opencontainers.image.title="Jacarium" \
 # microdnf upgrades to exactly those builds and rpm -q asserts each, so the image carries the vetted build
 # whatever the repositories' newest is, and when the repositories stop serving it the build fails here, in one
 # place, with the name of the missing build - never silently with a newer, unvetted one (UBI's move from RHEL
-# 9.8 to 9.9 on 2026-11-11 dropped glibc 2.34-284.el9_8.4 and failed the 4.4.0 build that way). Empty with the
-# 9.9-1794467051 base: it carries the glibc 2.34-290.el9_9 and util-linux 2.37.4-28.el9_9.1 builds the lane
-# verified, so nothing is raised past it. The packages installed by name float with the base's repositories on
+# 9.8 to 9.9 on 2026-11-11 dropped glibc 2.34-284.el9_8.4 and failed the 4.4.0 build that way). The
+# 9.9-1794467051 base carries the glibc 2.34-290.el9_9 and util-linux 2.37.4-28.el9_9.1 builds the lane
+# verified; raised past it (2026-11-22): krb5-libs 1.21.1-10.el9_9.2 (RHSA-2026:99715) and rpm / rpm-libs
+# 4.16.1.3-43.el9_9 (RHSA-2026:99593), verified with scripts/verify-rpm-update.sh once the UBI repositories
+# served them, and curl-minimal / libcurl-minimal 7.76.1-44.el9_9.1 (RHSA-2026:100686 of 2026-11-20, 2.1 days
+# old at the change, four High CVEs among its fourteen). A base that carries them (9.9-1795198179 does) empties the list again; it is past
+# the one-week rule for base images on 2026-11-27. The packages installed by name float with the base's repositories on
 # purpose: they are what the base ships (no lane decision behind them), and a repository move must not break
 # the build; two builds of the same commit against the same repositories still agree
 # (tests/container_reproducible.test.py).
-ARG SECURITY_LANE_EVRS=""
+ARG SECURITY_LANE_EVRS="krb5-libs-1.21.1-10.el9_9.2 rpm-4.16.1.3-43.el9_9 rpm-libs-4.16.1.3-43.el9_9 curl-minimal-7.76.1-44.el9_9.1 libcurl-minimal-7.76.1-44.el9_9.1"
 # util-linux, util-linux-core and libfdisk are not in the base: openssh-clients pulls them in from the
 # repositories (its dependency chain), where they can only be as new as the base's util-linux libraries or newer
 # (util-linux requires its libraries at the same build). UTIL_LINUX_MIN is the floor the lane verified

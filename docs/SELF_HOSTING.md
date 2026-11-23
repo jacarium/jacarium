@@ -537,6 +537,123 @@ Settings > General).
 For access from outside your network use a VPN (WireGuard, NetBird or
 similar); never publish the port on the internet.
 
+### Single sign-on (OpenID Connect)
+
+Optional, and off unless you configure it: a server without the settings
+below behaves exactly as before - no button, no extra setting, nothing to
+decide. With them, the sign-in page gets a "Sign in with SSO" button next to
+the password form, and accounts can sign in through your identity provider
+(Keycloak, Authentik, Authelia, Dex, Pocket ID, Entra ID, Google, ...: any
+provider with OpenID Connect discovery that signs its ID tokens with RS256,
+PS256 or ES256). Requested in [#46](https://github.com/jacarium/jacarium/issues/46).
+
+**1. Register Jacarium at the provider** as a confidential client (web
+application) with the authorization-code flow and this redirect URI:
+
+```text
+https://<your Jacarium address>/api/auth/sso/callback
+```
+
+**2. Give the container its settings**, as environment variables or - the
+same on every kind of deployment - as lines in `sso.env` on the data volume
+(`/data/sso.env`, read at every start; keep it `0600`, it holds the client
+secret). Every value may instead come from a file named by `<NAME>_FILE`
+(container secrets).
+
+```ini
+# /data/sso.env
+JACARIUM_PUBLIC_URL=https://jacarium.example.com:8443
+JACARIUM_OIDC_ISSUER=https://id.example.com/realms/home
+JACARIUM_OIDC_CLIENT_ID=jacarium
+JACARIUM_OIDC_CLIENT_SECRET=<the client secret>
+```
+
+| Setting | Default | What it does |
+|---|---|---|
+| `JACARIUM_PUBLIC_URL` | required | The address people open Jacarium at; the redirect URI is built from it |
+| `JACARIUM_OIDC_ISSUER` | required | The provider's issuer URL (https; its discovery document must name the same issuer) |
+| `JACARIUM_OIDC_CLIENT_ID`, `JACARIUM_OIDC_CLIENT_SECRET` | required | The client you registered |
+| `JACARIUM_OIDC_SCOPES` | `openid profile email` | Add your provider's groups scope here if it has one |
+| `JACARIUM_OIDC_BUTTON_LABEL` | `Sign in with SSO` | The button's text |
+| `JACARIUM_OIDC_AUTO_CREATE` | off | `1`: an allowed identity without an account gets one at its first sign-in |
+| `JACARIUM_OIDC_ALLOWED_GROUPS` | none | Comma list: the identity must be in one of them (the `groups` claim; `JACARIUM_OIDC_GROUPS_CLAIM` renames it) |
+| `JACARIUM_OIDC_ALLOWED_EMAIL_DOMAINS` | none | Comma list: the identity's email must be **verified by the provider** and in one of these domains |
+| `JACARIUM_OIDC_REQUIRED_CLAIM` | none | `name=value`: that claim must hold that value |
+| `JACARIUM_OIDC_ADMIN_GROUPS` | none | Comma list: a member becomes an administrator at sign-in |
+| `JACARIUM_OIDC_USERNAME_CLAIM` | `preferred_username` | Where a NEW account's username comes from |
+| `JACARIUM_OIDC_DISABLE_PASSWORD_LOGIN` | off | `1`: passwords sign in administrators only |
+| `JACARIUM_OIDC_END_SESSION` | off | `1`: signing out of an SSO session also goes to the provider's sign-out page |
+
+The server's log says at every start what is in force (`single sign-on: on,
+issuer ...; linked accounts only; allow-list: ...`), or why it is not active.
+
+**Who gets in.** By default only accounts that are already linked to an
+identity: a successful sign-in at the provider is not enough. An account is
+matched by the provider's issuer and the identity's subject (`sub`) and by
+nothing else - a username or an email in a token never selects an existing
+account, so nobody becomes `admin` by being called `admin` at the provider.
+There are three ways an identity gets linked:
+
+- **You link your own account**: Settings > General > Single sign-on, with
+  your password, then one sign-in at the provider. Unlinking is there too
+  (password again).
+- **An administrator approves an email**: Settings > Users > SSO on an
+  account (or "SSO email" when creating one, which needs no password): the
+  next sign-in whose provider-verified email is that address links to that
+  account, once.
+- **Accounts are created at the first sign-in** (`JACARIUM_OIDC_AUTO_CREATE=1`):
+  as an ordinary user, named after `preferred_username`. If an account with
+  that username already exists, the sign-in is refused and its owner links it
+  from Settings instead. Combine this with an allow-list unless every identity
+  of your provider may have an account - with a public provider such as
+  Google that would be everyone; the log warns when no allow-list is set.
+
+The allow-lists (group, verified email domain, required claim) apply to every
+SSO sign-in, also of accounts that are already linked: removing someone from
+the group at the provider closes that way in. Their open sessions and linked
+desktop profiles are not ended by that; an administrator ends them in
+Settings > Users or disables the account.
+
+**Administrators.** No claim grants the role unless you set
+`JACARIUM_OIDC_ADMIN_GROUPS`. A member is promoted at sign-in (recorded in the
+audit log); leaving the group does not demote - an administrator does that in
+Settings > Users, where the last administrator is protected as always.
+
+**Passwords and single sign-on side by side.** Both work unless you set
+`JACARIUM_OIDC_DISABLE_PASSWORD_LOGIN=1`. Then the sign-in page shows the SSO
+button and a small "Administrator sign-in with a password" link: users'
+passwords are refused, administrators keep theirs - the way back in when the
+provider is down or misconfigured. Keep at least one administrator with a
+password you know; `reset-password` on the host (above) works in every case.
+
+**Accounts without a password.** An account created through single sign-on
+has none. It needs one for three things: linking the desktop app, confirming
+administrative actions from a linked desktop, and "Delete all my data on the
+server". Settings > General offers "Confirm with single sign-on" (a fresh
+sign-in at the provider) and then lets it set one.
+
+**The desktop app** links to the server with username and password, as
+before; an SSO-only account sets a password first. The desktop app on its
+own, and a server with `JACARIUM_AUTH_MODE=none`, never use any of this.
+
+**Turning it off again.** Remove the settings and restart: the button and the
+settings parts disappear, linked accounts with a password sign in with it,
+and for an account that has none an administrator sets one in Settings >
+Users (or `reset-password` on the host). The links are kept, so turning it
+back on restores them.
+
+**Upgrading.** The first start of 4.5.0 adds three empty columns to
+`accounts.sqlite` in one transaction and first writes a copy of the database
+next to it (`accounts.sqlite.before-sso`), whether or not you use single
+sign-on. Nothing else changes; once you are satisfied the copy can be deleted.
+
+**Troubleshooting.** The sign-in page only ever shows one of Jacarium's own
+short messages; the reason in the provider's words is in the server log
+(`single sign-on refused ...`) and in Settings > Audit. `https` is required
+for the issuer and its endpoints; for a provider on your own machine during
+development, `JACARIUM_OIDC_ALLOW_INSECURE_LOCALHOST=1` accepts
+`http://localhost`.
+
 ### Your data follows your account (synchronisation)
 
 With sign-in, the browser's database synchronises with the server: every

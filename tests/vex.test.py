@@ -77,6 +77,16 @@ try:
     bad = json.loads(json.dumps(doc))
     bad['statements'].append(json.loads(json.dumps(bad['statements'][0])))
     check('semantics: two statements for the same vulnerability and product are rejected', any('more than one statement' in e for e in vex.validate_semantics(bad)))
+    two = json.loads(json.dumps(doc))
+    twin = json.loads(json.dumps(two['statements'][0]))
+    for st, sub in ((two['statements'][0], 'pkg:golang/example.test/a@v1.0.0'), (twin, 'pkg:golang/example.test/b@v1.0.0')):
+        for p in st['products']: p['subcomponents'] = [{'@id': sub}]
+    two['statements'].append(twin)
+    check('semantics: two statements for the same vulnerability and product are accepted when they name different subcomponents', not any('more than one statement' in e for e in vex.validate_semantics(two)), vex.validate_semantics(two))
+    for p in twin['products']: p['subcomponents'] = [{'@id': 'pkg:golang/example.test/a@v1.0.0'}]
+    check('semantics: ...and rejected when they name the same subcomponent', any('more than one statement' in e for e in vex.validate_semantics(two)))
+    for p in twin['products']: p.pop('subcomponents')
+    check('semantics: a statement without subcomponents speaks for the whole product (a second one is rejected)', any('more than one statement' in e for e in vex.validate_semantics(two)))
     bad = json.loads(json.dumps(doc))
     bad['statements'][0]['products'][0]['@id'] = 'quay.io/zerodayz/jacarium:3.9.9'
     check('semantics: a product that is not a package URL is rejected', any('not a package URL' in e for e in vex.validate_semantics(bad)))
@@ -163,7 +173,7 @@ try:
           sorted((d['status'], tuple(d.get('versions') or [])) for d in xz) == [('affected', ('<3.5.2',)), ('fixed', ('>=3.5.2',))]
           and any('sos report' in (d.get('action') or '') and 'Upgrade to Jacarium 3.5.2' in (d.get('action') or '') and len(d['components']) == 3 for d in xz)
           and any('5.2.5-8.el9_8.1' in (d.get('notes') or '') and d['components'] == ['pkg:rpm/redhat/xz-libs@5.2.5-8.el9_8.1'] for d in xz), xz)
-    jose = [d for d in decisions if d['id'] == 'GHSA-mgcc-cww5-fp2q']
+    jose = [d for d in decisions if d['id'] == 'GHSA-mgcc-cww5-fp2q' and any('go-jose/v4@' in c for c in d.get('components') or [])]   # v3 has its own statements (4.4.4 on)
     check('go-jose GHSA-mgcc-cww5-fp2q (CVE-2026-116587): affected before 3.5.2 with the upgrade as the action, fixed from 3.5.2 naming v4.1.6',
           sorted((d['status'], tuple(d.get('versions') or [])) for d in jose) == [('affected', ('<3.5.2',)), ('fixed', ('>=3.5.2',))]
           and all('CVE-2026-116587' in (d.get('aliases') or []) for d in jose) and any('v4.1.6' in (d.get('notes') or '') for d in jose) and any('Upgrade to Jacarium 3.5.2' in (d.get('action') or '') for d in jose), jose)
@@ -199,11 +209,23 @@ try:
           and '! /usr/bin/caddy build-info | grep -q "x/crypto/openpgp"' in containerfile
           and 'ARG OTEL_VERSION=v1.47.0' in containerfile and '"$O/sdk@${OTEL_VERSION}"' in containerfile and '"$O/sdk/log@${OTEL_VERSION}"' in containerfile and '"$O/trace@${OTEL_VERSION}"' in containerfile
           and 'dep\\s+go.opentelemetry.io/otel/sdk\\s+${OTEL_VERSION}' in containerfile and 'grep -cvE' in containerfile)
-    krb = [d for d in decisions if any('krb5-libs@1.21.1-10.el9_8.1' in c for c in d.get('components') or [])]
+    krb = [d for d in decisions if any('krb5-libs@' in c for c in d.get('components') or [])]
     rpmd = [d for d in decisions if d['id'] in ('CVE-2026-84837', 'CVE-2026-78367')]
-    check('krb5-libs RHSA-2026:99715 (19 CVEs) and rpm RHSA-2026:99593 (2 CVEs): not_affected with a reason each, no version bound while the UBI repositories do not serve the fixed builds',
-          len(krb) == 19 and len(rpmd) == 2 and all(d['status'] == 'not_affected' and not d.get('versions') and d['justification'] in ('vulnerable_code_not_in_execute_path', 'vulnerable_code_not_present') and len(d.get('impact') or '') > 80 for d in krb + rpmd),
-          [(d['id'], d['status'], d.get('versions')) for d in krb + rpmd])
+    na = [d for d in krb + rpmd if d['status'] == 'not_affected']; fx = [d for d in krb + rpmd if d['status'] == 'fixed']
+    check('krb5-libs RHSA-2026:99715 (19 CVEs) and rpm RHSA-2026:99593 (2 CVEs): not_affected before 4.4.5 with a reason each, fixed from 4.4.5 with the builds SECURITY_LANE_EVRS pins',
+          len(na) == 21 and len(fx) == 21 and sorted(d['id'] for d in na) == sorted(d['id'] for d in fx)
+          and all(d.get('versions') == ['<4.4.5'] and d['justification'] in ('vulnerable_code_not_in_execute_path', 'vulnerable_code_not_present') and len(d.get('impact') or '') > 80 for d in na)
+          and all(d.get('versions') == ['>=4.4.5'] and any(b in ' '.join(d['components']) for b in ('1.21.1-10.el9_9.2', '4.16.1.3-43.el9_9')) for d in fx)
+          and all(b in (re.search(r'^ARG SECURITY_LANE_EVRS="([^"]*)"$', containerfile, re.M) or [None, ''])[1].split() for b in ('krb5-libs-1.21.1-10.el9_9.2', 'rpm-4.16.1.3-43.el9_9', 'rpm-libs-4.16.1.3-43.el9_9')),
+          [(d['id'], d['status'], d.get('versions')) for d in krb + rpmd][:6])
+    caddyfile = open(os.path.join(REPO, 'deploy', 'Caddyfile')).read()
+    jose3 = [d for d in decisions if any('go-jose/go-jose/v3@' in c for c in d.get('components') or [])]
+    check('go-jose v3 (no fixed release): the three advisories not_affected - linked only for the internal CA / acme_server, which the Caddyfile does not configure',
+          sorted(d['id'] for d in jose3) == ['GHSA-4w3g-jfj2-cw2q', 'GHSA-mgcc-cww5-fp2q', 'GHSA-vvm8-gf78-28g4'] and all(d['status'] == 'not_affected' and d.get('versions') == ['>=4.4.4'] and d['justification'] == 'vulnerable_code_not_in_execute_path' and 'Caddyfile' in d['impact'] for d in jose3)
+          and not any(w in caddyfile for w in ('acme_server', 'tls internal', 'pki {', 'issuer internal')) and 'auto_https off' in caddyfile and 'admin off' in caddyfile, jose3)
+    py = [d for d in decisions if d['id'] == 'CVE-2026-119170']
+    check('CPython 3.14.10 in the Linux installers, CVE-2026-119170 (FIPS-mode hashlib): not_affected for the desktop product, named as Syft names it',
+          len(py) == 1 and py[0]['status'] == 'not_affected' and py[0].get('products') == ['desktop'] and py[0]['components'] == ['pkg:generic/python@3.14.10'], py)
     check('deploy/Containerfile builds Caddy with go-jose v4.1.6 and checks it in caddy build-info', 'ARG GOJOSE_VERSION=v4.1.6' in containerfile and 'go get "github.com/go-jose/go-jose/v4@${GOJOSE_VERSION}"' in containerfile and 'dep\\s+github.com/go-jose/go-jose/v4\\s+${GOJOSE_VERSION}' in containerfile)
     # xz-libs 5.2.5-8.el9_8.1: raised by the microdnf layer up to 4.3.0; from 4.3.1 the pinned base carries it
     # itself (its comment names it) and the Grype gate would flag CVE-2026-34743 if a base ever brought it back

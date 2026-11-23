@@ -41,8 +41,8 @@ script red-flags a manifest whose Electron version is not the installed one, and
 
 | | |
 |---|---|
-| Electron release | [v45.2.3](https://github.com/electron/electron/releases/tag/v45.2.3), asset `hunspell_dictionaries.zip` uploaded 2026-11-04 17:23 UTC (7.2 days old when pinned on 2026-11-12: the ordinary lane, the default seven days). Before, [v45.2.2](https://github.com/electron/electron/releases/tag/v45.2.2)'s asset of 2026-11-03 (the security lane, `--min-age-days 2`), [v45.2.1](https://github.com/electron/electron/releases/tag/v45.2.1)'s asset of 2026-10-30, [v45.1.0](https://github.com/electron/electron/releases/tag/v45.1.0)'s of 2026-10-27 and [v42.11.17](https://github.com/electron/electron/releases/tag/v42.11.17)'s of 2026-10-20 (the history below) |
-| Asset sha256 | `f4692e1bc615b542478c8cf4c5d3424ea2d9c891076a8f218b0da0ba06b8d5c8`, 34,144,925 bytes - the digest GitHub reports for the asset (`digest` in the release API) and the sha256 of the download agree |
+| Electron release | [v45.3.3](https://github.com/electron/electron/releases/tag/v45.3.3), asset `hunspell_dictionaries.zip` uploaded 2026-11-14 19:39 UTC (7.6 days old when pinned on 2026-11-22; `--repin --min-age-days 2`, with Electron itself taken through the security lane at 6.2 days). Before, [v45.2.3](https://github.com/electron/electron/releases/tag/v45.2.3)'s asset of 2026-11-04 (the ordinary lane), [v45.2.2](https://github.com/electron/electron/releases/tag/v45.2.2)'s asset of 2026-11-03 (the security lane, `--min-age-days 2`), [v45.2.1](https://github.com/electron/electron/releases/tag/v45.2.1)'s asset of 2026-10-30, [v45.1.0](https://github.com/electron/electron/releases/tag/v45.1.0)'s of 2026-10-27 and [v42.11.17](https://github.com/electron/electron/releases/tag/v42.11.17)'s of 2026-10-20 (the history below) |
+| Asset sha256 | `a0e5ec0a460e0a23b22186748ae9c48df2cfd259222e470cc79210ee8fc6a8ce`, 34,144,925 bytes - the digest GitHub reports for the asset (`digest` in the release API) and the sha256 of the download agree |
 | Uploader | the Electron release bot (`sudowoodo-release-uploader[bot]`), like every asset of the release |
 | `en-US-10-2.bdic` | `b0d80e6b6c5491879365e176ecbd98074602a663429bcfcfb0a5a8375c051f13`, 451,982 bytes - SCOWL (Kevin Atkinson), permissive (Chromium 156 carries the 10-2 revision of the three English word lists; 42's were 10-1) |
 | `en-GB-10-2.bdic` | `e014c23d2215f093205343b9b8805e17c8d8e115d314d93fd5ba51eadf05cff2`, 452,008 bytes - SCOWL, permissive |
@@ -113,3 +113,6 @@ and add a row to the table above with the new release, its date and the hashes.
   fixes, no advisory; the seven-day rule met on 2026-11-11). `--repin` at the default seven days (the asset,
   uploaded 2026-11-04 17:23 UTC, was 7.2 days old): a new zip digest (`f4692e1b…`), every file inside byte for
   byte the 45.2.2 pin's.
+- 2026-11-22: re-pinned to Electron v45.3.3's asset with the move to 45.3.3 through the security lane (Node.js
+  24.22.3, a security release, inside it; docs/security/urgent-updates.md). `--repin --min-age-days 2` (the asset
+  was 7.6 days old): a new zip digest (`a0e5ec0a…`), every file inside byte for byte the 45.2.3 pin's.

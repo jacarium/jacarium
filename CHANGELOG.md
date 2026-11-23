@@ -4,6 +4,29 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.5.0
+
+_2026-11-23_
+
+### [SECURITY]
+
+Self-hosted servers can now sign accounts in through your own identity provider (OpenID Connect single sign-on, requested in #46). It is opt-in and off by default: without the JACARIUM_OIDC_* settings the server works exactly as before. Accounts are matched by issuer and subject, access can be limited by group, email domain or a required claim, admin rights can follow an IdP group, and the accounts database is backed up before its one-time upgrade. See SELF_HOSTING.md
+
+krb5-libs, rpm and curl in the container image are updated to the fixed Red Hat builds now served by the UBI repositories; the earlier krb5 and rpm findings are marked fixed in the VEX
+
+Node.js 26.13.1 (the build and the container image) and Electron 45.3.3 (the desktop app), plus the pending dependency updates (npm packages, boto3, flask-socketio, lancedb 0.40.0, codeql-action, setup-python)
+
+go-jose v3 (GHSA-4w3g-jfj2-cw2q, GHSA-mgcc-cww5-fp2q, GHSA-vvm8-gf78-28g4) in the web server and CVE-2026-119170 in the Python bundled with the desktop installers: Jacarium does not use the affected code, documented in the VEX
+
+### [DESKTOP]
+
+The desktop app no longer opens the macOS keychain a few seconds after start: it asks only when something is actually kept there (a linked home server). A keychain prompt at that moment could freeze the app until it was answered
+
+### [TESTS]
+
+Desktop app tests never use the real keychain, every step against a launched app has a time limit (a hang fails in seconds instead of stalling the run), and a closed app leaves no background process behind
+
+
 ## What's New in v4.4.4
 
 _2026-11-16_
@@ -17,6 +40,7 @@ Right-clicking a tab near the right edge of a long tab bar no longer blanks the 
 Caddy, the web server in the container image, is built with golang.org/x/crypto v0.59.0 (GO-2026-5932) and OpenTelemetry 1.47.0 (GHSA-q7gw-24fr-5p69, CVE-2026-128085); neither affected Jacarium (no OpenPGP use, tracing not enabled), and the findings are gone
 
 krb5-libs and rpm in the base image: Red Hat has published fixes (RHSA-2026:99715, RHSA-2026:99593) that the UBI repositories do not serve yet; the image runs no Kerberos server or admin tools and has no rpmbuild, so Jacarium is not affected, documented in the VEX, and the packages update as soon as the fixes are served
+
 
 ## What's New in v4.4.3
 

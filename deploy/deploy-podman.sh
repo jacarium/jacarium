@@ -21,6 +21,10 @@
 #   CENTRAL        on (default): the central server runs in the container, its
 #                  state under DATA_DIR/central (keys generated on first start);
 #                  off: no central server, no /central route, no team features
+#   JACARIUM_OIDC_* / JACARIUM_PUBLIC_URL   single sign-on (docs/SELF_HOSTING.md):
+#                  the ones that are set are handed to the container by name
+#                  (never on its command line). Or put them in DATA_DIR/sso.env,
+#                  which the container reads at every start.
 #   IMAGE_NAME     (default jacarium:latest)
 #   CONTAINER_NAME (default jacarium)
 #
@@ -54,7 +58,7 @@ case "$AUTH_MODE" in accounts|none) ;; *) echo "AUTH_MODE must be accounts or no
 CENTRAL="${CENTRAL:-on}"
 case "$CENTRAL" in on|off) ;; *) echo "CENTRAL must be on or off"; exit 1 ;; esac
 
-usage() { sed -n '2,37p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//'; }
 
 check_podman() {
     if ! command -v podman >/dev/null 2>&1; then
@@ -147,6 +151,13 @@ start_container() {
     if [ -n "$TLS_SAN" ]; then
         args+=(-e "TLS_SAN=$TLS_SAN")
     fi
+    # single sign-on: every setting that is set here goes in by NAME (podman reads the value from this
+    # environment, so the client secret is in no command line and no `podman inspect` of the arguments)
+    local sso_name sso_count=0
+    for sso_name in $(compgen -e | grep -E '^(JACARIUM_PUBLIC_URL|JACARIUM_OIDC_[A-Z0-9_]+)$' || true); do
+        args+=(-e "$sso_name"); sso_count=$((sso_count + 1))
+    done
+    [ "$sso_count" -gt 0 ] && log_info "Single sign-on: $sso_count setting(s) from the environment (JACARIUM_OIDC_*, JACARIUM_PUBLIC_URL)"
     if [ "$CENTRAL" = off ]; then
         args+=(-e JACARIUM_CENTRAL=off)
         log_warning "Central server: off (no /central route: no shared documents, chat or games)"
@@ -161,6 +172,7 @@ start_container() {
     if [ "$AUTH_MODE" = accounts ]; then
         echo "  Sign-in: on. First run: create the administrator with the one-time setup code"
         echo "           (printed in the logs, also in $DATA_DIR/setup-code)."
+        echo "  Single sign-on (OpenID Connect): optional - docs/SELF_HOSTING.md, \"Single sign-on\"."
     else
         echo "  Sign-in: OFF (AUTH_MODE=none) - anyone who can reach the port can use everything."
     fi

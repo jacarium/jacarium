@@ -6,11 +6,20 @@ One SQLite file, ``accounts.sqlite`` next to the rest of the server state
 ``/data/accounts.sqlite`` in the container):
 
     users          id, username (unique, case-insensitive), display_name,
-                   password_hash (scrypt), role admin|user, disabled,
-                   oidc_subject (unused yet - for a later sign-in provider),
+                   password_hash (scrypt; '' for an account that signs in
+                   with single sign-on only), role admin|user, disabled,
+                   oidc_issuer + oidc_subject (the linked single sign-on
+                   identity: the provider's issuer and its `sub`, unique
+                   together - the only thing an SSO sign-in is matched by),
+                   sso_invite_email (an administrator's one-time approval:
+                   the next SSO sign-in with this verified email links),
                    created_at, password_changed_at
     sessions       id (sha256 of the cookie value - the raw id is never
-                   stored), user_id, created_at, last_seen, user_agent
+                   stored), user_id, created_at, last_seen, user_agent,
+                   sso_at (when this session last came back from the
+                   identity provider - what "a fresh SSO round-trip" means)
+    server_keys    name, value: secrets this server generates for itself
+                   (the key that seals the SSO state cookie)
     device_tokens  for later phases (the desktop app linking to this server):
                    id, user_id, name, token_hash, created_at, last_seen, revoked
 
@@ -137,7 +146,7 @@ def connection():
         conn.execute('PRAGMA journal_mode=WAL')
         conn.execute('PRAGMA foreign_keys=ON')
         conn.executescript(_SCHEMA)
-        _migrate(conn)
+        _migrate(conn, path)
         if not existed:
             try:
                 os.chmod(path, 0o600)
@@ -147,11 +156,87 @@ def connection():
         return conn
 
 
-def _migrate(conn):
+# The single sign-on columns (4.5.0). Additive only: no table is rebuilt, so the migration cannot lose a row -
+# an SSO-only account keeps the NOT NULL password_hash with '' in it, which no password verifies against.
+_SSO_MIGRATION = (
+    ('users', 'oidc_issuer', 'ALTER TABLE users ADD COLUMN oidc_issuer TEXT'),
+    ('users', 'sso_invite_email', 'ALTER TABLE users ADD COLUMN sso_invite_email TEXT'),
+    ('sessions', 'sso_at', 'ALTER TABLE sessions ADD COLUMN sso_at REAL'),
+)
+_SSO_INDEX = ('CREATE UNIQUE INDEX IF NOT EXISTS users_sso_identity ON users(oidc_issuer, oidc_subject) '
+              'WHERE oidc_issuer IS NOT NULL AND oidc_subject IS NOT NULL')
+_SERVER_KEYS = 'CREATE TABLE IF NOT EXISTS server_keys (name TEXT PRIMARY KEY, value TEXT NOT NULL)'
+
+
+def _columns(conn, table):
+    return {row['name'] for row in conn.execute(f'PRAGMA table_info({table})').fetchall()}
+
+
+def backup_before_migration(conn, path, label):
+    """
+    A consistent copy of the database next to it (SQLite's online backup, the WAL included) before a migration
+    touches it: accounts.sqlite.before-<label>. Written once - a copy that is already there is the state before
+    the first attempt and is kept. Returns its path. A failure stops the migration (the caller does not go on).
+    """
+    target = f'{path}.before-{label}'
+    if os.path.exists(target):
+        return target
+    partial = target + '.partial'
+    copy = sqlite3.connect(partial)
+    try:
+        conn.backup(copy)
+        copy.execute('PRAGMA journal_mode=DELETE')
+    finally:
+        copy.close()
+    try:
+        os.chmod(partial, 0o600)
+    except OSError:
+        pass
+    os.replace(partial, target)
+    return target
+
+
+def _migrate(conn, path=None):
     """Columns added after the first release (CREATE IF NOT EXISTS leaves an old table alone)."""
-    columns = {row['name'] for row in conn.execute('PRAGMA table_info(users)').fetchall()}
-    if 'must_change_password' not in columns:
+    if 'must_change_password' not in _columns(conn, 'users'):
         conn.execute('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0')
+    _migrate_sso(conn, path)
+
+
+def _migrate_sso(conn, path=None, *, fail_after=None):
+    """
+    The single sign-on columns, in ONE transaction: every statement or none (SQLite's ALTER TABLE ADD COLUMN and
+    CREATE INDEX are transactional), after a backup of a database that already holds accounts. A crash mid-way
+    leaves the previous schema - the journal rolls the transaction back at the next open - and the next start
+    simply runs it again. `fail_after` (tests) raises after that many statements, inside the transaction.
+    """
+    pending = [sql for table, column, sql in _SSO_MIGRATION if column not in _columns(conn, table)]
+    tables = {row['name'] for row in conn.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'index')").fetchall()}
+    if 'server_keys' not in tables:
+        pending.append(_SERVER_KEYS)
+    if 'users_sso_identity' not in tables:
+        pending.append(_SSO_INDEX)
+    if not pending:
+        return False
+    if path and conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]:
+        backup_before_migration(conn, path, 'sso')
+    conn.execute('BEGIN IMMEDIATE')
+    try:
+        # an identity recorded by a pre-release build had no issuer: it cannot be matched and is dropped
+        if 'oidc_issuer' not in _columns(conn, 'users'):
+            conn.execute('UPDATE users SET oidc_subject = NULL WHERE oidc_subject IS NOT NULL')
+        for done, sql in enumerate(pending):
+            if fail_after is not None and done >= fail_after:
+                raise RuntimeError('simulated crash in the SSO migration')
+            conn.execute(sql)
+        conn.execute('COMMIT')
+    except BaseException:
+        try:
+            conn.execute('ROLLBACK')
+        except sqlite3.OperationalError:
+            pass
+        raise
+    return True
 
 
 def reset_for_tests():
@@ -240,6 +325,12 @@ def _row_to_user(row):
         # set by a host-side password recovery: only /api/auth/password is
         # allowed until the user chose a password of their own
         'mustChangePassword': bool(row['must_change_password']) if 'must_change_password' in row.keys() else False,
+        # False for an account that signs in with single sign-on only (password_hash '')
+        'hasPassword': bool(row['password_hash']),
+        # the linked identity (issuer + subject), or None; the invite is an administrator's pending approval
+        'sso': ({'issuer': row['oidc_issuer'], 'subject': row['oidc_subject']}
+                if 'oidc_issuer' in row.keys() and row['oidc_issuer'] and row['oidc_subject'] else None),
+        'ssoInviteEmail': (row['sso_invite_email'] if 'sso_invite_email' in row.keys() else None) or None,
     }
 
 
@@ -466,7 +557,8 @@ def check_login(username, password):
         row = connection().execute('SELECT * FROM users WHERE username = ?', (name,)).fetchone()
     except AccountsError:
         pass
-    if row is None:
+    if row is None or not row['password_hash']:
+        # no such user, or an account without a local password (single sign-on only): the same cost either way
         verify_password(password if isinstance(password, str) else '', _dummy_hash())
         return None
     if not verify_password(password, row['password_hash']):
@@ -474,6 +566,156 @@ def check_login(username, password):
     if row['disabled']:
         return None
     return _row_to_user(row)
+
+
+# ---------------------------------------------------------------------------
+# single sign-on: the linked identity is (issuer, subject) and nothing else
+# ---------------------------------------------------------------------------
+def _identity(issuer, subject):
+    if not isinstance(issuer, str) or not issuer.strip() or not isinstance(subject, str) or not subject.strip():
+        raise AccountsError('the identity has no issuer or subject')
+    if len(issuer) > 512 or len(subject) > 255:
+        raise AccountsError('the identity is too long')
+    return issuer.strip().rstrip('/'), subject.strip()
+
+
+def get_user_by_identity(issuer, subject):
+    """The account linked to this identity, or None. Usernames and emails are never consulted."""
+    try:
+        issuer, subject = _identity(issuer, subject)
+    except AccountsError:
+        return None
+    row = connection().execute('SELECT * FROM users WHERE oidc_issuer = ? AND oidc_subject = ?', (issuer, subject)).fetchone()
+    return _row_to_user(row)
+
+
+def link_identity(user_id, issuer, subject):
+    """Attach the identity to the account: refused when either side is already linked to something else."""
+    issuer, subject = _identity(issuer, subject)
+    conn = connection()
+    with _lock:
+        conn.execute('BEGIN IMMEDIATE')
+        try:
+            other = conn.execute('SELECT id FROM users WHERE oidc_issuer = ? AND oidc_subject = ?', (issuer, subject)).fetchone()
+            if other is not None and other['id'] != user_id:
+                raise AccountsError('that identity is already linked to another account')
+            row = conn.execute('SELECT oidc_issuer, oidc_subject FROM users WHERE id = ?', (user_id,)).fetchone()
+            if row is None:
+                raise AccountsError('no such user')
+            if row['oidc_issuer'] and (row['oidc_issuer'], row['oidc_subject']) != (issuer, subject):
+                raise AccountsError('this account is already linked to another identity: unlink it first')
+            conn.execute('UPDATE users SET oidc_issuer = ?, oidc_subject = ?, sso_invite_email = NULL WHERE id = ?', (issuer, subject, user_id))
+            conn.execute('COMMIT')
+        except BaseException:
+            try:
+                conn.execute('ROLLBACK')
+            except sqlite3.OperationalError:
+                pass
+            raise
+    return get_user(user_id)
+
+
+def unlink_identity(user_id):
+    """Remove the linked identity. An account without a local password would be locked out: refused."""
+    conn = connection()
+    with _lock:
+        row = conn.execute('SELECT password_hash, oidc_issuer FROM users WHERE id = ?', (user_id,)).fetchone()
+        if row is None:
+            raise AccountsError('no such user')
+        if not row['oidc_issuer']:
+            raise AccountsError('this account has no linked identity')
+        if not row['password_hash']:
+            raise AccountsError('this account has no password: set one first, or it could not sign in any more')
+        conn.execute('UPDATE users SET oidc_issuer = NULL, oidc_subject = NULL WHERE id = ?', (user_id,))
+    return get_user(user_id)
+
+
+def normalize_email(email):
+    text = email.strip().lower() if isinstance(email, str) else ''
+    if not re.match(r'^[^@\s]{1,64}@[a-z0-9.-]{1,255}$', text):
+        raise AccountsError('that is not an email address')
+    return text
+
+
+def set_sso_invite(user_id, email):
+    """
+    An administrator's one-time approval: the next SSO sign-in whose VERIFIED email is this one, and whose identity
+    is not linked yet, links to this account. None / '' withdraws it. An account that is linked takes no invite.
+    """
+    value = normalize_email(email) if email else None
+    conn = connection()
+    with _lock:
+        row = conn.execute('SELECT oidc_issuer FROM users WHERE id = ?', (user_id,)).fetchone()
+        if row is None:
+            raise AccountsError('no such user')
+        if value and row['oidc_issuer']:
+            raise AccountsError('this account is already linked to an identity')
+        if value and conn.execute('SELECT 1 FROM users WHERE sso_invite_email = ? AND id != ?', (value, user_id)).fetchone():
+            raise AccountsError('another account already waits for that email')
+        conn.execute('UPDATE users SET sso_invite_email = ? WHERE id = ?', (value, user_id))
+    return get_user(user_id)
+
+
+def get_user_by_sso_invite(email):
+    try:
+        value = normalize_email(email)
+    except AccountsError:
+        return None
+    row = connection().execute('SELECT * FROM users WHERE sso_invite_email = ? AND oidc_issuer IS NULL', (value,)).fetchone()
+    return _row_to_user(row)
+
+
+def create_sso_user(username, display_name=None, role='user', *, issuer=None, subject=None, invite_email=None):
+    """
+    An account without a local password: created at an allowed first SSO sign-in (issuer + subject), or by an
+    administrator for someone who will sign in with SSO (invite_email). The username must be free.
+    """
+    name = normalize_username(username)
+    if role not in ('admin', 'user'):
+        raise AccountsError('role must be admin or user')
+    if issuer or subject:
+        issuer, subject = _identity(issuer, subject)
+    elif not invite_email:
+        raise AccountsError('an account without a password needs an identity or an email to wait for')
+    invite = normalize_email(invite_email) if invite_email else None
+    display = clean_display_name(display_name, name)
+    now = time.time()
+    user_id = str(uuid.uuid4())
+    conn = connection()
+    with _lock:
+        conn.execute('BEGIN IMMEDIATE')
+        try:
+            if invite and conn.execute('SELECT 1 FROM users WHERE sso_invite_email = ?', (invite,)).fetchone():
+                raise AccountsError('another account already waits for that email')
+            try:
+                conn.execute(
+                    'INSERT INTO users (id, username, display_name, password_hash, role, disabled, oidc_issuer, oidc_subject, '
+                    "sso_invite_email, created_at, password_changed_at) VALUES (?, ?, ?, '', ?, 0, ?, ?, ?, ?, ?)",
+                    (user_id, name, display, role, issuer or None, subject or None, invite, now, now))
+            except sqlite3.IntegrityError as exc:
+                if 'users_sso_identity' in str(exc) or 'oidc_' in str(exc):
+                    raise AccountsError('that identity is already linked to another account')
+                raise AccountsError('that username is already taken')
+            conn.execute('COMMIT')
+        except BaseException:
+            try:
+                conn.execute('ROLLBACK')
+            except sqlite3.OperationalError:
+                pass
+            raise
+    return get_user(user_id)
+
+
+def server_key(name, make):
+    """A secret this server keeps for itself (created with make() the first time, then the same for every worker)."""
+    conn = connection()
+    with _lock:
+        row = conn.execute('SELECT value FROM server_keys WHERE name = ?', (name,)).fetchone()
+        if row is not None:
+            return row['value']
+        value = make()
+        conn.execute('INSERT OR IGNORE INTO server_keys (name, value) VALUES (?, ?)', (name, value))
+        return conn.execute('SELECT value FROM server_keys WHERE name = ?', (name,)).fetchone()['value']
 
 
 def admin_count():
@@ -487,15 +729,41 @@ def _session_hash(raw):
     return hashlib.sha256(str(raw).encode('utf-8')).hexdigest()
 
 
-def create_session(user_id, user_agent=''):
-    """Returns the raw session id for the cookie (only its hash is stored)."""
+def create_session(user_id, user_agent='', *, sso=False):
+    """Returns the raw session id for the cookie (only its hash is stored). sso: it starts from an SSO sign-in."""
     raw = secrets.token_urlsafe(32)
     now = time.time()
     with _lock:
         connection().execute(
-            'INSERT INTO sessions (id, user_id, created_at, last_seen, user_agent) VALUES (?, ?, ?, ?, ?)',
-            (_session_hash(raw), user_id, now, now, (user_agent or '')[:256]))
+            'INSERT INTO sessions (id, user_id, created_at, last_seen, user_agent, sso_at) VALUES (?, ?, ?, ?, ?, ?)',
+            (_session_hash(raw), user_id, now, now, (user_agent or '')[:256], now if sso else None))
     return raw
+
+
+def mark_session_sso(raw, now=None):
+    """This session just came back from the identity provider (a fresh SSO round-trip)."""
+    if not raw:
+        return False
+    with _lock:
+        cur = connection().execute('UPDATE sessions SET sso_at = ? WHERE id = ?', (time.time() if now is None else now, _session_hash(raw)))
+    return cur.rowcount == 1
+
+
+def mark_session_hash_sso(session_hash, now=None):
+    """The same for a session named by its stored hash (the SSO callback knows the session only that way)."""
+    with _lock:
+        cur = connection().execute('UPDATE sessions SET sso_at = ? WHERE id = ?', (time.time() if now is None else now, session_hash))
+    return cur.rowcount == 1
+
+
+def session_sso_age(raw, now=None):
+    """Seconds since the session's last SSO round-trip, or None when it never had one."""
+    if not raw or not isinstance(raw, str):
+        return None
+    row = connection().execute('SELECT sso_at FROM sessions WHERE id = ?', (_session_hash(raw),)).fetchone()
+    if row is None or row['sso_at'] is None:
+        return None
+    return (time.time() if now is None else now) - row['sso_at']
 
 
 def validate_session(raw, now=None):

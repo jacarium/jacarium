@@ -10,7 +10,11 @@
  *   - a stale lock: the first instance killed outright (SIGKILL), a new
  *     launch of the same profile starts normally (Electron takes the lock
  *     over from a dead process).
- * Launches real windows; every one is closed at the end.
+ * Launches real windows; every one is closed at the end - killed when it
+ * does not close. Every step against an app is bounded
+ * (tests/helpers/bounded-electron.mjs): a main process that stops answering
+ * is a FAIL within 30 s, with the main thread's stack on macOS. Every launch
+ * here uses the mock keychain, never the user's own.
  *
  * Needs a packaged build for this platform carrying this tree's version
  * (tests/helpers/packaged-app.mjs says how to build one; SKIPs otherwise).
@@ -21,6 +25,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { testablePackagedApp, launchPackagedApp } from './helpers/packaged-app.mjs';
+import { launchElectron, withMockKeychain } from './helpers/bounded-electron.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const req = createRequire(path.join(REPO, 'package.json'));
@@ -37,7 +42,7 @@ const { _electron } = pw;
 // a bare second launch (no driver): the exit code and how long it took
 const launchBare = (args, env) => new Promise((resolve) => {
   const started = Date.now(); let out = '';
-  const child = spawn(target.app.executablePath, args, { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(target.app.executablePath, withMockKeychain(args), { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdout.on('data', (d) => { out += String(d); }); child.stderr.on('data', (d) => { out += String(d); });
   const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* gone */ } resolve({ code: null, ms: Date.now() - started, out, timedOut: true }); }, 25000);
   child.once('exit', (code) => { clearTimeout(timer); resolve({ code, ms: Date.now() - started, out }); });
@@ -56,7 +61,10 @@ try {
   const env = { JACARIUM_USER_DATA_DIR: first.userData, JACARIUM_PROFILES_ROOT: first.profilesRoot };
 
   // 1. the same profile again: hands over and exits
-  await first.app.evaluate(({ BrowserWindow }) => { const w = BrowserWindow.getAllWindows()[0]; if (w) w.minimize(); });
+  // the window's state before the hand-over: minimized (the default, the hardest restore), hidden, or left as it is
+  // (SECOND_INSTANCE_WINDOW=minimized|hidden|shown, to tell the three apart when the hand-over misbehaves)
+  const variant = ['minimized', 'hidden', 'shown'].includes(process.env.SECOND_INSTANCE_WINDOW) ? process.env.SECOND_INSTANCE_WINDOW : 'minimized';
+  await first.app.evaluate(({ BrowserWindow }, how) => { const w = BrowserWindow.getAllWindows()[0]; if (!w) return; if (how === 'minimized') w.minimize(); else if (how === 'hidden') w.hide(); }, variant);
   await sleep(500);
   const second = await launchBare(['--profile', 'default'], env);
   // (the packaged app's console line "already open with the default profile" is not always flushed before app.exit on macOS: the exit code and the timing are the check)
@@ -69,7 +77,7 @@ try {
   check('still exactly one window', stillOne === 1, String(stillOne));
 
   // 2. a different profile beside it
-  other = await _electron.launch({ executablePath: target.app.executablePath, args: ['--profile', 'other'], env: { ...process.env, ...env }, timeout: 60000 });
+  other = await launchElectron(_electron, { executablePath: target.app.executablePath, args: ['--profile', 'other'], env: { ...process.env, ...env }, timeout: 60000 });
   const w2 = await Promise.race([other.firstWindow(), sleep(30000).then(() => null)]);
   check('a different profile (its own userData) opens its own window beside the first', !!w2, 'no window in 30 s');
   if (w2) { const r2 = await rendered(w2); check('... and renders', r2 > 0, String(r2)); }
@@ -78,15 +86,17 @@ try {
   await other.close().catch(() => {}); other = null;
 
   // 3. a stale lock: the first instance killed outright, the same profile launched again starts normally
-  const pid = await first.app.evaluate(() => process.pid);
-  try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ }
+  // killed through the child-process handle of what this test launched (never by a pid computed elsewhere), and
+  // its backend with it: the instance is to be dead without releasing its lock, not to leave an orphan
+  await first.app.killHard();
   await sleep(1500);
-  again = await _electron.launch({ executablePath: target.app.executablePath, args: ['--profile', 'default'], env: { ...process.env, ...env }, timeout: 60000 });
+  again = await launchElectron(_electron, { executablePath: target.app.executablePath, args: ['--profile', 'default'], env: { ...process.env, ...env }, timeout: 60000 });
   const w3 = await Promise.race([again.firstWindow(), sleep(30000).then(() => null)]);
   check('after the first instance died without releasing anything, the same profile launches normally (the stale lock is taken over)', !!w3, 'no window in 30 s');
   if (w3) { const r3 = await rendered(w3); check('... and renders after the stale lock', r3 > 0, String(r3)); }
 } catch (e) {
   check('the run completed', false, e && e.stack ? e.stack.split('\n').slice(0, 4).join(' ') : String(e));
+  if (e && e.name === 'ElectronStepTimeout') console.log(e.message);   // where the main process stood
 } finally {
   try { if (again) await again.close(); } catch { /* gone */ }
   try { if (other) await other.close(); } catch { /* gone */ }

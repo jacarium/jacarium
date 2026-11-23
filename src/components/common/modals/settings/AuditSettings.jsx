@@ -28,9 +28,26 @@ const LABELS = {
   'device-revoked': 'Device revoked',
   'data-deleted': 'All data deleted on the server',
   'data-delete-refused': 'Data deletion refused',
+  'sso-sign-in': 'Signed in with single sign-on',
+  'sso-user-created': 'Account created at a single sign-on',
+  'sso-linked': 'Single sign-on identity linked',
+  'sso-linked-by-invite': 'Single sign-on identity linked (administrator\'s approval)',
+  'sso-unlinked': 'Single sign-on identity unlinked',
+  'sso-invited': 'Single sign-on link approved for an email',
+  'sso-invite-withdrawn': 'Single sign-on approval withdrawn',
+  'sso-confirmed': 'Confirmed with single sign-on',
+  'sso-refused': 'Single sign-on refused',
+  'sso-link-refused': 'Single sign-on link refused',
+  'sso-role-granted': 'Administrator role granted by group',
+  'sign-in-refused-sso-only': 'Password sign-in refused (single sign-on only)',
+  'password-set': 'First password set',
 };
 const TONE = {
   'sign-in-failed': 'text-(--status-warning-fg)',
+  'sso-refused': 'text-(--status-warning-fg)',
+  'sso-link-refused': 'text-(--status-warning-fg)',
+  'sign-in-refused-sso-only': 'text-(--status-warning-fg)',
+  'sso-role-granted': 'text-(--status-warning-fg)',
   'data-deleted': 'text-(--status-danger-fg)',
   'data-delete-refused': 'text-(--status-warning-fg)',
   'user-deleted': 'text-(--status-danger-fg)',
@@ -47,7 +64,7 @@ function describe(entry) {
   if (f.records) parts.push(`${f.records} record(s)`);
   if (f.files === '1') parts.push('files too');
   if (f.count) parts.push(`${f.count} session(s)`);
-  if (f.reason) parts.push(f.reason.replace(/-/g, ' '));
+  if (f.reason) parts.push(f.reason.replace(/[-_]/g, ' '));
   if (f.devices_revoked && f.devices_revoked !== '0') parts.push(`${f.devices_revoked} device(s) revoked`);
   if (f.made_admin === '1') parts.push('made administrator');
   if (f.temporary === '1') parts.push('with a temporary password');

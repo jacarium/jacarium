@@ -26,7 +26,7 @@ import './index.css'
 import './mobile.css'
 import { initializeBackendUrl } from './utils/backendUrl'
 import { initializePlatform, isDesktopApp } from './utils/platform'
-import { databaseNameFor } from './utils/auth'
+import { databaseNameFor, rememberSsoResult, takeSsoResult } from './utils/auth'
 
 console.log('=== App starting ===');
 console.log('Environment:', import.meta.env.PROD ? 'PRODUCTION' : 'DEVELOPMENT');
@@ -68,6 +68,10 @@ async function start() {
       render(<AuthGate changePasswordFor={auth.user} />);
       return;
     }
+    // back from a single sign-on round-trip: the outcome leaves the address; a link / confirm / refusal that
+    // belongs to the signed-in account is kept for Settings > General, which opens to show it (CompactSidebar)
+    const ssoResult = takeSsoResult();
+    if (ssoResult && !(ssoResult.ok && ssoResult.what === 'signed-in')) rememberSsoResult(ssoResult);
     globalThis.__JACARIUM_DB_NAME = databaseNameFor(auth.user);
     const { shouldOfferLegacyImport } = await import('./utils/legacyImport.js');
     if (await shouldOfferLegacyImport(auth.user.id)) {

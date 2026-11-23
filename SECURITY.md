@@ -106,3 +106,27 @@ If you self-host it:
 
 The self-hosting guide has the details:
 [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md).
+
+### Single sign-on (optional)
+
+A self-hosted server can let accounts sign in through an OpenID Connect
+identity provider (docs/SELF_HOSTING.md, "Single sign-on"). It is off unless
+configured. What it defends against, and what it leaves to you:
+
+| Threat | What Jacarium does |
+|---|---|
+| Someone at the provider takes over a local account by choosing its username or email | An account is matched by the provider's issuer and the subject (`sub`) only. Names and emails in a token never select an existing account. Linking needs the account's own password plus a sign-in at the provider, or an administrator's approval of one provider-verified email, used once |
+| Anyone with an identity at the provider gets an account | Default deny: only linked accounts sign in. Creating accounts at sign-in is opt-in, and allow-lists (group, verified email domain, required claim) apply to every SSO sign-in |
+| A token grants itself the administrator role | No claim does unless an administrator group is configured; a grant is audited |
+| Login CSRF, or an answer replayed or delivered to another browser | The round-trip starts with a guarded POST from the app. State, nonce, the PKCE verifier and what it is for are sealed (AES-CBC with HMAC-SHA256, a key the server generates) into an HttpOnly, Secure, `__Host-` cookie that lives ten minutes; the callback needs that cookie, for exactly that state, once. A link or a confirmation completes only for the session that asked |
+| A forged or stale ID token | Verified with PyJWT: RS256, PS256 or ES256 only (no `none`, no HMAC), the key by `kid` from the provider's JWKS, issuer, audience, `azp`, expiry and issue time with one minute of leeway, and the nonce. PKCE (S256) and the client secret go to the token endpoint. https is required for the issuer and its endpoints |
+| A stolen session gives the account a password of the thief's | An account without a password sets its first one only within ten minutes of a fresh sign-in at the provider; linking and unlinking need the current password |
+| The provider's error text used for phishing on the sign-in page | Nothing the provider or the address bar says is shown: the page maps a short code to its own text |
+| The provider is down, or the SSO settings are wrong | Passwords keep working; with passwords restricted to administrators, administrators still sign in with theirs, and `reset-password` on the host always works |
+
+Left to you: the provider's own security (who can create identities there,
+its MFA, whether it verifies emails), keeping the client secret private
+(`sso.env` on the data volume, or a container secret), and ending sessions:
+removing someone at the provider stops their next SSO sign-in, but their open
+Jacarium sessions and linked desktop profiles last until they expire or an
+administrator ends them (Settings > Users) or disables the account.

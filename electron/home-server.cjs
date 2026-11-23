@@ -47,18 +47,27 @@ function normalizeUrl(raw) {
 }
 
 /** Encrypt/decrypt with safeStorage when available, else store as plain text (with a flag). */
+// The keychain is asked LAZILY: safeStorage.isEncryptionAvailable() opens the OS keychain item ("<app> Safe Storage"
+// on macOS), synchronously, on the main thread - and macOS may answer with a prompt ("... wants to use your
+// confidential information ...") that blocks the whole main process until someone answers it (a build whose
+// signature the item does not know yet: a new Electron, an unsigned build). So it is only asked when there is
+// something to encrypt or decrypt; a profile that keeps nothing in the keychain never touches it.
 function createCodec(safeStorage) {
-  const usable = !!(safeStorage && typeof safeStorage.isEncryptionAvailable === 'function' && safeStorage.isEncryptionAvailable());
+  let known;   // undefined until the first time it matters
+  const usable = () => {
+    if (known === undefined) known = !!(safeStorage && typeof safeStorage.isEncryptionAvailable === 'function' && safeStorage.isEncryptionAvailable());
+    return known;
+  };
   return {
-    encrypted: usable,
+    get encrypted() { return usable(); },
     encode(text) {
-      if (!usable) return { plain: text };
+      if (!usable()) return { plain: text };
       return { encrypted: safeStorage.encryptString(text).toString('base64') };
     },
     decode(record) {
       if (!record) return null;
       if (record.encrypted) {
-        if (!usable) throw new Error('The stored token is encrypted but the OS keychain is not available');
+        if (!usable()) throw new Error('The stored token is encrypted but the OS keychain is not available');
         return safeStorage.decryptString(Buffer.from(record.encrypted, 'base64'));
       }
       return record.plain || null;

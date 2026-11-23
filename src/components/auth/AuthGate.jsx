@@ -14,7 +14,7 @@ import { latestVersion } from '../../whats-new/versions';
 import { useEffect, useState } from 'react';
 import { KeyRound, Database, ShieldCheck } from 'lucide-react';
 import { ThemeProvider } from '../../contexts/ThemeContext';
-import { changePassword, login, logout, setup } from '../../utils/auth';
+import { changePassword, login, logout, setup, sso, ssoState, takeSsoResult } from '../../utils/auth';
 
 function Field({ label, type = 'text', value, onChange, autoFocus = false, autoComplete, placeholder, hint }) {
   return (
@@ -112,7 +112,21 @@ export function LoginPage({ onDone = () => window.location.reload() }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  // a refused single sign-on comes back as a short code in the address (never the provider's own text)
+  const [error, setError] = useState(() => { const result = takeSsoResult(); return result && !result.ok ? result.message : ''; });
+  const single = ssoState();
+  // JACARIUM_OIDC_DISABLE_PASSWORD_LOGIN: passwords are the administrators' way back in, behind a link
+  const [showPassword, setShowPassword] = useState(!single || single.passwordLogin !== false);
+
+  async function startSso() {
+    setBusy(true); setError('');
+    try {
+      await sso.begin('login');
+    } catch (err) {
+      setError(err.status === 429 ? `Too many attempts. Try again in ${err.data?.retryAfter || 60} seconds.` : err.message);
+      setBusy(false);
+    }
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -135,12 +149,25 @@ export function LoginPage({ onDone = () => window.location.reload() }) {
   return (
     <Card title="Sign in to Jacarium" subtitle="Your documents, tasks and settings are kept per account.">
       <form onSubmit={submit} className="space-y-3" data-testid="login-form">
-        <Field label="Username" value={username} onChange={setUsername} autoFocus autoComplete="username" />
-        <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="current-password" />
+        {single && (
+          <button type="button" disabled={busy} onClick={startSso} className="btn btn-primary w-full flex items-center justify-center gap-2 px-4 py-2 text-sm" data-testid="sso-sign-in">
+            {single.buttonLabel || 'Sign in with SSO'}
+          </button>
+        )}
+        {single && showPassword && <p className="text-2xs text-center text-os-text-muted" data-testid="sso-or-password">{single.passwordLogin === false ? 'Administrators: sign in with your password' : 'or with your username and password'}</p>}
+        {showPassword && <Field label="Username" value={username} onChange={setUsername} autoFocus={!single} autoComplete="username" />}
+        {showPassword && <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="current-password" />}
         <ErrorBox error={error} />
-        <button type="submit" disabled={busy} className="btn btn-primary w-full flex items-center justify-center gap-2 px-4 py-2 text-sm">
-          Sign in
-        </button>
+        {showPassword && (
+          <button type="submit" disabled={busy} className={`btn ${single ? 'btn-secondary' : 'btn-primary'} w-full flex items-center justify-center gap-2 px-4 py-2 text-sm`} data-testid="password-sign-in">
+            Sign in
+          </button>
+        )}
+        {!showPassword && (
+          <button type="button" onClick={() => setShowPassword(true)} className="w-full px-4 py-2 text-xs text-os-text-secondary hover:bg-os-card-secondary rounded-sm" data-testid="admin-password-sign-in">
+            Administrator sign-in with a password
+          </button>
+        )}
         <p className="text-2xs text-os-text-muted" data-testid="download-desktop-hint">
           Prefer the desktop app? <a href="/api/downloads/" target="_blank" rel="noopener noreferrer" className="link hover:underline">Download it from this server</a> and link it to your account.
         </p>

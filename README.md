@@ -259,6 +259,8 @@ browser warns once). This publishes it on this machine only; to reach it
 from other devices on your network, see
 [Sharing it on your network](docs/SELF_HOSTING.md#quick-start-with-the-published-image).
 Docker, updates and backups: [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md).
+Signing in through your own identity provider (OpenID Connect single sign-on) is optional:
+[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md#single-sign-on-openid-connect).
 
 More about the desktop app (profiles, Google Calendar, the connection
 indicator): [docs/DESKTOP.md](docs/DESKTOP.md).

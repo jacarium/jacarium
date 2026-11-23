@@ -169,7 +169,7 @@ def validate_semantics(doc):
     """What the schema cannot say: justification + impact for not_affected, an action for affected, notes for
     fixed; every product a package URL; no duplicate (vulnerability, product) pair."""
     errors = []
-    seen = set()
+    seen = {}
     for i, st in enumerate(doc.get('statements') or []):
         name = (st.get('vulnerability') or {}).get('name') or f'#{i}'
         status = st.get('status')
@@ -186,10 +186,15 @@ def validate_semantics(doc):
             pid = p.get('@id') or ''
             if not pid.startswith('pkg:'):
                 errors.append(f'{name}: product {pid!r} is not a package URL')
-            key = (name, pid)
-            if key in seen:
-                errors.append(f'{name}: more than one statement for {pid}')
-            seen.add(key)
+            # one statement per vulnerability and product - or per subcomponent of it: two statements may speak
+            # about different packages inside the product (go-jose v4 fixed, v3 not reached), never about the same
+            # one, and a statement without subcomponents speaks for the whole product
+            subs = frozenset(c.get('@id') for c in p.get('subcomponents') or [])
+            for other in seen.get((name, pid), []):
+                if not subs or not other or subs & other:
+                    errors.append(f'{name}: more than one statement for {pid}')
+                    break
+            seen.setdefault((name, pid), []).append(subs)
             for c in p.get('subcomponents') or []:
                 if not (c.get('@id') or '').startswith('pkg:'):
                     errors.append(f'{name}: subcomponent {c.get("@id")!r} is not a package URL')
