@@ -110,7 +110,8 @@ check('preload exposes the six spellcheck calls on their channels', ['add-word',
 const main = read('electron/main.cjs');
 check('main.cjs watches the main window and the standalone windows, and installs the IPC once', (main.match(/spellcheck\.watchContextMenu\(/g) || []).length === 2 && /spellcheck\.installIpc\(\{ ipcMain, session: require\('electron'\)\.session/.test(main) && (main.match(/spellcheck\.installIpc\(/g) || []).length === 1);
 const editor = read('src/components/features/documents/DocumentEditor.jsx');
-check('the editor lets the desktop app see the right-click (preventDefault only without the bridge) and takes the word under the pointer', /if \(typeof window\.electronAPI\?\.onEditorContextMenu !== 'function'\) e\.preventDefault\(\);/.test(editor) && /word: wordAtPointer\(textarea, e\)/.test(editor));
+check('the editor lets the desktop app see the right-click (preventDefault only without the bridge) and takes the word under the pointer', /if \(browserOwnsSpelling\(\)\) e\.preventDefault\(\);/.test(editor) && /word: wordAtPointer\(textarea, e\)/.test(editor)
+  && /export function browserOwnsSpelling\(win = [^)]*\) \{\n  return typeof win\?\.electronAPI\?\.onEditorContextMenu !== 'function';\n\}/.test(fs.readFileSync(path.join(REPO, 'src', 'utils', 'editorSurface.js'), 'utf8')));
 check('a suggestion replaces the word through replaceRange (an ordinary edit) and only when the text still matches', /if \(!textarea \|\| textarea\.value\.slice\(word\.from, word\.to\) !== word\.text\) return;\n\s*replaceRange\(word\.from, word\.to, suggestion, word\.from \+ suggestion\.length\);/.test(editor));
 check('the suggestions join the open menu only when they are about its word', /menu\.visible && menu\.word && menu\.word\.text === payload\.misspelledWord/.test(editor));
 const menu = read('src/components/features/documents/TextSelectionMenu.jsx');

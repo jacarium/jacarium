@@ -9,6 +9,7 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { getDocumentsMetadata, getDocument, updateDocument } from '../utils/documents';
 import { MenuItemIcon } from './common/menus/MenuItemIcon';
+import { browserOwnsSpelling, isRightPress, leavesMenuToBrowser, spellingHintLabel } from '../utils/editorSurface';
 
 // Debounce utility
 function useDebounce(value, delay) {
@@ -907,6 +908,8 @@ export default function FloatingDraft({ instanceId = 'default' }) {
 
   // Handle text selection context menu
   function handleTextSelectionContextMenu(e) {
+    // in a browser, Shift + right-click is the browser's own menu (its spelling suggestions): left alone
+    if (leavesMenuToBrowser(e)) { setSelectionMenu((menu) => ({ ...menu, visible: false })); return; }
     e.preventDefault();
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -1624,6 +1627,10 @@ export default function FloatingDraft({ instanceId = 'default' }) {
             onMouseUp={handleCursorMove}
             onKeyUp={handleCursorMove}
             onContextMenu={handleTextSelectionContextMenu}
+            onMouseDown={(e) => {
+              // a browser's Shift + right-click must not extend the selection from the old caret (its menu would be about that range)
+              if (isRightPress(e) && leavesMenuToBrowser(e)) e.preventDefault();
+            }}
             readOnly={draftDoc?.readOnly}
             className={`flex-1 w-full h-full px-4 py-3 font-mono resize-none outline-hidden bg-os-card text-os-text-primary placeholder:text-os-text-muted border-0 ${draftDoc?.readOnly ?'cursor-default opacity-75':''}`}
             style={{
@@ -1685,6 +1692,12 @@ export default function FloatingDraft({ instanceId = 'default' }) {
       {!selectionMenu.text && (
         <div className="px-4 py-2 text-sm text-os-text-muted italic">
           Select text to use AI features
+        </div>
+      )}
+      {/* a browser keeps its spelling suggestions in its own menu (the desktop app has none for this field) */}
+      {browserOwnsSpelling() && (
+        <div className="px-4 py-2 text-sm text-os-text-muted italic" data-testid="draft-spell-browser-hint">
+          {spellingHintLabel()}
         </div>
       )}
     </div>}</ErrorBoundary>,

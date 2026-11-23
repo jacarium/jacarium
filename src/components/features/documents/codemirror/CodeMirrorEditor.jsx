@@ -12,7 +12,7 @@
  *                ready, else null; bound through y-codemirror.next
  *   readOnly, placeholder, spellcheck
  *   docLinkResolver  the [[doc:...]] chips' titles (src/utils/docLinks.js), re-applied as it changes
- *   the handlers (onChange, onKeyDown, onKeyUp, onContextMenu, onSelect,
+ *   the handlers (onChange, onKeyDown, onKeyUp, onContextMenu, onRightMouseDown, onSelect,
  *                onClick, onMouseUp, onFocus, onBlur): read through a ref,
  *                so the surface always calls the latest render's closures
  */
@@ -34,6 +34,7 @@ export default function CodeMirrorEditor({
   onContextMenu,
   onSelect,
   onClick,
+  onRightMouseDown,
   onMouseUp,
   onFocus,
   onBlur,
@@ -44,7 +45,7 @@ export default function CodeMirrorEditor({
   const surfaceRef = useRef(null);
   const handlersRef = useRef({});
   useLayoutEffect(() => {
-    handlersRef.current = { onChange, onKeyDown, onKeyUp, onContextMenu, onSelect, onClick, onMouseUp, onFocus, onBlur };
+    handlersRef.current = { onChange, onKeyDown, onKeyUp, onContextMenu, onSelect, onClick, onRightMouseDown, onMouseUp, onFocus, onBlur };
   });
   const initial = useRef({ doc: value != null ? value : defaultValue, readOnly, placeholder, spellcheck, onSurface, docLinkResolver });
 
@@ -52,7 +53,7 @@ export default function CodeMirrorEditor({
     const host = hostRef.current;
     const init = initial.current;
     const handlers = {};
-    for (const name of ['onChange', 'onKeyDown', 'onKeyUp', 'onContextMenu', 'onSelect', 'onClick', 'onMouseUp', 'onFocus', 'onBlur']) {
+    for (const name of ['onChange', 'onKeyDown', 'onKeyUp', 'onContextMenu', 'onSelect', 'onClick', 'onRightMouseDown', 'onMouseUp', 'onFocus', 'onBlur']) {
       handlers[name] = (...args) => handlersRef.current[name]?.(...args);
     }
     const surface = new CodeMirrorSurface({ parent: host, doc: init.doc, readOnly: init.readOnly, placeholder: init.placeholder, spellcheck: init.spellcheck, handlers, docLinkResolver: init.docLinkResolver });

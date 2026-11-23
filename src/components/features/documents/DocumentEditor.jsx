@@ -100,7 +100,7 @@ import { downloadBlob } from '../../../utils/exportHelpers';
 import { useContextMenu } from '../../../hooks/useContextMenu';
 import ContextMenu, { ContextMenuItem } from '../../common/menus/ContextMenu';
 import TextSelectionMenu from './TextSelectionMenu';
-import { readClipboardState, copySelection, cutSelection, pasteInto } from '../../../utils/editorClipboard';
+import { peekClipboardState, copySelection, cutSelection, pasteInto } from '../../../utils/editorClipboard';
 import QuickWorkflow from './QuickWorkflow';
 import QuickTasks from './QuickTasks';
 import { getUserColor } from '../../../utils/userColors';
@@ -114,7 +114,7 @@ import MediaLibraryModal from '../../common/modals/MediaLibraryModal';
 import { useLocalStorage } from '../../../hooks/useLocalStorage';
 import { takePendingEditorFocus, takePendingEditorJump, DOCUMENT_JUMP_EVENT } from '../../../utils/openDocument';
 import { lineStartOffset } from '../../../utils/findInFiles';
-import { isSpellcheckEnabled, SPELLCHECK_CHANGED_EVENT } from '../../../utils/editorSurface';
+import { isSpellcheckEnabled, SPELLCHECK_CHANGED_EVENT, browserOwnsSpelling, leavesMenuToBrowser, takeBrowserMenuPress } from '../../../utils/editorSurface';
 import CodeMirrorEditor from './codemirror/CodeMirrorEditor';
 import { wordAtPointer } from '../../../utils/editorWords';
 import NoticeBanner, { NoticeBannerAction } from '../../common/NoticeBanner';
@@ -2491,22 +2491,26 @@ export default function DocumentEditor({
 
   // The editor's right-click menu: always ours (Cut / Copy / Paste with or
   // without a selection; the AI and Search items with one). The clipboard is
-  // asked what it holds while the menu opens, so Paste can be greyed when it
-  // is known to be empty (src/utils/editorClipboard.js: 'unknown' keeps it on).
+  // asked what it holds while the menu opens - only where asking shows nothing
+  // (peekClipboardState: a read brings up Safari's and Firefox's own "Paste"
+  // button) - so Paste can be greyed when it is known to be empty
+  // (src/utils/editorClipboard.js: 'unknown' keeps it on).
   const handleTextSelectionContextMenu = (e) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
     // The desktop app lets Chromium see the click: its context-menu event
     // (no native menu is shown) brings the word it flagged and the
-    // suggestions, which join this menu. A browser keeps the menu ours;
-    // Shift + right-click there opens the browser's own, with its suggestions.
-    if (typeof window.electronAPI?.onEditorContextMenu !== 'function') e.preventDefault();
+    // suggestions, which join this menu. A browser keeps the menu ours, but
+    // its spelling suggestions exist only in its own menu: Shift + right-click
+    // is left to the browser there (no preventDefault, and ours stays shut).
+    if (leavesMenuToBrowser(e)) { closeSelectionMenu(); return; }
+    if (browserOwnsSpelling()) e.preventDefault();
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const selectedText = textarea.value.substring(start, end);
     const opened = { visible: true, x: e.clientX, y: e.clientY, text: selectedText, start, end, clipboard: 'unknown', word: wordAtPointer(textarea, e), spell: null };
     setSelectionMenu(opened);
-    readClipboardState().then((clipboard) => {
+    peekClipboardState().then((clipboard) => {
       setSelectionMenu((menu) => (menu.visible && menu.start === start && menu.end === end && menu.x === opened.x && menu.y === opened.y ? { ...menu, clipboard } : menu));
     });
   };
@@ -3154,6 +3158,7 @@ export default function DocumentEditor({
               onSurface={onSurface}
               onChange={handleContentChange}
               onContextMenu={handleTextSelectionContextMenu}
+              onRightMouseDown={(e) => { if (takeBrowserMenuPress(textareaRef.current, e)) closeSelectionMenu(); }}
               onMouseUp={handleCursorMove}
               onSelect={handleCursorMove}
               onClick={(e) => { if (isAutoTyping) e.preventDefault(); }}
@@ -3507,6 +3512,7 @@ export default function DocumentEditor({
         onSearchIn={handleSearchInEngine}
         engineTemplates={engineTemplates}
         spell={selectionMenu.spell}
+        spellingHint={spellcheckOn && browserOwnsSpelling()}
         onReplaceWord={handleSpellReplace}
         onAddWord={handleSpellAddWord}
         onClose={closeSelectionMenu}

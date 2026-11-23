@@ -17,7 +17,8 @@
  *     has it); Escape closes the menu with the focus and the selection
  *     back in the editor; a click outside closes it the same way;
  *   - the AI item still gets the selection (Ask AI opens with it);
- *   - without a selection the menu is Paste alone (no Cut, no Copy, no AI
+ *   - without a selection the menu is Paste alone, then (a browser, spell
+ *     checking on) the disabled hint about the browser's own menu (no Cut, no Copy, no AI
  *     items), screenshots dark and light; with one, Cut and Copy are there;
  *   - screenshots of the menu over the highlighted selection, dark and
  *     light, in EDITOR_SELECTION_SHOTS_DIR (default: a temp dir).
@@ -139,7 +140,8 @@ for (const build of ['dev', 'production']) {
       await setTheme(theme);
       await select(19, 19);
       await openMenu();
-      check(`${tag} ${theme}: without a selection the menu is Paste alone`, (await itemIds()) === 'selection-paste', await itemIds());
+      // (a browser, spell checking on: the last row is the hint that Shift + right-click opens the browser's own menu - disabled, not an action)
+      check(`${tag} ${theme}: without a selection the menu is Paste alone, then the browser's spelling hint (disabled)`, (await itemIds()) === 'selection-paste,spell-browser-hint' && (await app.evaluate(`document.querySelector('[data-testid="spell-browser-hint"]').disabled === true`)), await itemIds());
       const f = await shot(`editor-menu-no-selection-${build}-${theme}`);
       check(`${tag} ${theme}: the no-selection menu renders`, PNG.sync.read(readFileSync(f)).width > 0);
       await keyChord('Escape', 'Escape', 27);
@@ -166,7 +168,9 @@ for (const build of ['dev', 'production']) {
     // a click outside
     await select(0, 5);
     await openMenu();
-    const outside = await app.evaluate(`(() => { const r = document.querySelector('.sc-editor-cm .cm-content').getBoundingClientRect(); return [r.left + 300, r.top + 300]; })()`);
+    // (a point of the editor that the menu does not cover: to the right of the menu's own box, whatever its size)
+    const outside = await app.evaluate(`(() => { const r = document.querySelector('.sc-editor-cm .cm-content').getBoundingClientRect(); const m = document.querySelector('[data-testid="editor-context-menu"]').getBoundingClientRect(); const p = [Math.round(m.right + 80), Math.round(r.top + 300)]; const hit = document.elementFromPoint(p[0], p[1]); return [p[0], p[1], !!(hit && hit.closest('[data-testid="editor-context-menu"]')), !!(hit && hit.closest('.sc-editor-cm'))]; })()`);
+    check(`${tag} (the click lands in the editor, outside the menu's box)`, outside[2] === false && outside[3] === true, JSON.stringify(outside));
     await app.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: outside[0], y: outside[1], button: 'left', clickCount: 1 });
     await app.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: outside[0], y: outside[1], button: 'left', clickCount: 1 });
     await sleep(300);

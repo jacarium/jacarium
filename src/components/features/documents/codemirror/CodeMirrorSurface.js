@@ -109,7 +109,7 @@ export class CodeMirrorSurface {
    * @param {string} [options.placeholder]
    * @param {boolean} [options.spellcheck]
    * @param {boolean} [options.lineNumbers]
-   * @param {object} [options.handlers]   { onChange, onKeyDown, onKeyUp, onContextMenu, onSelect, onClick, onMouseUp, onFocus, onBlur }
+   * @param {object} [options.handlers]   { onChange, onKeyDown, onKeyUp, onContextMenu, onSelect, onClick, onRightMouseDown, onMouseUp, onFocus, onBlur }
    * @param {Function} [options.docLinkResolver]  the [[doc:...]] chips' title resolver (src/utils/docLinks.js createDocLinkResolver)
    */
   constructor({ parent, doc = '', readOnly = false, placeholder = '', spellcheck = true, lineNumbers: showLineNumbers = true, handlers = {}, docLinkResolver = null, codeColours: withCodeColours = true }) {
@@ -138,6 +138,9 @@ export class CodeMirrorSurface {
       keydown(event) { self.handlers.onKeyDown?.(event); return event.defaultPrevented; },
       keyup(event) { self.handlers.onKeyUp?.(event); self.handlers.onSelect?.(); return false; },
       contextmenu(event) { self.handlers.onContextMenu?.(event); return event.defaultPrevented; },
+      // The right button's press only (the left one is never handed out: clicks, Shift + click and drags are
+      // CodeMirror's alone). A press the owner takes - preventDefault - is not CodeMirror's either.
+      mousedown(event) { if (event.button !== 2) return false; self.handlers.onRightMouseDown?.(event); return event.defaultPrevented; },
       mouseup(event) { self.handlers.onMouseUp?.(event); self.handlers.onSelect?.(); return false; },
       click(event) { self.handlers.onClick?.(event); return event.defaultPrevented; },
       focus(event) { self.handlers.onFocus?.(event); return false; },

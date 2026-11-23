@@ -119,7 +119,8 @@ try {
   await select(19, 19);
   await rightClick({ real: true });
   let items = await menuItems();
-  check('without a selection the menu opens with Paste alone - no Cut, no Copy, nothing else', items.join(',') === 'selection-paste:off' || items.join(',') === 'selection-paste:on', items.join(','));
+  // (a browser, spell checking on: the last row is the hint that Shift + right-click opens the browser's own menu - always disabled)
+  check('without a selection the menu opens with Paste alone - no Cut, no Copy - then the browser\'s spelling hint, disabled; nothing else', items.join(',') === 'selection-paste:off,spell-browser-hint:off' || items.join(',') === 'selection-paste:on,spell-browser-hint:off', items.join(','));
   check('...and Paste is off with an empty clipboard (the page may read it)', items.includes('selection-paste:off'), items.join(','));
   check('the menu is role=menu and the first enabled item (none here) leaves the focus in the menu or the editor', await app.evaluate(`document.querySelector('[data-testid="editor-context-menu"]').getAttribute('role') === 'menu'`));
   for (const theme of ['dark', 'light']) { await setTheme(theme); const f = await shot(`editor-menu-no-selection-${theme}`); check(`the menu without a selection renders (${theme})`, pixelSpread(f) > 40); }

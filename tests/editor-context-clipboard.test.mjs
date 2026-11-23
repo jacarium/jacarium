@@ -42,7 +42,7 @@ const { mod, window } = await setupDocumentsEnv('editor-context-clipboard', { en
 const { check, summary } = makeChecker();
 const { document } = window;
 installEditorSurfaceInJsdom(window);   // what CodeMirror needs of jsdom
-const { clipboardMenuState, clipboardShortcuts, readClipboardState, copySelection, cutSelection, pasteInto } = mod.editorClipboard;
+const { clipboardMenuState, clipboardShortcuts, readClipboardState, peekClipboardState, copySelection, cutSelection, pasteInto } = mod.editorClipboard;
 
 // ---- the enable logic ----
 const S = clipboardMenuState;
@@ -63,6 +63,20 @@ check("text on the clipboard -> 'text'", (await readClipboardState(navWith(async
 check("nothing on the clipboard -> 'empty'", (await readClipboardState(navWith(async () => ''))) === 'empty');
 check("a refused read -> 'unknown' (Paste stays on)", (await readClipboardState(navWith(async () => { throw new window.DOMException('denied', 'NotAllowedError'); }))) === 'unknown');
 check("no Clipboard API -> 'unknown'", (await readClipboardState({})) === 'unknown' && (await readClipboardState(null)) === 'unknown');
+
+// ---- the probe while the menu opens: only where a read shows nothing ----
+// (Safari and Firefox answer a page's clipboard read with their own "Paste" button at the pointer)
+{
+  let reads = 0;
+  const nav = (permission) => ({ clipboard: { readText: async () => { reads++; return 'hello'; } }, ...(permission === undefined ? {} : { permissions: { query: async (d) => { if (permission === 'throws') throw new TypeError('unknown permission'); return { state: permission, name: d.name }; } } }) });
+  const peek = async (permission, win) => { reads = 0; const state = await peekClipboardState({ nav: nav(permission), win }); return `${state}/${reads}`; };
+  check('a browser that does not know the clipboard-read permission (Safari, Firefox): not read, unknown', (await peek('throws', {})) === 'unknown/0', await peek('throws', {}));
+  check('a browser without the Permissions API: not read, unknown', (await peek(undefined, {})) === 'unknown/0');
+  check('a browser that would ask first (prompt) or refused (denied): not read, unknown', (await peek('prompt', {})) === 'unknown/0' && (await peek('denied', {})) === 'unknown/0');
+  check('a browser that already granted the permission: read', (await peek('granted', {})) === 'text/1', await peek('granted', {}));
+  check('the desktop app reads whatever the Permissions API says (as before)', (await peek('throws', { electronAPI: {} })) === 'text/1' && (await peek(undefined, { electronAPI: {} })) === 'text/1' && (await peek('prompt', { electronAPI: {} })) === 'text/1');
+  check('no navigator at all: unknown', (await peekClipboardState({ nav: null, win: {} })) === 'unknown');
+}
 
 // ---- the menu in jsdom ----
 const q = (sel) => document.querySelector(sel);
@@ -182,7 +196,8 @@ opener.destroy(); ta.destroy();
 // ---- the editor's wiring, statically ----
 const editor = fs.readFileSync(path.join(REPO, 'src', 'components', 'features', 'documents', 'DocumentEditor.jsx'), 'utf8');
 const handler = editor.slice(editor.indexOf('const handleTextSelectionContextMenu = (e) => {'), editor.indexOf('const handleSelectionCut'));
-check('the editor opens the menu with or without a selection (the browser\'s own menu only on Shift+right-click, the desktop app lets the click through for its spelling report) and probes the clipboard as it opens', /if \(typeof window\.electronAPI\?\.onEditorContextMenu !== 'function'\) e\.preventDefault\(\);\n\s+const start = textarea\.selectionStart;/.test(handler) && /readClipboardState\(\)\.then/.test(handler) && !/if \(selectedText && selectedText\.trim\(\)\) \{\s*e\.preventDefault/.test(handler));
+check('the editor opens the menu with or without a selection (a browser keeps Shift+right-click for its own menu and is otherwise prevented; the desktop app lets the click through for its spelling report) and asks the clipboard, silently, as it opens',
+  /if \(leavesMenuToBrowser\(e\)\) \{ closeSelectionMenu\(\); return; \}\n\s+if \(browserOwnsSpelling\(\)\) e\.preventDefault\(\);\n\s+const start = textarea\.selectionStart;/.test(handler) && /peekClipboardState\(\)\.then\(/.test(handler) && !/readClipboardState/.test(editor));
 check('the surface and the menu share one read-only expression (editorReadOnly)', /const editorReadOnly = locked \|\| !isOwner/.test(editor) && /readOnly=\{editorReadOnly\}/.test(editor) && /editable=\{!editorReadOnly\}/.test(editor));
 check('the menu gets the clipboard state and the three handlers', /clipboard=\{selectionMenu\.clipboard\}/.test(editor) && /onCut=\{handleSelectionCut\}/.test(editor) && /onCopy=\{handleSelectionCopy\}/.test(editor) && /onPaste=\{handleSelectionPaste\}/.test(editor));
 check('the handlers act on the selection the menu was opened on, through the shared helpers', /cutSelection\(textareaRef\.current, \{ start, end \}\)/.test(editor) && /copySelection\(textareaRef\.current, \{ start, end \}\)/.test(editor) && /pasteInto\(textareaRef\.current, \{ start, end \}\)/.test(editor));

@@ -4,6 +4,21 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.5.1
+
+_2026-11-23_
+
+### [DOCUMENTS]
+
+In a browser (the home server), Shift + right-click in the document editor now opens the browser's own menu with its spelling suggestions for the word under the pointer; a plain right-click still opens the Jacarium menu, which says so when spellcheck is on. Shift + left-click, Shift + drag and Shift + arrows select as before, and a Shift + right-click inside a selection keeps it. The desktop app is unchanged: it shows the suggestions in its own menu
+
+In a browser, opening the editor menu no longer reads the clipboard, so Safari no longer shows its own Paste bubble on right-click; Paste reads the clipboard only when chosen
+
+### [TESTS]
+
+The editor menu tests run in Chromium and WebKit and cover the spelling hint, the Shift + right-click path and that Shift selection keeps working
+
+
 ## What's New in v4.5.0
 
 _2026-11-23_

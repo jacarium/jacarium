@@ -3,6 +3,7 @@ import { ChevronRight } from 'lucide-react';
 import ContextMenu, { ContextMenuItem, ContextMenuDivider } from '../../common/menus/ContextMenu';
 import { MenuItemIcon } from '../../common/menus/MenuItemIcon';
 import { clipboardMenuState, clipboardShortcuts } from '../../../utils/editorClipboard';
+import { spellingHintLabel } from '../../../utils/editorSurface';
 
 /**
  * TextSelectionMenu - the Documents editor's right-click menu, on the shared
@@ -32,7 +33,10 @@ import { clipboardMenuState, clipboardShortcuts } from '../../../utils/editorCli
  *   process - electron/spellcheck.cjs), the suggestions come first, then
  *   "Add to dictionary", then a separator; choosing a suggestion replaces
  *   the word (onReplaceWord: an ordinary edit of the editor, undoable). A
- *   browser shows no such items: Shift + right-click opens its own menu.
+ *   browser shows no such items - a page cannot read its spell checker:
+ *   Shift + right-click opens the browser's own menu, and while spell
+ *   checking is on this menu says so in a last, disabled row (`spellingHint`;
+ *   never in the desktop app).
  */
 const TextSelectionMenu = forwardRef(function TextSelectionMenu({
   visible,
@@ -50,6 +54,7 @@ const TextSelectionMenu = forwardRef(function TextSelectionMenu({
   onSearchIn,
   engineTemplates = [],
   spell = null,
+  spellingHint = false,
   onReplaceWord,
   onAddWord,
   onClose,
@@ -158,6 +163,13 @@ const TextSelectionMenu = forwardRef(function TextSelectionMenu({
               )}
             </div>
           )}
+        </>
+      )}
+      {spellingHint && (
+        <>
+          <ContextMenuDivider />
+          {/* not an action: where the browser keeps the spelling suggestions this menu cannot show */}
+          <ContextMenuItem label={spellingHintLabel(mac)} action="spelling" disabled onClick={() => {}} testId="spell-browser-hint" />
         </>
       )}
     </ContextMenu>

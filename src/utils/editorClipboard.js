@@ -12,9 +12,10 @@
  *     will not say (permission denied, no Clipboard API): then Paste stays
  *     enabled and an empty clipboard pastes nothing, rather than hiding a
  *     working Paste;
- *   - the clipboard is read through the async Clipboard API (readText, then
- *     read() for non-text items) - no preload bridge: Electron's renderer
- *     has the same API and grants it; a browser may ask once;
+ *   - the clipboard is read through the async Clipboard API (readText) - no
+ *     preload bridge: Electron's renderer has the same API and grants it.
+ *     While the menu opens it is only read where that shows nothing
+ *     (peekClipboardState); Paste itself reads, and a browser may then ask;
  *   - Cut and Copy run the editor's own commands on the restored selection
  *     (document.execCommand('cut' / 'copy') - what the keys do: the same
  *     clipboard write, the same `input` event with inputType deleteByCut,
@@ -59,6 +60,28 @@ export async function readClipboardState(nav = typeof navigator !== 'undefined' 
   }
   // readText gave nothing: an image or a file may be there, which a textarea cannot take - still 'empty' for it
   return 'empty';
+}
+
+/**
+ * The same question, asked while the menu OPENS - so only where asking is silent. A clipboard read is not silent
+ * in every browser: Safari and Firefox answer a page's read with a "Paste" button of their own at the pointer
+ * (and wait for it), and Chromium asks for the permission the first time. Opening our menu must never bring
+ * that up - it would stand where the menu is. So:
+ *   - the desktop app reads (its renderer is granted the clipboard; nothing is shown);
+ *   - a browser reads only when it says the permission is already granted (Chromium, once the user allowed it);
+ *   - otherwise 'unknown': Paste stays enabled, and choosing it is the user's own request to read.
+ */
+export async function peekClipboardState({ nav = typeof navigator !== 'undefined' ? navigator : null, win = typeof window !== 'undefined' ? window : undefined } = {}) {
+  if (win && win.electronAPI) return readClipboardState(nav);
+  const permissions = nav && nav.permissions;
+  if (!permissions || typeof permissions.query !== 'function') return 'unknown';
+  try {
+    const status = await permissions.query({ name: 'clipboard-read' });
+    if (!status || status.state !== 'granted') return 'unknown';
+  } catch {
+    return 'unknown';   // the browser does not know this permission (Safari, Firefox): reading would show its Paste button
+  }
+  return readClipboardState(nav);
 }
 
 const restoreSelection = (textarea, start, end) => {
