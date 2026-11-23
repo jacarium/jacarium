@@ -62,7 +62,7 @@ LABEL com.jacarium.image=deploy com.jacarium.stage=ui
 # same ubi9-minimal the runtime stage uses, with the toolchain from the UBI
 # repos (tar for the tarball: minimal does not carry it).
 # ---------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9-minimal:9.9-1794467051@sha256:baafce2d34783a28b4a472779f304e97e00f9d35c99553bc53b068b14344d9a9 AS taskwarrior
+FROM registry.access.redhat.com/ubi9-minimal:1795198241@sha256:08d4c70f1baf6537a0728656cf7942d561e74a35916509d205b6519861266352 AS taskwarrior
 RUN microdnf -y --setopt=install_weak_deps=0 --nodocs install tar gzip gcc-c++ cmake make libuuid-devel \
  && microdnf clean all
 WORKDIR /build
@@ -191,7 +191,7 @@ RUN printf '%s\n' 'package main' '' 'import (' '	caddycmd "github.com/caddyserve
 # 2.34-290.el9_9 and 2.37.4-28.el9_9.1; krb5-libs and rpm are raised past it
 # since 2026-11-22 - docs/security/urgent-updates.md).
 # ---------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9-minimal:9.9-1794467051@sha256:baafce2d34783a28b4a472779f304e97e00f9d35c99553bc53b068b14344d9a9
+FROM registry.access.redhat.com/ubi9-minimal:1795198241@sha256:08d4c70f1baf6537a0728656cf7942d561e74a35916509d205b6519861266352
 LABEL org.opencontainers.image.title="Jacarium" \
       org.opencontainers.image.description="Jacarium UI + backend behind Caddy (HTTPS)" \
       org.opencontainers.image.url="https://jacarium.com"
