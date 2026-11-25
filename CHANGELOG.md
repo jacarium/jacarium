@@ -4,6 +4,19 @@ What changed in each release of Jacarium. The app shows the same notes
 under What's New; `npm run release` adds each new version at the top
 (see [docs/HOW_TO_RELEASE.md](docs/HOW_TO_RELEASE.md)).
 
+## What's New in v4.5.2
+
+_2026-11-25_
+
+### [DOCUMENTS]
+
+In the document editor, hovering Search In on the right-click menu no longer moves the whole menu up the window when it was opened low in a document: the menu stays where it opened and only the Search In list places itself beside it, opening to the left or moving up when there is no room, and scrolling when it is long
+
+### [TESTS]
+
+New tests in Chromium, WebKit and the desktop app open the menu near the bottom and the top of the editor, in a wide and a narrow window, and check that the menu does not move, that the list stays on screen and that the pointer can reach its last row
+
+
 ## What's New in v4.5.1
 
 _2026-11-23_

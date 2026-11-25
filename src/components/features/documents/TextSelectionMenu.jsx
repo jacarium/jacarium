@@ -1,7 +1,5 @@
-import { forwardRef, useState } from 'react';
-import { ChevronRight } from 'lucide-react';
-import ContextMenu, { ContextMenuItem, ContextMenuDivider } from '../../common/menus/ContextMenu';
-import { MenuItemIcon } from '../../common/menus/MenuItemIcon';
+import { forwardRef } from 'react';
+import ContextMenu, { ContextMenuItem, ContextMenuDivider, ContextMenuLabel, ContextSubmenu } from '../../common/menus/ContextMenu';
 import { clipboardMenuState, clipboardShortcuts } from '../../../utils/editorClipboard';
 import { spellingHintLabel } from '../../../utils/editorSurface';
 
@@ -59,8 +57,6 @@ const TextSelectionMenu = forwardRef(function TextSelectionMenu({
   onAddWord,
   onClose,
 }, ref) {
-  const [showSearchSubmenu, setShowSearchSubmenu] = useState(false);
-
   if (!visible) return null;
 
   const hasSelection = !!(selectedText && selectedText.trim());
@@ -103,65 +99,19 @@ const TextSelectionMenu = forwardRef(function TextSelectionMenu({
             <ContextMenuItem label="Add as AI Context" action="aiContext" onClick={() => onAddAsContext?.()} testId="selection-add-context" />
           )}
 
-          {/* Search In with submenu */}
+          {/* Search In: the engine templates by category, in the shared submenu (its own popup beside the row) */}
           {engineTemplates.length > 0 && (
-            <div
-              className="relative"
-              onMouseEnter={() => setShowSearchSubmenu(true)}
-              onMouseLeave={() => setShowSearchSubmenu(false)}
-            >
-              <button
-                type="button"
-                role="menuitem"
-                aria-haspopup="menu"
-                aria-expanded={showSearchSubmenu}
-                onClick={() => setShowSearchSubmenu((open) => !open)}
-                onKeyDown={(e) => { if (e.key === 'ArrowRight') { e.preventDefault(); setShowSearchSubmenu(true); } if (e.key === 'ArrowLeft') { e.preventDefault(); setShowSearchSubmenu(false); } }}
-                className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary focus:outline-hidden focus-visible:bg-os-card-secondary data-[active=true]:bg-os-card-secondary flex items-center justify-between gap-2"
-                data-testid="selection-search-in"
-              >
-                <div className="flex items-center gap-2">
-                  <MenuItemIcon action="searchIn" />
-                  Search In
-                </div>
-                <ChevronRight size={14} className="text-os-text-muted" />
-              </button>
-
-              {/* Submenu */}
-              {showSearchSubmenu && (
-                <div
-                  role="menu"
-                  aria-label="Search In"
-                  className="absolute left-full top-0 -ml-px bg-os-card border border-os-border rounded-sm shadow-lg py-1 min-w-[200px] max-h-[300px] overflow-y-auto"
-                  style={{ zIndex: 100 }}
-                  onMouseEnter={() => setShowSearchSubmenu(true)}
-                  onMouseLeave={() => setShowSearchSubmenu(false)}
-                >
-                  {categories.map(category => (
-                    <div key={category}>
-                      <div className="px-4 py-1 text-xs font-semibold text-os-text-muted uppercase tracking-wide">
-                        {category}
-                      </div>
-                      {categorizedTemplates[category].map(template => (
-                        <button
-                          key={template.id}
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            onSearchIn?.(template);
-                            setShowSearchSubmenu(false);
-                            onClose?.(); // Close the parent menu as well
-                          }}
-                          className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary focus:outline-hidden focus-visible:bg-os-card-secondary data-[active=true]:bg-os-card-secondary"
-                        >
-                          {template.name}
-                        </button>
-                      ))}
-                    </div>
+            <ContextSubmenu label="Search In" action="searchIn" testId="selection-search-in">
+              {categories.map((category) => (
+                <div key={category}>
+                  <ContextMenuLabel label={category} />
+                  {categorizedTemplates[category].map((template) => (
+                    // (handleSearchInEngine closes the whole menu)
+                    <ContextMenuItem key={template.id} label={template.name} onClick={() => { onSearchIn?.(template); onClose?.(); }} />
                   ))}
                 </div>
-              )}
-            </div>
+              ))}
+            </ContextSubmenu>
           )}
         </>
       )}

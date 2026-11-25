@@ -1,8 +1,10 @@
-import { forwardRef, useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import ErrorBoundary from '../ErrorBoundary';
 import { MenuItemIcon } from './MenuItemIcon';
 import { usePopupPosition } from '../../../hooks/usePopupPosition.js';
+import { isMobileLayout } from '../../../utils/mobile';
 
 /**
  * ContextMenu - Right-click context menu component
@@ -191,6 +193,96 @@ export function ContextMenuItem({
       <span className="flex-1">{label}</span>
       {shortcut && <span className="ml-6 text-xs text-os-text-muted" aria-hidden="true">{shortcut}</span>}
     </button>
+  );
+}
+
+/**
+ * ContextSubmenu - a row of a context menu that opens a submenu beside it (hover, a click, Arrow Right; Arrow Left
+ * closes it and the row has the focus again). Its children are the submenu's rows: ContextMenuItem,
+ * ContextMenuLabel, ContextMenuDivider.
+ *
+ * The submenu is its OWN popup: position: fixed, placed by the shared placement beside the row - at the row's right,
+ * at its left when the window has no room there, moved up when the window is short, its height capped (it scrolls
+ * inside). It is not laid out inside the menu's box, so opening it never changes the size the menu is placed by:
+ * the menu stays exactly where it is. (A submenu positioned absolute inside the menu overflowed it; the placement
+ * measured that overflow as the menu's height and moved the whole menu up the window.) It stays a DOM child of
+ * the row, so the menu's click-outside handling and its Arrow keys treat it as part of the menu.
+ *
+ * @param {string} label - the row's label
+ * @param {Component} [icon] - lucide icon before the label (one of MENU_ICONS)
+ * @param {string} [action] - a MENU_ICONS key, instead of `icon`
+ * @param {string} [submenuLabel] - the submenu's accessible name (default: the label)
+ * @param {number} [cap=300] - the height the submenu never exceeds (it scrolls inside)
+ * @param {string} [testId] - data-testid of the row; the submenu gets `${testId}-submenu`
+ */
+export function ContextSubmenu({ label, icon, action, submenuLabel, cap = 300, testId, children }) {
+  const [open, setOpen] = useState(false);
+  const [first, setFirst] = useState({ x: 0, y: 0 });   // the first paint (and a phone's place); the placement takes over
+  const rowRef = useRef(null);
+  const submenuRef = useRef(null);
+  // the anchor is the row as it is now, read at each placement
+  usePopupPosition(submenuRef, {
+    open,
+    anchor: () => (rowRef.current && rowRef.current.isConnected ? rowRef.current.getBoundingClientRect() : null),
+    side: 'right', gap: 0, cap,
+  });
+  const show = () => {
+    const row = rowRef.current;
+    if (!row) return;
+    const rect = row.getBoundingClientRect();
+    if (isMobileLayout()) {
+      // a phone: full width (src/mobile.css .sc-submenu) under the row, above it when there is no room below
+      const half = Math.min(cap, window.innerHeight * 0.5);
+      let y = rect.bottom + 4;
+      if (y + half > window.innerHeight - 70) y = Math.max(10, rect.top - 4 - half);
+      setFirst({ x: 12, y });
+    } else {
+      setFirst({ x: rect.right, y: rect.top });
+    }
+    setOpen(true);
+  };
+  const hide = () => setOpen(false);
+  const onRowKey = (e) => {
+    if (e.key === 'ArrowRight') { e.preventDefault(); show(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); hide(); }
+  };
+  const onSubmenuKey = (e) => {
+    if (e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    hide();
+    if (rowRef.current) rowRef.current.focus();
+  };
+  return (
+    <div onMouseEnter={show} onMouseLeave={hide}>
+      <button
+        ref={rowRef}
+        type="button"
+        role="menuitem"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={(e) => { e.stopPropagation(); if (open) hide(); else show(); }}
+        onKeyDown={onRowKey}
+        data-testid={testId}
+        className="w-full px-4 py-2 text-left text-sm text-os-text-primary hover:bg-os-card-secondary flex items-center gap-2 transition-colors cursor-pointer focus:outline-hidden focus-visible:bg-os-card-secondary"
+      >
+        <MenuItemIcon icon={icon} action={action} />
+        <span className="flex-1">{label}</span>
+        <ChevronRight size={14} className="text-os-text-muted" aria-hidden="true" />
+      </button>
+      {open && (
+        <div
+          ref={submenuRef}
+          role="menu"
+          aria-label={submenuLabel || label}
+          data-testid={testId ? `${testId}-submenu` : undefined}
+          onKeyDown={onSubmenuKey}
+          className="sc-submenu fixed bg-os-card border border-os-border rounded-sm shadow-lg py-1 min-w-[200px] z-60"
+          style={{ left: `${first.x}px`, top: `${first.y}px` }}
+        >
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
 

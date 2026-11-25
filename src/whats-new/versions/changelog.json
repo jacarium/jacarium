@@ -1,5 +1,23 @@
 [
   {
+    "version": "4.5.2",
+    "date": "2026-11-25",
+    "features": [
+      {
+        "category": "DOCUMENTS",
+        "description": [
+          "In the document editor, hovering Search In on the right-click menu no longer moves the whole menu up the window when it was opened low in a document: the menu stays where it opened and only the Search In list places itself beside it, opening to the left or moving up when there is no room, and scrolling when it is long"
+        ]
+      },
+      {
+        "category": "TESTS",
+        "description": [
+          "New tests in Chromium, WebKit and the desktop app open the menu near the bottom and the top of the editor, in a wide and a narrow window, and check that the menu does not move, that the list stays on screen and that the pointer can reach its last row"
+        ]
+      }
+    ]
+  },
+  {
     "version": "4.5.1",
     "date": "2026-11-23",
     "features": [
